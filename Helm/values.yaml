@@ -3,6 +3,22 @@ global:
   runAsUser: user-id
   runAsGroup: group-id
 
+ctffind:
+  replicas: 1
+  image: gcr.io/image/path
+  command: zocalo.service -s service-name -e environment
+  extraVolumes:
+  - name: home
+    hostPath:
+      path: /home
+      type: Directory
+  extraVolumeMounts:
+  - mountPath: /home
+    name: home
+    mountPropagation: HostToContainer
+    readOnly: true
+  configMap: zocalo-conf
+
 motioncorr:
   replicas: 1
   image: gcr.io/image/path
@@ -18,5 +34,19 @@ motioncorr:
     mountPropagation: HostToContainer
     readOnly: true
   configMap: zocalo-conf
-  dbSecretName: dev-db # name for database credentials
-  dbFileName: db-dev.cfg
+
+tomo_align:
+  replicas: 1
+  image: gcr.io/image/path
+  command: zocalo.service -s service-name -e environment
+  extraVolumes:
+  - name: dls
+    hostPath:
+      path: /dls
+      type: Directory
+  extraVolumeMounts:
+  - mountPath: /dls
+    name: dls
+    mountPropagation: HostToContainer
+    readOnly: true
+  configMap: zocalo-conf

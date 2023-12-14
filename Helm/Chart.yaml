@@ -3,4 +3,6 @@ name: cryoem-services
 description: An umbrella Helm chart for EM processing services
 version: 0.0.1
 dependencies:
+- name: ctffind
 - name: motioncorr
+- name: tomo_align
