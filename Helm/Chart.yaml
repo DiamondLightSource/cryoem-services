@@ -1,0 +1,6 @@
+apiVersion: v2
+name: cryoem-services
+description: An umbrella Helm chart for EM processing services
+version: 0.0.1
+dependencies:
+- name: motioncorr
