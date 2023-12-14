@@ -1,0 +1,92 @@
+{
+  "1": {
+    "output": 2,
+    "parameters": {
+      "dcid": "{dcid}",
+      "ispyb_command": "insert_movie",
+      "movie_path": "{movie}",
+      "store_result": "ispyb_movie_id"
+    },
+    "queue": "ispyb_connector",
+    "service": "ISPyB connector"
+  },
+  "2": {
+    "output": {
+      "ctffind": 6,
+      "images": 4,
+      "ispyb_connector": 3,
+      "murfey_feedback": 5
+    },
+    "parameters": {
+      "ctf": {
+        "output_image": "{output_image}"
+      },
+      "eer_sampling": 1,
+      "experiment_type": "tomography",
+      "fm_dose": "{fm_dose}",
+      "fm_int_file": "{fm_int_file}",
+      "ft_bin": "{ft_bin}",
+      "gain_ref": "{gain_ref}",
+      "kv": "{kv}",
+      "mc_uuid": "{mc_uuid}",
+      "movie": "{movie}",
+      "movie_id": "$ispyb_movie_id",
+      "mrc_out": "{mrc_out}",
+      "picker_uuid": "-1",
+      "pix_size": "{pix_size}"
+    },
+    "queue": "motioncorr",
+    "service": "MotionCorr"
+  },
+  "3": {
+    "parameters": {
+      "dcid": "{dcid}",
+      "image_number": "{image_number}",
+      "ispyb_command": "buffer",
+      "movie_id": "$ispyb_movie_id",
+      "program_id": "{autoproc_program_id}"
+    },
+    "queue": "ispyb_connector",
+    "service": "ISPyB connector"
+  },
+  "4": {
+    "parameters": {
+      "image_command": "mrc_to_jpeg"
+    },
+    "queue": "images",
+    "service": "Images"
+  },
+  "5": {
+    "parameters": {
+      "program_id": "{autoproc_program_id}"
+    },
+    "queue": "{feedback_queue}",
+    "service": "Murfey"
+  },
+  "6": {
+    "output": {
+      "images": 4,
+      "ispyb_connector": 7
+    },
+    "parameters": {
+      "pix_size": "{pix_size}"
+    },
+    "queue": "ctffind",
+    "service": "CTFFind"
+  },
+  "7": {
+    "parameters": {
+      "dcid": "{dcid}",
+      "ispyb_command": "buffer",
+      "program_id": "{autoproc_program_id}"
+    },
+    "queue": "ispyb_connector",
+    "service": "ISPyB connector"
+  },
+  "start": [
+    [
+      1,
+      []
+    ]
+  ]
+}

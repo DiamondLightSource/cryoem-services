@@ -1,0 +1,71 @@
+{
+  "1": {
+    "output": {
+      "denoise": 4,
+      "failure": 2,
+      "images": 5,
+      "ispyb_connector": 3,
+      "movie": 5,
+      "projxy": 5,
+      "projxz": 5,
+      "success": 6
+    },
+    "parameters": {
+      "input_file_list": "{input_file_list}",
+      "manual_tilt_offset": "{manual_tilt_offset}",
+      "path_pattern": "{path_pattern}",
+      "pix_size": "{pix_size}",
+      "stack_file": "{stack_file}"
+    },
+    "queue": "tomo_align",
+    "service": "TomoAlign"
+  },
+  "2": {
+    "parameters": {
+      "ispyb_command": "update_processing_status",
+      "message": "processing failure",
+      "program_id": "{appid}",
+      "status": "failure"
+    },
+    "queue": "ispyb_connector",
+    "service": "ISPyB connector"
+  },
+  "3": {
+    "parameters": {
+      "dcid": "{dcid}",
+      "ispyb_command": "multipart_message",
+      "program_id": "{appid}",
+      "tomogram_id": "$ispyb_tomogram_id"
+    },
+    "queue": "ispyb_connector",
+    "service": "ISPyB connector"
+  },
+  "4": {
+    "output": {
+      "images": 5,
+      "movie": 5
+    },
+    "queue": "denoise",
+    "service": "Denoise"
+  },
+  "5": {
+    "queue": "images",
+    "service": "Images"
+  },
+  "6": {
+    "parameters": {
+      "ispyb_command": "update_processing_status",
+      "message": "processing successful",
+      "program_id": "{appid}",
+      "status": "success"
+    },
+    "queue": "ispyb_connector",
+    "service": "ISPyB connector"
+  },
+  "start": [
+    [
+      1,
+      []
+    ]
+  ]
+}
