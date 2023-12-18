@@ -263,14 +263,14 @@ def mrc_to_apng(plugin_params):
             im.thumbnail((512, 512))
             images_to_append.append(im)
         try:
-            im.save(outfile, save_all=True, append_images=images_to_append)
-        except FileNotFoundError:
-            logger.error(
-                f"Trying to save to file {outfile} but directory does not exist"
-            )
+            im_frame0 = images_to_append[0]
+            im_frame0.save(outfile, save_all=True, append_images=images_to_append[1:])
+        except (IndexError, FileNotFoundError):
+            logger.error(f"Unable to save movie to file {outfile}")
             return False
     else:
         logger.error(f"File {filepath} is not a 3D volume")
+        return False
     timing = time.perf_counter() - start
     logger.info(
         f"Converted mrc to apng {filename} -> {outfile} in {timing:.1f} seconds"
