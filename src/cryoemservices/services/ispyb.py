@@ -45,7 +45,7 @@ class EMISPyB(CommonService):
     """A service that receives information to be written to ISPyB."""
 
     # Human readable service name
-    _service_name = "ISPyB connector for EM"
+    _service_name = "EMISPyB"
 
     # Logger name
     _logger_name = "cryoemservices.services.ispyb"
@@ -523,6 +523,7 @@ class EMISPyB(CommonService):
             self.log.info(f"Found Movie ID: {mvid}")
             return mvid
         else:
+            self.log.error(f"Unable to find movie ID for {movie_name}")
             return None
 
     @validate_arguments(config={"arbitrary_types_allowed": True})
@@ -955,6 +956,10 @@ class EMISPyB(CommonService):
             mvid = full_parameters("movie_id")
         else:
             mvid = self._get_movie_id(full_parameters("path"), dcid, session)
+
+        if not mvid:
+            self.log.error("No movie ID for tilt image alignment")
+            return False
 
         try:
             values = models.TiltImageAlignment(
