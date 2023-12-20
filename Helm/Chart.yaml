@@ -5,4 +5,6 @@ version: 0.0.1
 dependencies:
 - name: ctffind
 - name: motioncorr
+- name: motioncorr_slurm
+- name: node_creator
 - name: tomo_align

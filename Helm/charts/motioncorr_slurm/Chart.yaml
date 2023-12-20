@@ -1,0 +1,4 @@
+apiVersion: v2
+name: motioncorr_slurm
+description: A Helm chart for MotionCorr service which submits to a slurm cluster
+version: 0.0.1
