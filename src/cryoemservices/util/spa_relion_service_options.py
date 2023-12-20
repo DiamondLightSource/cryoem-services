@@ -90,11 +90,11 @@ class RelionServiceOptions(BaseModel):
     ampl_contrast: float = 0.1
 
     # Local motion-estimation patches for MotionCor2
-    motioncor_patches_x: int = 5
-    motioncor_patches_y: int = 5
+    motion_corr_patches_x: int = 5
+    motion_corr_patches_y: int = 5
 
     # Additional arguments for RELION's Motion Correction wrapper
-    motioncor_other_args: str = "--do_at_most 200 --skip_logfile"
+    motion_corr_other_args: str = "--do_at_most 200 --skip_logfile"
     # Threshold for cryolo autopicking
     cryolo_threshold: float = 0.15
     # Location of the cryolo specific files
@@ -156,10 +156,10 @@ def generate_service_options(
         if Path(relion_options.gain_ref).exists()
         else "",
         "eer_grouping": relion_options.eer_grouping,
-        "patch_x": relion_options.motioncor_patches_x,
-        "patch_y": relion_options.motioncor_patches_y,
+        "patch_x": relion_options.motion_corr_patches_x,
+        "patch_y": relion_options.motion_corr_patches_y,
         "bin_factor": relion_options.motion_corr_binning,
-        "other_args": f"{relion_options.motioncor_other_args}",
+        "other_args": f"{relion_options.motion_corr_other_args}",
         "nr_mpi": 4,
         "nr_threads": 10,
     }
