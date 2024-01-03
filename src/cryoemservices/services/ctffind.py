@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Optional
 
 import workflows.recipe
-from pydantic import BaseModel, Field, ValidationError, validator
+from pydantic import BaseModel, Field, ValidationError, field_validator
 from workflows.services.common_service import CommonService
 
 from cryoemservices.util.spa_relion_service_options import RelionServiceOptions
@@ -36,7 +36,8 @@ class CTFParameters(BaseModel):
     relion_options: Optional[RelionServiceOptions] = None
     autopick: dict = {}
 
-    @validator("experiment_type")
+    @field_validator("experiment_type")
+    @classmethod
     def is_spa_or_tomo(cls, experiment):
         if experiment not in ["spa", "tomography"]:
             raise ValueError("Specify an experiment type of spa or tomography.")
