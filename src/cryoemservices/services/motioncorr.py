@@ -396,7 +396,7 @@ class MotionCorr(CommonService):
                 mc2_flags["fm_int_file"] = "-FmIntFile"
 
             # Add values from input parameters with flags
-            for k, v in mc_params.dict().items():
+            for k, v in mc_params.model_dump().items():
                 if (v not in [None, ""]) and (k in mc2_flags):
                     if type(v) is dict:
                         command.extend(
@@ -439,12 +439,12 @@ class MotionCorr(CommonService):
                 "bft": {"--bfactor": "local_motion"},
             }
             # Add values from input parameters with flags
-            for param_k, param_v in mc_params.dict().items():
+            for param_k, param_v in mc_params.model_dump().items():
                 if (param_v not in [None, ""]) and (param_k in relion_mc_flags):
                     if type(param_v) is dict:
                         for flag_k, flag_v in relion_mc_flags[param_k].items():
                             command.extend(
-                                (flag_k, str(mc_params.dict()[param_k][flag_v]))
+                                (flag_k, str(mc_params.model_dump()[param_k][flag_v]))
                             )
                     else:
                         command.extend((relion_mc_flags[param_k], str(param_v)))
