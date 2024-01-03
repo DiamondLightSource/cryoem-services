@@ -98,7 +98,10 @@ def picked_particles(plugin_params):
         logger.info(f"Replacing jpeg extension with mrc extension for {basefilename}")
         basefilename = basefilename.replace(".jpeg", ".mrc")
     coords = plugin_params.parameters("coordinates")
-    angpix = plugin_params.parameters("angpix")
+    pixel_size = plugin_params.parameters("pixel_size")
+    if not pixel_size:
+        # Legacy case of zocalo-relion
+        pixel_size = plugin_params.parameters("angpix")
     diam = plugin_params.parameters("diameter")
     contrast_factor = plugin_params.parameters("contrast_factor", default=6)
     outfile = plugin_params.parameters("outfile")
@@ -108,7 +111,7 @@ def picked_particles(plugin_params):
     if not Path(basefilename).is_file():
         logger.error(f"File {basefilename} not found")
         return False
-    radius = (diam / angpix) // 2
+    radius = (diam / pixel_size) // 2
     start = time.perf_counter()
     try:
         with mrcfile.open(basefilename) as mrc:
