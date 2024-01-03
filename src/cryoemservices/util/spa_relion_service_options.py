@@ -4,7 +4,7 @@ import math
 from pathlib import Path
 from typing import Any, Dict
 
-from pydantic import BaseModel, root_validator
+from pydantic import BaseModel, ConfigDict, model_validator
 
 
 def calculate_box_size(particle_size_pixels):
@@ -120,10 +120,10 @@ class RelionServiceOptions(BaseModel):
     class3d_nr_classes: int = 4
     class3d_nr_iter: int = 25
 
-    class Config:
-        validate_assignment = True
+    model_config = ConfigDict(validate_assignment=True)
 
-    @root_validator(skip_on_failure=True)
+    @model_validator(mode="before")
+    @classmethod
     def if_particle_diameter_compute_box_sizes(cls, values):
         if values.get("particle_diameter"):
             values["mask_diameter"] = 1.1 * values["particle_diameter"]
