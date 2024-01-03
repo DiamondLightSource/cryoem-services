@@ -12,7 +12,7 @@ from typing import Any, List, Optional
 import plotly.express as px
 import workflows.recipe
 from gemmi import cif
-from pydantic import BaseModel, Field, ValidationError, validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 from workflows.services.common_service import CommonService
 
 from cryoemservices.util.relion_service_options import (
@@ -67,14 +67,14 @@ class MotionCorrParameters(BaseModel):
     relion_options: RelionServiceOptions
     ctf: dict = {}
 
-    @validator("experiment_type")
+    @field_validator("experiment_type")
+    @classmethod
     def is_spa_or_tomo(cls, experiment):
         if experiment not in ["spa", "tomography"]:
             raise ValueError("Specify an experiment type of spa or tomography.")
         return experiment
 
-    class Config:
-        ignore_extra = True
+    model_config = ConfigDict(ignore_extra=True)
 
 
 class ChainMapWithReplacement(ChainMap):

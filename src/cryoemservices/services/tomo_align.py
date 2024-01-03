@@ -12,7 +12,7 @@ import mrcfile
 import plotly.express as px
 import workflows.recipe
 import workflows.transport
-from pydantic import BaseModel, Field, ValidationError, validator
+from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 from workflows.services.common_service import CommonService
 
 from cryoemservices.util.relion_service_options import (
@@ -49,18 +49,22 @@ class TomoParameters(BaseModel):
     tomogram_uuid: int
     relion_options: RelionServiceOptions
 
-    @validator("input_file_list")
-    def check_only_one_is_provided(cls, v, values):
-        if not v and not values.get("path_pattern"):
+    @model_validator(mode="before")
+    @classmethod
+    def check_only_one_is_provided(cls, values):
+        input_file_list = values.get("input_file_list")
+        path_pattern = values.get("path_pattern")
+        if not input_file_list and not path_pattern:
             raise ValueError("input_file_list or path_pattern must be provided")
-        if v and values.get("path_pattern"):
+        if input_file_list and path_pattern:
             raise ValueError(
                 "Message must only include one of 'path_pattern' and 'input_file_list'."
                 " Both are set or one has been set by the recipe."
             )
-        return v
+        return values
 
-    @validator("input_file_list")
+    @field_validator("input_file_list")
+    @classmethod
     def convert_to_list_of_lists(cls, v):
         file_list = None
         try:
@@ -74,7 +78,8 @@ class TomoParameters(BaseModel):
         else:
             raise ValueError("input_file_list is not a list of lists")
 
-    @validator("input_file_list")
+    @field_validator("input_file_list")
+    @classmethod
     def check_lists_are_not_empty(cls, v):
         for item in v:
             if not item:
