@@ -3,8 +3,15 @@ name: cryoem-services
 description: An umbrella Helm chart for EM processing services
 version: 0.0.1
 dependencies:
+- name: cryolo
 - name: ctffind
+- name: extract
+- name: icebreaker
+- name: images
+- name: ispyb
 - name: motioncorr
 - name: motioncorr_slurm
 - name: node_creator
+- name: select_classes
+- name: select_particles
 - name: tomo_align
