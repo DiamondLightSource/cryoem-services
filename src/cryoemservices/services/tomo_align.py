@@ -86,9 +86,9 @@ class TomoAlign(CommonService):
     _logger_name = "cryoemservices.services.tomo_align"
 
     # Values to extract for ISPyB
-    refined_tilts: List[float] | None = None
+    refined_tilts: List[float]
+    rot_centre_z_list: List[str]
     tilt_offset: float | None = None
-    rot_centre_z_list: List[str] = []
     rot_centre_z: str | None = None
     rot: float | None = None
     mag: float | None = None
@@ -104,6 +104,11 @@ class TomoAlign(CommonService):
     alignment_output_dir: str | None = None
     stack_name: str | None = None
     alignment_quality: float | None = None
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.refined_tilts = []
+        self.rot_centre_z_list = []
 
     def initializing(self):
         """Subscribe to a queue. Received messages must be acknowledged."""

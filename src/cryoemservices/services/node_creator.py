@@ -127,10 +127,7 @@ class NodeCreator(CommonService):
     _service_name = "NodeCreator"
 
     # Logger name
-    _logger_name = "cryoemservices.services..node_creator"
-
-    # Values to extract for ISPyB
-    shift_list = []
+    _logger_name = "cryoemservices.services.node_creator"
 
     def initializing(self):
         """Subscribe to a queue. Received messages must be acknowledged."""

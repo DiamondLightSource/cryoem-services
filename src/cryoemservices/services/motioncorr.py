@@ -103,8 +103,10 @@ class MotionCorr(CommonService):
     job_type = "relion.motioncorr"
 
     # Values to extract for ISPyB
-    x_shift_list = []
-    y_shift_list = []
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.x_shift_list = []
+        self.y_shift_list = []
 
     def initializing(self):
         """Subscribe to a queue. Received messages must be acknowledged."""

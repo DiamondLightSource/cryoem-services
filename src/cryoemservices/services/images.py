@@ -39,7 +39,11 @@ class Images(CommonService):
     _logger_name = "cryoemservices.services.images"
 
     # Dictionary to contain functions from plugins
-    image_functions: dict[str, Callable] = {}
+    image_functions: dict[str, Callable]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.image_functions = {}
 
     def initializing(self):
         """Subscribe to a queue. Received messages must be acknowledged."""
