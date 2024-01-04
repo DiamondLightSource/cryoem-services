@@ -952,18 +952,50 @@ def test_motioncor_relion_service_tomo(
 
 def test_parse_motioncor2_output(mock_environment, offline_transport):
     """
-    Send test lines to the output parser
+    Send test lines to the output parser for MotionCor2
     to check the shift values are being read in
     """
     service = motioncorr.MotionCorr(environment=mock_environment)
     service.transport = offline_transport
     service.start()
 
+    # MotionCor2 v1.4.0 case
     motioncorr.MotionCorr.parse_mc2_stdout(
-        service, "...... Frame (  1) shift:    -3.0      4.0"
+        service, "...... Frame (  1) shift:    -1.0      2.0"
     )
     motioncorr.MotionCorr.parse_mc2_stdout(
-        service, "...... Frame (  2) shift:    3.0      -4.0"
+        service, "...... Frame (  2) shift:    1.0      -2.0"
+    )
+    assert service.x_shift_list == [-1.0, 1.0]
+    assert service.y_shift_list == [2.0, -2.0]
+
+    # MotionCor2 v1.6.3 case
+    service.x_shift_list = []
+    service.y_shift_list = []
+    print(service.x_shift_list, service.y_shift_list, type(service.x_shift_list))
+    motioncorr.MotionCorr.parse_mc2_stdout(
+        service, "Frame   x Shift   y Shift\n1    -3.0      4.0\n2    3.0      -4.0"
     )
     assert service.x_shift_list == [-3.0, 3.0]
     assert service.y_shift_list == [4.0, -4.0]
+
+
+def test_parse_relion_output(mock_environment, offline_transport, tmp_path):
+    """
+    Send a test file to the output parser for Relion's motion correction
+    to check the shift values are being read in
+    """
+    service = motioncorr.MotionCorr(environment=mock_environment)
+    service.transport = offline_transport
+    service.start()
+
+    with open(tmp_path / "mc_output.star", "w") as mc_output:
+        mc_output.write(
+            "data_global_shift\nloop_\n_rlnMicrographShiftX\n_rlnMicrographShiftY\n"
+            "-5.0 6.0\n"
+            "5.0 -6.0\n"
+        )
+
+    motioncorr.MotionCorr.parse_relion_mc_output(service, tmp_path / "mc_output.star")
+    assert service.x_shift_list == [-5.0, 5.0]
+    assert service.y_shift_list == [6.0, -6.0]

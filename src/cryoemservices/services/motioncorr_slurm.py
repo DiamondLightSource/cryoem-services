@@ -75,7 +75,7 @@ class MotionCorrSlurm(MotionCorr, CommonService):
     # Logger name
     _logger_name = "cryoemservices.services.motioncorr_slurm"
 
-    def parse_mc_output(self, mc_output_file):
+    def parse_mc_slurm_output(self, mc_output_file):
         """
         Read the output logs of MotionCorr to determine
         the movement of each frame
@@ -242,7 +242,7 @@ class MotionCorrSlurm(MotionCorr, CommonService):
         # Read in the MotionCor output then clean up the files
         self.log.info(f"Job {job_id} has finished!")
         try:
-            self.parse_mc_output(mc_output_file)
+            self.parse_mc_slurm_output(mc_output_file)
             with open(mc_output_file, "r") as mc_stdout:
                 stdout = mc_stdout.read()
             with open(mc_error_file, "r") as mc_stderr:
