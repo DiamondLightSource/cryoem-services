@@ -6,6 +6,7 @@ dependencies:
 - name: cluster_submission
 - name: cryolo
 - name: ctffind
+- name: denoise_iris
 - name: dispatcher
 - name: extract
 - name: icebreaker
@@ -17,3 +18,4 @@ dependencies:
 - name: select_classes
 - name: select_particles
 - name: tomo_align
+- name: tomo_align_iris

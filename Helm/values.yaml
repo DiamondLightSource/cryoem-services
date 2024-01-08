@@ -51,6 +51,22 @@ ctffind:
     readOnly: true
   configMap: zocalo-conf
 
+denoise_iris:
+  replicas: 1
+  image: gcr.io/image/path
+  command: zocalo.service -s service-name -e environment
+  extraVolumes:
+  - name: dls
+    hostPath:
+      path: /dls
+      type: Directory
+  extraVolumeMounts:
+  - mountPath: /dls
+    name: dls
+    mountPropagation: HostToContainer
+    readOnly: true
+  configMap: zocalo-conf
+
 dispatcher:
   replicas: 1
   image: gcr.io/image/path
@@ -212,6 +228,22 @@ select_particles:
   configMap: zocalo-conf
 
 tomo_align:
+  replicas: 1
+  image: gcr.io/image/path
+  command: zocalo.service -s service-name -e environment
+  extraVolumes:
+  - name: dls
+    hostPath:
+      path: /dls
+      type: Directory
+  extraVolumeMounts:
+  - mountPath: /dls
+    name: dls
+    mountPropagation: HostToContainer
+    readOnly: true
+  configMap: zocalo-conf
+
+tomo_align_iris:
   replicas: 1
   image: gcr.io/image/path
   command: zocalo.service -s service-name -e environment
