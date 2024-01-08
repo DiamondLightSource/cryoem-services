@@ -1,0 +1,24 @@
+FROM python:3.10
+
+ENV VIRTUAL_ENV=/venv
+RUN python3 -m venv $VIRTUAL_ENV
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+ARG groupid
+ARG userid
+ARG groupname
+
+# Install cryoem-services and pipeliner
+COPY --chown="${userid}":"${groupid}" cryoem-services ./cryoem-services
+COPY --chown="${userid}":"${groupid}" ccpem-pipeliner ./ccpem-pipeliner
+RUN python -m pip install ./cryoem-services && \
+    python -m pip install ./ccpem-pipeliner
+
+# Add cryolo files
+RUN mkdir -p /dls_sw/apps/EM/crYOLO/phosaurus_models
+COPY cryolo_models/* /dls_sw/apps/EM/crYOLO/phosaurus_models
+RUN chown -R "${userid}":"${groupid}" /dls_sw
+
+# Create EM user
+RUN groupadd -r -g "${groupid}" "${groupname}" && useradd -r -M "${groupname}" -u "${userid}" -g "${groupname}"
+USER "${userid}":"${groupid}"
+

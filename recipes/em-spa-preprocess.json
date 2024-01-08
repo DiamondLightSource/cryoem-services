@@ -1,0 +1,124 @@
+{
+  "1": {
+    "output": 2,
+    "parameters": {
+      "dcid": "{dcid}",
+      "ispyb_command": "insert_movie",
+      "movie_path": "{movie}",
+      "store_result": "ispyb_movie_id"
+    },
+    "queue": "ispyb_connector",
+    "service": "ISPyB connector"
+  },
+  "10": {
+    "output": {
+      "images": 5,
+      "ispyb_connector": 9,
+      "murfey_feedback": 11,
+      "node_creator": 3
+    },
+    "parameters": {
+      "particle_diameter": "{particle_diameter}",
+      "retained_fraction": "0.7"
+    },
+    "queue": "cryolo",
+    "service": "CrYOLO"
+  },
+  "11": {
+    "parameters": {
+      "program_id": "{autoproc_program_id}",
+      "session_id": "{session_id}"
+    },
+    "queue": "{feedback_queue}",
+    "service": "Murfey"
+  },
+  "2": {
+    "output": {
+      "ctffind": 8,
+      "icebreaker": 6,
+      "images": 5,
+      "ispyb_connector": 4,
+      "node_creator": 3
+    },
+    "parameters": {
+      "do_icebreaker_jobs": "{do_icebreaker_jobs}",
+      "dose_per_frame": "{fm_dose}",
+      "eer_sampling": 1,
+      "experiment_type": "spa",
+      "fm_int_file": "{fm_int_file}",
+      "ft_bin": "{ft_bin}",
+      "gain_ref": "{gain_ref}",
+      "mc_uuid": "{mc_uuid}",
+      "movie": "{movie}",
+      "movie_id": "$ispyb_movie_id",
+      "mrc_out": "{mrc_out}",
+      "picker_uuid": "{picker_uuid}",
+      "pixel_size": "{pix_size}",
+      "relion_options": {},
+      "threads": 4,
+      "voltage": "{kv}"
+    },
+    "queue": "motioncorr",
+    "service": "MotionCorr"
+  },
+  "3": {
+    "queue": "node_creator",
+    "service": "NodeCreator"
+  },
+  "4": {
+    "parameters": {
+      "dcid": "{dcid}",
+      "image_number": "{image_number}",
+      "ispyb_command": "buffer",
+      "movie_id": "$ispyb_movie_id",
+      "program_id": "{autoproc_program_id}"
+    },
+    "queue": "ispyb_connector",
+    "service": "ISPyB connector"
+  },
+  "5": {
+    "queue": "images",
+    "service": "Images"
+  },
+  "6": {
+    "output": {
+      "icebreaker": 7,
+      "node_creator": 3
+    },
+    "queue": "icebreaker",
+    "service": "IceBreaker"
+  },
+  "7": {
+    "output": {
+      "ispyb_connector": 9,
+      "node_creator": 3
+    },
+    "queue": "icebreaker",
+    "service": "IceBreaker"
+  },
+  "8": {
+    "output": {
+      "cryolo": 10,
+      "images": 5,
+      "ispyb_connector": 9,
+      "node_creator": 3
+    },
+    "queue": "ctffind",
+    "service": "CTFFind"
+  },
+  "9": {
+    "parameters": {
+      "dcid": "{dcid}",
+      "ispyb_command": "buffer",
+      "program_id": "{autoproc_program_id}"
+    },
+    "queue": "ispyb_connector",
+    "service": "ISPyB connector"
+  },
+  "start": [
+    [
+      1,
+      []
+    ]
+  ]
+}

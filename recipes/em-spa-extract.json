@@ -1,0 +1,53 @@
+{
+  "1": {
+    "output": {
+      "node_creator": 2,
+      "select_particles": 3
+    },
+    "parameters": {
+      "batch_size": "{batch_size}",
+      "coord_list_file": "{coord_list_file}",
+      "ctf_figure_of_merit": "{ctf_figure_of_merit}",
+      "ctf_image": "{ctf_image}",
+      "ctf_max_resolution": "{ctf_max_resolution}",
+      "defocus_angle": "{defocus_angle}",
+      "defocus_u": "{defocus_u}",
+      "defocus_v": "{defocus_v}",
+      "downscale": "{downscale}",
+      "micrographs_file": "{micrographs_file}",
+      "output_file": "{output_file}",
+      "particle_diameter": "{particle_diameter}",
+      "pixel_size": "{pix_size}",
+      "relion_options": {},
+      "voltage": "{kv}"
+    },
+    "queue": "extract",
+    "service": "Extract"
+  },
+  "2": {
+    "queue": "node_creator",
+    "service": "NodeCreator"
+  },
+  "3": {
+    "output": {
+      "murfey_feedback": 4,
+      "node_creator": 2
+    },
+    "queue": "select_particles",
+    "service": "SelectParticles"
+  },
+  "4": {
+    "parameters": {
+      "program_id": "{autoproc_program_id}",
+      "session_id": "{session_id}"
+    },
+    "queue": "{feedback_queue}",
+    "service": "Murfey"
+  },
+  "start": [
+    [
+      1,
+      []
+    ]
+  ]
+}

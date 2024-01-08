@@ -1,0 +1,25 @@
+FROM continuumio/miniconda
+
+ARG groupid
+ARG userid
+ARG groupname
+
+# Create different conda environments for cryoem-services and cryolo
+RUN conda create -n services_env -c conda-forge python=3.9 -y && \
+    conda create -n cryolo_env -c conda-forge pyqt=5 python=3.7 cudatoolkit=10.0.130 cudnn=7.6.5 numpy==1.18.5 libtiff wxPython=4.1.1 adwaita-icon-theme conda conda-wrappers --override-channels -y && \
+    conda clean --all --yes
+
+# Install cryoem-services and Cryolo in their own environments
+COPY --chown="${userid}":"${groupid}" cryoem-services ./cryoem-services
+RUN conda run -n services_env /bin/bash -c "pip install -e ./cryoemservices" && \
+    conda run -n cryolo_env /bin/bash -c "pip install cryolo[cpu]==1.8.1"
+
+RUN mkdir -p /dls_sw/apps/EM/crYOLO/phosaurus_models
+COPY cryolo_models/* /dls_sw/apps/EM/crYOLO/phosaurus_models
+RUN chown -R "${userid}":"${groupid}" /dls_sw
+
+RUN echo '#!/bin/bash\n\nif [ ! -z ${RECURSION_PROTECTION} ]; then\n    echo "Unintended recursion detected in zocalo indirection ($0)"\n    exit 1\nfi\nexport RECURSION_PROTECTION=1\n\n. /opt/conda/etc/profile.d/conda.sh\nconda activate /opt/conda/envs/cryolo_env\ncryolo_predict.py "$@"' > /opt/conda/envs/services_env/bin/cryolo_predict.py && \
+    chmod +x /opt/conda/envs/services_env/bin/cryolo_predict.py
+
+ENV PATH="/opt/conda/envs/services_env/bin:${PATH}"
+
