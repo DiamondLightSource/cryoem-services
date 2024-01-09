@@ -1,3 +1,4 @@
+# This Dockerfile is used as a base for the motioncorr and tomo_align Dockerfiles
 FROM nvidia/cuda:10.2-devel-centos7
 
 # Create EM user
@@ -13,16 +14,16 @@ RUN bash Mambaforge-$(uname)-$(uname -m).sh -b -p "conda"
 RUN source "/conda/etc/profile.d/conda.sh" && source "/conda/etc/profile.d/mamba.sh" && mamba create -c conda-forge -p /install/pythonenv python=3.10 pip libtiff=4.4.0 --override-channels -y
 
 # Install cryoem-services and ccp-em pipeliner
-RUN mkdir /install/cryoem-services&& mkdir /install/ccpem-pipeliner
-COPY cryoem-services /install/cryoem-services
-COPY ccpem-pipeliner /install/ccpem-pipeliner
-RUN source "/conda/etc/profile.d/conda.sh" && conda activate /install/pythonenv && pip install -e /install/python-relion && pip install -e /install/ccpem-pipeliner
+RUN mkdir /install/cryoem-services && mkdir /install/ccpem-pipeliner
+COPY packages/cryoem-services /install/cryoem-services
+COPY packages/ccpem-pipeliner /install/ccpem-pipeliner
+RUN source "/conda/etc/profile.d/conda.sh" && conda activate /install/pythonenv && pip install -e /install/cryoem-services && pip install -e /install/ccpem-pipeliner
 
 # Add cryolo files
 RUN mkdir -p /dls_sw/apps/EM/crYOLO/phosaurus_models
 COPY cryolo_models/* /dls_sw/apps/EM/crYOLO/phosaurus_models
 
-# Fix permissions
+# Change permissions
 RUN chown -R "${userid}":"${groupid}" install && chown -R "${userid}":"${groupid}" /dls_sw
 
 ENV PATH="/install/pythonenv/bin:${PATH}"

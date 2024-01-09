@@ -8,8 +8,8 @@ ARG userid
 ARG groupname
 
 # Install cryoem-services and Icebreaker
-COPY --chown="${userid}":"${groupid}" cryoem-services ./cryoem-services
-COPY --chown="${userid}":"${groupid}" python-icebreaker ./icebreaker
+COPY --chown="${userid}":"${groupid}" packages/cryoem-services ./cryoem-services
+COPY --chown="${userid}":"${groupid}" packages/python-icebreaker ./icebreaker
 RUN python -m pip install -e ./cryoem-services && \
     python -m pip install -e ./icebreaker
 

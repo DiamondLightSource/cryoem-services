@@ -10,7 +10,7 @@ RUN conda create -n services_env -c conda-forge python=3.9 -y && \
     conda clean --all --yes
 
 # Install cryoem-services and Cryolo in their own environments
-COPY --chown="${userid}":"${groupid}" cryoem-services ./cryoem-services
+COPY --chown="${userid}":"${groupid}" packages/cryoem-services ./cryoem-services
 RUN conda run -n services_env /bin/bash -c "pip install -e ./cryoemservices" && \
     conda run -n cryolo_env /bin/bash -c "pip install cryolo[cpu]==1.8.1"
 

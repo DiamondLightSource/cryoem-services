@@ -21,6 +21,7 @@ class JobSubmissionParameters(BaseModel):
     scheduler: str = "slurm"
     cluster: Optional[str]
     partition: Optional[str]
+    prefer: Optional[str]
     job_name: Optional[str]
     environment: Optional[dict[str, str]] = None
     cpus_per_task: Optional[int] = None
@@ -61,6 +62,7 @@ def submit_to_slurm(
         script=script,
         job=slurm.models.JobProperties(
             partition=params.partition,
+            prefer=params.prefer,
             name=params.job_name,
             cpus_per_task=params.cpus_per_task,
             tasks=params.tasks,

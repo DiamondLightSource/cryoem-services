@@ -1,0 +1,88 @@
+{
+  "1": {
+    "job_parameters": {
+      "batch_size": "{batch_size}",
+      "class3d_dir": "{class3d_dir}",
+      "class3d_grp_uuid": "{class3d_grp_uuid}",
+      "class3d_nr_classes": "{nr_classes}",
+      "class3d_nr_iter": "{nr_iter}",
+      "class_uuids": "{class_uuids}",
+      "do_initial_model": "{do_initial_model}",
+      "initial_model_file": "{initial_model_file}",
+      "initial_model_iterations": "{initial_model_iterations}",
+      "mask_diameter": "{mask_diameter}",
+      "mpi_run_command": "srun -n 9",
+      "particle_diameter": "{particle_diameter}",
+      "particles_file": "{particles_file}",
+      "picker_id": "{picker_id}",
+      "relion_options": {},
+      "threads": 4
+    },
+    "output": {
+      "ispyb_connector": 4,
+      "murfey_feedback": 3,
+      "node_creator": 2
+    },
+    "parameters": {
+      "cluster": {
+        "account": "em",
+        "cluster": "em",
+        "commands": [
+          "source /etc/profile.d/modules.sh",
+          "module load EM/cryoem-services",
+          "export ZOCALO_CONFIG={zocalo_config_file}",
+          "zocalo.wrap --wrap Class3D --recipewrapper \"$RECIPEWRAP\" >runinfo 2>&1"
+        ],
+        "cpus_per_task": 4,
+        "environment": {
+          "PATH": "/bin/:/usr/bin/:/usr/local/bin/",
+          "USER": "gda2"
+        },
+        "gpus": 4,
+        "job_name": "relion-class3d",
+        "min_memory_per_gpu": 4096,
+        "partition": "{partition}",
+        "prefer": "{partition_preference}",
+        "scheduler": "slurm",
+        "standard_error": "{class2d_dir}/run.err",
+        "standard_output": "{class2d_dir}/run.out",
+        "tasks": 9,
+        "time_limit": "6:00:00"
+      },
+      "recipewrapper": "{class3d_dir}/.recipewrap",
+      "workingdir": "{class3d_dir}/"
+    },
+    "queue": "cluster.submission",
+    "service": "Class3DWrapper",
+    "wrapper": {
+      "task_information": "Class3D"
+    }
+  },
+  "2": {
+    "queue": "node_creator",
+    "service": "SPA_NodeCreator"
+  },
+  "3": {
+    "parameters": {
+      "program_id": "{autoproc_program_id}",
+      "session_id": "{session_id}"
+    },
+    "queue": "{feedback_queue}",
+    "service": "Murfey"
+  },
+  "4": {
+    "parameters": {
+      "dcid": "{dcid}",
+      "ispyb_command": "multipart_message",
+      "program_id": "{autoproc_program_id}"
+    },
+    "queue": "ispyb_connector",
+    "service": "ISPyB connector"
+  },
+  "start": [
+    [
+      1,
+      []
+    ]
+  ]
+}

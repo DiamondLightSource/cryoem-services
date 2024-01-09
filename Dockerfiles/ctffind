@@ -8,7 +8,7 @@ ARG userid
 ARG groupname
 
 # Install cryoem-services
-COPY --chown="${userid}":"${groupid}" cryoem-services ./cryoem-services
+COPY --chown="${userid}":"${groupid}" packages/cryoem-services ./cryoem-services
 RUN python -m pip install -e ./cryoem-services
 
 # Create EM user
@@ -16,6 +16,6 @@ RUN groupadd -r -g "${groupid}" "${groupname}" && useradd -r -M "${groupname}" -
 USER "${userid}":"${groupid}"
 
 # Install CTFFind executable
-COPY --chown="${userid}":"${groupid}" ./ctffind-4.1.14 /CTFFind/4.1.14
+COPY --chown="${userid}":"${groupid}" packages/ctffind-4.1.14 /CTFFind/4.1.14
 ENV PATH="/CTFFind/4.1.14/bin:${PATH}"
 RUN chmod -R a+x /CTFFind/4.1.14

@@ -1,0 +1,70 @@
+# This Dockerfile is used for class selection and Relion's own motion correction
+# First stage builds relion
+FROM rockylinux:8 AS relion-build
+
+# Get required build packages and libraries
+RUN yum install gcc gcc-c++ cmake openmpi -y
+RUN yum install fftw-devel libtiff-devel libpng-devel libjpeg-devel zlib-devel -y
+
+# Build Relion - need to be on the ver4.0 tag
+RUN mkdir -p /install/relion4.0
+COPY packages/relion_fork /install/relion_src
+RUN mkdir /install/relion_src/build
+
+RUN cmake -DCMAKE_INSTALL_PREFIX=/install/relion4.0 -DCMAKE_C_COMPILER=/usr/bin/gcc -DCMAKE_CXX_COMPILER=/usr/bin/g++ -DMPI_C_COMPILER=/usr/lib64/openmpi/bin/mpicc -DMPI_CXX_COMPILER=/usr/lib64/openmpi/bin/mpicxx -DMPI_C_LIBRARIES=/usr/lib64/openmpi/lib/libmpi.so -DMPI_CXX_LIBRARIES=/usr/lib64/openmpi/lib/libmpi.so -DGUI=OFF -DALTCPU=ON -B/install/relion_src/build -S/install/relion_src
+RUN make --directory=/install/relion_src/build/ install
+
+
+# Second stage creates the conda environment
+FROM rockylinux:8 AS conda-build
+
+# Set up conda environment
+RUN curl -L -O "https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-$(uname)-$(uname -m).sh"
+RUN bash Mambaforge-$(uname)-$(uname -m).sh -b -p "conda"
+
+RUN source "/conda/etc/profile.d/conda.sh" && conda install -c conda-forge conda-pack
+RUN source "/conda/etc/profile.d/conda.sh" && source "/conda/etc/profile.d/mamba.sh" && mamba create -c conda-forge -p /install/pythonenv python=3.9 pip libtiff=4.4.0 htcondor pytorch-cpu=1.10.0 numpy=1.25.2 --override-channels -y
+
+# Install cryoem-services and pipeliner
+RUN mkdir /install/cryoem-services
+COPY packages/cryoem-services /install/cryoem-services
+RUN mkdir /install/ccpem-pipeliner
+COPY packages/ccpem-pipeliner /install/ccpem-pipeliner
+RUN source "/conda/etc/profile.d/conda.sh" && conda activate /install/pythonenv && pip install /install/ccpem-pipeliner && pip install /install/cryoem-services
+
+# Pack the environment
+RUN /conda/bin/conda-pack -p /install/pythonenv -o /tmp/env.tar.gz
+RUN mkdir /install/venv
+RUN tar -xzf /tmp/env.tar.gz -C /install/venv
+RUN source "/conda/etc/profile.d/conda.sh" && conda activate /install/venv && /install/venv/bin/conda-unpack
+
+
+# Third stage combines the Relion and conda builds
+FROM rockylinux:8
+
+# Create EM user
+ARG groupid
+ARG userid
+ARG groupname
+RUN groupadd -r -g "${groupid}" "${groupname}" && useradd -r -M "${groupname}" -u "${userid}" -g "${groupname}"
+
+# Install libraries for Relion
+RUN yum install openmpi fftw-devel libtiff-devel libpng-devel libjpeg-devel zlib-devel -y
+
+# Copy Relion
+RUN mkdir -p /install/relion4.0
+COPY --from=relion-build /install/relion4.0 /install/relion4.0
+ENV PATH="/install/relion4.0/bin:${PATH}"
+
+# Copy python environment
+COPY --from=conda-build /install/venv /install/venv
+ENV PATH="/install/venv/bin:${PATH}"
+
+# Add cryolo files
+RUN mkdir -p /dls_sw/apps/EM/crYOLO/phosaurus_models
+COPY cryolo_models/* /dls_sw/apps/EM/crYOLO/phosaurus_models
+
+# Change permissions
+RUN chown -R "${userid}":"${groupid}" install
+RUN chown -R "${userid}":"${groupid}" /dls_sw
+
