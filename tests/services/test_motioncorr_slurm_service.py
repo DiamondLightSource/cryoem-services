@@ -47,7 +47,7 @@ def test_motioncor2_service_spa(
     """
     mock_subprocess().returncode = 0
     mock_subprocess().stdout = (
-        '{"job_id": "1", "jobs": [{"job_state": "COMPLETED"}]}'.encode("ascii")
+        '{"job_id": "1", "jobs": [{"job_state": ["COMPLETED"]}]}'.encode("ascii")
     )
     mock_subprocess().stderr = "stderr".encode("ascii")
 
@@ -107,7 +107,7 @@ def test_motioncor2_service_spa(
             "partition_preference: preference\n"
             "cluster: cluster\n"
             "url: /url/of/slurm/restapi\n"
-            "api_version: v0.1\n"
+            "api_version: v0.0.40\n"
         )
     with open(tmp_path / "token.txt", "w") as token:
         token.write("token_key")
@@ -143,13 +143,13 @@ def test_motioncor2_service_spa(
     slurm_submit_command = (
         f'curl -H "X-SLURM-USER-NAME:user" -H "X-SLURM-USER-TOKEN:token_key" '
         '-H "Content-Type: application/json" -X POST '
-        "/url/of/slurm/restapi/slurm/v0.1/job/submit "
+        "/url/of/slurm/restapi/slurm/v0.0.40/job/submit "
         f"-d @{tmp_path}/MotionCorr/job002/Movies/sample.mrc.json"
     )
     slurm_status_command = (
         'curl -H "X-SLURM-USER-NAME:user" -H "X-SLURM-USER-TOKEN:token_key" '
         '-H "Content-Type: application/json" -X GET '
-        "/url/of/slurm/restapi/slurm/v0.1/job/1"
+        "/url/of/slurm/restapi/slurm/v0.0.40/job/1"
     )
     assert mock_subprocess.call_count == 5
     mock_subprocess.assert_any_call(
@@ -294,7 +294,7 @@ def test_motioncor2_service_tomo(
     """
     mock_subprocess().returncode = 0
     mock_subprocess().stdout = (
-        '{"job_id": "1", "jobs": [{"job_state": "COMPLETED"}]}'.encode("ascii")
+        '{"job_id": "1", "jobs": [{"job_state": ["COMPLETED"]}]}'.encode("ascii")
     )
     mock_subprocess().stderr = "stderr".encode("ascii")
 
@@ -344,7 +344,7 @@ def test_motioncor2_service_tomo(
             "partition_preference: preference\n"
             "cluster: cluster\n"
             "url: /url/of/slurm/restapi\n"
-            "api_version: v0.1\n"
+            "api_version: v0.0.40\n"
         )
     with open(tmp_path / "token.txt", "w") as token:
         token.write("token_key")
@@ -361,13 +361,13 @@ def test_motioncor2_service_tomo(
     slurm_submit_command = (
         f'curl -H "X-SLURM-USER-NAME:user" -H "X-SLURM-USER-TOKEN:token_key" '
         '-H "Content-Type: application/json" -X POST '
-        "/url/of/slurm/restapi/slurm/v0.1/job/submit "
+        "/url/of/slurm/restapi/slurm/v0.0.40/job/submit "
         f"-d @{tmp_path}/MotionCorr/job002/Movies/sample.mrc.json"
     )
     slurm_status_command = (
         'curl -H "X-SLURM-USER-NAME:user" -H "X-SLURM-USER-TOKEN:token_key" '
         '-H "Content-Type: application/json" -X GET '
-        "/url/of/slurm/restapi/slurm/v0.1/job/1"
+        "/url/of/slurm/restapi/slurm/v0.0.40/job/1"
     )
     assert mock_subprocess.call_count == 5
     mock_subprocess.assert_any_call(

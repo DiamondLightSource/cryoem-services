@@ -25,15 +25,15 @@ The configuration has the following format:
     user_token: <file with restapi token>
     user: <username>
     user_home: <home directory>
-    api_version: v0.0.38
+    api_version: v0.0.38 or v0.0.40
     partition: <optional slurm partition>
     partition_preference: <optional slurm preferences>
-    cluster: <optional slurm cluster>
+    clusters: <optional slurm clusters>
     required_directories: [<list of directories to bind for singularity>]
 """
 
-slurm_json_template = {
-    "job": {
+slurm_json_job_template = {
+    "v0.0.38": {
         "name": "MotionCorr",
         "nodes": 1,
         "tasks": 1,
@@ -42,15 +42,33 @@ slurm_json_template = {
         "memory_per_gpu": 7000,
         "time_limit": "1:00:00",
     },
-    "script": (
-        "#!/bin/bash\n"
-        "echo \"$(date '+%Y-%m-%d %H:%M:%S.%3N'): running MotionCor2\"\n"
-        "mkdir /tmp/tmp_$SLURM_JOB_ID\n"
-        "export SINGULARITY_CACHEDIR=/tmp/tmp_$SLURM_JOB_ID\n"
-        "export SINGULARITY_TMPDIR=/tmp/tmp_$SLURM_JOB_ID\n"
-        "singularity exec --nv --bind /lib64,/tmp/tmp_$SLURM_JOB_ID:/tmp"
-    ),
+    "v0.0.40": {
+        "name": "MotionCorr",
+        "minimum_nodes": 1,
+        "maximum_nodes": 1,
+        "tasks": 1,
+        "cpus_per_task": 1,
+        "tres_per_task": "gres/gpu:1",
+        "memory_per_node": {
+            "number": 7000,
+            "set": True,
+            "infinite": False,
+        },
+        "time_limit": {
+            "number": 3600,
+            "set": True,
+            "infinite": False,
+        },
+    },
 }
+slurm_script_template = (
+    "#!/bin/bash\n"
+    "echo \"$(date '+%Y-%m-%d %H:%M:%S.%3N'): running MotionCor2\"\n"
+    "mkdir /tmp/tmp_$SLURM_JOB_ID\n"
+    "export APPTAINER_CACHEDIR=/tmp/tmp_$SLURM_JOB_ID\n"
+    "export APPTAINER_TMPDIR=/tmp/tmp_$SLURM_JOB_ID\n"
+    "singularity exec --nv --bind /lib64,/tmp/tmp_$SLURM_JOB_ID:/tmp"
+)
 slurm_tmp_cleanup = "\nrm -rf /tmp/tmp_$SLURM_JOB_ID"
 
 
@@ -119,25 +137,40 @@ class MotionCorrSlurm(MotionCorr, CommonService):
                 stderr="No restAPI config or token".encode("utf8"),
             )
 
+        # Check the API version is one this service has been tested with
+        api_version = slurm_rest["api_version"]
+        print(api_version)
+        if api_version not in ["v0.0.38", "v0.0.40"]:
+            return subprocess.CompletedProcess(
+                args="",
+                returncode=1,
+                stdout="".encode("utf8"),
+                stderr=f"Unsupported API version {api_version}".encode("utf8"),
+            )
+
         # Construct the json for submission
         mc_output_file = f"{mrc_out}.out"
         mc_error_file = f"{mrc_out}.err"
         submission_file = f"{mrc_out}.json"
         slurm_config = {
-            "environment": {"USER": user, "HOME": user_home},
             "standard_output": mc_output_file,
             "standard_error": mc_error_file,
             "current_working_directory": str(Path(mrc_out).parent),
         }
+        if api_version == "v0.0.38":
+            slurm_config["environment"] = {"USER": user, "HOME": user_home}
+        else:
+            slurm_config["environment"] = [f"USER: {user}", f"HOME: {user_home}"]
 
         # Add slurm partition and cluster preferences if given
         if slurm_rest.get("partition"):
             slurm_config["partition"] = slurm_rest["partition"]
         if slurm_rest.get("partition_preference"):
             slurm_config["prefer"] = slurm_rest["partition_preference"]
-        if slurm_rest.get("cluster"):
-            slurm_config["cluster"] = slurm_rest["cluster"]
-        slurm_json_job = dict(slurm_json_template["job"], **slurm_config)
+        if slurm_rest.get("clusters"):
+            slurm_config["clusters"] = slurm_rest["clusters"]
+        # Combine this with the template for the given API version
+        slurm_json_job = dict(slurm_json_job_template[api_version], **slurm_config)
 
         # Make the script command and save the submission json
         if slurm_rest.get("required_directories"):
@@ -145,7 +178,7 @@ class MotionCorrSlurm(MotionCorr, CommonService):
         else:
             binding_dirs = ""
         job_command = (
-            slurm_json_template["script"]
+            slurm_script_template
             + f"{binding_dirs} --home {user_home} {os.environ['MOTIONCOR2_SIF']} "
             + " ".join(command)
             + slurm_tmp_cleanup
@@ -167,7 +200,8 @@ class MotionCorrSlurm(MotionCorr, CommonService):
         try:
             # Extract the job id from the submission response to use in the next query
             slurm_response = slurm_submission_json.stdout.decode("utf8", "replace")
-            job_id = json.loads(slurm_response)["job_id"]
+            slurm_response_json = json.loads(slurm_response)
+            job_id = slurm_response_json["job_id"]
         except (json.JSONDecodeError, KeyError):
             self.log.error(
                 f"Unable to submit job to {slurm_rest['url']}. The restAPI returned "
@@ -180,6 +214,14 @@ class MotionCorrSlurm(MotionCorr, CommonService):
                 stderr=slurm_submission_json.stderr,
             )
         self.log.info(f"Submitted MotionCorr job {job_id} to slurm. Waiting...")
+        if slurm_response_json.get("warnings") and slurm_response_json["warnings"]:
+            self.log.warning(
+                f"Slurm reported these warnings: {slurm_response_json['warnings']}"
+            )
+        if slurm_response_json.get("errors") and slurm_response_json["errors"]:
+            self.log.warning(
+                f"Slurm reported these errors: {slurm_response_json['errors']}"
+            )
 
         # Command to get the status of the submitted job from the restAPI
         slurm_status_command = (
@@ -210,6 +252,8 @@ class MotionCorrSlurm(MotionCorr, CommonService):
             try:
                 slurm_response = slurm_status_json.stdout.decode("utf8", "replace")
                 slurm_job_state = json.loads(slurm_response)["jobs"][0]["job_state"]
+                if api_version == "v0.0.40":
+                    slurm_job_state = slurm_job_state[0]
             except (json.JSONDecodeError, KeyError):
                 print(slurm_status_command)
                 self.log.error(
@@ -269,6 +313,8 @@ class MotionCorrSlurm(MotionCorr, CommonService):
                 stderr=stderr.encode("utf8"),
             )
         else:
+            self.x_shift_list = []
+            self.y_shift_list = []
             return subprocess.CompletedProcess(
                 args="",
                 returncode=1,
