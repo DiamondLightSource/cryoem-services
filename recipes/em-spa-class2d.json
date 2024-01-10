@@ -41,7 +41,7 @@
           "USER": "{user}"
         },
         "gpus": 4,
-        "job_name": "relion-class2d",
+        "job_name": "Class2D-EM",
         "min_memory_per_gpu": 4096,
         "partition": "{partition}",
         "prefer": "{partition_preference}",

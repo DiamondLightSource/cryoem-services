@@ -39,7 +39,7 @@
           "USER": "gda2"
         },
         "gpus": 4,
-        "job_name": "relion-class3d",
+        "job_name": "Class3D-EM",
         "min_memory_per_gpu": 4096,
         "partition": "{partition}",
         "prefer": "{partition_preference}",
