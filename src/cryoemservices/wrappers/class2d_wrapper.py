@@ -57,7 +57,6 @@ class Class2DParameters(BaseModel):
     picker_id: int
     class2d_grp_uuid: int
     class_uuids: str
-    autoselect_python: str = "python"
     do_icebreaker_jobs: bool = True
     relion_options: RelionServiceOptions
 
@@ -358,7 +357,6 @@ class Class2DWrapper(BaseWrapper):
             autoselect_parameters = {
                 "input_file": f"{class2d_params.class2d_dir}/run_it{class2d_params.class2d_nr_iter:03}_optimiser.star",
                 "relion_options": dict(class2d_params.relion_options),
-                "python": class2d_params.autoselect_python,
                 "class_uuids": class2d_params.class_uuids,
             }
             self.recwrap.send_to("select_classes", autoselect_parameters)

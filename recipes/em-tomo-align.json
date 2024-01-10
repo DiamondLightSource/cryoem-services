@@ -28,7 +28,7 @@
       "status": "failure"
     },
     "queue": "ispyb_connector",
-    "service": "ISPyB connector"
+    "service": "EMISPyB"
   },
   "3": {
     "parameters": {
@@ -38,7 +38,7 @@
       "tomogram_id": "$ispyb_tomogram_id"
     },
     "queue": "ispyb_connector",
-    "service": "ISPyB connector"
+    "service": "EMISPyB"
   },
   "4": {
     "output": {
@@ -60,7 +60,7 @@
       "status": "success"
     },
     "queue": "ispyb_connector",
-    "service": "ISPyB connector"
+    "service": "EMISPyB"
   },
   "start": [
     [

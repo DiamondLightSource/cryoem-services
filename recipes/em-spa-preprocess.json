@@ -8,7 +8,7 @@
       "store_result": "ispyb_movie_id"
     },
     "queue": "ispyb_connector",
-    "service": "ISPyB connector"
+    "service": "EMISPyB"
   },
   "10": {
     "output": {
@@ -46,9 +46,9 @@
       "eer_sampling": 1,
       "experiment_type": "spa",
       "fm_int_file": "{fm_int_file}",
-      "ft_bin": "{ft_bin}",
       "gain_ref": "{gain_ref}",
       "mc_uuid": "{mc_uuid}",
+      "motion_corr_binning": "{ft_bin}",
       "movie": "{movie}",
       "movie_id": "$ispyb_movie_id",
       "mrc_out": "{mrc_out}",
@@ -74,7 +74,7 @@
       "program_id": "{autoproc_program_id}"
     },
     "queue": "ispyb_connector",
-    "service": "ISPyB connector"
+    "service": "EMISPyB"
   },
   "5": {
     "queue": "images",
@@ -113,7 +113,7 @@
       "program_id": "{autoproc_program_id}"
     },
     "queue": "ispyb_connector",
-    "service": "ISPyB connector"
+    "service": "EMISPyB"
   },
   "start": [
     [

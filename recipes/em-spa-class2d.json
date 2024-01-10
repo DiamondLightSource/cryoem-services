@@ -62,7 +62,7 @@
   },
   "2": {
     "queue": "node_creator",
-    "service": "SPA_NodeCreator"
+    "service": "NodeCreator"
   },
   "3": {
     "output": {
@@ -102,7 +102,7 @@
       "program_id": "{autoproc_program_id}"
     },
     "queue": "ispyb_connector",
-    "service": "ISPyB connector"
+    "service": "EMISPyB"
   },
   "7": {
     "queue": "images",
