@@ -36,7 +36,7 @@
         "cpus_per_task": 4,
         "environment": {
           "PATH": "/bin/:/usr/bin/:/usr/local/bin/",
-          "USER": "gda2"
+          "USER": "{user}"
         },
         "gpus": 4,
         "job_name": "Class3D-EM",

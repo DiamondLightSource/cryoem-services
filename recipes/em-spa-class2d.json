@@ -71,10 +71,10 @@
       "node_creator": 2
     },
     "parameters": {
+      "autoselect_min_score": "{autoselect_min_score}",
       "class2d_fraction_of_classes_to_remove": "{class2d_fraction_of_classes_to_remove}",
       "class3d_batch_size": "{batch_size}",
-      "combine_star_job_number": "{combine_star_job_number}",
-      "min_score": "{autoselect_min_score}"
+      "combine_star_job_number": "{combine_star_job_number}"
     },
     "queue": "select_classes",
     "service": "SelectClasses"
