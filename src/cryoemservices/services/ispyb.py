@@ -985,3 +985,69 @@ class EMISPyB(CommonService):
                 exc_info=True,
             )
             return False
+
+    # These are needed for the old relion-zocalo wrapper
+    def do_add_program_attachment(self, parameters, **kwargs):
+        params = self.ispyb.mx_processing.get_program_attachment_params()
+        params["parentid"] = parameters("program_id")
+        try:
+            programid = int(params["parentid"])
+        except ValueError:
+            programid = None
+        if not programid:
+            self.log.warning("Encountered invalid program ID '%s'", params["parentid"])
+            return False
+        params["file_name"] = parameters("file_name", replace_variables=False)
+        params["file_path"] = parameters("file_path", replace_variables=False)
+        params["importance_rank"] = parameters(
+            "importance_rank", replace_variables=False
+        )
+        fqpn = Path(params["file_path"]) / params["file_name"]
+
+        if not fqpn.is_file():
+            self.log.error(
+                "Not adding attachment '%s' to data processing: File does not exist",
+                str(fqpn),
+            )
+            return False
+
+        params["file_type"] = str(parameters("file_type")).lower()
+        if params["file_type"] not in ("log", "result", "graph"):
+            self.log.warning(
+                "Attachment type '%s' unknown, defaulting to 'log'", params["file_type"]
+            )
+            params["file_type"] = "log"
+
+        self.log.debug("Writing program attachment to database: %s", params)
+
+        result = self.ispyb.mx_processing.upsert_program_attachment(
+            list(params.values())
+        )
+        return {"success": True, "return_value": result}
+
+    def do_update_processing_status(self, parameters, **kwargs):
+        ppid = parameters("program_id")
+        message = parameters("message")
+        status = parameters("status")
+        try:
+            result = self.ispyb.mx_processing.upsert_program_ex(
+                program_id=ppid,
+                status={"success": 1, "failure": 0}.get(status),
+                time_start=parameters("start_time"),
+                time_update=parameters("update_time"),
+                message=message,
+            )
+            self.log.info(
+                f"Updating program {ppid} with status {message!r}",
+            )
+            # result is just ppid
+            return {"success": True, "return_value": result}
+        except ispyb.ISPyBException as e:
+            self.log.error(
+                "Updating program %s status: '%s' caused exception '%s'.",
+                ppid,
+                message,
+                e,
+                exc_info=True,
+            )
+            return False
