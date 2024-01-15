@@ -640,7 +640,7 @@ def test_motioncor2_service_tomo(
             "autopick": {"autopick": "autopick"},
             "ctf": {"ctf": "ctf"},
             "movie": f"{tmp_path}/Movies/sample.tiff",
-            "mrc_out": f"{tmp_path}/MotionCorr/job002/Movies/sample.mrc",
+            "mrc_out": f"{tmp_path}/MotionCorr/Movies/sample_motion_corrected.mrc",
             "patch_sizes": {"x": 5, "y": 5},
             "gpu": 0,
             "threads": 1,
@@ -725,6 +725,7 @@ def test_motioncor2_service_tomo(
             "parameters": {
                 "ctf": "ctf",
                 "input_image": motioncorr_test_message["parameters"]["mrc_out"],
+                "output_image": f"{tmp_path}/CTF/Movies/sample_ctf.mrc",
                 "mc_uuid": motioncorr_test_message["parameters"]["mc_uuid"],
                 "picker_uuid": motioncorr_test_message["parameters"]["picker_uuid"],
                 "experiment_type": "tomography",
@@ -741,8 +742,8 @@ def test_motioncor2_service_tomo(
                 "last_frame": 2,
                 "total_motion": total_motion,
                 "average_motion_per_frame": average_motion_per_frame,
-                "drift_plot_full_path": f"{tmp_path}/MotionCorr/job002/Movies/sample_drift_plot.json",
-                "micrograph_snapshot_full_path": f"{tmp_path}/MotionCorr/job002/Movies/sample.jpeg",
+                "drift_plot_full_path": f"{tmp_path}/MotionCorr/Movies/sample_drift_plot.json",
+                "micrograph_snapshot_full_path": f"{tmp_path}/MotionCorr/Movies/sample_motion_corrected.jpeg",
                 "micrograph_full_path": motioncorr_test_message["parameters"][
                     "mrc_out"
                 ],
@@ -806,7 +807,7 @@ def test_motioncor_relion_service_tomo(
             "autopick": {"autopick": "autopick"},
             "ctf": {"ctf": "ctf"},
             "movie": f"{tmp_path}/Movies/sample.tiff",
-            "mrc_out": f"{tmp_path}/MotionCorr/job002/Movies/sample.mrc",
+            "mrc_out": f"{tmp_path}/MotionCorr/Movies/sample_motion_corrected.mrc",
             "patch_sizes": {"x": 5, "y": 5},
             "gpu": 0,
             "threads": 1,
@@ -895,6 +896,7 @@ def test_motioncor_relion_service_tomo(
             "parameters": {
                 "ctf": "ctf",
                 "input_image": motioncorr_test_message["parameters"]["mrc_out"],
+                "output_image": f"{tmp_path}/CTF/Movies/sample_ctf.mrc",
                 "mc_uuid": motioncorr_test_message["parameters"]["mc_uuid"],
                 "picker_uuid": motioncorr_test_message["parameters"]["picker_uuid"],
                 "experiment_type": "tomography",
@@ -911,8 +913,8 @@ def test_motioncor_relion_service_tomo(
                 "last_frame": 2,
                 "total_motion": total_motion,
                 "average_motion_per_frame": average_motion_per_frame,
-                "drift_plot_full_path": f"{tmp_path}/MotionCorr/job002/Movies/sample_drift_plot.json",
-                "micrograph_snapshot_full_path": f"{tmp_path}/MotionCorr/job002/Movies/sample.jpeg",
+                "drift_plot_full_path": f"{tmp_path}/MotionCorr/Movies/sample_drift_plot.json",
+                "micrograph_snapshot_full_path": f"{tmp_path}/MotionCorr/Movies/sample_motion_corrected.jpeg",
                 "micrograph_full_path": motioncorr_test_message["parameters"][
                     "mrc_out"
                 ],

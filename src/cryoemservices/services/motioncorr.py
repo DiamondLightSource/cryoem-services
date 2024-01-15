@@ -522,6 +522,10 @@ class MotionCorr(CommonService):
             )
             mc_params.ctf["relion_options"] = dict(mc_params.relion_options)
             mc_params.ctf["amplitude_contrast"] = mc_params.relion_options.ampl_contrast
+        else:
+            mc_params.ctf["output_image"] = mc_params.mrc_out.replace(
+                "MotionCorr", "CTF"
+            ).replace("_motion_corrected", "_ctf")
 
         # Forward results to ctffind (in both SPA and tomography)
         self.log.info(f"Sending to ctf: {mc_params.mrc_out}")

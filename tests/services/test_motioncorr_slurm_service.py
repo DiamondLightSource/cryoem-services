@@ -305,7 +305,7 @@ def test_motioncor2_service_tomo(
     motioncorr_test_message = {
         "parameters": {
             "movie": f"{tmp_path}/Movies/sample.tiff",
-            "mrc_out": f"{tmp_path}/MotionCorr/job002/Movies/sample.mrc",
+            "mrc_out": f"{tmp_path}/MotionCorr/Movies/sample_motion_corrected.mrc",
             "experiment_type": "tomography",
             "pixel_size": 0.1,
             "dose_per_frame": 1,
@@ -350,9 +350,9 @@ def test_motioncor2_service_tomo(
         token.write("token_key")
 
     # Touch the expected output files
-    (tmp_path / "MotionCorr/job002/Movies").mkdir(parents=True)
-    (tmp_path / "MotionCorr/job002/Movies/sample.mrc.out").touch()
-    (tmp_path / "MotionCorr/job002/Movies/sample.mrc.err").touch()
+    (tmp_path / "MotionCorr/Movies").mkdir(parents=True)
+    (tmp_path / "MotionCorr/Movies/sample_motion_corrected.mrc.out").touch()
+    (tmp_path / "MotionCorr/Movies/sample_motion_corrected.mrc.err").touch()
 
     # Send a message to the service
     service.motion_correction(None, header=header, message=motioncorr_test_message)
@@ -362,7 +362,7 @@ def test_motioncor2_service_tomo(
         f'curl -H "X-SLURM-USER-NAME:user" -H "X-SLURM-USER-TOKEN:token_key" '
         '-H "Content-Type: application/json" -X POST '
         "/url/of/slurm/restapi/slurm/v0.0.40/job/submit "
-        f"-d @{tmp_path}/MotionCorr/job002/Movies/sample.mrc.json"
+        f"-d @{tmp_path}/MotionCorr/Movies/sample_motion_corrected.mrc.json"
     )
     slurm_status_command = (
         'curl -H "X-SLURM-USER-NAME:user" -H "X-SLURM-USER-TOKEN:token_key" '
@@ -383,6 +383,7 @@ def test_motioncor2_service_tomo(
         message={
             "parameters": {
                 "input_image": motioncorr_test_message["parameters"]["mrc_out"],
+                "output_image": f"{tmp_path}/CTF/Movies/sample_ctf.mrc",
                 "mc_uuid": motioncorr_test_message["parameters"]["mc_uuid"],
                 "picker_uuid": motioncorr_test_message["parameters"]["picker_uuid"],
                 "experiment_type": "tomography",
@@ -399,8 +400,8 @@ def test_motioncor2_service_tomo(
                 "last_frame": 2,
                 "total_motion": total_motion,
                 "average_motion_per_frame": average_motion_per_frame,
-                "drift_plot_full_path": f"{tmp_path}/MotionCorr/job002/Movies/sample_drift_plot.json",
-                "micrograph_snapshot_full_path": f"{tmp_path}/MotionCorr/job002/Movies/sample.jpeg",
+                "drift_plot_full_path": f"{tmp_path}/MotionCorr/Movies/sample_drift_plot.json",
+                "micrograph_snapshot_full_path": f"{tmp_path}/MotionCorr/Movies/sample_motion_corrected.jpeg",
                 "micrograph_full_path": motioncorr_test_message["parameters"][
                     "mrc_out"
                 ],
