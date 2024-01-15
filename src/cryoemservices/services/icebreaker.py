@@ -142,8 +142,9 @@ class IceBreaker(CommonService):
 
             # Run the icebreaker flattening or grouping functions
             if icebreaker_params.icebreaker_type == "micrographs":
-                icebreaker_icegroups_multi.main(
-                    f"IB_tmp_{micrograph_name.stem}", icebreaker_params.cpus
+                (icebreaker_tmp_dir / "grouped").mkdir()
+                icebreaker_icegroups_multi.multigroup(
+                    icebreaker_tmp_dir / mic_from_project.name
                 )
                 (
                     icebreaker_tmp_dir
@@ -151,9 +152,9 @@ class IceBreaker(CommonService):
                     / f"{micrograph_name.stem}_grouped.mrc"
                 ).rename(f"{mic_dir_from_job}/{micrograph_name.stem}_grouped.mrc")
             else:
-                icebreaker_equalize_multi.main(
-                    f"IB_tmp_{micrograph_name.stem}",
-                    icebreaker_params.cpus,
+                (icebreaker_tmp_dir / "flattened").mkdir()
+                icebreaker_equalize_multi.multigroup(
+                    icebreaker_tmp_dir / mic_from_project.name
                 )
                 (
                     icebreaker_tmp_dir
@@ -179,6 +180,7 @@ class IceBreaker(CommonService):
         elif icebreaker_params.icebreaker_type == "summary":
             # Run the icebreaker five-figure function
             Path("IB_input").mkdir(exist_ok=True)
+            (Path("IB_input") / mic_from_project.name).unlink(missing_ok=True)
             (Path("IB_input") / mic_from_project.name).symlink_to(
                 icebreaker_params.input_micrographs
             )
