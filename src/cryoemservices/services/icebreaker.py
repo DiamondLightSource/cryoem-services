@@ -3,11 +3,13 @@ from __future__ import annotations
 import os
 import re
 import shutil
-import subprocess
 from pathlib import Path
 from typing import Literal, Optional
 
 import workflows.recipe
+from gemmi import cif
+from icebreaker import ice_groups, icebreaker_equalize_multi, icebreaker_icegroups_multi
+from icebreaker.five_figures import single_mic_5fig
 from pydantic import BaseModel, Field, ValidationError
 from workflows.services.common_service import CommonService
 
@@ -43,13 +45,6 @@ class IceBreaker(CommonService):
     # Job name
     job_type = "icebreaker.micrograph_analysis"
 
-    # Values to extract for ISPyB
-    ice_minimum: int
-    ice_q1: int
-    ice_median: int
-    ice_q3: int
-    ice_maximum: int
-
     def initializing(self):
         """Subscribe to a queue. Received messages must be acknowledged."""
         self.log.info("IceBreaker service starting")
@@ -61,22 +56,6 @@ class IceBreaker(CommonService):
             log_extender=self.extend_log,
             allow_non_recipe_messages=True,
         )
-
-    def parse_icebreaker_output(self, icebreaker_stdout: str):
-        """
-        Read the output logs of IceBreaker summary jobs to extract values for ispyb
-        """
-        for line in icebreaker_stdout.split("\n"):
-            if line.startswith("Results:"):
-                try:
-                    line_split = line.split()
-                    self.ice_minimum = int(line_split[2])
-                    self.ice_q1 = int(line_split[3])
-                    self.ice_median = int(line_split[4])
-                    self.ice_q3 = int(line_split[5])
-                    self.ice_maximum = int(line_split[6])
-                except IndexError:
-                    self.log.error(f"Failed to read line {line} in {icebreaker_stdout}")
 
     def icebreaker(self, rw, header: dict, message: dict):
         """
@@ -126,14 +105,15 @@ class IceBreaker(CommonService):
             rw.transport.nack(header)
             return
 
-        # IceBreaker requires running in the project directory
+        # IceBreaker requires running in the job directory
         project_dir = Path(icebreaker_params.output_path).parent.parent
-        os.chdir(project_dir)
         if not Path(icebreaker_params.output_path).exists():
             Path(icebreaker_params.output_path).mkdir(parents=True)
+        os.chdir(icebreaker_params.output_path)
         mic_from_project = Path(icebreaker_params.input_micrographs).relative_to(
             project_dir
         )
+        micrograph_name = Path(mic_from_project.name)
 
         self.log.info(
             f"Type: {icebreaker_params.icebreaker_type} "
@@ -141,33 +121,75 @@ class IceBreaker(CommonService):
             f"Output: {icebreaker_params.output_path}"
         )
         this_job_type = f"{self.job_type}.{icebreaker_params.icebreaker_type}"
+        summary_results = []
 
-        # Create commands depending on the icebreaker types
-        if icebreaker_params.icebreaker_type == "micrographs":
+        if icebreaker_params.icebreaker_type in ["micrographs", "enhancecontrast"]:
+            # Create the temporary working directory
+            icebreaker_tmp_dir = Path(f"IB_tmp_{micrograph_name.stem}")
+            if icebreaker_tmp_dir.is_dir():
+                self.log.warning(
+                    f"Directory {icebreaker_tmp_dir} already exists - now removing it"
+                )
+                shutil.rmtree(icebreaker_tmp_dir)
+            icebreaker_tmp_dir.mkdir()
+            (icebreaker_tmp_dir / mic_from_project.name).symlink_to(
+                icebreaker_params.input_micrographs
+            )
+
+            mic_path_parts = list(mic_from_project.parts)
+            mic_dir_from_job = "/".join(mic_path_parts[2:-1])
+            Path(mic_dir_from_job).mkdir(parents=True, exist_ok=True)
+
+            # Run the icebreaker flattening or grouping functions
+            if icebreaker_params.icebreaker_type == "micrographs":
+                (icebreaker_tmp_dir / "grouped").mkdir()
+                icebreaker_icegroups_multi.multigroup(
+                    icebreaker_tmp_dir / mic_from_project.name
+                )
+                (
+                    icebreaker_tmp_dir
+                    / "grouped"
+                    / f"{micrograph_name.stem}_grouped.mrc"
+                ).rename(f"{mic_dir_from_job}/{micrograph_name.stem}_grouped.mrc")
+            else:
+                (icebreaker_tmp_dir / "flattened").mkdir()
+                icebreaker_equalize_multi.multigroup(
+                    icebreaker_tmp_dir / mic_from_project.name
+                )
+                (
+                    icebreaker_tmp_dir
+                    / "flattened"
+                    / f"{micrograph_name.stem}_flattened.mrc"
+                ).rename(f"{mic_dir_from_job}/{micrograph_name.stem}_flattened.mrc")
+            shutil.rmtree(icebreaker_tmp_dir)
+
+            # Create the command this replicates
             command = [
                 "ib_job",
                 "--j",
                 str(icebreaker_params.cpus),
-                "--mode",
-                "group",
                 "--single_mic",
                 str(mic_from_project),
                 "--o",
                 icebreaker_params.output_path,
             ]
-        elif icebreaker_params.icebreaker_type == "enhancecontrast":
-            command = [
-                "ib_job",
-                "--j",
-                str(icebreaker_params.cpus),
-                "--mode",
-                "flatten",
-                "--single_mic",
-                str(mic_from_project),
-                "--o",
-                icebreaker_params.output_path,
-            ]
+            if icebreaker_params.icebreaker_type == "micrographs":
+                command.extend(["--mode", "group"])
+            else:
+                command.extend(["--mode", "flatten"])
         elif icebreaker_params.icebreaker_type == "summary":
+            # Run the icebreaker five-figure function
+            Path("IB_input").mkdir(exist_ok=True)
+            (Path("IB_input") / mic_from_project.name).unlink(missing_ok=True)
+            (Path("IB_input") / mic_from_project.name).symlink_to(
+                icebreaker_params.input_micrographs
+            )
+            five_fig_csv = single_mic_5fig(
+                str(Path(icebreaker_params.output_path) / "IB_input" / micrograph_name)
+            )
+            summary_results = five_fig_csv.split(",")
+
+            # Create the command this replicates
             command = [
                 "ib_5fig",
                 "--single_mic",
@@ -176,6 +198,21 @@ class IceBreaker(CommonService):
                 icebreaker_params.output_path,
             ]
         elif icebreaker_params.icebreaker_type == "particles":
+            # Run the icebreaker particle batch function
+            ice_groups.main(
+                icebreaker_params.input_particles, icebreaker_params.input_micrographs
+            )
+
+            # Create a star file with the input data
+            icegroups_doc = cif.Document()
+            icegroups_block = icegroups_doc.add_new_block("input_files")
+            loop = icegroups_block.init_loop("", ["_rlnParticles", "_rlnMicrographs"])
+            loop.add_row(
+                [icebreaker_params.input_particles, icebreaker_params.input_micrographs]
+            )
+            icegroups_doc.write_file("ib_icegroups.star")
+
+            # Create the command this replicates
             command = [
                 "ib_group",
                 "--in_mics",
@@ -192,18 +229,6 @@ class IceBreaker(CommonService):
             rw.transport.nack(header)
             return
 
-        # Check for existing temporary directory
-        job_dir = Path(re.search(".+/job[0-9]{3}/", icebreaker_params.output_path)[0])
-        icebreaker_tmp_dir = job_dir / f"IB_input_{mic_from_project.stem}"
-        if icebreaker_tmp_dir.is_dir():
-            self.log.warning(
-                f"Directory {icebreaker_tmp_dir} already exists - now removing it"
-            )
-            shutil.rmtree(icebreaker_tmp_dir)
-
-        # Run the icebreaker command and confirm it ran successfully
-        result = subprocess.run(command, capture_output=True)
-
         # Register the icebreaker job with the node creator
         self.log.info(f"Sending {this_job_type} to node creator")
         node_creator_parameters = {
@@ -212,8 +237,9 @@ class IceBreaker(CommonService):
             "output_file": icebreaker_params.output_path,
             "relion_options": dict(icebreaker_params.relion_options),
             "command": " ".join(command),
-            "stdout": result.stdout.decode("utf8", "replace"),
-            "stderr": result.stderr.decode("utf8", "replace"),
+            "stdout": "",
+            "stderr": "",
+            "success": True,
             "results": {
                 "icebreaker_type": icebreaker_params.icebreaker_type,
                 "total_motion": icebreaker_params.total_motion,
@@ -221,20 +247,9 @@ class IceBreaker(CommonService):
                 "late_motion": icebreaker_params.late_motion,
             },
         }
-        if result.returncode:
-            node_creator_parameters["success"] = False
-        else:
-            node_creator_parameters["success"] = True
-            if icebreaker_params.icebreaker_type == "summary":
-                # Summary jobs need to read results and send them to node creation
-                self.parse_icebreaker_output(result.stdout.decode("utf8", "replace"))
-                node_creator_parameters["results"]["summary"] = [
-                    str(self.ice_minimum),
-                    str(self.ice_q1),
-                    str(self.ice_median),
-                    str(self.ice_q3),
-                    str(self.ice_maximum),
-                ]
+        if icebreaker_params.icebreaker_type == "summary":
+            # Summary jobs need to send results to node creation
+            node_creator_parameters["results"]["summary"] = summary_results[1:]
         if icebreaker_params.icebreaker_type == "particles":
             node_creator_parameters[
                 "input_file"
@@ -246,15 +261,6 @@ class IceBreaker(CommonService):
             )
         else:
             rw.send_to("node_creator", node_creator_parameters)
-
-        # End here if the command failed
-        if result.returncode:
-            self.log.error(
-                f"IceBreaker failed with exitcode {result.returncode}:\n"
-                + result.stderr.decode("utf8", "replace")
-            )
-            rw.transport.nack(header)
-            return
 
         # Forward results to next IceBreaker job
         if icebreaker_params.icebreaker_type == "micrographs":
@@ -297,11 +303,11 @@ class IceBreaker(CommonService):
                 "ispyb_command": "buffer",
                 "buffer_lookup": {"motion_correction_id": icebreaker_params.mc_uuid},
                 "buffer_command": {"ispyb_command": "insert_relative_ice_thickness"},
-                "minimum": self.ice_minimum,
-                "q1": self.ice_q1,
-                "median": self.ice_median,
-                "q3": self.ice_q3,
-                "maximum": self.ice_maximum,
+                "minimum": summary_results[1],
+                "q1": summary_results[2],
+                "median": summary_results[3],
+                "q3": summary_results[4],
+                "maximum": summary_results[5],
             }
             self.log.info(f"Sending to ispyb: {ispyb_parameters}")
             if isinstance(rw, MockRW):
