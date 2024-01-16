@@ -174,9 +174,9 @@ class IceBreaker(CommonService):
                 icebreaker_params.output_path,
             ]
             if icebreaker_params.icebreaker_type == "micrographs":
-                command.extend(["--mode", "--group"])
+                command.extend(["--mode", "group"])
             else:
-                command.extend(["--mode", "--flatten"])
+                command.extend(["--mode", "flatten"])
         elif icebreaker_params.icebreaker_type == "summary":
             # Run the icebreaker five-figure function
             Path("IB_input").mkdir(exist_ok=True)
