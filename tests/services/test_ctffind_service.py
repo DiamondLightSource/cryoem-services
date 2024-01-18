@@ -56,7 +56,7 @@ def test_ctffind_service(
             "pixel_size": 0.1,
             "voltage": 300.0,
             "spher_aber": 2.7,
-            "ampl_contrast": 0.8,
+            "ampl_contrast": 0.1,
             "ampl_spectrum": 512,
             "min_res": 30.0,
             "max_res": 5.0,
