@@ -188,6 +188,8 @@ class IceBreaker(CommonService):
                 str(Path(icebreaker_params.output_path) / "IB_input" / micrograph_name)
             )
             summary_results = five_fig_csv.split(",")
+            if len(summary_results) != 6:
+                summary_results = ["0", "0", "0", "0", "0", "0"]
 
             # Create the command this replicates
             command = [
