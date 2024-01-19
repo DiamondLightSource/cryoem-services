@@ -26,6 +26,7 @@ class RefineParameters(BaseModel):
     number_of_particles: int
     batch_size: int
     pixel_size: float
+    class_number: int
     mask_diameter: float
     mask: Optional[str] = None
     mask_lowpass: float = 15

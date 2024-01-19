@@ -101,6 +101,11 @@ class ExtractClass(CommonService):
             rw.transport.nack(header)
             return
 
+        self.log.info(
+            f"Running extraction of particles for {extract_params.class3d_dir} "
+            f"class {extract_params.class_number}"
+        )
+
         # Run in the project directory
         project_dir = Path(extract_params.select_job_dir).parent.parent
         os.chdir(project_dir)
@@ -122,11 +127,6 @@ class ExtractClass(CommonService):
             extract_params.relion_options, dict(extract_params)
         )
 
-        self.log.info(
-            f"Running refinement pipeline for {extract_params.class3d_dir} class {extract_params.class_number}"
-        )
-
-        ###############################################################################
         # Select the particles from the requested class
         Path(extract_params.select_job_dir).mkdir(parents=True, exist_ok=True)
 
@@ -195,7 +195,6 @@ class ExtractClass(CommonService):
             3
         ]
 
-        ###############################################################################
         # Run re-extraction on the selected particles
         extract_job_dir = Path(f"Extract/job{job_num_select + 1:03}")
         extract_job_dir.mkdir(parents=True, exist_ok=True)
@@ -276,7 +275,6 @@ class ExtractClass(CommonService):
             )
             return False
 
-        ###############################################################################
         # Create a reference for the refinement
         class_reference = (
             Path(extract_params.class3d_dir)
