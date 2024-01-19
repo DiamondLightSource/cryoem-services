@@ -18,7 +18,7 @@ from cryoemservices.util.spa_relion_service_options import (
 class ExtractClassParameters(BaseModel):
     micrographs_file: str = Field(..., min_length=1)
     class3d_dir: str = Field(..., min_length=1)
-    select_job_dir: Field(..., min_length=1)
+    refine_job_dir: str = Field(..., min_length=1)
     class_number: int
     boxsize: int
     pixel_size: float
@@ -107,13 +107,13 @@ class ExtractClass(CommonService):
         )
 
         # Run in the project directory
-        project_dir = Path(extract_params.select_job_dir).parent.parent
+        project_dir = Path(extract_params.refine_job_dir).parent.parent
         os.chdir(project_dir)
         self.log.info(
-            f"Input: {extract_params.class3d_dir}, Output: {extract_params.select_job_dir}"
+            f"Input: {extract_params.class3d_dir}, Output: {extract_params.refine_job_dir}"
         )
-        job_num_select = int(
-            re.search("/job[0-9]{3}", extract_params.select_job_dir)[0][4:7]
+        job_num_refine = int(
+            re.search("/job[0-9]{3}", extract_params.refine_job_dir)[0][4:7]
         )
 
         # Link the required files
@@ -128,23 +128,22 @@ class ExtractClass(CommonService):
         )
 
         # Select the particles from the requested class
-        Path(extract_params.select_job_dir).mkdir(parents=True, exist_ok=True)
+        select_job_dir = project_dir / f"Select/job{job_num_refine - 2:03}"
+        Path(select_job_dir).mkdir(parents=True, exist_ok=True)
 
         refine_selection_link = Path(
             project_dir / f"Select/Refine_class{extract_params.class_number}"
         )
         refine_selection_link.unlink(missing_ok=True)
-        refine_selection_link.symlink_to(f"job{job_num_select:03}")
+        refine_selection_link.symlink_to(f"job{job_num_refine - 2:03}")
 
-        self.log.info(
-            f"Running {self.select_job_type} in {extract_params.select_job_dir}"
-        )
+        self.log.info(f"Running {self.select_job_type} in {select_job_dir}")
         select_command = [
             "relion_star_handler",
             "--i",
             str(particles_data),
             "--o",
-            f"{extract_params.select_job_dir}/particles.star",
+            f"{select_job_dir}/particles.star",
             "--select",
             "rlnClassNumber",
             "--minval",
@@ -152,7 +151,7 @@ class ExtractClass(CommonService):
             "--maxval",
             str(extract_params.class_number),
             "--pipeline_control",
-            f"{extract_params.select_job_dir}/",
+            f"{select_job_dir}/",
         ]
         select_result = subprocess.run(
             select_command, cwd=str(project_dir), capture_output=True
@@ -163,7 +162,7 @@ class ExtractClass(CommonService):
         node_creator_select = {
             "job_type": self.select_job_type,
             "input_file": str(particles_data),
-            "output_file": f"{extract_params.select_job_dir}/particles.star",
+            "output_file": f"{select_job_dir}/particles.star",
             "relion_options": dict(extract_params.relion_options),
             "command": " ".join(select_command),
             "stdout": select_result.stdout.decode("utf8", "replace"),
@@ -196,14 +195,14 @@ class ExtractClass(CommonService):
         ]
 
         # Run re-extraction on the selected particles
-        extract_job_dir = Path(f"Extract/job{job_num_select + 1:03}")
+        extract_job_dir = project_dir / f"Extract/job{job_num_refine - 1:03}"
         extract_job_dir.mkdir(parents=True, exist_ok=True)
 
         refine_extraction_link = Path(
             project_dir / f"Extract/Reextract_class{extract_params.class_number}"
         )
         refine_extraction_link.unlink(missing_ok=True)
-        refine_extraction_link.symlink_to(f"job{job_num_select + 1:03}")
+        refine_extraction_link.symlink_to(f"job{job_num_refine - 1:03}")
 
         # If no background radius set diameter as 75% of box
         if extract_params.bg_radius == -1:
@@ -215,7 +214,7 @@ class ExtractClass(CommonService):
             "--i",
             extract_params.micrographs_file,
             "--reextract_data_star",
-            f"{extract_params.select_job_dir}/particles.star",
+            f"{select_job_dir}/particles.star",
             "--recenter",
             "--recenter_x",
             "0",
@@ -247,7 +246,7 @@ class ExtractClass(CommonService):
         self.log.info(f"Sending {self.extract_job_type} to node creator")
         node_creator_extract = {
             "job_type": self.extract_job_type,
-            "input_file": f"{extract_params.select_job_dir}/particles.star:{extract_params.micrographs_file}",
+            "input_file": f"{select_job_dir}/particles.star:{extract_params.micrographs_file}",
             "output_file": f"{project_dir}/{extract_job_dir}/particles.star",
             "relion_options": dict(extract_params.relion_options),
             "command": " ".join(extract_command),
@@ -315,13 +314,14 @@ class ExtractClass(CommonService):
 
         # Send on to the refinement wrapper
         refine_params = {
-            "refine_job_dir": f"{project_dir}/Refine3D/{job_num_select+2:03}",
+            "refine_job_dir": extract_params.refine_job_dir,
             "particles_file": f"{project_dir}/{extract_job_dir}/particles.star",
             "rescaled_class_reference": rescaled_class_reference,
             "is_first_refinement": True,
             "number_of_particles": number_of_particles,
             "batch_size": number_of_particles,
             "pixel_size": extract_params.pixel_size,
+            "class_number": extract_params.class_number,
         }
         if isinstance(rw, MockRW):
             rw.transport.send(

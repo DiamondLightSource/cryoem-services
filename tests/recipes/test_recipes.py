@@ -6,18 +6,22 @@ from pathlib import Path
 import pytest
 from pydantic import BaseModel
 
+from cryoemservices.services.bfactor_setup import BFactorParameters
 from cryoemservices.services.cryolo import CryoloParameters
 from cryoemservices.services.ctffind import CTFParameters
 from cryoemservices.services.denoise_iris import DenoiseParameters
 from cryoemservices.services.extract import ExtractParameters
+from cryoemservices.services.extract_class import ExtractClassParameters
 from cryoemservices.services.icebreaker import IceBreakerParameters
 from cryoemservices.services.motioncorr import MotionCorrParameters
 from cryoemservices.services.node_creator import NodeCreatorParameters
+from cryoemservices.services.postprocess import PostProcessParameters
 from cryoemservices.services.select_classes import SelectClassesParameters
 from cryoemservices.services.select_particles import SelectParticlesParameters
 from cryoemservices.services.tomo_align import TomoParameters
 from cryoemservices.wrappers.class2d_wrapper import Class2DParameters
 from cryoemservices.wrappers.class3d_wrapper import Class3DParameters
+from cryoemservices.wrappers.refine3d_wrapper import RefineParameters
 
 
 class ISPyBParameters(BaseModel):
@@ -40,6 +44,7 @@ class MurfeyParameters(BaseModel):
 
 FIXTURE_DIR = Path(__file__).parent.parent.parent.resolve()
 known_services = {
+    "BFactor": BFactorParameters,
     "Class2DWrapper": Class2DParameters,
     "Class3DWrapper": Class3DParameters,
     "CrYOLO": CryoloParameters,
@@ -47,11 +52,14 @@ known_services = {
     "Denoise": DenoiseParameters,
     "EMISPyB": ISPyBParameters,
     "Extract": ExtractParameters,
+    "ExtractClass": ExtractClassParameters,
     "IceBreaker": IceBreakerParameters,
     "Images": BaseModel,
     "MotionCorr": MotionCorrParameters,
     "Murfey": MurfeyParameters,
     "NodeCreator": NodeCreatorParameters,
+    "PostProcess": PostProcessParameters,
+    "RefineWrapper": RefineParameters,
     "SelectClasses": SelectClassesParameters,
     "SelectParticles": SelectParticlesParameters,
     "TomoAlign": TomoParameters,
@@ -59,10 +67,12 @@ known_services = {
 
 
 @pytest.mark.datafiles(
+    FIXTURE_DIR / "recipes/em-spa-bfactor.json",
     FIXTURE_DIR / "recipes/em-spa-class2d.json",
     FIXTURE_DIR / "recipes/em-spa-class3d.json",
     FIXTURE_DIR / "recipes/em-spa-extract.json",
     FIXTURE_DIR / "recipes/em-spa-preprocess.json",
+    FIXTURE_DIR / "recipes/em-spa-refine.json",
     FIXTURE_DIR / "recipes/em-tomo-align.json",
     FIXTURE_DIR / "recipes/em-tomo-preprocess.json",
 )

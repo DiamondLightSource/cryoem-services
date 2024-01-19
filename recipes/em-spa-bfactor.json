@@ -1,0 +1,105 @@
+{
+  "1": {
+    "output": {
+      "node_creator": 2,
+      "refine_wrapper": 3
+    },
+    "parameters": {
+      "batch_size": "{batch_size}",
+      "bfactor_directory": "{bfactor_directory}",
+      "class_number": "{class_number}",
+      "mask": "{mask}",
+      "number_of_particles": "{number_of_particles}",
+      "pixel_size": "{pix_size}",
+      "relion_options": {},
+      "rescaled_class_reference": "{class_reference}"
+    },
+    "queue": "bfactor_setup",
+    "service": "BFactor"
+  },
+  "2": {
+    "queue": "node_creator",
+    "service": "NodeCreator"
+  },
+  "3": {
+    "job_parameters": {
+      "mask_diameter": "{mask_diameter}"
+    },
+    "output": {
+      "node_creator": 2,
+      "postprocess": 4
+    },
+    "parameters": {
+      "cluster": {
+        "account": "em",
+        "cluster": "em",
+        "commands": [
+          "source /etc/profile.d/modules.sh",
+          "[[ \"{module_version}\" = {{* ]] && module load relion-zocalo-dev",
+          "[[ \"{module_version}\" = {{* ]] || module load relion-zocalo-dev/{module_version}",
+          "export ZOCALO_CONFIG=/dls_sw/apps/murfey/config/zocalo-staging-config-k8s-slurm.yaml",
+          "module load EM/relion/4.0-slurm",
+          "zocalo.wrap --wrap BFactor --recipewrapper \"$RECIPEWRAP\" >runinfo 2>&1"
+        ],
+        "cpus_per_task": 8,
+        "environment": {
+          "PATH": "/bin/:/usr/bin/:/usr/local/bin/",
+          "USER": "gda2"
+        },
+        "gpus": 4,
+        "job_name": "BFactor-EM",
+        "min_memory_per_gpu": 4096,
+        "partition": "em,cs05r",
+        "prefer": "em_node",
+        "queue": "default",
+        "scheduler": "slurm",
+        "tasks": 5,
+        "time_limit": "12:00:00"
+      },
+      "recipewrapper": "{bfactor_directory}/.recipewrap",
+      "workingdir": "{bfactor_directory}/"
+    },
+    "queue": "cluster.submission",
+    "service": "RefineWrapper",
+    "wrapper": {
+      "task_information": "BFactor"
+    }
+  },
+  "4": {
+    "output": {
+      "ispyb_connector": 6,
+      "murfey_feedback": 5,
+      "node_creator": 2
+    },
+    "parameters": {
+      "picker_id": "{picker_id}",
+      "refined_class_uuid": "{refined_class_uuid}",
+      "refined_grp_uuid": "{refined_grp_uuid}"
+    },
+    "queue": "postprocess",
+    "service": "PostProcess"
+  },
+  "5": {
+    "parameters": {
+      "program_id": "{autoproc_program_id}",
+      "session_id": "{session_id}"
+    },
+    "queue": "{feedback_queue}",
+    "service": "Murfey"
+  },
+  "6": {
+    "parameters": {
+      "dcid": "{dcid}",
+      "ispyb_command": "buffer",
+      "program_id": "{autoproc_program_id}"
+    },
+    "queue": "ispyb_connector",
+    "service": "EMISPyB"
+  },
+  "start": [
+    [
+      1,
+      []
+    ]
+  ]
+}

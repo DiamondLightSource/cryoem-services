@@ -22,7 +22,6 @@ class BFactorParameters(BaseModel):
     batch_size: int
     pixel_size: float
     mask: str
-    refined_class_uuid: int
     relion_options: RelionServiceOptions
 
 
@@ -130,9 +129,9 @@ class BFactor(CommonService):
         linked_class_reference.unlink(missing_ok=True)
         linked_class_reference.symlink_to(bfactor_params.rescaled_class_reference)
 
-        refine_mask_file = bfactor_dir / "Import/job001/mask.mrc"
-        refine_mask_file.unlink(missing_ok=True)
-        refine_mask_file.symlink_to(bfactor_params.mask)
+        linked_mask_file = bfactor_dir / "Import/job001/mask.mrc"
+        linked_mask_file.unlink(missing_ok=True)
+        linked_mask_file.symlink_to(bfactor_params.mask)
 
         # Split the particles file
         split_job_dir = Path("Select/job002")
@@ -148,7 +147,7 @@ class BFactor(CommonService):
             "--nr_split",
             "1",
             "--size_split",
-            str(bfactor_params.batch_size),
+            str(bfactor_params.number_of_particles),
             "--pipeline_control",
             f"{split_job_dir}/",
         ]
@@ -197,6 +196,8 @@ class BFactor(CommonService):
             "number_of_particles": bfactor_params.number_of_particles,
             "batch_size": bfactor_params.batch_size,
             "pixel_size": bfactor_params.pixel_size,
+            "mask": str(linked_mask_file),
+            "class_number": bfactor_params.class_number,
         }
         if isinstance(rw, MockRW):
             rw.transport.send(
