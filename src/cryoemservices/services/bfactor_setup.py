@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import os
-import subprocess
 from pathlib import Path
 
+import numpy as np
 import workflows.recipe
 from pydantic import BaseModel, Field, ValidationError
 from workflows.services.common_service import CommonService
@@ -141,7 +141,7 @@ class BFactor(CommonService):
             "--i",
             str(linked_class_particles),
             "--o",
-            f"{split_job_dir}/particles.star",
+            f"{split_job_dir}/particles_split1.star",
             "--split",
             "--random_order",
             "--nr_split",
@@ -151,9 +151,24 @@ class BFactor(CommonService):
             "--pipeline_control",
             f"{split_job_dir}/",
         ]
-        split_result = subprocess.run(
-            split_command, cwd=str(bfactor_dir), capture_output=True
-        )
+
+        # Don't run the Relion command, this can be done directly in python
+        random_particle_ids = np.random.randint(bfactor_params.number_of_particles)
+        particle_id = 0
+        with open(linked_class_particles, "r") as particles_file, open(
+            split_job_dir / "particles_split1.star", "w"
+        ) as particles_split:
+            while True:
+                line = particles_file.readline()
+                if not line:
+                    break
+                tidy_line = line.lstrip()
+                if tidy_line and tidy_line[0].isnumeric():
+                    if particle_id in random_particle_ids:
+                        particles_split.write(line)
+                    particle_id += 1
+                else:
+                    particles_split.write(line)
 
         # Register the Selection job with the node creator
         self.log.info(f"Sending {self.job_type} to node creator")
@@ -163,13 +178,10 @@ class BFactor(CommonService):
             "output_file": f"{bfactor_dir}/{split_job_dir}/particles_split1.star",
             "relion_options": dict(bfactor_params.relion_options),
             "command": " ".join(split_command),
-            "stdout": split_result.stdout.decode("utf8", "replace"),
-            "stderr": split_result.stderr.decode("utf8", "replace"),
+            "stdout": "",
+            "stderr": "",
+            "success": True,
         }
-        if split_result.returncode:
-            node_creator_select["success"] = False
-        else:
-            node_creator_select["success"] = True
         if isinstance(rw, MockRW):
             rw.transport.send(
                 destination="node_creator",
@@ -177,15 +189,6 @@ class BFactor(CommonService):
             )
         else:
             rw.send_to("node_creator", node_creator_select)
-
-        # End here if the command failed
-        if split_result.returncode:
-            self.log.error(
-                "Refinement splitting failed with exitcode "
-                f"{split_result.returncode}:\n"
-                + split_result.stderr.decode("utf8", "replace")
-            )
-            return False
 
         # Send on to the refinement wrapper
         refine_params = {
