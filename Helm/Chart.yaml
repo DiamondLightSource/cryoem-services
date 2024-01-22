@@ -3,18 +3,21 @@ name: cryoem-services
 description: An umbrella Helm chart for EM processing services
 version: 0.0.1
 dependencies:
+- name: bfactor_setup
 - name: cluster_submission
 - name: cryolo
 - name: ctffind
 - name: denoise_iris
 - name: dispatcher
 - name: extract
+- name: extract_class
 - name: icebreaker
 - name: images
 - name: ispyb
 - name: motioncorr
 - name: motioncorr_slurm
 - name: node_creator
+- name: postprocess
 - name: select_classes
 - name: select_particles
 - name: tomo_align
