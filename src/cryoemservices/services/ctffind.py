@@ -146,6 +146,12 @@ class CTFFind(CommonService):
             rw.transport.nack(header)
             return
 
+        # Check if this file has been run before
+        if Path(ctf_params.output_image).is_file():
+            job_is_rerun = True
+        else:
+            job_is_rerun = False
+
         # Make sure the output directory exists
         if not Path(ctf_params.output_image).parent.exists():
             Path(ctf_params.output_image).parent.mkdir(parents=True)
@@ -182,8 +188,8 @@ class CTFFind(CommonService):
         )
         self.parse_ctf_output(result.stdout.decode("utf8", "replace"))
 
-        # If this is SPA, send the results to be processed by the node creator
-        if ctf_params.experiment_type == "spa":
+        # If this is a new SPA run, send the results to be processed by the node creator
+        if ctf_params.experiment_type == "spa" and not job_is_rerun:
             # Register the ctf job with the node creator
             self.log.info(f"Sending {self.job_type} to node creator")
             node_creator_parameters = {

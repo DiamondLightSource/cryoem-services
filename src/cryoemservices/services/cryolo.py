@@ -125,6 +125,12 @@ class CrYOLO(CommonService):
             rw.transport.nack(header)
             return
 
+        # Check if this file has been run before
+        if Path(cryolo_params.output_path).is_file():
+            job_is_rerun = True
+        else:
+            job_is_rerun = False
+
         # CrYOLO requires running in the project directory or job directory
         job_dir = Path(re.search(".+/job[0-9]{3}/", cryolo_params.output_path)[0])
         job_dir.mkdir(parents=True, exist_ok=True)
@@ -251,13 +257,15 @@ class CrYOLO(CommonService):
             node_creator_parameters["success"] = False
         else:
             node_creator_parameters["success"] = True
-        if isinstance(rw, MockRW):
-            rw.transport.send(
-                destination="node_creator",
-                message={"parameters": node_creator_parameters, "content": "dummy"},
-            )
-        else:
-            rw.send_to("node_creator", node_creator_parameters)
+        if not job_is_rerun:
+            # Only do the node creator inserts for new files
+            if isinstance(rw, MockRW):
+                rw.transport.send(
+                    destination="node_creator",
+                    message={"parameters": node_creator_parameters, "content": "dummy"},
+                )
+            else:
+                rw.send_to("node_creator", node_creator_parameters)
 
         # End here if the command failed
         if result.returncode:

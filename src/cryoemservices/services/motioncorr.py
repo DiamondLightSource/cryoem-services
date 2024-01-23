@@ -218,6 +218,12 @@ class MotionCorr(CommonService):
             rw.transport.nack(header)
             return
 
+        # Check if this file has been run before
+        if Path(mc_params.mrc_out).is_file():
+            job_is_rerun = True
+        else:
+            job_is_rerun = False
+
         # Get the eer grouping out of the fractionation file
         eer_grouping = 0
         if (
@@ -362,7 +368,7 @@ class MotionCorr(CommonService):
                 f"failed with exitcode {result.returncode}:\n"
                 + result.stderr.decode("utf8", "replace")
             )
-            if mc_params.experiment_type == "spa":
+            if mc_params.experiment_type == "spa" and not job_is_rerun:
                 # On spa failure send the outputs to the node creator
                 node_creator_parameters = {
                     "job_type": self.job_type,
@@ -449,7 +455,7 @@ class MotionCorr(CommonService):
         # If this is SPA, determine and set up the next jobs
         if mc_params.experiment_type == "spa":
             # Set up icebreaker if requested, then ctffind
-            if mc_params.do_icebreaker_jobs:
+            if mc_params.do_icebreaker_jobs and not job_is_rerun:
                 # Three IceBreaker jobs: CtfFind job is MC+4
                 ctf_job_number = 6
 
@@ -509,7 +515,9 @@ class MotionCorr(CommonService):
                     )
                 else:
                     rw.send_to("icebreaker", icebreaker_job004_params)
-
+            elif mc_params.do_icebreaker_jobs and job_is_rerun:
+                # On a rerun, skip IceBreaker jobs but mark the CtfFind job as MC+4
+                ctf_job_number = 6
             else:
                 # No IceBreaker jobs: CtfFind job is MC+1
                 ctf_job_number = 3
@@ -561,8 +569,8 @@ class MotionCorr(CommonService):
                 },
             )
 
-        # If this is SPA, send the results to be processed by the node creator
-        if mc_params.experiment_type == "spa":
+        # If this is a new SPA run, send the results to be processed by the node creator
+        if mc_params.experiment_type == "spa" and not job_is_rerun:
             # As this is the entry point we need to import the file to the project
             self.log.info("Sending relion.import.movies to node creator")
             project_dir = Path(
