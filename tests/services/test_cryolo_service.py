@@ -80,8 +80,6 @@ def test_cryolo_service(mock_subprocess, mock_environment, offline_transport, tm
 
     # Write star co-ordinate file in the format cryolo will output
     output_path.parent.mkdir(parents=True)
-    with open(output_path, "w") as f:
-        f.write("data_\n\nloop_\n\n_rlnCoordinateX\n_rlnCoordinateY\n 1.1 2.2")
     cbox_path.parent.mkdir(parents=True)
     with open(cbox_path, "w") as f:
         f.write(
