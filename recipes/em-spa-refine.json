@@ -7,11 +7,11 @@
     "parameters": {
       "boxsize": "{boxsize}",
       "class3d_dir": "{class3d_dir}",
-      "class_number": "{class_number}",
       "downscaled_pixel_size": "{downscaled_pixel_size}",
       "micrographs_file": "{micrographs_file}",
       "nr_iter_3d": "{nr_iter}",
       "pixel_size": "{pix_size}",
+      "refine_class_nr": "{class_number}",
       "refine_job_dir": "{refine_job_dir}",
       "relion_options": {}
     },

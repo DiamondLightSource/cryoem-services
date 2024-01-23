@@ -19,7 +19,7 @@ class ExtractClassParameters(BaseModel):
     micrographs_file: str = Field(..., min_length=1)
     class3d_dir: str = Field(..., min_length=1)
     refine_job_dir: str = Field(..., min_length=1)
-    class_number: int
+    refine_class_nr: int
     boxsize: int
     pixel_size: float
     downscaled_pixel_size: float
@@ -103,7 +103,7 @@ class ExtractClass(CommonService):
 
         self.log.info(
             f"Running extraction of particles for {extract_params.class3d_dir} "
-            f"class {extract_params.class_number}"
+            f"class {extract_params.refine_class_nr}"
         )
 
         # Run in the project directory
@@ -132,7 +132,7 @@ class ExtractClass(CommonService):
         Path(select_job_dir).mkdir(parents=True, exist_ok=True)
 
         refine_selection_link = Path(
-            project_dir / f"Select/Refine_class{extract_params.class_number}"
+            project_dir / f"Select/Refine_class{extract_params.refine_class_nr}"
         )
         refine_selection_link.unlink(missing_ok=True)
         refine_selection_link.symlink_to(f"job{job_num_refine - 2:03}")
@@ -147,9 +147,9 @@ class ExtractClass(CommonService):
             "--select",
             "rlnClassNumber",
             "--minval",
-            str(extract_params.class_number),
+            str(extract_params.refine_class_nr),
             "--maxval",
-            str(extract_params.class_number),
+            str(extract_params.refine_class_nr),
             "--pipeline_control",
             f"{select_job_dir}/",
         ]
@@ -199,7 +199,7 @@ class ExtractClass(CommonService):
         extract_job_dir.mkdir(parents=True, exist_ok=True)
 
         refine_extraction_link = Path(
-            project_dir / f"Extract/Reextract_class{extract_params.class_number}"
+            project_dir / f"Extract/Reextract_class{extract_params.refine_class_nr}"
         )
         refine_extraction_link.unlink(missing_ok=True)
         refine_extraction_link.symlink_to(f"job{job_num_refine - 1:03}")
@@ -277,12 +277,12 @@ class ExtractClass(CommonService):
         # Create a reference for the refinement
         class_reference = (
             Path(extract_params.class3d_dir)
-            / f"run_it{extract_params.nr_iter_3d:03}_class{extract_params.class_number:03}.mrc"
+            / f"run_it{extract_params.nr_iter_3d:03}_class{extract_params.refine_class_nr:03}.mrc"
         )
         rescaled_class_reference = (
             project_dir
             / extract_job_dir
-            / f"refinement_reference_class{extract_params.class_number:03}.mrc"
+            / f"refinement_reference_class{extract_params.refine_class_nr:03}.mrc"
         )
 
         self.log.info("Running class reference rescaling")
@@ -321,7 +321,7 @@ class ExtractClass(CommonService):
             "number_of_particles": number_of_particles,
             "batch_size": number_of_particles,
             "pixel_size": extract_params.pixel_size,
-            "class_number": extract_params.class_number,
+            "class_number": extract_params.refine_class_nr,
         }
         if isinstance(rw, MockRW):
             rw.transport.send(
