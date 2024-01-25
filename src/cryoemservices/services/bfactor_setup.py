@@ -194,7 +194,7 @@ class BFactor(CommonService):
         refine_params = {
             "refine_job_dir": f"{bfactor_dir}/Refine3D/job003",
             "particles_file": f"{bfactor_dir}/{split_job_dir}/particles_split1.star",
-            "rescaled_class_reference": linked_class_reference,
+            "rescaled_class_reference": str(linked_class_reference),
             "is_first_refinement": False,
             "number_of_particles": bfactor_params.number_of_particles,
             "batch_size": bfactor_params.batch_size,

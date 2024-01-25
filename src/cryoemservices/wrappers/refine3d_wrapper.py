@@ -59,7 +59,7 @@ class RefineParameters(BaseModel):
     relion_options: RelionServiceOptions
 
 
-class RefineWrapper(zocalo.wrapper.BaseWrapper):
+class Refine3DWrapper(zocalo.wrapper.BaseWrapper):
     """
     A wrapper for the Relion 3D refinement pipeline.
     """

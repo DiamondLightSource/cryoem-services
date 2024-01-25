@@ -24,6 +24,7 @@ class ExtractClassParameters(BaseModel):
     pixel_size: float
     downscaled_pixel_size: float
     nr_iter_3d: int = 20
+    bg_radius: int = -1
     relion_options: RelionServiceOptions
 
 
@@ -190,9 +191,7 @@ class ExtractClass(CommonService):
             return False
 
         # Find the number of particles in the class
-        number_of_particles = select_result.stdout.decode("utf8", "replace").split(" ")[
-            3
-        ]
+        number_of_particles = select_result.stdout.decode("utf8", "replace").split()[3]
 
         # Run re-extraction on the selected particles
         extract_job_dir = project_dir / f"Extract/job{job_num_refine - 1:03}"
@@ -247,7 +246,7 @@ class ExtractClass(CommonService):
         node_creator_extract = {
             "job_type": self.extract_job_type,
             "input_file": f"{select_job_dir}/particles.star:{extract_params.micrographs_file}",
-            "output_file": f"{project_dir}/{extract_job_dir}/particles.star",
+            "output_file": f"{extract_job_dir}/particles.star",
             "relion_options": dict(extract_params.relion_options),
             "command": " ".join(extract_command),
             "stdout": extract_result.stdout.decode("utf8", "replace"),
@@ -280,8 +279,7 @@ class ExtractClass(CommonService):
             / f"run_it{extract_params.nr_iter_3d:03}_class{extract_params.refine_class_nr:03}.mrc"
         )
         rescaled_class_reference = (
-            project_dir
-            / extract_job_dir
+            extract_job_dir
             / f"refinement_reference_class{extract_params.refine_class_nr:03}.mrc"
         )
 
@@ -315,8 +313,8 @@ class ExtractClass(CommonService):
         # Send on to the refinement wrapper
         refine_params = {
             "refine_job_dir": extract_params.refine_job_dir,
-            "particles_file": f"{project_dir}/{extract_job_dir}/particles.star",
-            "rescaled_class_reference": rescaled_class_reference,
+            "particles_file": f"{extract_job_dir}/particles.star",
+            "rescaled_class_reference": str(rescaled_class_reference),
             "is_first_refinement": True,
             "number_of_particles": number_of_particles,
             "batch_size": number_of_particles,
