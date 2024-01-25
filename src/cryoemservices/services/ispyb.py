@@ -1025,6 +1025,41 @@ class EMISPyB(CommonService):
         )
         return {"success": True, "return_value": result}
 
+    def do_register_processing(self, parameters, **kwargs):
+        program = parameters("program")
+        cmdline = parameters("cmdline")
+        environment = parameters("environment") or ""
+        if isinstance(environment, dict):
+            environment = ", ".join(
+                f"{key}={value}" for key, value in environment.items()
+            )
+        environment = environment[: min(255, len(environment))]
+        rpid = parameters("rpid")
+        if rpid and not rpid.isdigit():
+            self.log.error(f"Invalid processing id {rpid}")
+            return False
+        try:
+            result = self.ispyb.mx_processing.upsert_program_ex(
+                job_id=rpid,
+                name=program,
+                command=cmdline,
+                environment=environment,
+            )
+            self.log.info(
+                f"Registered new program {program} for processing id {rpid} "
+                f"with command line {cmdline} and environment {environment} "
+                f"with result {result}."
+            )
+            return {"success": True, "return_value": result}
+        except ispyb.ISPyBException as e:
+            self.log.error(
+                f"Registering new program {program} for processing id {rpid} "
+                f"with command line {cmdline} and environment {environment} "
+                f"caused exception {e}.",
+                exc_info=True,
+            )
+            return False
+
     def do_update_processing_status(self, parameters, **kwargs):
         ppid = parameters("program_id")
         message = parameters("message")
@@ -1038,16 +1073,13 @@ class EMISPyB(CommonService):
                 message=message,
             )
             self.log.info(
-                f"Updating program {ppid} with status {message!r}",
+                f"Updating program {ppid} with status {message}",
             )
             # result is just ppid
             return {"success": True, "return_value": result}
         except ispyb.ISPyBException as e:
             self.log.error(
-                "Updating program %s status: '%s' caused exception '%s'.",
-                ppid,
-                message,
-                e,
+                f"Updating program {ppid} status: {message} caused exception {e}.",
                 exc_info=True,
             )
             return False
