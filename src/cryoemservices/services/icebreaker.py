@@ -201,9 +201,15 @@ class IceBreaker(CommonService):
             ]
         elif icebreaker_params.icebreaker_type == "particles":
             # Run the icebreaker particle batch function
-            ice_groups.main(
-                icebreaker_params.input_particles, icebreaker_params.input_micrographs
-            )
+            try:
+                ice_groups.main(
+                    icebreaker_params.input_particles,
+                    icebreaker_params.input_micrographs,
+                )
+            except FileNotFoundError as e:
+                self.log.warning(f"IceBreaker failed to find file: {e}")
+                rw.transport.nack(header)
+                return
 
             # Create a star file with the input data
             icegroups_doc = cif.Document()
