@@ -61,6 +61,7 @@ def test_cryolo_service(mock_subprocess, mock_environment, offline_transport, tm
             "cryolo_model_weights": "sample_weights",
             "cryolo_threshold": 0.15,
             "retained_fraction": 0.5,
+            "min_particles": 0,
             "mc_uuid": 0,
             "picker_uuid": 0,
             "particle_diameter": 1.1,

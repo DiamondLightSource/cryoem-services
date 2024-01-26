@@ -23,6 +23,7 @@ class CryoloParameters(BaseModel):
     )
     cryolo_threshold: float = 0.3
     retained_fraction: float = 1
+    min_particles: int = 30
     cryolo_command: str = "cryolo_predict.py"
     particle_diameter: float = None
     mc_uuid: int
@@ -192,9 +193,19 @@ class CrYOLO(CommonService):
                 particles_confidence = np.array(
                     cbox_block.find_loop("_Confidence"), dtype=float
                 )
-                cryolo_threshold = np.quantile(
-                    particles_confidence, 1 - cryolo_params.retained_fraction
-                )
+                if len(particles_confidence) < cryolo_params.min_particles:
+                    cryolo_threshold = 0.1
+                elif (
+                    len(particles_confidence) * cryolo_params.retained_fraction
+                    < cryolo_params.min_particles
+                ):
+                    cryolo_threshold = sorted(particles_confidence, reverse=True)[
+                        cryolo_params.min_particles
+                    ]
+                else:
+                    cryolo_threshold = np.quantile(
+                        particles_confidence, 1 - cryolo_params.retained_fraction
+                    )
 
                 self.log.info(
                     f"Selecting particles with confidence above {cryolo_threshold}"
