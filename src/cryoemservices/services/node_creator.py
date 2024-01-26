@@ -107,6 +107,13 @@ pipeline_spa_jobs: dict[str, dict] = {
         "folder": "Select",
         "input_stars": {"fn_data": "run_it020_data.star"},
     },
+    "relion.extract.reextract": {
+        "folder": "Extract",
+        "input_stars": {
+            "fndata_reextract": "particles.star",
+            "star_mics": "micrographs_ctf.star",
+        },
+    },
     "relion.refine3d": {
         "folder": "Refine3D",
         "input_stars": {

@@ -265,6 +265,14 @@ def generate_service_options(
         "select_minval": relion_options.refine_class_nr,
     }
 
+    job_options["relion.extract.reextract"] = {
+        "bg_diameter": -1,
+        "extract_size": relion_options.boxsize,
+        "do_rescale": False,
+        "rescale": relion_options.boxsize,
+        "nr_mpi": 1,
+    }
+
     job_options["relion.refine3d"] = {
         "particle_diameter": relion_options.mask_diameter,
         "do_preread_images": True,
