@@ -319,7 +319,12 @@ class CrYOLO(CommonService):
                     "file": cryolo_params.input_path,
                     "coordinates": coords,
                     "pixel_size": cryolo_params.pixel_size,
-                    "diameter": cryolo_params.pixel_size * 160,
+                    "diameter": cryolo_params.pixel_size
+                    * (
+                        cryolo_params.particle_diameter
+                        if cryolo_params.particle_diameter
+                        else 160
+                    ),
                     "outfile": str(
                         Path(cryolo_params.output_path).with_suffix(".jpeg")
                     ),
@@ -333,7 +338,12 @@ class CrYOLO(CommonService):
                     "file": cryolo_params.input_path,
                     "coordinates": coords,
                     "pixel_size": cryolo_params.pixel_size,
-                    "diameter": cryolo_params.pixel_size * 160,
+                    "diameter": cryolo_params.pixel_size
+                    * (
+                        cryolo_params.particle_diameter
+                        if cryolo_params.particle_diameter
+                        else 160
+                    ),
                     "outfile": str(
                         Path(cryolo_params.output_path).with_suffix(".jpeg")
                     ),
