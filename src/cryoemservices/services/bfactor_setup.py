@@ -153,7 +153,12 @@ class BFactor(CommonService):
         ]
 
         # Don't run the Relion command, this can be done directly in python
-        random_particle_ids = np.random.randint(bfactor_params.number_of_particles)
+        rng = np.random.default_rng()
+        random_particle_ids = rng.choice(
+            np.arange(0, bfactor_params.batch_size),
+            bfactor_params.number_of_particles,
+            replace=False,
+        )
         particle_id = 0
         with open(linked_class_particles, "r") as particles_file, open(
             split_job_dir / "particles_split1.star", "w"
@@ -210,5 +215,5 @@ class BFactor(CommonService):
         else:
             rw.send_to("refine_wrapper", refine_params)
 
-        self.log.info(f"Set up b-factor run for {bfactor_params.bfactor_directory}.")
+        self.log.info(f"Set up b-factor run for {bfactor_params.bfactor_directory}")
         rw.transport.ack(header)

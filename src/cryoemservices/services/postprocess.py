@@ -145,7 +145,9 @@ class PostProcess(CommonService):
         ]
         postprocess_result = subprocess.run(postprocess_command, capture_output=True)
         if not job_is_rerun:
-            (Path(postprocess_params.job_dir) / "RELION_JOB_EXIT_SUCCESS").unlink()
+            (Path(postprocess_params.job_dir) / "RELION_JOB_EXIT_SUCCESS").unlink(
+                missing_ok=True
+            )
 
         # Register the post-processing job with the node creator
         self.log.info(f"Sending {self.job_type} to node creator")

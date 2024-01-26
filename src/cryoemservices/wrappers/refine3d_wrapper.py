@@ -74,6 +74,7 @@ class Refine3DWrapper(zocalo.wrapper.BaseWrapper):
         """
         assert hasattr(self, "recwrap"), "No recipewrapper object found"
         params_dict = self.recwrap.recipe_step["job_parameters"]
+        params_dict.update(self.recwrap.payload)
         try:
             refine_params = RefineParameters(**params_dict)
         except (ValidationError, TypeError) as e:
@@ -242,20 +243,21 @@ class Refine3DWrapper(zocalo.wrapper.BaseWrapper):
                 return False
 
         # Send to postprocessing
+        self.log.info("Sending on to post-processing")
         postprocess_params = {
             "half_map": f"{refine_params.refine_job_dir}/run_half1_class001_unfil.mrc",
             "mask": refine_params.mask
             if refine_params.mask
             else f"{mask_job_dir}/mask.mrc",
             "rescaled_class_reference": refine_params.rescaled_class_reference,
-            "job_dir": f"PostProcess/job{job_num_postprocess:03}",
+            "job_dir": f"{project_dir}/PostProcess/job{job_num_postprocess:03}",
             "is_first_refinement": refine_params.is_first_refinement,
             "pixel_size": refine_params.pixel_size,
             "number_of_particles": refine_params.number_of_particles,
             "batch_size": refine_params.batch_size,
             "class_number": refine_params.class_number,
             "symmetry": refine_params.symmetry,
-            "relion_options": refine_params.relion_options,
+            "relion_options": dict(refine_params.relion_options),
         }
         self.recwrap.send_to("postprocess", postprocess_params)
         return True

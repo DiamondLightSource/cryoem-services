@@ -10,11 +10,11 @@
       "class_number": "{class_number}",
       "mask": "{mask}",
       "number_of_particles": "{number_of_particles}",
-      "pixel_size": "{pix_size}",
+      "pixel_size": "{pixel_size}",
       "relion_options": {},
       "rescaled_class_reference": "{class_reference}"
     },
-    "queue": "bfactor_setup",
+    "queue": "bfactor",
     "service": "BFactor"
   },
   "2": {
@@ -23,7 +23,8 @@
   },
   "3": {
     "job_parameters": {
-      "mask_diameter": "{mask_diameter}"
+      "mask_diameter": "{mask_diameter}",
+      "relion_options": {}
     },
     "output": {
       "node_creator": 2,
@@ -37,12 +38,12 @@
           "source /etc/profile.d/modules.sh",
           "module load EM/cryoem-services",
           "export ZOCALO_CONFIG={zocalo_config_file}",
-          "zocalo.wrap --wrap BFactor --recipewrapper \"$RECIPEWRAP\" >runinfo 2>&1"
+          "zocalo.wrap --wrap Refine3D --recipewrapper \"$RECIPEWRAP\" >runinfo 2>&1"
         ],
         "cpus_per_task": 8,
         "environment": {
           "PATH": "/bin/:/usr/bin/:/usr/local/bin/",
-          "USER": "gda2"
+          "USER": "{user}"
         },
         "gpus": 4,
         "job_name": "BFactor-EM",
@@ -60,7 +61,7 @@
     "queue": "cluster.submission",
     "service": "RefineWrapper",
     "wrapper": {
-      "task_information": "BFactor"
+      "task_information": "Refine3D"
     }
   },
   "4": {

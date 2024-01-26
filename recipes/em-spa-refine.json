@@ -24,7 +24,8 @@
   },
   "3": {
     "job_parameters": {
-      "mask_diameter": "{mask_diameter}"
+      "mask_diameter": "{mask_diameter}",
+      "relion_options": {}
     },
     "output": {
       "node_creator": 2,
@@ -43,7 +44,7 @@
         "cpus_per_task": 8,
         "environment": {
           "PATH": "/bin/:/usr/bin/:/usr/local/bin/",
-          "USER": "k8s-em"
+          "USER": "{user}"
         },
         "gpus": 4,
         "job_name": "Refine3D-EM",
