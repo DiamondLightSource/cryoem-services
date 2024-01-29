@@ -131,10 +131,14 @@ class NodeCreator(CommonService):
 
     def initializing(self):
         """Subscribe to a queue. Received messages must be acknowledged."""
-        self.log.info("Relion node creator service starting")
+        try:
+            queue_name = os.environ["NODE_CREATOR_QUEUE"]
+        except KeyError:
+            queue_name = "node_creator"
+        self.log.info(f"Relion node creator service starting for queue {queue_name}")
         workflows.recipe.wrap_subscribe(
             self._transport,
-            "node_creator",
+            queue_name,
             self.node_creator,
             acknowledgement=True,
             log_extender=self.extend_log,
