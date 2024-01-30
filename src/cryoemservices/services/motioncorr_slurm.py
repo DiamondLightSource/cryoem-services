@@ -39,7 +39,7 @@ slurm_json_job_template = {
         "tasks": 1,
         "cpus_per_task": 1,
         "gpus": 1,
-        "memory_per_gpu": 7000,
+        "memory_per_gpu": 12000,
         "time_limit": "1:00:00",
     },
     "v0.0.40": {
@@ -50,7 +50,7 @@ slurm_json_job_template = {
         "cpus_per_task": 1,
         "tres_per_task": "gres/gpu:1",
         "memory_per_node": {
-            "number": 7000,
+            "number": 12000,
             "set": True,
             "infinite": False,
         },
