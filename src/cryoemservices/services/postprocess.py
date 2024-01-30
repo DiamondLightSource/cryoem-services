@@ -183,6 +183,7 @@ class PostProcess(CommonService):
             return
 
         # Get the bfactor and resolution from the postprocessing output
+        # Should this be interpolated??
         postprocess_lines = postprocess_result.stdout.decode("utf8", "replace").split(
             "\n"
         )
