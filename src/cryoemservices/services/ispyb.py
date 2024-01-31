@@ -199,7 +199,7 @@ class EMISPyB(CommonService):
         if result and result.get("success"):
             rw.send({"result": result.get("return_value")}, transaction=txn)
             rw.transport.ack(header, transaction=txn)
-        elif result and result.get("checkpoint"):
+        elif result and result.get("checkpoint") and not result.get("delay"):
             rw.checkpoint(
                 result.get("return_value"),
                 delay=rw.recipe_step["parameters"].get("delay", result.get("delay")),
