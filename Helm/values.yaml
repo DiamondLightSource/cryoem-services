@@ -179,6 +179,22 @@ ispyb:
     readOnly: true
   configMap: zocalo-conf
 
+monitor_refine:
+  replicas: 1
+  image: gcr.io/image/path
+  command: zocalo.service -s service-name -e environment
+  extraVolumes:
+  - name: home
+    hostPath:
+      path: /home
+      type: Directory
+  extraVolumeMounts:
+  - mountPath: /home
+    name: home
+    mountPropagation: HostToContainer
+    readOnly: true
+  configMap: zocalo-conf
+
 motioncorr:
   replicas: 1
   image: gcr.io/image/path
