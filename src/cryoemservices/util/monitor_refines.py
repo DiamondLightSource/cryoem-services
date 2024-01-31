@@ -16,7 +16,6 @@ class MonitorParams(BaseModel):
     visit: Optional[str]
     grid: Optional[str]
     class_number: Optional[int]
-    boxsize: Optional[int]
     batch_size: Optional[int]
     project_dir: Optional[str]
     class_reference: Optional[str]
@@ -41,11 +40,10 @@ class MonitorParams(BaseModel):
                 or not values.get("visit")
                 or not values.get("grid")
                 or not values.get("class_number")
-                or not values.get("boxsize")
             ):
                 raise KeyError(
                     "The following keys must be provided for setup:"
-                    "microscope, visit, grid, class_number, boxsize"
+                    "microscope, visit, grid, class_number"
                 )
         elif command == "done_refinement":
             if (
@@ -202,6 +200,9 @@ class MonitorRefine(CommonService):
                 rw.transport.nack(header)
                 return
 
+            # Boxsize conversion as in particle extraction, enlarged by 25%
+            boxsize = mask_diameter / pixel_size / 1.1 * 1.25
+
             # Set up and run a first refinement job
             refine_message = {
                 "recipes": ["em-spa-refine-test"],
@@ -210,7 +211,7 @@ class MonitorRefine(CommonService):
                     "class3d_dir": f"{class3d_dir}",
                     "micrographs_file": f"{visit_tmp_dir}/CtfFind/job006/micrographs_ctf.star",
                     "class_number": monitor_params.class_number,
-                    "boxsize": monitor_params.boxsize,
+                    "boxsize": boxsize,
                     "pixel_size": pixel_size,
                     "downscaled_pixel_size": downscaled_pixel_size,
                     "mask_diameter": mask_diameter,
