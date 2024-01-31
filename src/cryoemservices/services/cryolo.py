@@ -193,7 +193,7 @@ class CrYOLO(CommonService):
                 particles_confidence = np.array(
                     cbox_block.find_loop("_Confidence"), dtype=float
                 )
-                if len(particles_confidence) < cryolo_params.min_particles:
+                if len(particles_confidence) <= cryolo_params.min_particles:
                     cryolo_threshold = 0.1
                 elif (
                     len(particles_confidence) * cryolo_params.retained_fraction
@@ -226,6 +226,9 @@ class CrYOLO(CommonService):
                 thresholded_y = (particles_y_all + box_size_y_all / 2)[
                     particles_confidence > cryolo_threshold
                 ]
+
+                # Update the number of particles
+                self.number_of_particles = len(thresholded_x)
 
                 # Rewrite the star file with only the selected particles
                 with open(job_dir / cryolo_params.output_path, "w") as particles_star:
