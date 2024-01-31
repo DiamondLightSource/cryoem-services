@@ -240,8 +240,11 @@ class CrYOLO(CommonService):
                 cryolo_threshold = cryolo_params.cryolo_threshold
             cryolo_params.relion_options.cryolo_threshold = cryolo_threshold
 
-            # Get the diameters of the particles for murfey
-            cryolo_particle_sizes = cbox_sizes[cbox_confidence > cryolo_threshold]
+            # Get the diameters of the particles in Angstroms for Murfey
+            cryolo_particle_sizes = (
+                cbox_sizes[cbox_confidence > cryolo_threshold]
+                * cryolo_params.pixel_size
+            )
         except (FileNotFoundError, OSError, AttributeError):
             cryolo_particle_sizes = []
 
