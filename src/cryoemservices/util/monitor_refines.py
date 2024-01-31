@@ -204,7 +204,7 @@ class MonitorRefine(CommonService):
 
             # Set up and run a first refinement job
             refine_message = {
-                "recipes": ["em-spa-refine"],
+                "recipes": ["em-spa-refine-test"],
                 "parameters": {
                     "refine_job_dir": f"{visit_tmp_dir}/Refine3D/job004",
                     "class3d_dir": f"{class3d_dir}",
@@ -236,7 +236,7 @@ class MonitorRefine(CommonService):
             ]
             for particle_count in bfactor_particle_counts:
                 bfactor_message = {
-                    "recipes": ["em-spa-bfactor"],
+                    "recipes": ["em-spa-bfactor-test"],
                     "parameters": {
                         "bfactor_directory": f"{monitor_params.project_dir}/bfactor_run/bfactor_{particle_count}",
                         "class_reference": monitor_params.class_reference,
