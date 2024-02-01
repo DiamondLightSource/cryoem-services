@@ -6,15 +6,8 @@ from typing import Optional
 import matplotlib.pyplot as plt
 import numpy as np
 import workflows.recipe
-import workflows.transport.pika_transport as pt
 from pydantic import BaseModel, Field, ValidationError, root_validator, validator
 from workflows.services.common_service import CommonService
-
-transport = pt.PikaTransport()
-transport.load_configuration_file(
-    "/dls_sw/apps/murfey/config/rmq-connection-creds-pollux.yml"
-)
-transport.connect()
 
 
 class MonitorParams(BaseModel):
@@ -94,9 +87,6 @@ class MonitorRefine(CommonService):
     # Logger name
     _logger_name = "cryoemservices.services.monitor_refine"
 
-    # Force pollux sends
-    _transport = transport
-
     def initializing(self):
         """Subscribe to a queue. Received messages must be acknowledged."""
         self.log.info("Refinement monitoring service starting")
@@ -125,15 +115,15 @@ class MonitorRefine(CommonService):
                 return
             self.log.debug("Received a simple message")
 
-            # Create a wrapper-like object that can be passed to functions
-            # as if a recipe wrapper was present.
-            rw = MockRW()
-            rw.transport = self._transport
-            rw.recipe_step = {"parameters": message["parameters"]}
-            rw.environment = {"has_recipe_wrapper": False}
-            rw.set_default_channel = rw.dummy
-            rw.send = rw.dummy
-            message = message["content"]
+        # Create a wrapper-like object that can be passed to functions
+        # as if a recipe wrapper was present.
+        rw = MockRW()
+        rw.transport = self._transport
+        rw.recipe_step = {"parameters": message["parameters"]}
+        rw.environment = {"has_recipe_wrapper": False}
+        rw.set_default_channel = rw.dummy
+        rw.send = rw.dummy
+        message = message["content"]
 
         try:
             if isinstance(message, dict):
@@ -233,12 +223,7 @@ class MonitorRefine(CommonService):
                 },
             }
             self.log.info("Running refinement")
-            if isinstance(rw, MockRW):
-                rw.transport.send(
-                    destination="processing_recipe", message=refine_message
-                )
-            else:
-                rw.send_to("processing_recipe", refine_message)
+            rw.transport.send(destination="processing_recipe", message=refine_message)
 
         elif monitor_params.monitor_command == "done_refinement":
             # Run bfactor jobs once the first one is done
@@ -272,12 +257,9 @@ class MonitorRefine(CommonService):
                     },
                 }
                 self.log.info(f"Running bfactor {particle_count} particles")
-                if isinstance(rw, MockRW):
-                    rw.transport.send(
-                        destination="processing_recipe", message=bfactor_message
-                    )
-                else:
-                    rw.send_to("processing_recipe", bfactor_message)
+                rw.transport.send(
+                    destination="processing_recipe", message=bfactor_message
+                )
 
         elif monitor_params.monitor_command == "done_bfactor":
             # Save results of each finished bfactor job
