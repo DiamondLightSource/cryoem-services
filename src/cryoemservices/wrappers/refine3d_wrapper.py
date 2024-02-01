@@ -7,6 +7,7 @@ import subprocess
 from pathlib import Path
 from typing import Optional
 
+import mrcfile
 import zocalo.wrapper
 from pydantic import BaseModel, Field, ValidationError
 
@@ -30,7 +31,7 @@ class RefineParameters(BaseModel):
     mask_diameter: float
     mask: Optional[str] = None
     mask_lowpass: float = 15
-    mask_threshold: float = 0.02
+    mask_threshold_fraction: float = 0.2
     mask_extend: int = 3
     mask_soft_edge: int = 3
     mpi_run_command: str = "srun -n 5"
@@ -191,6 +192,17 @@ class Refine3DWrapper(zocalo.wrapper.BaseWrapper):
         mask_job_dir = Path(f"MaskCreate/job{job_num_refine + 1:03}")
         if not refine_params.mask:
             self.log.info(f"Running {self.mask_job_type} in {mask_job_dir}")
+
+            # Figure out the density threshold to use
+            with mrcfile.open(
+                f"{refine_params.refine_job_dir}/run_class001.mrc"
+            ) as mrc:
+                class_header = mrc.header
+            mask_threshold = (
+                class_header["dmax"] * refine_params.mask_threshold_fraction
+            )
+
+            # Run the mask command
             mask_job_dir.mkdir(parents=True, exist_ok=True)
             mask_command = [
                 "relion_mask_create",
@@ -201,7 +213,7 @@ class Refine3DWrapper(zocalo.wrapper.BaseWrapper):
                 "--lowpass",
                 str(refine_params.mask_lowpass),
                 "--ini_threshold",
-                str(refine_params.mask_threshold),
+                str(mask_threshold),
                 "--extend_inimask",
                 str(refine_params.mask_extend),
                 "--width_soft_edge",
