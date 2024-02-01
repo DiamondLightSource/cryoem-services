@@ -6,8 +6,15 @@ from typing import Optional
 import matplotlib.pyplot as plt
 import numpy as np
 import workflows.recipe
+import workflows.transport.pika_transport as pt
 from pydantic import BaseModel, Field, ValidationError, root_validator, validator
 from workflows.services.common_service import CommonService
+
+transport = pt.PikaTransport()
+transport.load_configuration_file(
+    "/dls_sw/apps/murfey/config/rmq-connection-creds-pollux.yml"
+)
+transport.connect()
 
 
 class MonitorParams(BaseModel):
@@ -87,6 +94,9 @@ class MonitorRefine(CommonService):
     # Logger name
     _logger_name = "cryoemservices.services.monitor_refine"
 
+    # Force pollux sends
+    _transport = transport
+
     def initializing(self):
         """Subscribe to a queue. Received messages must be acknowledged."""
         self.log.info("Refinement monitoring service starting")
@@ -105,9 +115,6 @@ class MonitorRefine(CommonService):
                 pass
 
         if not rw:
-            print(
-                "Incoming message is not a recipe message. Simple messages can be valid"
-            )
             if (
                 not isinstance(message, dict)
                 or not message.get("parameters")
@@ -180,7 +187,7 @@ class MonitorRefine(CommonService):
                 f"/dls/{monitor_params.microscope}/data/{monitor_params.year}/{monitor_params.visit}/"
                 f"processed/{monitor_params.grid}/relion_murfey/Class3D"
             ).glob("job*")
-            class3d_dir = list(class3d_all)[0]
+            class3d_dir = sorted(class3d_all)[0]
 
             with open(class3d_dir / "run_it025_model.star") as class3d_output:
                 postprocess_lines = class3d_output.readlines()
@@ -235,9 +242,16 @@ class MonitorRefine(CommonService):
 
         elif monitor_params.monitor_command == "done_refinement":
             # Run bfactor jobs once the first one is done
+            with open(
+                f"{monitor_params.project_dir}/bfactor_resolutions.txt", "w"
+            ) as bfile:
+                bfile.write(f"{monitor_params.batch_size} {monitor_params.resolution}")
+
             bfactor_particle_counts = [
                 1000 * 2**n
-                for n in range(int(np.log(monitor_params.batch_size) / np.log(2) + 1))
+                for n in range(
+                    int(np.log(monitor_params.batch_size / 1000) / np.log(2) + 1)
+                )
             ]
             for particle_count in bfactor_particle_counts:
                 bfactor_message = {
@@ -265,14 +279,8 @@ class MonitorRefine(CommonService):
                 else:
                     rw.send_to("processing_recipe", bfactor_message)
 
-                with open(
-                    f"{monitor_params.project_dir}/bfactor_resolutions.txt", "w"
-                ) as bfile:
-                    bfile.write(
-                        f"{monitor_params.batch_size} {monitor_params.resolution}"
-                    )
-
         elif monitor_params.monitor_command == "done_bfactor":
+            # Save results of each finished bfactor job
             with open(
                 f"{monitor_params.project_dir}/bfactor_resolutions.txt", "a"
             ) as bfile:
