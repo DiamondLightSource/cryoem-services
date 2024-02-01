@@ -104,6 +104,17 @@ class MonitorRefine(CommonService):
             def dummy(self, *args, **kwargs):
                 pass
 
+        input_parameters = rw.recipe_step.get("parameters", {})
+        self.log.info(message, input_parameters)
+
+        # Create a wrapper-like object that can be passed to functions
+        # as if a recipe wrapper was present.
+        rw = MockRW()
+        rw.transport = self._transport
+        rw.environment = {"has_recipe_wrapper": False}
+        rw.set_default_channel = rw.dummy
+        rw.send = rw.dummy
+
         if not rw:
             if (
                 not isinstance(message, dict)
@@ -114,16 +125,10 @@ class MonitorRefine(CommonService):
                 self._transport.nack(header)
                 return
             self.log.debug("Received a simple message")
-
-        # Create a wrapper-like object that can be passed to functions
-        # as if a recipe wrapper was present.
-        rw = MockRW()
-        rw.transport = self._transport
-        rw.recipe_step = {"parameters": message["parameters"]}
-        rw.environment = {"has_recipe_wrapper": False}
-        rw.set_default_channel = rw.dummy
-        rw.send = rw.dummy
-        message = message["content"]
+            rw.recipe_step = {"parameters": message["parameters"]}
+            message = message["content"]
+        else:
+            rw.recipe_step = {"parameters": input_parameters}
 
         try:
             if isinstance(message, dict):
