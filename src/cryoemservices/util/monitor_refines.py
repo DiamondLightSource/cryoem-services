@@ -89,7 +89,7 @@ class MonitorRefine(CommonService):
         self.log.info("CTFFind service starting")
         workflows.recipe.wrap_subscribe(
             self._transport,
-            "monitor_refine",
+            "murfey_feedback_m12",
             self.monitor_refine,
             acknowledgement=True,
             log_extender=self.extend_log,
