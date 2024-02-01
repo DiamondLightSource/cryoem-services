@@ -104,17 +104,6 @@ class MonitorRefine(CommonService):
             def dummy(self, *args, **kwargs):
                 pass
 
-        input_parameters = rw.recipe_step.get("parameters", {})
-        self.log.info(message, input_parameters)
-
-        # Create a wrapper-like object that can be passed to functions
-        # as if a recipe wrapper was present.
-        rw = MockRW()
-        rw.transport = self._transport
-        rw.environment = {"has_recipe_wrapper": False}
-        rw.set_default_channel = rw.dummy
-        rw.send = rw.dummy
-
         if not rw:
             if (
                 not isinstance(message, dict)
@@ -125,10 +114,20 @@ class MonitorRefine(CommonService):
                 self._transport.nack(header)
                 return
             self.log.debug("Received a simple message")
-            rw.recipe_step = {"parameters": message["parameters"]}
+            input_parameters = message["parameters"]
             message = message["content"]
         else:
-            rw.recipe_step = {"parameters": input_parameters}
+            input_parameters = rw.recipe_step.get("parameters", {})
+        self.log.info(message, input_parameters)
+
+        # Create a wrapper-like object that can be passed to functions
+        # as if a recipe wrapper was present.
+        rw = MockRW()
+        rw.transport = self._transport
+        rw.environment = {"has_recipe_wrapper": False}
+        rw.set_default_channel = rw.dummy
+        rw.send = rw.dummy
+        rw.recipe_step = {"parameters": input_parameters}
 
         try:
             if isinstance(message, dict):
@@ -253,7 +252,7 @@ class MonitorRefine(CommonService):
                         "number_of_particles": particle_count,
                         "batch_size": monitor_params.batch_size,
                         "pixel_size": monitor_params.pixel_size,
-                        "mask_file": monitor_params.mask_file,
+                        "mask": monitor_params.mask_file,
                         "mask_diameter": monitor_params.mask_diameter,
                         "picker_id": "0",
                         "refined_class_uuid": "0",
