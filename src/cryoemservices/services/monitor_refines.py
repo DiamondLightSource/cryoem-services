@@ -6,12 +6,12 @@ from typing import Optional
 import matplotlib.pyplot as plt
 import numpy as np
 import workflows.recipe
-from pydantic import BaseModel, ValidationError, root_validator, validator
+from pydantic import BaseModel, Field, ValidationError, root_validator, validator
 from workflows.services.common_service import CommonService
 
 
 class MonitorParams(BaseModel):
-    register: str = "setup"
+    monitor_command: str = Field(default="setup", alias="register")
     microscope: Optional[str]
     visit: Optional[str]
     grid: Optional[str]
@@ -25,7 +25,7 @@ class MonitorParams(BaseModel):
     resolution: Optional[float]
     number_of_particles: Optional[int]
 
-    @validator("register")
+    @validator("monitor_command")
     def is_spa_or_tomo(cls, command):
         if command not in ["setup", "done_refinement", "done_bfactor"]:
             raise ValueError("Unknown command.")
@@ -33,7 +33,7 @@ class MonitorParams(BaseModel):
 
     @root_validator(skip_on_failure=True)
     def check_command_values(cls, values):
-        command = values.get("command")
+        command = values.get("monitor_command")
         if command == "setup":
             if (
                 not values.get("microscope")
@@ -143,7 +143,7 @@ class MonitorRefine(CommonService):
             rw.transport.nack(header)
             return
 
-        if monitor_params.register == "setup":
+        if monitor_params.monitor_command == "setup":
             visit_tmp_dir = Path(
                 f"/dls/{monitor_params.microscope}/data/2023/{monitor_params.visit}/tmp/Refinement"
             )
@@ -229,7 +229,7 @@ class MonitorRefine(CommonService):
             else:
                 rw.send_to("processing_recipe", refine_message)
 
-        elif monitor_params.register == "done_refinement":
+        elif monitor_params.monitor_command == "done_refinement":
             # Run bfactor jobs once the first one is done
             bfactor_particle_counts = [
                 1000 * 2**n
@@ -268,7 +268,7 @@ class MonitorRefine(CommonService):
                         f"{monitor_params.batch_size} {monitor_params.resolution}"
                     )
 
-        elif monitor_params.register == "done_bfactor":
+        elif monitor_params.monitor_command == "done_bfactor":
             with open(
                 f"{monitor_params.project_dir}/bfactor_resolutions.txt", "a"
             ) as bfile:
@@ -331,5 +331,5 @@ class MonitorRefine(CommonService):
             self.log.info(
                 f"B-factor from {len(bfactor_results)} runs is {bfactor_linear[0]/2}"
             )
-        self.log.info(f"Done monitoring {monitor_params.register}.")
+        self.log.info(f"Done monitoring {monitor_params.monitor_command}.")
         rw.transport.ack(header)
