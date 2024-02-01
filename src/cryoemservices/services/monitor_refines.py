@@ -150,6 +150,7 @@ class MonitorRefine(CommonService):
             visit_tmp_dir = Path(
                 f"/dls/{monitor_params.microscope}/data/{monitor_params.year}/{monitor_params.visit}/tmp/Refinement"
             )
+            visit_tmp_dir.mkdir(exist_ok=True)
             (visit_tmp_dir / "MotionCorr").unlink(missing_ok=True)
             (visit_tmp_dir / "MotionCorr").symlink_to(
                 f"/dls/{monitor_params.microscope}/data/{monitor_params.year}/{monitor_params.visit}/"
@@ -204,7 +205,7 @@ class MonitorRefine(CommonService):
                 return
 
             # Boxsize conversion as in particle extraction, enlarged by 25%
-            boxsize = mask_diameter / pixel_size / 1.1 * 1.25
+            boxsize = int(mask_diameter / pixel_size / 1.1 * 1.25)
 
             # Set up and run a first refinement job
             refine_message = {
