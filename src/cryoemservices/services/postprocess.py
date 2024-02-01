@@ -199,7 +199,7 @@ class PostProcess(CommonService):
             f"Final results: bfactor {final_bfactor} and resolution {final_resolution} "
             f"for {postprocess_params.number_of_particles} particles."
         )
-        if not final_bfactor or not final_resolution:
+        if not final_resolution:
             self.log.error(
                 f"Unable to read bfactor and resolution in {postprocess_params.job_dir}"
             )
