@@ -14,6 +14,7 @@ class MonitorParams(BaseModel):
     monitor_command: str = Field(default="setup", alias="register")
     microscope: Optional[str]
     visit: Optional[str]
+    year: Optional[int]
     grid: Optional[str]
     class_number: Optional[int]
     batch_size: Optional[int]
@@ -38,12 +39,13 @@ class MonitorParams(BaseModel):
             if (
                 not values.get("microscope")
                 or not values.get("visit")
+                or not values.get("year")
                 or not values.get("grid")
                 or not values.get("class_number")
             ):
                 raise KeyError(
                     "The following keys must be provided for setup:"
-                    "microscope, visit, grid, class_number"
+                    "microscope, visit, year, grid, class_number"
                 )
         elif command == "done_refinement":
             if (
@@ -145,16 +147,16 @@ class MonitorRefine(CommonService):
 
         if monitor_params.monitor_command == "setup":
             visit_tmp_dir = Path(
-                f"/dls/{monitor_params.microscope}/data/2023/{monitor_params.visit}/tmp/Refinement"
+                f"/dls/{monitor_params.microscope}/data/{monitor_params.year}/{monitor_params.visit}/tmp/Refinement"
             )
             (visit_tmp_dir / "MotionCorr").unlink(missing_ok=True)
             (visit_tmp_dir / "MotionCorr").symlink_to(
-                f"/dls/{monitor_params.microscope}/data/2023/{monitor_params.visit}/"
+                f"/dls/{monitor_params.microscope}/data/{monitor_params.year}/{monitor_params.visit}/"
                 f"processed/{monitor_params.grid}/relion_murfey/MotionCorr"
             )
             (visit_tmp_dir / "CtfFind").unlink(missing_ok=True)
             (visit_tmp_dir / "CtfFind").symlink_to(
-                f"/dls/{monitor_params.microscope}/data/2023/{monitor_params.visit}/"
+                f"/dls/{monitor_params.microscope}/data/{monitor_params.year}/{monitor_params.visit}/"
                 f"processed/{monitor_params.grid}/relion_murfey/CtfFind"
             )
 
@@ -173,7 +175,7 @@ class MonitorRefine(CommonService):
 
             # Get the information about the 3d run
             class3d_all = Path(
-                f"/dls/{monitor_params.microscope}/data/2023/{monitor_params.visit}/"
+                f"/dls/{monitor_params.microscope}/data/{monitor_params.year}/{monitor_params.visit}/"
                 f"processed/{monitor_params.grid}/relion_murfey/Class3D"
             ).glob("job*")
             class3d_dir = list(class3d_all)[0]
