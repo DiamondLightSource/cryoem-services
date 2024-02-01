@@ -73,6 +73,7 @@ class MonitorParams(BaseModel):
                     "The following keys must be provided for done_bfactor:"
                     "project_dir, number_of_particles, resolution"
                 )
+        return values
 
 
 class MonitorRefine(CommonService):
@@ -88,7 +89,7 @@ class MonitorRefine(CommonService):
 
     def initializing(self):
         """Subscribe to a queue. Received messages must be acknowledged."""
-        self.log.info("CTFFind service starting")
+        self.log.info("Refinement monitoring service starting")
         workflows.recipe.wrap_subscribe(
             self._transport,
             "murfey_feedback_m12",
