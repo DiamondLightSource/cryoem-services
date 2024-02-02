@@ -218,6 +218,12 @@ class MotionCorr(CommonService):
             rw.transport.nack(header)
             return
 
+        # Catch any cases where the movie does not exist
+        if not Path(mc_params.movie).is_file():
+            self.log.warning(f"Movie {mc_params.movie} does not exist")
+            rw.transport.nack(header)
+            return
+
         # Check if this file has been run before
         if Path(mc_params.mrc_out).is_file():
             job_is_rerun = True
