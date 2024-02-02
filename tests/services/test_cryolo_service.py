@@ -131,7 +131,7 @@ def test_cryolo_service(mock_subprocess, mock_environment, offline_transport, tm
         message={
             "parameters": {
                 "particle_picking_template": "sample_weights",
-                "number_of_particles": 0,
+                "number_of_particles": 1,
                 "particle_diameter": 1.1,
                 "summary_image_full_path": str(output_path.with_suffix(".jpeg")),
                 "ispyb_command": "buffer",
@@ -159,7 +159,7 @@ def test_cryolo_service(mock_subprocess, mock_environment, offline_transport, tm
             "register": "picked_particles",
             "motion_correction_id": cryolo_test_message["parameters"]["mc_uuid"],
             "micrograph": cryolo_test_message["parameters"]["input_path"],
-            "particle_diameters": [100.0, 200.0],
+            "particle_diameters": [10.0, 20.0],
             "extraction_parameters": extraction_params,
         },
     )

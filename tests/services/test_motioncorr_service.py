@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 from unittest import mock
 
 import pytest
@@ -48,6 +49,10 @@ def test_motioncor2_service_spa(
     mock_subprocess().stdout = "stdout".encode("ascii")
     mock_subprocess().stderr = "stderr".encode("ascii")
 
+    movie = Path(f"{tmp_path}/Movies/sample.tiff")
+    movie.parent.mkdir(parents=True)
+    movie.touch()
+
     header = {
         "message-id": mock.sentinel,
         "subscription": mock.sentinel,
@@ -58,7 +63,7 @@ def test_motioncor2_service_spa(
             "pixel_size": 0.1,
             "autopick": {"autopick": "autopick"},
             "ctf": {"ctf": "ctf"},
-            "movie": f"{tmp_path}/Movies/sample.tiff",
+            "movie": str(movie),
             "mrc_out": f"{tmp_path}/MotionCorr/job002/Movies/sample.mrc",
             "patch_sizes": {"x": 5, "y": 5},
             "gpu": 0,
@@ -144,7 +149,7 @@ def test_motioncor2_service_spa(
     mc_command = [
         "MotionCor2",
         "-InTiff",
-        motioncorr_test_message["parameters"]["movie"],
+        str(movie),
         "-OutMrc",
         motioncorr_test_message["parameters"]["mrc_out"],
         "-PixSize",
@@ -301,7 +306,7 @@ def test_motioncor2_service_spa(
         message={
             "parameters": {
                 "job_type": "relion.import.movies",
-                "input_file": motioncorr_test_message["parameters"]["movie"],
+                "input_file": str(movie),
                 "output_file": f"{tmp_path}/Import/job001/Movies/sample.tiff",
                 "relion_options": output_relion_options,
                 "command": "",
@@ -349,6 +354,10 @@ def test_motioncor_relion_service_spa(
     mock_subprocess().stdout = "stdout".encode("ascii")
     mock_subprocess().stderr = "stderr".encode("ascii")
 
+    movie = Path(f"{tmp_path}/Movies/sample.eer")
+    movie.parent.mkdir(parents=True)
+    movie.touch()
+
     header = {
         "message-id": mock.sentinel,
         "subscription": mock.sentinel,
@@ -359,7 +368,7 @@ def test_motioncor_relion_service_spa(
             "pixel_size": 0.1,
             "autopick": {"autopick": "autopick"},
             "ctf": {"ctf": "ctf"},
-            "movie": f"{tmp_path}/Movies/sample.eer",
+            "movie": str(movie),
             "mrc_out": f"{tmp_path}/MotionCorr/job002/Movies/sample.mrc",
             "patch_sizes": {"x": 5, "y": 5},
             "gpu": 0,
@@ -450,7 +459,7 @@ def test_motioncor_relion_service_spa(
         "relion_motion_correction",
         "--use_own",
         "--in_movie",
-        motioncorr_test_message["parameters"]["movie"],
+        str(movie),
         "--out_mic",
         motioncorr_test_message["parameters"]["mrc_out"],
         "--angpix",
@@ -582,7 +591,7 @@ def test_motioncor_relion_service_spa(
         message={
             "parameters": {
                 "job_type": "relion.import.movies",
-                "input_file": motioncorr_test_message["parameters"]["movie"],
+                "input_file": str(movie),
                 "output_file": f"{tmp_path}/Import/job001/Movies/sample.eer",
                 "relion_options": output_relion_options,
                 "command": "",
@@ -629,6 +638,10 @@ def test_motioncor2_service_tomo(
     mock_subprocess().stdout = "stdout".encode("ascii")
     mock_subprocess().stderr = "stderr".encode("ascii")
 
+    movie = Path(f"{tmp_path}/Movies/sample.tiff")
+    movie.parent.mkdir(parents=True)
+    movie.touch()
+
     header = {
         "message-id": mock.sentinel,
         "subscription": mock.sentinel,
@@ -639,7 +652,7 @@ def test_motioncor2_service_tomo(
             "pixel_size": 0.1,
             "autopick": {"autopick": "autopick"},
             "ctf": {"ctf": "ctf"},
-            "movie": f"{tmp_path}/Movies/sample.tiff",
+            "movie": str(movie),
             "mrc_out": f"{tmp_path}/MotionCorr/Movies/sample_motion_corrected.mrc",
             "patch_sizes": {"x": 5, "y": 5},
             "gpu": 0,
@@ -699,7 +712,7 @@ def test_motioncor2_service_tomo(
         [
             "MotionCor2",
             "-InTiff",
-            motioncorr_test_message["parameters"]["movie"],
+            str(movie),
             "-OutMrc",
             motioncorr_test_message["parameters"]["mrc_out"],
             "-PixSize",
@@ -767,7 +780,7 @@ def test_motioncor2_service_tomo(
         destination="murfey_feedback",
         message={
             "register": "motion_corrected",
-            "movie": motioncorr_test_message["parameters"]["movie"],
+            "movie": str(movie),
             "mrc_out": motioncorr_test_message["parameters"]["mrc_out"],
             "movie_id": motioncorr_test_message["parameters"]["movie_id"],
         },
@@ -796,6 +809,10 @@ def test_motioncor_relion_service_tomo(
     mock_subprocess().stdout = "stdout".encode("ascii")
     mock_subprocess().stderr = "stderr".encode("ascii")
 
+    movie = Path(f"{tmp_path}/Movies/sample.tiff")
+    movie.parent.mkdir(parents=True)
+    movie.touch()
+
     header = {
         "message-id": mock.sentinel,
         "subscription": mock.sentinel,
@@ -806,7 +823,7 @@ def test_motioncor_relion_service_tomo(
             "pixel_size": 0.1,
             "autopick": {"autopick": "autopick"},
             "ctf": {"ctf": "ctf"},
-            "movie": f"{tmp_path}/Movies/sample.tiff",
+            "movie": str(movie),
             "mrc_out": f"{tmp_path}/MotionCorr/Movies/sample_motion_corrected.mrc",
             "patch_sizes": {"x": 5, "y": 5},
             "gpu": 0,
@@ -867,7 +884,7 @@ def test_motioncor_relion_service_tomo(
             "relion_motion_correction",
             "--use_own",
             "--in_movie",
-            motioncorr_test_message["parameters"]["movie"],
+            str(movie),
             "--out_mic",
             motioncorr_test_message["parameters"]["mrc_out"],
             "--angpix",
@@ -938,7 +955,7 @@ def test_motioncor_relion_service_tomo(
         destination="murfey_feedback",
         message={
             "register": "motion_corrected",
-            "movie": motioncorr_test_message["parameters"]["movie"],
+            "movie": str(movie),
             "mrc_out": motioncorr_test_message["parameters"]["mrc_out"],
             "movie_id": motioncorr_test_message["parameters"]["movie_id"],
         },

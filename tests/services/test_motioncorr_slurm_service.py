@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import sys
+from pathlib import Path
 from unittest import mock
 
 import pytest
@@ -51,13 +52,17 @@ def test_motioncor2_service_spa(
     )
     mock_subprocess().stderr = "stderr".encode("ascii")
 
+    movie = Path(f"{tmp_path}/Movies/sample.tiff")
+    movie.parent.mkdir(parents=True)
+    movie.touch()
+
     header = {
         "message-id": mock.sentinel,
         "subscription": mock.sentinel,
     }
     motioncorr_test_message = {
         "parameters": {
-            "movie": f"{tmp_path}/Movies/sample.tiff",
+            "movie": str(movie),
             "mrc_out": f"{tmp_path}/MotionCorr/job002/Movies/sample.mrc",
             "experiment_type": "spa",
             "pixel_size": 0.1,
@@ -124,7 +129,7 @@ def test_motioncor2_service_spa(
     mc_command = [
         "MotionCor2",
         "-InTiff",
-        motioncorr_test_message["parameters"]["movie"],
+        str(movie),
         "-OutMrc",
         motioncorr_test_message["parameters"]["mrc_out"],
         "-PixSize",
@@ -249,7 +254,7 @@ def test_motioncor2_service_spa(
         message={
             "parameters": {
                 "job_type": "relion.import.movies",
-                "input_file": motioncorr_test_message["parameters"]["movie"],
+                "input_file": str(movie),
                 "output_file": f"{tmp_path}/Import/job001/Movies/sample.tiff",
                 "relion_options": output_relion_options,
                 "command": "",
@@ -298,13 +303,17 @@ def test_motioncor2_service_tomo(
     )
     mock_subprocess().stderr = "stderr".encode("ascii")
 
+    movie = Path(f"{tmp_path}/Movies/sample.tiff")
+    movie.parent.mkdir(parents=True)
+    movie.touch()
+
     header = {
         "message-id": mock.sentinel,
         "subscription": mock.sentinel,
     }
     motioncorr_test_message = {
         "parameters": {
-            "movie": f"{tmp_path}/Movies/sample.tiff",
+            "movie": str(movie),
             "mrc_out": f"{tmp_path}/MotionCorr/Movies/sample_motion_corrected.mrc",
             "experiment_type": "tomography",
             "pixel_size": 0.1,
@@ -425,7 +434,7 @@ def test_motioncor2_service_tomo(
         destination="murfey_feedback",
         message={
             "register": "motion_corrected",
-            "movie": motioncorr_test_message["parameters"]["movie"],
+            "movie": str(movie),
             "mrc_out": motioncorr_test_message["parameters"]["mrc_out"],
             "movie_id": motioncorr_test_message["parameters"]["movie_id"],
         },
