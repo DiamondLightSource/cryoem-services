@@ -25,6 +25,7 @@ class MonitorParams(BaseModel):
     mask_diameter: Optional[float]
     resolution: Optional[float]
     number_of_particles: Optional[int]
+    processed_dir: str = "relion_murfey"
 
     @validator("monitor_command")
     def is_spa_or_tomo(cls, command):
@@ -148,19 +149,23 @@ class MonitorRefine(CommonService):
             return
 
         if monitor_params.monitor_command == "setup":
+            self.log.info(f"Refinement requested for {monitor_params.visit}")
             visit_tmp_dir = Path(
-                f"/dls/{monitor_params.microscope}/data/{monitor_params.year}/{monitor_params.visit}/tmp/Refinement"
+                f"/dls/{monitor_params.microscope}/data/{monitor_params.year}/"
+                f"{monitor_params.visit}/tmp/Refinement"
             )
             visit_tmp_dir.mkdir(exist_ok=True)
             (visit_tmp_dir / "MotionCorr").unlink(missing_ok=True)
             (visit_tmp_dir / "MotionCorr").symlink_to(
-                f"/dls/{monitor_params.microscope}/data/{monitor_params.year}/{monitor_params.visit}/"
-                f"processed/{monitor_params.grid}/relion_murfey/MotionCorr"
+                f"/dls/{monitor_params.microscope}/data/{monitor_params.year}/"
+                f"{monitor_params.visit}/processed/{monitor_params.grid}/"
+                f"{monitor_params.processed_dir}/MotionCorr"
             )
             (visit_tmp_dir / "CtfFind").unlink(missing_ok=True)
             (visit_tmp_dir / "CtfFind").symlink_to(
-                f"/dls/{monitor_params.microscope}/data/{monitor_params.year}/{monitor_params.visit}/"
-                f"processed/{monitor_params.grid}/relion_murfey/CtfFind"
+                f"/dls/{monitor_params.microscope}/data/{monitor_params.year}/"
+                f"{monitor_params.visit}/processed/{monitor_params.grid}/"
+                f"{monitor_params.processed_dir}/CtfFind"
             )
 
             with open(
@@ -178,8 +183,9 @@ class MonitorRefine(CommonService):
 
             # Get the information about the 3d run
             class3d_all = Path(
-                f"/dls/{monitor_params.microscope}/data/{monitor_params.year}/{monitor_params.visit}/"
-                f"processed/{monitor_params.grid}/relion_murfey/Class3D"
+                f"/dls/{monitor_params.microscope}/data/{monitor_params.year}/"
+                f"{monitor_params.visit}/processed/{monitor_params.grid}/"
+                f"{monitor_params.processed_dir}/Class3D"
             ).glob("job*")
             class3d_dir = sorted(class3d_all)[0]
 
@@ -226,15 +232,22 @@ class MonitorRefine(CommonService):
                     "refined_class_uuid": "0",
                 },
             }
-            self.log.info("Running refinement")
+            self.log.info(f"Running refinement in {visit_tmp_dir}")
             rw.transport.send(destination="processing_recipe", message=refine_message)
 
         elif monitor_params.monitor_command == "done_refinement":
             # Run bfactor jobs once the first one is done
+            self.log.info(
+                f"done_refinement for {monitor_params.project_dir} "
+                f"with {monitor_params.batch_size} particles at "
+                f"resolution {monitor_params.resolution}"
+            )
             with open(
                 f"{monitor_params.project_dir}/bfactor_resolutions.txt", "w"
             ) as bfile:
-                bfile.write(f"{monitor_params.batch_size} {monitor_params.resolution}")
+                bfile.write(
+                    f"{monitor_params.batch_size} {monitor_params.resolution}\n"
+                )
 
             bfactor_particle_counts = [
                 1000 * 2**n
@@ -267,11 +280,16 @@ class MonitorRefine(CommonService):
 
         elif monitor_params.monitor_command == "done_bfactor":
             # Save results of each finished bfactor job
+            self.log.info(
+                f"done_bfactor for {monitor_params.project_dir} "
+                f"with {monitor_params.number_of_particles} particles "
+                f"at resolution {monitor_params.resolution}"
+            )
             with open(
                 f"{monitor_params.project_dir}/bfactor_resolutions.txt", "a"
             ) as bfile:
                 bfile.write(
-                    f"{monitor_params.number_of_particles} {monitor_params.resolution}"
+                    f"{monitor_params.number_of_particles} {monitor_params.resolution}\n"
                 )
 
             bfactor_results = np.genfromtxt(
