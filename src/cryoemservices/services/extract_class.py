@@ -9,7 +9,6 @@ import mrcfile
 import numpy as np
 import workflows.recipe
 from pydantic import BaseModel, Field, ValidationError
-from tqdm import tqdm
 from workflows.services.common_service import CommonService
 
 from cryoemservices.util.spa_relion_service_options import (
@@ -264,7 +263,8 @@ class ExtractClass(CommonService):
                 extracted_particles.write(line)
 
         # Extraction for each micrograph
-        for mrcs_name in tqdm(mrcs_dict.keys()):
+        for mrcs_name in mrcs_dict.keys():
+            self.log.info(f"{mrcs_name} from {len(mrcs_dict.keys())} total")
             motioncorr_name = mrcs_dict[mrcs_name]["motioncorr_name"]
             reextract_name = mrcs_dict[mrcs_name]["reextract_name"]
             with mrcfile.open(original_dir / motioncorr_name) as input_micrograph:
