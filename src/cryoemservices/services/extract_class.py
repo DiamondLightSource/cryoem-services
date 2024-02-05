@@ -144,24 +144,21 @@ class ExtractClass(CommonService):
         refine_selection_link.symlink_to(f"job{job_num_refine - 2:03}")
 
         self.log.info(f"Running {self.select_job_type} in {select_job_dir}")
-        select_command = [
-            "relion_star_handler",
-            "--i",
-            str(particles_data),
-            "--o",
-            f"{select_job_dir}/particles.star",
-            "--select",
-            "rlnClassNumber",
-            "--minval",
-            str(extract_params.refine_class_nr),
-            "--maxval",
-            str(extract_params.refine_class_nr),
-            "--pipeline_control",
-            f"{select_job_dir}/",
-        ]
-        select_result = subprocess.run(
-            select_command, cwd=str(project_dir), capture_output=True
-        )
+        number_of_particles = 0
+        with open(particles_data, "r") as classified_particles, open(
+            f"{select_job_dir}/particles.star", "w"
+        ) as selected_particles:
+            while True:
+                line = classified_particles.readline()
+                if not line:
+                    break
+                if line.lstrip()[0].isnumeric():
+                    split_line = line.split()
+                    class_number = int(split_line[19])
+                    if class_number != extract_params.refine_class_nr:
+                        continue
+                    number_of_particles += 1
+                selected_particles.write(line)
 
         # Register the Selection job with the node creator
         self.log.info(f"Sending {self.select_job_type} to node creator")
@@ -170,14 +167,11 @@ class ExtractClass(CommonService):
             "input_file": str(particles_data),
             "output_file": f"{select_job_dir}/particles.star",
             "relion_options": dict(extract_params.relion_options),
-            "command": " ".join(select_command),
-            "stdout": select_result.stdout.decode("utf8", "replace"),
-            "stderr": select_result.stderr.decode("utf8", "replace"),
+            "command": "",
+            "stdout": "",
+            "stderr": "",
+            "success": True,
         }
-        if select_result.returncode:
-            node_creator_select["success"] = False
-        else:
-            node_creator_select["success"] = True
         if isinstance(rw, MockRW):
             rw.transport.send(
                 destination="node_creator",
@@ -186,21 +180,10 @@ class ExtractClass(CommonService):
         else:
             rw.send_to("node_creator", node_creator_select)
 
-        # End here if the command failed
-        if select_result.returncode:
-            self.log.error(
-                "Refinement selection failed with exitcode "
-                f"{select_result.returncode}:\n"
-                + select_result.stderr.decode("utf8", "replace")
-            )
-            return False
-
-        # Find the number of particles in the class
-        number_of_particles = select_result.stdout.decode("utf8", "replace").split()[3]
-
         # Run re-extraction on the selected particles
         extract_job_dir = project_dir / f"Extract/job{job_num_refine - 1:03}"
         extract_job_dir.mkdir(parents=True, exist_ok=True)
+        self.log.info(f"Running {self.extract_job_type} in {extract_job_dir}")
 
         refine_extraction_link = Path(
             project_dir / f"Extract/Reextract_class{extract_params.refine_class_nr}"
@@ -429,37 +412,6 @@ class ExtractClass(CommonService):
                     mrc.header.cella.y = pixel_size * box_len
                     mrc.header.cella.z = 1
 
-        self.log.info(f"Running {self.extract_job_type} in {extract_job_dir}")
-        extract_command = [
-            "relion_preprocess",
-            "--i",
-            extract_params.micrographs_file,
-            "--reextract_data_star",
-            f"{select_job_dir}/particles.star",
-            "--recenter",
-            "--recenter_x",
-            "0",
-            "--recenter_y",
-            "0",
-            "--recenter_z",
-            "0",
-            "--part_star",
-            str(extract_job_dir / "particles.star"),
-            "--pick_star",
-            str(extract_job_dir / "extractpick.star"),
-            "--part_dir",
-            str(extract_job_dir),
-            "--extract",
-            "--extract_size",
-            str(extract_params.boxsize),
-            "--norm",
-            "--bg_radius",
-            str(extract_params.bg_radius),
-            "--invert_contrast",
-            "--pipeline_control",
-            f"{extract_job_dir}/",
-        ]
-
         # Register the Re-extraction job with the node creator
         self.log.info(f"Sending {self.extract_job_type} to node creator")
         node_creator_extract = {
@@ -467,7 +419,7 @@ class ExtractClass(CommonService):
             "input_file": f"{select_job_dir}/particles.star:{extract_params.micrographs_file}",
             "output_file": f"{extract_job_dir}/particles.star",
             "relion_options": dict(extract_params.relion_options),
-            "command": " ".join(extract_command),
+            "command": "",
             "stdout": "",
             "stderr": "",
             "success": True,
