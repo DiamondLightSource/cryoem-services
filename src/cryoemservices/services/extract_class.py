@@ -249,11 +249,13 @@ class ExtractClass(CommonService):
                         mrcs_dict[mrcs_name]["x"].append(float(split_line[0]))
                         mrcs_dict[mrcs_name]["y"].append(float(split_line[1]))
                     else:
-                        mrcs_dict[mrcs_name]["counter"] = 0
-                        mrcs_dict[mrcs_name]["motioncorr_name"] = split_line[3]
-                        mrcs_dict[mrcs_name]["reextract_name"] = reextract_name
-                        mrcs_dict[mrcs_name]["x"] = [float(split_line[0])]
-                        mrcs_dict[mrcs_name]["y"] = [float(split_line[1])]
+                        mrcs_dict[mrcs_name] = {
+                            "counter": 0,
+                            "motioncorr_name": split_line[3],
+                            "reextract_name": reextract_name,
+                            "x": [float(split_line[0])],
+                            "y": [float(split_line[1])],
+                        }
                         micrograph_list.write(f"{split_line[3]} {reextract_name}\n")
 
                     split_line[
