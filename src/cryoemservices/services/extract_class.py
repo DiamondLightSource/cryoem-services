@@ -203,8 +203,8 @@ class ExtractClass(CommonService):
             extract_job_dir / "extractpick.star", "w"
         ) as micrograph_list:
             micrograph_list.write(
-                "data_coordinate_files\n\nloop_\n"
-                "_rlnMicrographName #1\n_rlnMicrographCoordinates #2\n"
+                "data_coordinate_files\n\nloop_ \n"
+                "_rlnMicrographName #1 \n_rlnMicrographCoordinates #2 \n"
             )
             while True:
                 line = selected_particles.readline()
@@ -240,8 +240,8 @@ class ExtractClass(CommonService):
                     # Create a dictionary of the images and their particles
                     mrcs_name = split_line[2].split("@")[1]
                     reextract_name = re.sub(
-                        ".+Extract/job00./",
-                        str(extract_job_dir.relative_to(project_dir)),
+                        ".*Extract/job00./",
+                        f"{extract_job_dir.relative_to(project_dir)}/",
                         mrcs_name,
                     )
                     if mrcs_dict.get(mrcs_name):
@@ -250,7 +250,7 @@ class ExtractClass(CommonService):
                         mrcs_dict[mrcs_name]["y"].append(float(split_line[1]))
                     else:
                         mrcs_dict[mrcs_name] = {
-                            "counter": 0,
+                            "counter": 1,
                             "motioncorr_name": split_line[3],
                             "reextract_name": reextract_name,
                             "x": [float(split_line[0])],
@@ -261,7 +261,7 @@ class ExtractClass(CommonService):
                     split_line[
                         2
                     ] = f"{mrcs_dict[mrcs_name]['counter']:06}@{reextract_name}"
-                    line = " ".join(split_line) + "\n"
+                    line = "  ".join(split_line) + "\n"
                 extracted_particles.write(line)
 
         # Extraction for each micrograph
