@@ -5,7 +5,7 @@ import os
 import re
 import subprocess
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 import mrcfile
 import zocalo.wrapper
@@ -23,6 +23,7 @@ class RefineParameters(BaseModel):
     refine_job_dir: str = Field(..., min_length=1)
     particles_file: str = Field(..., min_length=1)
     rescaled_class_reference: str = Field(..., min_length=1)
+    rescaling_command: List[str]
     is_first_refinement: bool
     number_of_particles: int
     batch_size: int
@@ -101,6 +102,19 @@ class Refine3DWrapper(zocalo.wrapper.BaseWrapper):
         refine_params.relion_options = update_relion_options(
             refine_params.relion_options, dict(refine_params)
         )
+
+        # Create a reference for the refinement
+        rescale_result = subprocess.run(
+            refine_params.rescaling_command, cwd=str(project_dir), capture_output=True
+        )
+        # End here if the command failed
+        if rescale_result.returncode:
+            self.log.error(
+                "Refinement reference scaling failed with exitcode "
+                f"{rescale_result.returncode}:\n"
+                + rescale_result.stderr.decode("utf8", "replace")
+            )
+            return False
 
         # Set up the command for the refinement job
         Path(refine_params.refine_job_dir).mkdir(parents=True, exist_ok=True)

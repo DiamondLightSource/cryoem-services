@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import os
 import re
-import subprocess
 from pathlib import Path
 
 import mrcfile
@@ -24,9 +23,11 @@ class ExtractClassParameters(BaseModel):
     refine_class_nr: int
     boxsize: int
     pixel_size: float
-    downscaled_pixel_size: float
+    extracted_pixel_size: float
     nr_iter_3d: int = 20
     bg_radius: int = -1
+    downscale_factor: float = 2
+    downscale: bool = True
     norm: bool = True
     invert_contrast: bool = True
     relion_options: RelionServiceOptions
@@ -132,6 +133,16 @@ class ExtractClass(CommonService):
         extract_params.relion_options = update_relion_options(
             extract_params.relion_options, dict(extract_params)
         )
+        if extract_params.downscale:
+            scaled_boxsize = extract_params.boxsize / extract_params.downscale_factor
+            scaled_pixel_size = (
+                extract_params.pixel_size * extract_params.downscale_factor
+            )
+        else:
+            scaled_boxsize = extract_params.boxsize
+            scaled_pixel_size = extract_params.pixel_size
+        extract_params.relion_options.small_boxsize = scaled_boxsize
+        extract_params.relion_options.pixel_size_downscaled = scaled_pixel_size
 
         # Select the particles from the requested class
         select_job_dir = project_dir / f"Select/job{job_num_refine - 2:03}"
@@ -275,6 +286,7 @@ class ExtractClass(CommonService):
                 )
             image_size = np.shape(input_micrograph_image)
             output_mrc_stack = []
+            self.log.info(f"Read {mrcs_name}")
 
             for particle in range(len(mrcs_dict[mrcs_name]["x"])):
                 # Pixel locations are from bottom left, need to flip the image later
@@ -287,7 +299,7 @@ class ExtractClass(CommonService):
                 y_top_pad = 0
                 y_bot_pad = 0
 
-                extract_width = round(extract_params.relion_options.boxsize / 2)
+                extract_width = round(extract_params.boxsize / 2)
 
                 x_left = pixel_location_x - extract_width
                 if x_left < 0:
@@ -316,6 +328,23 @@ class ExtractClass(CommonService):
                 # Flip all the values on inversion
                 if extract_params.invert_contrast:
                     particle_subimage = -1 * particle_subimage
+
+                # Downscale the image size
+                if extract_params.downscale:
+                    subimage_ft = np.fft.fftshift(np.fft.fft2(particle_subimage))
+                    deltax = subimage_ft.shape[0] - scaled_boxsize
+                    deltay = subimage_ft.shape[1] - scaled_boxsize
+                    particle_subimage = np.real(
+                        np.fft.ifft2(
+                            np.fft.ifftshift(
+                                subimage_ft[
+                                    deltax // 2 : subimage_ft.shape[0] - deltax // 2,
+                                    deltay // 2 : subimage_ft.shape[1] - deltay // 2,
+                                ]
+                            )
+                        )
+                    )
+                    extract_width = round(scaled_boxsize / 2)
 
                 # Distance of each pixel from the centre, compared to background radius
                 grid_indexes = np.meshgrid(
@@ -400,19 +429,16 @@ class ExtractClass(CommonService):
                     output_mrc_stack = np.array([particle_subimage], dtype=np.float32)
 
             # Produce the mrc file of the extracted particles
-            box_len = extract_params.relion_options.boxsize
-            pixel_size = extract_params.relion_options.pixel_size
-
             particle_count = np.shape(output_mrc_stack)[0]
             self.log.info(f"Extracted {particle_count} particles")
             if particle_count > 0:
                 with mrcfile.new(str(reextract_name), overwrite=True) as mrc:
                     mrc.set_data(output_mrc_stack.astype(np.float32))
-                    mrc.header.mx = box_len
-                    mrc.header.my = box_len
+                    mrc.header.mx = scaled_boxsize
+                    mrc.header.my = scaled_boxsize
                     mrc.header.mz = 1
-                    mrc.header.cella.x = pixel_size * box_len
-                    mrc.header.cella.y = pixel_size * box_len
+                    mrc.header.cella.x = scaled_pixel_size * scaled_boxsize
+                    mrc.header.cella.y = scaled_pixel_size * scaled_boxsize
                     mrc.header.cella.z = 1
 
         # Register the Re-extraction job with the node creator
@@ -445,37 +471,27 @@ class ExtractClass(CommonService):
             / f"refinement_reference_class{extract_params.refine_class_nr:03}.mrc"
         )
 
+        # Make the scaling command but don't run it here as we don't have Relion
         self.log.info("Running class reference rescaling")
-        rescale_command = [
+        rescaling_command = [
             "relion_image_handler",
             "--i",
             str(class_reference),
             "--o",
             str(rescaled_class_reference),
             "--angpix",
-            str(extract_params.downscaled_pixel_size),
+            str(extract_params.extracted_pixel_size),
             "--rescale_angpix",
-            str(extract_params.pixel_size),
+            str(scaled_pixel_size),
             "--new_box",
-            str(extract_params.boxsize),
+            str(scaled_boxsize),
         ]
-        rescale_result = subprocess.run(
-            rescale_command, cwd=str(project_dir), capture_output=True
-        )
-
-        # End here if the command failed
-        if rescale_result.returncode:
-            self.log.error(
-                "Refinement reference scaling failed with exitcode "
-                f"{rescale_result.returncode}:\n"
-                + rescale_result.stderr.decode("utf8", "replace")
-            )
-            return False
 
         # Send on to the refinement wrapper
         refine_params = {
             "refine_job_dir": extract_params.refine_job_dir,
             "particles_file": f"{extract_job_dir}/particles.star",
+            "rescaling_command": rescaling_command,
             "rescaled_class_reference": str(rescaled_class_reference),
             "is_first_refinement": True,
             "number_of_particles": number_of_particles,
