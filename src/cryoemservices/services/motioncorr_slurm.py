@@ -254,7 +254,7 @@ class MotionCorrSlurm(MotionCorr, CommonService):
                 slurm_job_state = json.loads(slurm_response)["jobs"][0]["job_state"]
                 if api_version == "v0.0.40":
                     slurm_job_state = slurm_job_state[0]
-            except (json.JSONDecodeError, KeyError):
+            except (json.JSONDecodeError, IndexError, KeyError):
                 print(slurm_status_command)
                 self.log.error(
                     f"Unable to get status for job {job_id}. The restAPI returned "

@@ -263,8 +263,8 @@ class MotionCorr(CommonService):
             input_flag = "-InEer"
         else:
             self.log.error(f"No input flag found for movie {mc_params.movie}")
-            input_flag = None
             rw.transport.nack(header)
+            return
 
         # Run motion correction
         if mc_params.use_motioncor2:
@@ -461,7 +461,14 @@ class MotionCorr(CommonService):
         # If this is SPA, determine and set up the next jobs
         if mc_params.experiment_type == "spa":
             # Set up icebreaker if requested, then ctffind
-            if mc_params.do_icebreaker_jobs and not job_is_rerun:
+            icebreaker_output = Path(
+                re.sub(
+                    "MotionCorr/job002/",
+                    "IceBreaker/job003/",
+                    mc_params.mrc_out,
+                )
+            )
+            if mc_params.do_icebreaker_jobs and not icebreaker_output.is_file():
                 # Three IceBreaker jobs: CtfFind job is MC+4
                 ctf_job_number = 6
 
@@ -521,7 +528,7 @@ class MotionCorr(CommonService):
                     )
                 else:
                     rw.send_to("icebreaker", icebreaker_job004_params)
-            elif mc_params.do_icebreaker_jobs and job_is_rerun:
+            elif mc_params.do_icebreaker_jobs and icebreaker_output.is_file():
                 # On a rerun, skip IceBreaker jobs but mark the CtfFind job as MC+4
                 ctf_job_number = 6
             else:
