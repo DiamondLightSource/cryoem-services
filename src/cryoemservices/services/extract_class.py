@@ -9,6 +9,7 @@ import mrcfile
 import numpy as np
 import workflows.recipe
 from pydantic import BaseModel, Field, ValidationError
+from tqdm import tqdm
 from workflows.services.common_service import CommonService
 
 from cryoemservices.util.spa_relion_service_options import (
@@ -152,7 +153,7 @@ class ExtractClass(CommonService):
                 line = classified_particles.readline()
                 if not line:
                     break
-                if line.lstrip()[0].isnumeric():
+                if line.lstrip() and line.lstrip()[0].isnumeric():
                     split_line = line.split()
                     class_number = int(split_line[19])
                     if class_number != extract_params.refine_class_nr:
@@ -216,7 +217,7 @@ class ExtractClass(CommonService):
                     split_line[6] = str(extract_params.pixel_size)
                     split_line[7] = str(extract_params.boxsize)
                     line = " ".join(split_line)
-                elif line.lstrip()[0].isnumeric():
+                elif line.lstrip() and line.lstrip()[0].isnumeric():
                     # Main table change x#1, y#2, name#3, originx#18, originy#19
                     split_line = line.split()
 
@@ -263,7 +264,7 @@ class ExtractClass(CommonService):
                 extracted_particles.write(line)
 
         # Extraction for each micrograph
-        for mrcs_name in mrcs_dict.keys():
+        for mrcs_name in tqdm(mrcs_dict.keys()):
             motioncorr_name = mrcs_dict[mrcs_name]["motioncorr_name"]
             reextract_name = mrcs_dict[mrcs_name]["reextract_name"]
             with mrcfile.open(original_dir / motioncorr_name) as input_micrograph:
