@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import os
 import re
 from pathlib import Path
@@ -134,7 +135,11 @@ class ExtractClass(CommonService):
             extract_params.relion_options, dict(extract_params)
         )
         if extract_params.downscale:
-            scaled_boxsize = extract_params.boxsize / extract_params.downscale_factor
+            exact_scaled_boxsize = (
+                extract_params.boxsize / extract_params.downscale_factor
+            )
+            int_scaled_boxsize = int(math.ceil(exact_scaled_boxsize))
+            scaled_boxsize = int_scaled_boxsize + int_scaled_boxsize % 2
             scaled_pixel_size = (
                 extract_params.pixel_size * extract_params.downscale_factor
             )
@@ -224,8 +229,8 @@ class ExtractClass(CommonService):
                 if line.startswith("opticsGroup"):
                     # Optics table change pixel size #7 and image size #8
                     split_line = line.split()
-                    split_line[6] = str(extract_params.pixel_size)
-                    split_line[7] = str(extract_params.boxsize)
+                    split_line[6] = str(scaled_pixel_size)
+                    split_line[7] = str(scaled_boxsize)
                     line = " ".join(split_line)
                 elif line.lstrip() and line.lstrip()[0].isnumeric():
                     # Main table change x#1, y#2, name#3, originx#18, originy#19

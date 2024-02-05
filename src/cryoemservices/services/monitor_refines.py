@@ -193,9 +193,9 @@ class MonitorRefine(CommonService):
                 postprocess_lines = class3d_output.readlines()
                 for line in postprocess_lines:
                     if "_rlnPixelSize" in line:
-                        downscaled_pixel_size = float(line.split()[-1])
+                        extracted_pixel_size = float(line.split()[-1])
                         break
-            if not downscaled_pixel_size:
+            if not extracted_pixel_size:
                 self.log.warning("No class3d pixel size found")
                 rw.transport.nack(header)
                 return
@@ -224,7 +224,7 @@ class MonitorRefine(CommonService):
                     "class_number": monitor_params.class_number,
                     "boxsize": boxsize,
                     "pixel_size": pixel_size,
-                    "downscaled_pixel_size": downscaled_pixel_size,
+                    "extracted_pixel_size": extracted_pixel_size,
                     "mask_diameter": mask_diameter,
                     "nr_iter": "25",
                     "picker_id": "0",
