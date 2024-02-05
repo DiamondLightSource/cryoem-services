@@ -209,7 +209,7 @@ class ExtractClass(CommonService):
 
         # If no background radius set diameter as 75% of box
         if extract_params.bg_radius == -1:
-            extract_params.bg_radius = round(0.375 * extract_params.boxsize)
+            extract_params.bg_radius = round(0.375 * scaled_boxsize)
 
         # Modify the extraction star file to contain reextracted values
         mrcs_dict = {}
