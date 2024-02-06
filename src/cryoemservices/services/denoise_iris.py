@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import datetime
 import string
-import subprocess
 import time
 from collections import ChainMap
 from pathlib import Path
@@ -234,8 +233,9 @@ class DenoiseIris(CommonService):
                 }
             )
         except Exception:
-            self.log.warn("Couldn't connect submitter")
-            return None
+            self.log.warn("Couldn't connect submitter for denoising")
+            rw.transport.nack(header)
+            return
 
         itemdata = [
             {
@@ -268,11 +268,14 @@ class DenoiseIris(CommonService):
                 break
             if res == 12:
                 schedd.act(htcondor.JobAction.Remove, f"ClusterId == {cluster_id}")
-                return subprocess.CompletedProcess(args="", returncode=res)
+                self.log.warning("Denoising run failed on IRIS")
+                rw.transport.nack(header)
+                return
             time.sleep(10)
             if (datetime.datetime.now() - start_time).seconds > 20 * 60:
                 # Abort if duration over 20 minutes
                 schedd.act(htcondor.JobAction.Remove, f"ClusterId == {cluster_id}")
+                self.log.warning("Denoising run timed out on IRIS")
                 rw.transport.nack(header)
                 return
 
@@ -311,4 +314,4 @@ class DenoiseIris(CommonService):
 
         self.log.info(f"Done denoising for {d_params.volume}")
         rw.transport.ack(header)
-        return subprocess.CompletedProcess(args="", returncode=0)
+        return

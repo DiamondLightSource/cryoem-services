@@ -152,7 +152,9 @@ class TomoAlignIris(TomoAlign, CommonService):
             )
         except Exception:
             self.log.warn("Couldn't connect submitter")
-            return subprocess.CompletedProcess(args="", returncode=1)
+            return subprocess.CompletedProcess(
+                args="", returncode=1, stderr=b"IRIS couldn't connect"
+            )
 
         if tomo_parameters.out_imod:
             itemdata = [
@@ -195,12 +197,16 @@ class TomoAlignIris(TomoAlign, CommonService):
                 break
             if res == 12:
                 schedd.act(htcondor.JobAction.Remove, f"ClusterId == {cluster_id}")
-                return subprocess.CompletedProcess(args="", returncode=res)
+                return subprocess.CompletedProcess(
+                    args="", returncode=res, stderr=b"IRIS job failed"
+                )
             time.sleep(10)
             if (datetime.datetime.now() - start_time).seconds > 20 * 60:
                 # Abort if duration over 20 minutes
                 schedd.act(htcondor.JobAction.Remove, f"ClusterId == {cluster_id}")
-                return subprocess.CompletedProcess(args="", returncode=5)
+                return subprocess.CompletedProcess(
+                    args="", returncode=5, stderr=b"IRIS timeout"
+                )
 
         if tomo_parameters.tilt_cor:
             self.parse_tomo_output(output_file)
@@ -210,4 +216,4 @@ class TomoAlignIris(TomoAlign, CommonService):
         file.extractall(self.alignment_output_dir)
         file.close()
 
-        return subprocess.CompletedProcess(args="", returncode=0)
+        return subprocess.CompletedProcess(args="", returncode=0, stderr=b"")
