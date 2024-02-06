@@ -280,7 +280,61 @@ class ExtractClass(CommonService):
                     line = "  ".join(split_line) + "\n"
                 extracted_particles.write(line)
 
+        # Find the size of the full and downscaled extracted particles
+        full_extract_width = round(extract_params.boxsize / 2)
+        if extract_params.downscale:
+            scaled_extract_width = round(scaled_boxsize / 2)
+        else:
+            scaled_extract_width = round(extract_params.boxsize / 2)
+
+        # Distance of each pixel from the centre, compared to background radius
+        grid_indexes = np.meshgrid(
+            np.arange(2 * scaled_extract_width),
+            np.arange(2 * scaled_extract_width),
+        )
+        distance_from_centre = np.sqrt(
+            (grid_indexes[0] - scaled_extract_width + 0.5) ** 2
+            + (grid_indexes[1] - scaled_extract_width + 0.5) ** 2
+        )
+        bg_region = (
+            distance_from_centre
+            > np.ones(np.shape(distance_from_centre)) * extract_params.bg_radius
+        )
+        # Fit background to a plane and subtract the plane from the image
+        positions = [grid_indexes[0][bg_region], grid_indexes[1][bg_region]]
+        # needs to create a matrix of the correct shape for  a*x + b*y + c plane fit
+        data_size = len(positions[0])
+        positions_matrix = np.hstack(
+            (
+                np.reshape(positions[0], (data_size, 1)),
+                np.reshape(positions[1], (data_size, 1)),
+            )
+        )
+        # this ones for c
+        positions_matrix = np.hstack((np.ones((data_size, 1)), positions_matrix))
+        try:
+            flat_positions_matrix = np.dot(
+                np.linalg.inv(np.dot(positions_matrix.transpose(), positions_matrix)),
+                positions_matrix.transpose(),
+            )
+        except np.linalg.LinAlgError:
+            self.log.warning(f"Could not fit image plane for {mrcs_name}")
+            rw.transport.nack(header)
+            return
+
+        # now we need the full grid across the image
+        grid_matrix = np.hstack(
+            (
+                np.reshape(grid_indexes[0], (4 * scaled_extract_width**2, 1)),
+                np.reshape(grid_indexes[1], (4 * scaled_extract_width**2, 1)),
+            )
+        )
+        grid_matrix = np.hstack(
+            (np.ones((4 * scaled_extract_width**2, 1)), grid_matrix)
+        )
+
         # Extraction for each micrograph
+        total_particle_count = 0
         for mrcs_name in mrcs_dict.keys():
             self.log.info(f"Extracting {mrcs_name} ({len(mrcs_dict.keys())} total)")
             motioncorr_name = mrcs_dict[mrcs_name]["motioncorr_name"]
@@ -303,21 +357,19 @@ class ExtractClass(CommonService):
                 y_top_pad = 0
                 y_bot_pad = 0
 
-                extract_width = round(extract_params.boxsize / 2)
-
-                x_left = pixel_location_x - extract_width
+                x_left = pixel_location_x - full_extract_width
                 if x_left < 0:
                     x_left_pad = -x_left
                     x_left = 0
-                x_right = pixel_location_x + extract_width
+                x_right = pixel_location_x + full_extract_width
                 if x_right >= image_size[1]:
                     x_right_pad = x_right - image_size[1]
                     x_right = image_size[1]
-                y_top = pixel_location_y - extract_width
+                y_top = pixel_location_y - full_extract_width
                 if y_top < 0:
                     y_top_pad = -y_top
                     y_top = 0
-                y_bot = pixel_location_y + extract_width
+                y_bot = pixel_location_y + full_extract_width
                 if y_bot >= image_size[0]:
                     y_bot_pad = y_bot - image_size[0]
                     y_bot = image_size[0]
@@ -348,73 +400,21 @@ class ExtractClass(CommonService):
                             )
                         )
                     )
-                    extract_width = round(scaled_boxsize / 2)
 
-                # Distance of each pixel from the centre, compared to background radius
-                grid_indexes = np.meshgrid(
-                    np.arange(2 * extract_width),
-                    np.arange(2 * extract_width),
-                )
-                distance_from_centre = np.sqrt(
-                    (grid_indexes[0] - extract_width + 0.5) ** 2
-                    + (grid_indexes[1] - extract_width + 0.5) ** 2
-                )
-                bg_region = (
-                    distance_from_centre
-                    > np.ones(np.shape(particle_subimage)) * extract_params.bg_radius
-                )
-
-                # Fit background to a plane and subtract the plane from the image
-                positions = [grid_indexes[0][bg_region], grid_indexes[1][bg_region]]
-                # needs to create a matrix of the correct shape for  a*x + b*y + c plane fit
-                if not len(positions[0]) == len(positions[1]):
-                    self.log.warning(
-                        f"Particle image {particle} in {extract_params.micrographs_file} is not square"
-                    )
-                    continue
-                data_size = len(positions[0])
-                positions_matrix = np.hstack(
-                    (
-                        np.reshape(positions[0], (data_size, 1)),
-                        np.reshape(positions[1], (data_size, 1)),
-                    )
-                )
-                # this ones for c
-                positions_matrix = np.hstack(
-                    (np.ones((data_size, 1)), positions_matrix)
-                )
+                # Plane fitting
                 values = particle_subimage[bg_region]
                 # normal equation
                 try:
-                    theta = np.dot(
-                        np.dot(
-                            np.linalg.inv(
-                                np.dot(positions_matrix.transpose(), positions_matrix)
-                            ),
-                            positions_matrix.transpose(),
-                        ),
-                        values,
-                    )
+                    theta = np.dot(flat_positions_matrix, values)
                 except np.linalg.LinAlgError:
                     self.log.warning(
-                        f"Could not fit image plane for particle {particle} in {extract_params.micrographs_file}"
+                        f"Could not fit image plane for particle {particle} in {mrcs_name}"
                     )
                     continue
-                # now we need the full grid across the image
-                positions_matrix = np.hstack(
-                    (
-                        np.reshape(grid_indexes[0], (4 * extract_width**2, 1)),
-                        np.reshape(grid_indexes[1], (4 * extract_width**2, 1)),
-                    )
-                )
-                positions_matrix = np.hstack(
-                    (np.ones((4 * extract_width**2, 1)), positions_matrix)
-                )
                 plane = np.reshape(
-                    np.dot(positions_matrix, theta),
-                    (2 * extract_width, 2 * extract_width),
+                    np.dot(grid_matrix, theta),
+                    (2 * scaled_extract_width, 2 * scaled_extract_width),
                 )
-
                 particle_subimage -= plane
 
                 # Background normalisation
@@ -433,8 +433,12 @@ class ExtractClass(CommonService):
                     output_mrc_stack = np.array([particle_subimage], dtype=np.float32)
 
             # Produce the mrc file of the extracted particles
+            Path(reextract_name).parent.mkdir(exist_ok=True)
             particle_count = np.shape(output_mrc_stack)[0]
-            self.log.info(f"Extracted {particle_count} particles")
+            total_particle_count += particle_count
+            self.log.info(
+                f"Extracted {particle_count} particles for {total_particle_count} total"
+            )
             if particle_count > 0:
                 with mrcfile.new(str(reextract_name), overwrite=True) as mrc:
                     mrc.set_data(output_mrc_stack.astype(np.float32))
