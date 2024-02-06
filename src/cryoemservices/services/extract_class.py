@@ -282,7 +282,7 @@ class ExtractClass(CommonService):
 
         # Extraction for each micrograph
         for mrcs_name in mrcs_dict.keys():
-            self.log.info(f"{mrcs_name} from {len(mrcs_dict.keys())} total")
+            self.log.info(f"Extracting {mrcs_name} ({len(mrcs_dict.keys())} total)")
             motioncorr_name = mrcs_dict[mrcs_name]["motioncorr_name"]
             reextract_name = mrcs_dict[mrcs_name]["reextract_name"]
             with mrcfile.open(original_dir / motioncorr_name) as input_micrograph:
@@ -291,7 +291,6 @@ class ExtractClass(CommonService):
                 )
             image_size = np.shape(input_micrograph_image)
             output_mrc_stack = []
-            self.log.info(f"Read {mrcs_name}")
 
             for particle in range(len(mrcs_dict[mrcs_name]["x"])):
                 # Pixel locations are from bottom left, need to flip the image later

@@ -23,7 +23,7 @@ class RefineParameters(BaseModel):
     refine_job_dir: str = Field(..., min_length=1)
     particles_file: str = Field(..., min_length=1)
     rescaled_class_reference: str = Field(..., min_length=1)
-    rescaling_command: List[str]
+    rescaling_command: List[str] = []
     is_first_refinement: bool
     number_of_particles: int
     batch_size: int
@@ -104,15 +104,24 @@ class Refine3DWrapper(zocalo.wrapper.BaseWrapper):
         )
 
         # Create a reference for the refinement
-        rescale_result = subprocess.run(
-            refine_params.rescaling_command, cwd=str(project_dir), capture_output=True
-        )
-        # End here if the command failed
-        if rescale_result.returncode:
+        if refine_params.rescaling_command:
+            rescale_result = subprocess.run(
+                refine_params.rescaling_command,
+                cwd=str(project_dir),
+                capture_output=True,
+            )
+            # End here if the command failed
+            if rescale_result.returncode:
+                self.log.error(
+                    "Refinement reference scaling failed with exitcode "
+                    f"{rescale_result.returncode}:\n"
+                    + rescale_result.stderr.decode("utf8", "replace")
+                )
+                return False
+        if not Path(refine_params.rescaled_class_reference).is_file():
             self.log.error(
-                "Refinement reference scaling failed with exitcode "
-                f"{rescale_result.returncode}:\n"
-                + rescale_result.stderr.decode("utf8", "replace")
+                f"Refinement reference {refine_params.rescaled_class_reference} "
+                "cannot be found"
             )
             return False
 
