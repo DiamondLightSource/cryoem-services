@@ -347,6 +347,35 @@ class MonitorRefine(CommonService):
             plt.legend()
             plt.savefig(f"{monitor_params.project_dir}/bfactors.png")
 
+            plt.figure(figsize=(8, 8))
+            plt.scatter(
+                np.log(np.array(bfactor_results[:, 0])),
+                np.array(bfactor_results[:, 1]),
+                color="black",
+                label="B-factor data",
+            )
+            plt.plot(
+                plot_particles,
+                1 / np.sqrt(plot_resolutions),
+                color="black",
+                linestyle="--",
+                label=(
+                    f"Quadratic fit {bfactor_fitting[2]:.2f} + "
+                    f"{bfactor_fitting[1]:.2f}z + {bfactor_fitting[0]:.2f}z^2"
+                ),
+            )
+            plt.plot(
+                linear_particles,
+                1 / np.sqrt(plot_resolutions),
+                color="black",
+                linestyle="-",
+                label=f"Linear fit {bfactor_linear[1]:.2f} + {bfactor_linear[0]:.2f}z",
+            )
+            plt.xlabel("log particle count")
+            plt.ylabel("Resolution (A)")
+            plt.legend()
+            plt.savefig(f"{monitor_params.project_dir}/resolutions.png")
+
             self.log.info(
                 f"B-factor from {len(bfactor_results)} runs is {bfactor_linear[0]/2}"
             )
