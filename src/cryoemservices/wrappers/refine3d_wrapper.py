@@ -50,7 +50,7 @@ class RefineParameters(BaseModel):
     local_healpix_order: int = 4
     low_resol_join_halves: int = 40
     offset_range: float = 5
-    offset_step: float = 2
+    offset_step: float = 4
     ignore_angles: bool = False
     resol_angles: bool = False
     symmetry: str = "C1"
@@ -283,7 +283,7 @@ class Refine3DWrapper(zocalo.wrapper.BaseWrapper):
             "half_map": f"{refine_params.refine_job_dir}/run_half1_class001_unfil.mrc",
             "mask": refine_params.mask
             if refine_params.mask
-            else f"{mask_job_dir}/mask.mrc",
+            else f"{project_dir}/{mask_job_dir}/mask.mrc",
             "rescaled_class_reference": refine_params.rescaled_class_reference,
             "job_dir": f"{project_dir}/PostProcess/job{job_num_postprocess:03}",
             "is_first_refinement": refine_params.is_first_refinement,

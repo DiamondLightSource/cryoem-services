@@ -298,9 +298,7 @@ class MonitorRefine(CommonService):
 
             # Fit and plot
             bfactor_fitting = np.polyfit(
-                1 / np.array(bfactor_results[:, 1]) ** 2,
-                np.log(np.array(bfactor_results[:, 0])),
-                2,
+                1 / bfactor_results[:, 1] ** 2, np.log(bfactor_results[:, 0]), 2
             )
             plot_resolutions = np.arange(
                 0.001, max(1 / bfactor_results[:, 1] ** 2) + 0.001, 0.002
@@ -312,16 +310,15 @@ class MonitorRefine(CommonService):
             )
 
             bfactor_linear = np.polyfit(
-                1 / np.array(bfactor_results[:, 1]) ** 2,
-                np.log(np.array(bfactor_results[:, 0])),
-                1,
+                1 / bfactor_results[:, 1] ** 2, np.log(bfactor_results[:, 0]), 1
             )
             linear_particles = bfactor_linear[1] + bfactor_linear[0] * plot_resolutions
 
+            # Plot bfactors
             plt.figure(figsize=(8, 8))
             plt.scatter(
-                np.log(np.array(bfactor_results[:, 0])),
-                1 / np.array(bfactor_results[:, 1]) ** 2,
+                np.log(bfactor_results[:, 0]),
+                1 / bfactor_results[:, 1] ** 2,
                 color="black",
                 label="B-factor data",
             )
@@ -347,10 +344,11 @@ class MonitorRefine(CommonService):
             plt.legend()
             plt.savefig(f"{monitor_params.project_dir}/bfactors.png")
 
+            # Plot resolutions
             plt.figure(figsize=(8, 8))
             plt.scatter(
-                np.log(np.array(bfactor_results[:, 0])),
-                np.array(bfactor_results[:, 1]),
+                np.log(bfactor_results[:, 0]),
+                bfactor_results[:, 1],
                 color="black",
                 label="B-factor data",
             )
@@ -359,17 +357,14 @@ class MonitorRefine(CommonService):
                 1 / np.sqrt(plot_resolutions),
                 color="black",
                 linestyle="--",
-                label=(
-                    f"Quadratic fit {bfactor_fitting[2]:.2f} + "
-                    f"{bfactor_fitting[1]:.2f}z + {bfactor_fitting[0]:.2f}z^2"
-                ),
+                label="Quadratic fit",
             )
             plt.plot(
                 linear_particles,
                 1 / np.sqrt(plot_resolutions),
                 color="black",
                 linestyle="-",
-                label=f"Linear fit {bfactor_linear[1]:.2f} + {bfactor_linear[0]:.2f}z",
+                label=f"Linear fit with bfactor {bfactor_linear[0]:.2f}",
             )
             plt.xlabel("log particle count")
             plt.ylabel("Resolution (A)")

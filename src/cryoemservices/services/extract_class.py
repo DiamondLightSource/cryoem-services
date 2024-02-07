@@ -318,7 +318,7 @@ class ExtractClass(CommonService):
                 positions_matrix.transpose(),
             )
         except np.linalg.LinAlgError:
-            self.log.warning(f"Could not fit image plane for {mrcs_name}")
+            self.log.warning(f"Could not fit image plane for {extract_job_dir}")
             rw.transport.nack(header)
             return
 
@@ -404,13 +404,7 @@ class ExtractClass(CommonService):
                 # Plane fitting
                 values = particle_subimage[bg_region]
                 # normal equation
-                try:
-                    theta = np.dot(flat_positions_matrix, values)
-                except np.linalg.LinAlgError:
-                    self.log.warning(
-                        f"Could not fit image plane for particle {particle} in {mrcs_name}"
-                    )
-                    continue
+                theta = np.dot(flat_positions_matrix, values)
                 plane = np.reshape(
                     np.dot(grid_matrix, theta),
                     (2 * scaled_extract_width, 2 * scaled_extract_width),
