@@ -324,6 +324,7 @@ class PostProcess(CommonService):
                 "class_reference": postprocess_params.rescaled_class_reference,
                 "class_number": postprocess_params.class_number,
                 "mask_file": postprocess_params.mask,
+                "pixel_size": postprocess_params.pixel_size,
             }
         else:
             murfey_postprocess_params = {

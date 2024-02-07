@@ -504,7 +504,7 @@ class ExtractClass(CommonService):
             "is_first_refinement": True,
             "number_of_particles": number_of_particles,
             "batch_size": number_of_particles,
-            "pixel_size": extract_params.pixel_size,
+            "pixel_size": str(scaled_pixel_size),
             "class_number": extract_params.refine_class_nr,
         }
         if isinstance(rw, MockRW):
