@@ -303,7 +303,7 @@ class MonitorRefine(CommonService):
                 2,
             )
             plot_resolutions = np.arange(
-                0.004, max(1 / bfactor_results[:, 1] ** 2) + 0.001, 0.002
+                0.001, max(1 / bfactor_results[:, 1] ** 2) + 0.001, 0.002
             )
             plot_particles = (
                 bfactor_fitting[2]
@@ -330,14 +330,17 @@ class MonitorRefine(CommonService):
                 plot_resolutions,
                 color="black",
                 linestyle="--",
-                label=f"Quadratic fit {bfactor_fitting[2]} + {bfactor_fitting[1]}z + {bfactor_fitting[0]}z^2",
+                label=(
+                    f"Quadratic fit {bfactor_fitting[2]:.2f} + "
+                    f"{bfactor_fitting[1]:.2f}z + {bfactor_fitting[0]:.2f}z^2"
+                ),
             )
             plt.plot(
                 linear_particles,
                 plot_resolutions,
                 color="black",
                 linestyle="-",
-                label=f"Linear fit {bfactor_linear[1]} + {bfactor_linear[0]}z",
+                label=f"Linear fit {bfactor_linear[1]:.2f} + {bfactor_linear[0]:.2f}z",
             )
             plt.xlabel("log particle count")
             plt.ylabel("1 / Resolution^2")
