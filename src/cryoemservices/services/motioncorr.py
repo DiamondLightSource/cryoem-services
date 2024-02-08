@@ -224,6 +224,11 @@ class MotionCorr(CommonService):
             rw.transport.nack(header)
             return
 
+        # Generate the plotting paths
+        drift_plot_name = str(Path(mc_params.movie).stem) + "_drift_plot.json"
+        plot_path = Path(mc_params.mrc_out).parent / drift_plot_name
+        snapshot_path = Path(mc_params.mrc_out).with_suffix(".jpeg")
+
         # Check if this file has been run before
         if Path(mc_params.mrc_out).is_file():
             job_is_rerun = True
@@ -318,6 +323,12 @@ class MotionCorr(CommonService):
                         command.extend((mc2_flags[k], str(v)))
             # Run MotionCor2
             result = self.motioncor2(command, mc_params.mrc_out)
+
+            dose_weighted = Path(mc_params.mrc_out).parent / (
+                Path(mc_params.mrc_out).stem + "_DW.mrc"
+            )
+            if dose_weighted.is_file():
+                mc_params.mrc_out = str(dose_weighted)
         else:
             # Construct the command for Relion motion correction
             self.job_type = "relion.motioncorr.own"
@@ -425,9 +436,6 @@ class MotionCorr(CommonService):
 
         # Extract results for ispyb
         fig = px.scatter(x=self.x_shift_list, y=self.y_shift_list)
-        drift_plot_name = str(Path(mc_params.movie).stem) + "_drift_plot.json"
-        plot_path = Path(mc_params.mrc_out).parent / drift_plot_name
-        snapshot_path = Path(mc_params.mrc_out).with_suffix(".jpeg")
         fig.write_json(plot_path)
 
         # Forward results to ISPyB
