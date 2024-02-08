@@ -25,6 +25,7 @@ class MonitorParams(BaseModel):
     mask_diameter: Optional[float]
     resolution: Optional[float]
     number_of_particles: Optional[int]
+    min_particles: int = 2000
     processed_dir: str = "relion_murfey"
 
     @validator("monitor_command")
@@ -250,9 +251,13 @@ class MonitorRefine(CommonService):
                 )
 
             bfactor_particle_counts = [
-                1000 * 2**n
+                monitor_params.min_particles * 2**n
                 for n in range(
-                    int(np.log(monitor_params.batch_size / 1000) / np.log(2) + 1)
+                    int(
+                        np.log(monitor_params.batch_size / monitor_params.min_particles)
+                        / np.log(2)
+                        + 1
+                    )
                 )
             ]
             for particle_count in bfactor_particle_counts:
@@ -342,6 +347,7 @@ class MonitorRefine(CommonService):
             plt.xlabel("log particle count")
             plt.ylabel("1 / Resolution^2")
             plt.legend()
+            plt.title(f"{monitor_params.project_dir}")
             plt.savefig(f"{monitor_params.project_dir}/bfactors.png")
 
             # Plot resolutions
@@ -369,6 +375,7 @@ class MonitorRefine(CommonService):
             plt.xlabel("log particle count")
             plt.ylabel("Resolution (A)")
             plt.legend()
+            plt.title(f"{monitor_params.project_dir}")
             plt.savefig(f"{monitor_params.project_dir}/resolutions.png")
 
             self.log.info(
