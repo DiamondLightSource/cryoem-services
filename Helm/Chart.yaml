@@ -19,6 +19,7 @@ dependencies:
 - name: motioncorr_slurm
 - name: node_creator
 - name: postprocess
+- name: reextract
 - name: select_classes
 - name: select_particles
 - name: tomo_align

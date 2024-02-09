@@ -311,11 +311,11 @@ class ExtractClass(CommonService):
                     }
                     if isinstance(rw, MockRW):
                         rw.transport.send(
-                            destination="reextract_micrograph",
+                            destination="reextract",
                             message={"parameters": extract_params, "content": "dummy"},
                         )
                     else:
-                        rw.send_to("reextract_micrograph", extract_params)
+                        rw.send_to("reextract", extract_params)
 
         else:
             if (

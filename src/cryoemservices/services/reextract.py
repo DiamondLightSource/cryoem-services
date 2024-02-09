@@ -267,11 +267,11 @@ class ReExtract(CommonService):
         }
         if isinstance(rw, MockRW):
             rw.transport.send(
-                destination="refine_wrapper",
+                destination="extract_class",
                 message={"parameters": refine_params, "content": "dummy"},
             )
         else:
-            rw.send_to("refine_wrapper", refine_params)
+            rw.send_to("extract_class", refine_params)
 
         self.log.info(f"Done extraction for {extract_params.reextract_name}.")
         rw.transport.ack(header)
