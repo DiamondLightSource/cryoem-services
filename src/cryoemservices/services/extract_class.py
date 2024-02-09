@@ -275,7 +275,7 @@ class ExtractClass(CommonService):
                             mrcs_dict[mrcs_name] = {
                                 "counter": 1,
                                 "motioncorr_name": original_dir / split_line[3],
-                                "reextract_name": reextract_name,
+                                "reextract_name": project_dir / reextract_name,
                                 "x": [float(split_line[0])],
                                 "y": [float(split_line[1])],
                             }
@@ -294,13 +294,13 @@ class ExtractClass(CommonService):
             else:
                 scaled_extract_width = round(extract_params.boxsize / 2)
 
-            with open(extract_job_dir / "done_micrographs.txt", "w") as done_mics:
+            with open(extract_job_dir / "done_micrographs.yaml", "w") as done_mics:
                 for mrcs_name in mrcs_dict.keys():
                     reextract_name = mrcs_dict[mrcs_name]["reextract_name"]
                     done_mics.write(f"{reextract_name}: 0\n")
-                    extract_params = {
-                        "motioncorr_name": mrcs_dict[mrcs_name]["motioncorr_name"],
-                        "reextract_name": reextract_name,
+                    mrcs_params = {
+                        "motioncorr_name": str(mrcs_dict[mrcs_name]["motioncorr_name"]),
+                        "reextract_name": str(reextract_name),
                         "particles_x": mrcs_dict[mrcs_name]["x"],
                         "particles_y": mrcs_dict[mrcs_name]["y"],
                         "scaled_pixel_size": scaled_pixel_size,
@@ -312,10 +312,10 @@ class ExtractClass(CommonService):
                     if isinstance(rw, MockRW):
                         rw.transport.send(
                             destination="reextract",
-                            message={"parameters": extract_params, "content": "dummy"},
+                            message={"parameters": mrcs_params, "content": "dummy"},
                         )
                     else:
-                        rw.send_to("reextract", extract_params)
+                        rw.send_to("reextract", mrcs_params)
 
         else:
             if (
@@ -326,7 +326,7 @@ class ExtractClass(CommonService):
                 rw.transport.nack(header)
                 return
 
-            with open(extract_job_dir / "done_micrographs.txt", "r") as done_mics:
+            with open(extract_job_dir / "done_micrographs.yaml", "r") as done_mics:
                 run_mics = yaml.safe_load(done_mics)
 
             try:
@@ -334,12 +334,12 @@ class ExtractClass(CommonService):
             except KeyError:
                 self.log.warning(
                     f"{extract_params.reextract_name} is not in "
-                    f"{extract_job_dir}/done_micrographs.txt"
+                    f"{extract_job_dir}/done_micrographs.yaml"
                 )
                 rw.transport.nack(header)
                 return
 
-            with open(extract_job_dir / "done_micrographs.txt", "w") as done_mics:
+            with open(extract_job_dir / "done_micrographs.yaml", "w") as done_mics:
                 yaml.dump(run_mics, done_mics)
 
             if not all(run_mics.values()):
@@ -388,6 +388,8 @@ class ExtractClass(CommonService):
                 "--angpix",
                 str(extract_params.extracted_pixel_size),
                 "--rescale_angpix",
+                str(scaled_pixel_size),
+                "--force_header_angpix",
                 str(scaled_pixel_size),
                 "--new_box",
                 str(scaled_boxsize),

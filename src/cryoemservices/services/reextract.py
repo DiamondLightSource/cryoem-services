@@ -28,7 +28,7 @@ class ReExtractParameters(BaseModel):
 
 class ReExtract(CommonService):
     """
-    A service for extracting particles from a class for refinement
+    A service for reextracting particles from a given micrograph
     """
 
     # Human readable service name
@@ -39,17 +39,17 @@ class ReExtract(CommonService):
 
     def initializing(self):
         """Subscribe to a queue. Received messages must be acknowledged."""
-        self.log.info("Class extraction service starting")
+        self.log.info("Reextraction service starting")
         workflows.recipe.wrap_subscribe(
             self._transport,
-            "extract_class",
-            self.extract_class,
+            "reextract",
+            self.reextract,
             acknowledgement=True,
             log_extender=self.extend_log,
             allow_non_recipe_messages=True,
         )
 
-    def extract_class(self, rw, header: dict, message: dict):
+    def reextract(self, rw, header: dict, message: dict):
         class MockRW:
             def dummy(self, *args, **kwargs):
                 pass
@@ -89,7 +89,7 @@ class ReExtract(CommonService):
                 )
         except (ValidationError, TypeError) as e:
             self.log.warning(
-                f"Class extraction parameter validation failed for message: {message} "
+                f"Reextraction parameter validation failed for message: {message} "
                 f"and recipe parameters: {rw.recipe_step.get('parameters', {})} "
                 f"with exception: {e}"
             )
