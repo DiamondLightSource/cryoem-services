@@ -227,7 +227,6 @@ class MotionCorr(CommonService):
         # Generate the plotting paths
         drift_plot_name = str(Path(mc_params.movie).stem) + "_drift_plot.json"
         plot_path = Path(mc_params.mrc_out).parent / drift_plot_name
-        snapshot_path = Path(mc_params.mrc_out).with_suffix(".jpeg")
 
         # Check if this file has been run before
         if Path(mc_params.mrc_out).is_file():
@@ -437,6 +436,7 @@ class MotionCorr(CommonService):
         # Extract results for ispyb
         fig = px.scatter(x=self.x_shift_list, y=self.y_shift_list)
         fig.write_json(plot_path)
+        snapshot_path = Path(mc_params.mrc_out).with_suffix(".jpeg")
 
         # Forward results to ISPyB
         ispyb_parameters = {
