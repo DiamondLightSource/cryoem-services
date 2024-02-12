@@ -222,6 +222,15 @@ class Class2DWrapper(BaseWrapper):
             return False
 
         # Send classification job information to ispyb
+        if not class2d_params.batch_is_complete:
+            class_particles_file = cif.read_file(
+                f"{class2d_params.class2d_dir}/run_it{class2d_params.class2d_nr_iter:03}_data.star"
+            )
+            particles_block = class_particles_file.find_block("particles")
+            particles_in_batch = len(particles_block.find_loop("_rlnCoordinateX"))
+        else:
+            particles_in_batch = class2d_params.batch_size
+
         ispyb_parameters = []
         classification_grp_ispyb_parameters = {
             "ispyb_command": "buffer",
@@ -230,7 +239,7 @@ class Class2DWrapper(BaseWrapper):
             "batch_number": int(
                 class2d_params.particles_file.split("particles_split")[1].split(".")[0]
             ),
-            "number_of_particles_per_batch": class2d_params.batch_size,
+            "number_of_particles_per_batch": particles_in_batch,
             "number_of_classes_per_batch": class2d_params.class2d_nr_classes,
             "symmetry": "C1",
             "particle_picker_id": class2d_params.picker_id,
@@ -247,15 +256,6 @@ class Class2DWrapper(BaseWrapper):
         ispyb_parameters.append(classification_grp_ispyb_parameters)
 
         # Send individual classes to ispyb
-        if not class2d_params.batch_is_complete:
-            class_particles_file = cif.read_file(
-                f"{class2d_params.class2d_dir}/run_it{class2d_params.class2d_nr_iter:03}_data.star"
-            )
-            particles_block = class_particles_file.find_block("particles")
-            particles_in_batch = len(particles_block.find_loop("_rlnCoordinateX"))
-        else:
-            particles_in_batch = class2d_params.batch_size
-
         class_star_file = cif.read_file(
             f"{class2d_params.class2d_dir}/run_it{class2d_params.class2d_nr_iter:03}_model.star"
         )
