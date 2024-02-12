@@ -219,6 +219,12 @@ class Class2DWrapper(BaseWrapper):
                 f"Relion Class2D failed with exitcode {result.returncode}:\n"
                 + result.stderr.decode("utf8", "replace")
             )
+            # Tell Murfey to release the hold on 2D classification jobs
+            murfey_params = {
+                "register": "done_incomplete_2d_batch",
+                "job_dir": class2d_params.class2d_dir,
+            }
+            self.recwrap.send_to("murfey_feedback", murfey_params)
             return False
 
         # Send classification job information to ispyb
