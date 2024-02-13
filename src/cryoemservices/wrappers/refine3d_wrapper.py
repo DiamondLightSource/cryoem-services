@@ -37,8 +37,10 @@ class RefineParameters(BaseModel):
     mask_soft_edge: int = 3
     mpi_run_command: str = "srun -n 5"
     dont_correct_greyscale: bool = True
-    ini_high: float = 20.0
+    initial_lowpass: float = 20.0
     dont_combine_weights_via_disc: bool = True
+    preread_images: bool = True
+    scratch_dir: Optional[str] = None
     nr_pool: int = 10
     pad: int = 2
     do_ctf: bool = True
@@ -48,7 +50,7 @@ class RefineParameters(BaseModel):
     oversampling: int = 1
     healpix_order: int = 2
     local_healpix_order: int = 4
-    low_resol_join_halves: int = 40
+    low_resol_join_halves: float = 40
     offset_range: float = 5
     offset_step: float = 4
     ignore_angles: bool = False
@@ -150,8 +152,10 @@ class Refine3DWrapper(zocalo.wrapper.BaseWrapper):
         # Add flags to the command based on the input parameters
         refine_flags = {
             "dont_correct_greyscale": "--firstiter_cc",
-            "ini_high": "--ini_high",
+            "initial_lowpass": "--ini_high",
             "dont_combine_weights_via_disc": "--dont_combine_weights_via_disc",
+            "preread_images": "--preread_images",
+            "scratch_dir": "--scratch_dir",
             "nr_pool": "--pool",
             "pad": "--pad",
             "do_ctf": "--ctf",
