@@ -42,7 +42,7 @@ class RefineParameters(BaseModel):
     preread_images: bool = True
     scratch_dir: Optional[str] = None
     nr_pool: int = 10
-    pad: int = 2
+    pad: int = 1
     do_ctf: bool = True
     ctf_intact_first_peak: bool = False
     flatten_solvent: bool = True
@@ -53,8 +53,8 @@ class RefineParameters(BaseModel):
     low_resol_join_halves: float = 40
     offset_range: float = 5
     offset_step: float = 4
-    ignore_angles: bool = False
-    resol_angles: bool = False
+    ignore_angles: bool = True
+    resol_angles: bool = True
     symmetry: str = "C1"
     do_norm: bool = True
     do_scale: bool = True
