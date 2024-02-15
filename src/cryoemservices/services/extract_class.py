@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+import json
 import math
 import os
 import re
+import subprocess
+import time
 from pathlib import Path
 
 import workflows.recipe
 import yaml
-from pydantic import BaseModel, Field, ValidationError, validator
+from pydantic import BaseModel, Field, ValidationError
 from workflows.services.common_service import CommonService
 
 from cryoemservices.util.spa_relion_service_options import (
@@ -17,7 +20,6 @@ from cryoemservices.util.spa_relion_service_options import (
 
 
 class ExtractClassParameters(BaseModel):
-    mode: str
     micrographs_file: str = Field(..., min_length=1)
     class3d_dir: str = Field(..., min_length=1)
     refine_job_dir: str = Field(..., min_length=1)
@@ -29,17 +31,49 @@ class ExtractClassParameters(BaseModel):
     bg_radius: int = -1
     downscale_factor: float = 2
     downscale: bool = True
-    norm: bool = True
+    normalise: bool = True
     invert_contrast: bool = True
     reextract_name: str = ""
     number_of_particles: int = 0
     relion_options: RelionServiceOptions
 
-    @validator("mode")
-    def is_valid_mode(cls, mode):
-        if mode not in ["select", "extract"]:
-            raise ValueError("Specify a mode of select or extract.")
-        return mode
+
+slurm_json_job_template = {
+    "v0.0.38": {
+        "name": "ReExtract",
+        "nodes": 1,
+        "tasks": 1,
+        "cpus_per_task": 40,
+        "memory_per_cpu": 7000,
+        "time_limit": "1:00:00",
+    },
+    "v0.0.40": {
+        "name": "ReExtract",
+        "minimum_nodes": 1,
+        "maximum_nodes": 1,
+        "tasks": 1,
+        "cpus_per_task": 40,
+        "memory_per_cpu": {
+            "number": 7000,
+            "set": True,
+            "infinite": False,
+        },
+        "time_limit": {
+            "number": 3600,
+            "set": True,
+            "infinite": False,
+        },
+    },
+}
+slurm_script_template = (
+    "#!/bin/bash\n"
+    "echo \"$(date '+%Y-%m-%d %H:%M:%S.%3N'): running ReExtraction\"\n"
+    "mkdir /tmp/tmp_$SLURM_JOB_ID\n"
+    "export APPTAINER_CACHEDIR=/tmp/tmp_$SLURM_JOB_ID\n"
+    "export APPTAINER_TMPDIR=/tmp/tmp_$SLURM_JOB_ID\n"
+    "singularity exec --nv --bind /lib64,/tmp/tmp_$SLURM_JOB_ID:/tmp"
+)
+slurm_tmp_cleanup = "\nrm -rf /tmp/tmp_$SLURM_JOB_ID"
 
 
 class ExtractClass(CommonService):
@@ -68,6 +102,188 @@ class ExtractClass(CommonService):
             log_extender=self.extend_log,
             allow_non_recipe_messages=True,
         )
+
+    def submit_slurm_job(self, command, job_dir):
+        """Submit ReExtract jobs to the slurm cluster via the RestAPI"""
+        try:
+            # Get the configuration and token for the restAPI
+            with open(os.environ["SLURM_RESTAPI_CONFIG"], "r") as f:
+                slurm_rest = yaml.safe_load(f)
+            user = slurm_rest["user"]
+            user_home = slurm_rest["user_home"]
+            with open(slurm_rest["user_token"], "r") as f:
+                slurm_token = f.read().strip()
+        except (KeyError, FileNotFoundError):
+            return subprocess.CompletedProcess(
+                args="",
+                returncode=1,
+                stdout="".encode("utf8"),
+                stderr="No restAPI config or token".encode("utf8"),
+            )
+
+        # Check the API version is one this service has been tested with
+        api_version = slurm_rest["api_version"]
+        print(api_version)
+        if api_version not in ["v0.0.38", "v0.0.40"]:
+            return subprocess.CompletedProcess(
+                args="",
+                returncode=1,
+                stdout="".encode("utf8"),
+                stderr=f"Unsupported API version {api_version}".encode("utf8"),
+            )
+
+        # Construct the json for submission
+        mc_output_file = f"{job_dir}/run.out"
+        mc_error_file = f"{job_dir}/run.err"
+        submission_file = f"{job_dir}/run.json"
+        slurm_config = {
+            "standard_output": mc_output_file,
+            "standard_error": mc_error_file,
+            "current_working_directory": str(job_dir),
+        }
+        if api_version == "v0.0.38":
+            slurm_config["environment"] = {"USER": user, "HOME": user_home}
+        else:
+            slurm_config["environment"] = [f"USER: {user}", f"HOME: {user_home}"]
+
+        # Add slurm partition and cluster preferences if given
+        if slurm_rest.get("partition"):
+            slurm_config["partition"] = slurm_rest["partition"]
+        if slurm_rest.get("partition_preference"):
+            slurm_config["prefer"] = slurm_rest["partition_preference"]
+        if slurm_rest.get("clusters"):
+            slurm_config["clusters"] = slurm_rest["clusters"]
+        # Combine this with the template for the given API version
+        slurm_json_job = dict(slurm_json_job_template[api_version], **slurm_config)
+
+        # Make the script command and save the submission json
+        if slurm_rest.get("required_directories"):
+            binding_dirs = "," + ",".join(slurm_rest["required_directories"])
+        else:
+            binding_dirs = ""
+        job_command = (
+            slurm_script_template
+            + f"{binding_dirs} --home {user_home} "
+            + " ".join(command)
+            + slurm_tmp_cleanup
+        )
+        slurm_json = {"job": slurm_json_job, "script": job_command}
+        with open(submission_file, "w") as f:
+            json.dump(slurm_json, f)
+
+        # Command to submit jobs to the restAPI
+        slurm_submit_command = (
+            f'curl -H "X-SLURM-USER-NAME:{user}" -H "X-SLURM-USER-TOKEN:{slurm_token}" '
+            '-H "Content-Type: application/json" -X POST '
+            f'{slurm_rest["url"]}/slurm/{slurm_rest["api_version"]}/job/submit '
+            f"-d @{submission_file}"
+        )
+        slurm_submission_json = subprocess.run(
+            slurm_submit_command, capture_output=True, shell=True
+        )
+        try:
+            # Extract the job id from the submission response to use in the next query
+            slurm_response = slurm_submission_json.stdout.decode("utf8", "replace")
+            slurm_response_json = json.loads(slurm_response)
+            job_id = slurm_response_json["job_id"]
+        except (json.JSONDecodeError, KeyError):
+            self.log.error(
+                f"Unable to submit job to {slurm_rest['url']}. The restAPI returned "
+                f"{slurm_submission_json.stdout.decode('utf8', 'replace')}"
+            )
+            return subprocess.CompletedProcess(
+                args="",
+                returncode=1,
+                stdout=slurm_submission_json.stdout,
+                stderr=slurm_submission_json.stderr,
+            )
+        self.log.info(f"Submitted job {job_id} to slurm. Waiting...")
+        if slurm_response_json.get("warnings") and slurm_response_json["warnings"]:
+            self.log.warning(
+                f"Slurm reported these warnings: {slurm_response_json['warnings']}"
+            )
+        if slurm_response_json.get("errors") and slurm_response_json["errors"]:
+            self.log.warning(
+                f"Slurm reported these errors: {slurm_response_json['errors']}"
+            )
+
+        # Command to get the status of the submitted job from the restAPI
+        slurm_status_command = (
+            f'curl -H "X-SLURM-USER-NAME:{user}" -H "X-SLURM-USER-TOKEN:{slurm_token}" '
+            '-H "Content-Type: application/json" -X GET '
+            f'{slurm_rest["url"]}/slurm/{slurm_rest["api_version"]}/job/{job_id}'
+        )
+        slurm_job_state = "PENDING"
+
+        # Wait until the job has a status indicating it has finished
+        loop_counter = 0
+        while slurm_job_state in (
+            "PENDING",
+            "CONFIGURING",
+            "RUNNING",
+            "COMPLETING",
+        ):
+            if loop_counter < 5:
+                time.sleep(5)
+            else:
+                time.sleep(30)
+            loop_counter += 1
+
+            # Call the restAPI to find out the job state
+            slurm_status_json = subprocess.run(
+                slurm_status_command, capture_output=True, shell=True
+            )
+            try:
+                slurm_response = slurm_status_json.stdout.decode("utf8", "replace")
+                slurm_job_state = json.loads(slurm_response)["jobs"][0]["job_state"]
+                if api_version == "v0.0.40":
+                    slurm_job_state = slurm_job_state[0]
+            except (json.JSONDecodeError, KeyError):
+                print(slurm_status_command)
+                self.log.error(
+                    f"Unable to get status for job {job_id}. The restAPI returned "
+                    f"{slurm_status_json.stdout.decode('utf8', 'replace')}"
+                )
+                return subprocess.CompletedProcess(
+                    args="",
+                    returncode=1,
+                    stdout=slurm_status_json.stdout,
+                    stderr=slurm_status_json.stderr,
+                )
+
+            if loop_counter >= 60:
+                slurm_cancel_command = (
+                    f'curl -H "X-SLURM-USER-NAME:{user}" '
+                    f'-H "X-SLURM-USER-TOKEN:{slurm_token}" '
+                    '-H "Content-Type: application/json" -X DELETE '
+                    f'{slurm_rest["url"]}/slurm/{slurm_rest["api_version"]}/job/{job_id}'
+                )
+                subprocess.run(slurm_cancel_command, capture_output=True, shell=True)
+                self.log.error("Timeout running slurm job")
+                return subprocess.CompletedProcess(
+                    args="",
+                    returncode=1,
+                    stdout="".encode("utf8"),
+                    stderr="Timeout running slurm job".encode("utf8"),
+                )
+
+        if slurm_job_state == "COMPLETED":
+            Path(mc_output_file).unlink()
+            Path(mc_error_file).unlink()
+            Path(submission_file).unlink()
+            return subprocess.CompletedProcess(
+                args="",
+                returncode=0,
+                stdout="".encode("utf8"),
+                stderr="".encode("utf8"),
+            )
+        else:
+            return subprocess.CompletedProcess(
+                args="",
+                returncode=1,
+                stdout="".encode("utf8"),
+                stderr="Slurm process failed".encode("utf8"),
+            )
 
     def extract_class(self, rw, header: dict, message: dict):
         class MockRW:
@@ -159,263 +375,164 @@ class ExtractClass(CommonService):
 
         select_job_dir = project_dir / f"Select/job{job_num_refine - 2:03}"
         extract_job_dir = project_dir / f"Extract/job{job_num_refine - 1:03}"
-        if extract_params.mode == "select":
-            # Select the particles from the requested class
-            Path(select_job_dir).mkdir(parents=True, exist_ok=True)
 
-            refine_selection_link = Path(
-                project_dir / f"Select/Refine_class{extract_params.refine_class_nr}"
-            )
-            refine_selection_link.unlink(missing_ok=True)
-            refine_selection_link.symlink_to(f"job{job_num_refine - 2:03}")
+        # Select the particles from the requested class
+        Path(select_job_dir).mkdir(parents=True, exist_ok=True)
 
-            self.log.info(f"Running {self.select_job_type} in {select_job_dir}")
-            number_of_particles = 0
-            with open(particles_data, "r") as classified_particles, open(
-                f"{select_job_dir}/particles.star", "w"
-            ) as selected_particles:
-                while True:
-                    line = classified_particles.readline()
-                    if not line:
-                        break
-                    if line.lstrip() and line.lstrip()[0].isnumeric():
-                        split_line = line.split()
-                        class_number = int(split_line[19])
-                        if class_number != extract_params.refine_class_nr:
-                            continue
-                        number_of_particles += 1
-                    selected_particles.write(line)
-
-            # Register the Selection job with the node creator
-            self.log.info(f"Sending {self.select_job_type} to node creator")
-            node_creator_select = {
-                "job_type": self.select_job_type,
-                "input_file": str(particles_data),
-                "output_file": f"{select_job_dir}/particles.star",
-                "relion_options": dict(extract_params.relion_options),
-                "command": "",
-                "stdout": "",
-                "stderr": "",
-                "success": True,
-            }
-            if isinstance(rw, MockRW):
-                rw.transport.send(
-                    destination="node_creator",
-                    message={"parameters": node_creator_select, "content": "dummy"},
-                )
-            else:
-                rw.send_to("node_creator", node_creator_select)
-
-            # Run re-extraction on the selected particles
-            extract_job_dir.mkdir(parents=True, exist_ok=True)
-            self.log.info(f"Running {self.extract_job_type} in {extract_job_dir}")
-
-            refine_extraction_link = Path(
-                project_dir / f"Extract/Reextract_class{extract_params.refine_class_nr}"
-            )
-            refine_extraction_link.unlink(missing_ok=True)
-            refine_extraction_link.symlink_to(f"job{job_num_refine - 1:03}")
-
-            # Modify the extraction star file to contain reextracted values
-            mrcs_dict = {}
-            with open(
-                f"{select_job_dir}/particles.star", "r"
-            ) as selected_particles, open(
-                extract_job_dir / "particles.star", "w"
-            ) as extracted_particles, open(
-                extract_job_dir / "extractpick.star", "w"
-            ) as micrograph_list:
-                micrograph_list.write(
-                    "data_coordinate_files\n\nloop_ \n"
-                    "_rlnMicrographName #1 \n_rlnMicrographCoordinates #2 \n"
-                )
-                while True:
-                    line = selected_particles.readline()
-                    if not line:
-                        break
-                    if line.startswith("opticsGroup"):
-                        # Optics table change pixel size #7 and image size #8
-                        split_line = line.split()
-                        split_line[6] = str(scaled_pixel_size)
-                        split_line[7] = str(scaled_boxsize)
-                        line = " ".join(split_line)
-                    elif line.lstrip() and line.lstrip()[0].isnumeric():
-                        # Main table change x#1, y#2, name#3, originx#18, originy#19
-                        split_line = line.split()
-
-                        coord_x = float(split_line[0])
-                        coord_y = float(split_line[1])
-                        centre_x = float(split_line[17])
-                        centre_y = float(split_line[18])
-                        split_line[0] = str(
-                            coord_x - int(centre_x / extract_params.pixel_size)
-                        )
-                        split_line[1] = str(
-                            coord_y - int(centre_y / extract_params.pixel_size)
-                        )
-                        split_line[17] = str(
-                            centre_x - int(centre_x / extract_params.pixel_size)
-                        )
-                        split_line[18] = str(
-                            centre_y - int(centre_y / extract_params.pixel_size)
-                        )
-
-                        # Create a dictionary of the images and their particles
-                        mrcs_name = split_line[2].split("@")[1]
-                        reextract_name = re.sub(
-                            ".*Extract/job00./",
-                            f"{extract_job_dir.relative_to(project_dir)}/",
-                            mrcs_name,
-                        )
-                        if mrcs_dict.get(mrcs_name):
-                            mrcs_dict[mrcs_name]["counter"] += 1
-                            mrcs_dict[mrcs_name]["x"].append(float(split_line[0]))
-                            mrcs_dict[mrcs_name]["y"].append(float(split_line[1]))
-                        else:
-                            mrcs_dict[mrcs_name] = {
-                                "counter": 1,
-                                "motioncorr_name": original_dir / split_line[3],
-                                "reextract_name": project_dir / reextract_name,
-                                "x": [float(split_line[0])],
-                                "y": [float(split_line[1])],
-                            }
-                            micrograph_list.write(f"{split_line[3]} {reextract_name}\n")
-
-                        split_line[
-                            2
-                        ] = f"{mrcs_dict[mrcs_name]['counter']:06}@{reextract_name}"
-                        line = "  ".join(split_line) + "\n"
-                    extracted_particles.write(line)
-
-            # Find the size of the full and downscaled extracted particles
-            full_extract_width = round(extract_params.boxsize / 2)
-            if extract_params.downscale:
-                scaled_extract_width = round(scaled_boxsize / 2)
-            else:
-                scaled_extract_width = round(extract_params.boxsize / 2)
-
-            with open(extract_job_dir / "done_micrographs.yaml", "w") as done_mics:
-                for mrcs_name in mrcs_dict.keys():
-                    reextract_name = mrcs_dict[mrcs_name]["reextract_name"]
-                    done_mics.write(f"{reextract_name}: 0\n")
-                    mrcs_params = {
-                        "motioncorr_name": str(mrcs_dict[mrcs_name]["motioncorr_name"]),
-                        "reextract_name": str(reextract_name),
-                        "particles_x": mrcs_dict[mrcs_name]["x"],
-                        "particles_y": mrcs_dict[mrcs_name]["y"],
-                        "scaled_pixel_size": scaled_pixel_size,
-                        "scaled_boxsize": scaled_boxsize,
-                        "full_extract_width": full_extract_width,
-                        "scaled_extract_width": scaled_extract_width,
-                        "number_of_particles": number_of_particles,
-                    }
-                    if isinstance(rw, MockRW):
-                        rw.transport.send(
-                            destination="reextract",
-                            message={"parameters": mrcs_params, "content": "dummy"},
-                        )
-                    else:
-                        rw.send_to("reextract", mrcs_params)
-
-        else:
-            if (
-                not extract_params.reextract_name
-                and not Path(extract_params.reextract_name).is_file()
-            ):
-                self.log.warning(f"Unable to find file {extract_params.reextract_name}")
-                rw.transport.nack(header)
-                return
-
-            with open(extract_job_dir / "done_micrographs.yaml", "r") as done_mics:
-                run_mics = yaml.safe_load(done_mics)
-
-            try:
-                run_mics[extract_params.reextract_name] = 1
-            except KeyError:
-                self.log.warning(
-                    f"{extract_params.reextract_name} is not in "
-                    f"{extract_job_dir}/done_micrographs.yaml"
-                )
-                rw.transport.nack(header)
-                return
-
-            with open(extract_job_dir / "done_micrographs.yaml", "w") as done_mics:
-                yaml.dump(run_mics, done_mics)
-
-            if not all(run_mics.values()):
-                self.log.info(f"Added {extract_params.reextract_name}.")
-                rw.transport.ack(header)
-                return
-
-            # Register the Re-extraction job with the node creator
-            self.log.info(f"Sending {self.extract_job_type} to node creator")
-            node_creator_extract = {
-                "job_type": self.extract_job_type,
-                "input_file": f"{select_job_dir}/particles.star:{extract_params.micrographs_file}",
-                "output_file": f"{extract_job_dir}/particles.star",
-                "relion_options": dict(extract_params.relion_options),
-                "command": "",
-                "stdout": "",
-                "stderr": "",
-                "success": True,
-            }
-            if isinstance(rw, MockRW):
-                rw.transport.send(
-                    destination="node_creator",
-                    message={"parameters": node_creator_extract, "content": "dummy"},
-                )
-            else:
-                rw.send_to("node_creator", node_creator_extract)
-
-            # Create a reference for the refinement
-            class_reference = (
-                Path(extract_params.class3d_dir)
-                / f"run_it{extract_params.nr_iter_3d:03}_class{extract_params.refine_class_nr:03}.mrc"
-            )
-            rescaled_class_reference = (
-                extract_job_dir
-                / f"refinement_reference_class{extract_params.refine_class_nr:03}.mrc"
-            )
-
-            # Make the scaling command but don't run it here as we don't have Relion
-            self.log.info("Running class reference rescaling")
-            rescaling_command = [
-                "relion_image_handler",
-                "--i",
-                str(class_reference),
-                "--o",
-                str(rescaled_class_reference),
-                "--angpix",
-                str(extract_params.extracted_pixel_size),
-                "--rescale_angpix",
-                str(scaled_pixel_size),
-                "--force_header_angpix",
-                str(scaled_pixel_size),
-                "--new_box",
-                str(scaled_boxsize),
-            ]
-
-            # Send on to the refinement wrapper
-            refine_params = {
-                "refine_job_dir": extract_params.refine_job_dir,
-                "particles_file": f"{extract_job_dir}/particles.star",
-                "rescaling_command": rescaling_command,
-                "rescaled_class_reference": str(rescaled_class_reference),
-                "is_first_refinement": True,
-                "number_of_particles": extract_params.number_of_particles,
-                "batch_size": extract_params.number_of_particles,
-                "pixel_size": str(scaled_pixel_size),
-                "class_number": extract_params.refine_class_nr,
-            }
-            if isinstance(rw, MockRW):
-                rw.transport.send(
-                    destination="refine_wrapper",
-                    message={"parameters": refine_params, "content": "dummy"},
-                )
-            else:
-                rw.send_to("refine_wrapper", refine_params)
-
-        self.log.info(
-            f"Done {self.extract_job_type} {extract_params.mode} for {extract_params.class3d_dir}."
+        refine_selection_link = Path(
+            project_dir / f"Select/Refine_class{extract_params.refine_class_nr}"
         )
+        refine_selection_link.unlink(missing_ok=True)
+        refine_selection_link.symlink_to(f"job{job_num_refine - 2:03}")
+
+        self.log.info(f"Running {self.select_job_type} in {select_job_dir}")
+        number_of_particles = 0
+        with open(particles_data, "r") as classified_particles, open(
+            f"{select_job_dir}/particles.star", "w"
+        ) as selected_particles:
+            while True:
+                line = classified_particles.readline()
+                if not line:
+                    break
+                if line.lstrip() and line.lstrip()[0].isnumeric():
+                    split_line = line.split()
+                    class_number = int(split_line[19])
+                    if class_number != extract_params.refine_class_nr:
+                        continue
+                    number_of_particles += 1
+                selected_particles.write(line)
+
+        # Register the Selection job with the node creator
+        self.log.info(f"Sending {self.select_job_type} to node creator")
+        node_creator_select = {
+            "job_type": self.select_job_type,
+            "input_file": str(particles_data),
+            "output_file": f"{select_job_dir}/particles.star",
+            "relion_options": dict(extract_params.relion_options),
+            "command": "",
+            "stdout": "",
+            "stderr": "",
+            "success": True,
+        }
+        if isinstance(rw, MockRW):
+            rw.transport.send(
+                destination="node_creator",
+                message={"parameters": node_creator_select, "content": "dummy"},
+            )
+        else:
+            rw.send_to("node_creator", node_creator_select)
+
+        # Run re-extraction on the selected particles
+        extract_job_dir.mkdir(parents=True, exist_ok=True)
+        self.log.info(f"Running {self.extract_job_type} in {extract_job_dir}")
+
+        refine_extraction_link = Path(
+            project_dir / f"Extract/Reextract_class{extract_params.refine_class_nr}"
+        )
+        refine_extraction_link.unlink(missing_ok=True)
+        refine_extraction_link.symlink_to(f"job{job_num_refine - 1:03}")
+
+        command = [
+            "cryoemservices.reextract",
+            "--extract_job_dir",
+            str(extract_job_dir),
+            "--select_job_dir",
+            str(select_job_dir),
+            "--original_dir",
+            str(original_dir),
+            "--full_boxsize",
+            str(extract_params.boxsize),
+            "--scaled_boxsize",
+            str(scaled_boxsize),
+            "--full_pixel_size",
+            str(extract_params.pixel_size),
+            "--scaled_pixel_size",
+            str(scaled_pixel_size),
+            "--bg_radius",
+            str(extract_params.bg_radius),
+        ]
+        if extract_params.invert_contrast:
+            command.extend("--invert_contrast")
+        if extract_params.normalise:
+            command.extend("--nomalise")
+        if extract_params.downscale:
+            command.extend("--downscale")
+
+        result = self.submit_slurm_job(command, extract_job_dir)
+        if result.returncode:
+            self.log.warning(
+                f"Reextraction failed: {result.stderr.decode('utf8', 'replace')}"
+            )
+            rw.transport.nack(header)
+            return
+
+        # Register the Re-extraction job with the node creator
+        self.log.info(f"Sending {self.extract_job_type} to node creator")
+        node_creator_extract = {
+            "job_type": self.extract_job_type,
+            "input_file": f"{select_job_dir}/particles.star:{extract_params.micrographs_file}",
+            "output_file": f"{extract_job_dir}/particles.star",
+            "relion_options": dict(extract_params.relion_options),
+            "command": "",
+            "stdout": "",
+            "stderr": "",
+            "success": True,
+        }
+        if isinstance(rw, MockRW):
+            rw.transport.send(
+                destination="node_creator",
+                message={"parameters": node_creator_extract, "content": "dummy"},
+            )
+        else:
+            rw.send_to("node_creator", node_creator_extract)
+
+        # Create a reference for the refinement
+        class_reference = (
+            Path(extract_params.class3d_dir)
+            / f"run_it{extract_params.nr_iter_3d:03}_class{extract_params.refine_class_nr:03}.mrc"
+        )
+        rescaled_class_reference = (
+            extract_job_dir
+            / f"refinement_reference_class{extract_params.refine_class_nr:03}.mrc"
+        )
+
+        # Make the scaling command but don't run it here as we don't have Relion
+        self.log.info("Running class reference rescaling")
+        rescaling_command = [
+            "relion_image_handler",
+            "--i",
+            str(class_reference),
+            "--o",
+            str(rescaled_class_reference),
+            "--angpix",
+            str(extract_params.extracted_pixel_size),
+            "--rescale_angpix",
+            str(scaled_pixel_size),
+            "--force_header_angpix",
+            str(scaled_pixel_size),
+            "--new_box",
+            str(scaled_boxsize),
+        ]
+
+        # Send on to the refinement wrapper
+        refine_params = {
+            "refine_job_dir": extract_params.refine_job_dir,
+            "particles_file": f"{extract_job_dir}/particles.star",
+            "rescaling_command": rescaling_command,
+            "rescaled_class_reference": str(rescaled_class_reference),
+            "is_first_refinement": True,
+            "number_of_particles": extract_params.number_of_particles,
+            "batch_size": extract_params.number_of_particles,
+            "pixel_size": str(scaled_pixel_size),
+            "class_number": extract_params.refine_class_nr,
+        }
+        if isinstance(rw, MockRW):
+            rw.transport.send(
+                destination="refine_wrapper",
+                message={"parameters": refine_params, "content": "dummy"},
+            )
+        else:
+            rw.send_to("refine_wrapper", refine_params)
+
+        self.log.info(f"Done {self.extract_job_type} for {extract_params.class3d_dir}.")
         rw.transport.ack(header)
