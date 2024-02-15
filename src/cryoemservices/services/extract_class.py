@@ -20,6 +20,7 @@ from cryoemservices.util.spa_relion_service_options import (
 
 
 class ExtractClassParameters(BaseModel):
+    extraction_executable: str
     micrographs_file: str = Field(..., min_length=1)
     class3d_dir: str = Field(..., min_length=1)
     refine_job_dir: str = Field(..., min_length=1)
@@ -66,14 +67,8 @@ slurm_json_job_template = {
     },
 }
 slurm_script_template = (
-    "#!/bin/bash\n"
-    "echo \"$(date '+%Y-%m-%d %H:%M:%S.%3N'): running ReExtraction\"\n"
-    "mkdir /tmp/tmp_$SLURM_JOB_ID\n"
-    "export APPTAINER_CACHEDIR=/tmp/tmp_$SLURM_JOB_ID\n"
-    "export APPTAINER_TMPDIR=/tmp/tmp_$SLURM_JOB_ID\n"
-    "singularity exec --nv --bind /lib64,/tmp/tmp_$SLURM_JOB_ID:/tmp"
+    "#!/bin/bash\necho \"$(date '+%Y-%m-%d %H:%M:%S.%3N'): running ReExtraction\"\n"
 )
-slurm_tmp_cleanup = "\nrm -rf /tmp/tmp_$SLURM_JOB_ID"
 
 
 class ExtractClass(CommonService):
@@ -157,16 +152,7 @@ class ExtractClass(CommonService):
         slurm_json_job = dict(slurm_json_job_template[api_version], **slurm_config)
 
         # Make the script command and save the submission json
-        if slurm_rest.get("required_directories"):
-            binding_dirs = "," + ",".join(slurm_rest["required_directories"])
-        else:
-            binding_dirs = ""
-        job_command = (
-            slurm_script_template
-            + f"{binding_dirs} --home {user_home} "
-            + " ".join(command)
-            + slurm_tmp_cleanup
-        )
+        job_command = slurm_script_template + " ".join(command)
         slurm_json = {"job": slurm_json_job, "script": job_command}
         with open(submission_file, "w") as f:
             json.dump(slurm_json, f)
@@ -432,8 +418,9 @@ class ExtractClass(CommonService):
         refine_extraction_link.unlink(missing_ok=True)
         refine_extraction_link.symlink_to(f"job{job_num_refine - 1:03}")
 
+        # Make the command, needs the path to the cryoemservices.reextract executable
         command = [
-            "cryoemservices.reextract",
+            extract_params.extraction_executable,
             "--extract_job_dir",
             str(extract_job_dir),
             "--select_job_dir",
