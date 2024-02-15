@@ -128,12 +128,12 @@ class ExtractClass(CommonService):
             )
 
         # Construct the json for submission
-        mc_output_file = f"{job_dir}/run.out"
-        mc_error_file = f"{job_dir}/run.err"
+        slurm_output_file = f"{job_dir}/run.out"
+        slurm_error_file = f"{job_dir}/run.err"
         submission_file = f"{job_dir}/run.json"
         slurm_config = {
-            "standard_output": mc_output_file,
-            "standard_error": mc_error_file,
+            "standard_output": slurm_output_file,
+            "standard_error": slurm_error_file,
             "current_working_directory": str(job_dir),
         }
         if api_version == "v0.0.38":
@@ -253,22 +253,35 @@ class ExtractClass(CommonService):
                     stderr="Timeout running slurm job".encode("utf8"),
                 )
 
+        # Read in the output then clean up the files
+        self.log.info(f"Job {job_id} has finished!")
+        try:
+            with open(slurm_output_file, "r") as slurm_stdout:
+                stdout = slurm_stdout.read()
+            with open(slurm_error_file, "r") as slurm_stderr:
+                stderr = slurm_stderr.read()
+        except FileNotFoundError:
+            self.log.error(f"Output file {slurm_output_file} not found")
+            stdout = ""
+            stderr = f"Reading output file {slurm_output_file} failed"
+            slurm_job_state = "FAILED"
+
         if slurm_job_state == "COMPLETED":
-            Path(mc_output_file).unlink()
-            Path(mc_error_file).unlink()
+            Path(slurm_output_file).unlink()
+            Path(slurm_error_file).unlink()
             Path(submission_file).unlink()
             return subprocess.CompletedProcess(
                 args="",
                 returncode=0,
-                stdout="".encode("utf8"),
-                stderr="".encode("utf8"),
+                stdout=stdout.encode("utf8"),
+                stderr=stderr.encode("utf8"),
             )
         else:
             return subprocess.CompletedProcess(
                 args="",
                 returncode=1,
-                stdout="".encode("utf8"),
-                stderr="Slurm process failed".encode("utf8"),
+                stdout=stdout.encode("utf8"),
+                stderr=stderr.encode("utf8"),
             )
 
     def extract_class(self, rw, header: dict, message: dict):
@@ -439,19 +452,13 @@ class ExtractClass(CommonService):
             str(extract_params.bg_radius),
         ]
         if extract_params.invert_contrast:
-            command.extend("--invert_contrast")
+            command.append("--invert_contrast")
         if extract_params.normalise:
-            command.extend("--nomalise")
+            command.append("--normalise")
         if extract_params.downscale:
-            command.extend("--downscale")
+            command.append("--downscale")
 
         result = self.submit_slurm_job(command, extract_job_dir)
-        if result.returncode:
-            self.log.warning(
-                f"Reextraction failed: {result.stderr.decode('utf8', 'replace')}"
-            )
-            rw.transport.nack(header)
-            return
 
         # Register the Re-extraction job with the node creator
         self.log.info(f"Sending {self.extract_job_type} to node creator")
@@ -460,11 +467,14 @@ class ExtractClass(CommonService):
             "input_file": f"{select_job_dir}/particles.star:{extract_params.micrographs_file}",
             "output_file": f"{extract_job_dir}/particles.star",
             "relion_options": dict(extract_params.relion_options),
-            "command": "",
-            "stdout": "",
-            "stderr": "",
-            "success": True,
+            "command": " ".join(command),
+            "stdout": result.stdout.decode("utf8", "replace"),
+            "stderr": result.stderr.decode("utf8", "replace"),
         }
+        if result.returncode:
+            node_creator_extract["success"] = False
+        else:
+            node_creator_extract["success"] = True
         if isinstance(rw, MockRW):
             rw.transport.send(
                 destination="node_creator",
@@ -472,6 +482,14 @@ class ExtractClass(CommonService):
             )
         else:
             rw.send_to("node_creator", node_creator_extract)
+
+        # End here if the command failed
+        if result.returncode:
+            self.log.warning(
+                f"Reextraction failed: {result.stderr.decode('utf8', 'replace')}"
+            )
+            rw.transport.nack(header)
+            return
 
         # Create a reference for the refinement
         class_reference = (
@@ -484,7 +502,7 @@ class ExtractClass(CommonService):
         )
 
         # Make the scaling command but don't run it here as we don't have Relion
-        self.log.info("Running class reference rescaling")
+        self.log.info("Setting up class reference rescaling command")
         rescaling_command = [
             "relion_image_handler",
             "--i",

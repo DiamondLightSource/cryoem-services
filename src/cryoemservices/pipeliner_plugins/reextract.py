@@ -26,6 +26,7 @@ def reextract_single_micrograph(
     normalise: bool = True,
     downscale: bool = True,
 ):
+    """Function to run reextraction of particles from a single micrograph image"""
     # Extraction for each micrograph
     with mrcfile.open(motioncorr_name) as input_micrograph:
         input_micrograph_image = np.array(input_micrograph.data, dtype=np.float32)
@@ -127,7 +128,7 @@ def reextract_single_micrograph(
             mrc.header.cella.z = 1
 
 
-def run():
+def create_parser():
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--extract_job_dir",
@@ -204,9 +205,16 @@ def run():
         action="store_true",
         default=False,
     )
+    return parser
+
+
+def run():
+    """Function to run re-extraction of particles from a selection job"""
+    parser = create_parser()
     args = parser.parse_args()
 
     # Run re-extraction on the selected particles
+    print(f"Reextraction requested for {args.extract_job_dir}")
     extract_job_dir = Path(args.extract_job_dir)
     extract_job_dir.mkdir(parents=True, exist_ok=True)
     project_dir = Path(extract_job_dir).parent.parent
@@ -315,6 +323,7 @@ def run():
     )
     grid_matrix = np.hstack((np.ones((4 * scaled_extract_width**2, 1)), grid_matrix))
 
+    print(f"Extracting particles from {len(mrcs_dict.keys())} micrographs")
     with ProcessPoolExecutor() as executor:
         for mrcs_name in mrcs_dict.keys():
             executor.submit(
@@ -334,3 +343,4 @@ def run():
                 normalise=args.normalise,
                 downscale=args.downscale,
             )
+    print(f"Done reextraction job {extract_job_dir}")
