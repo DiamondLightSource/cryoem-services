@@ -61,9 +61,9 @@ class MonitorParams(BaseModel):
                 or not values.get("resolution")
             ):
                 raise KeyError(
-                    "The following keys must be provided for done_refinement:"
-                    "batch_size, project_dir, class_reference, class_number, mask_file"
-                    "mask_diameter, pxiel_size, resolution"
+                    "The following keys must be provided for done_refinement: "
+                    "batch_size, project_dir, class_reference, class_number, "
+                    "mask_file, mask_diameter, pxiel_size, resolution"
                 )
         elif command == "done_bfactor":
             if (
@@ -72,7 +72,7 @@ class MonitorParams(BaseModel):
                 or not values.get("resolution")
             ):
                 raise KeyError(
-                    "The following keys must be provided for done_bfactor:"
+                    "The following keys must be provided for done_bfactor: "
                     "project_dir, number_of_particles, resolution"
                 )
         return values

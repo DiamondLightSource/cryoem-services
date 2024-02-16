@@ -35,7 +35,6 @@ class ExtractClassParameters(BaseModel):
     normalise: bool = True
     invert_contrast: bool = True
     reextract_name: str = ""
-    number_of_particles: int = 0
     relion_options: RelionServiceOptions
 
 
@@ -526,8 +525,8 @@ class ExtractClass(CommonService):
             "rescaling_command": rescaling_command,
             "rescaled_class_reference": str(rescaled_class_reference),
             "is_first_refinement": True,
-            "number_of_particles": extract_params.number_of_particles,
-            "batch_size": extract_params.number_of_particles,
+            "number_of_particles": number_of_particles,
+            "batch_size": number_of_particles,
             "pixel_size": str(scaled_pixel_size),
             "class_number": extract_params.refine_class_nr,
         }
