@@ -561,8 +561,8 @@ class TomoAlign(CommonService):
             command.extend(
                 (
                     "-TiltRange",
-                    tomo_parameters.input_file_list[0][1],  # lowest tilt
-                    tomo_parameters.input_file_list[-1][1],
+                    str(tomo_parameters.input_file_list[0][1]),  # lowest tilt
+                    str(tomo_parameters.input_file_list[-1][1]),
                 )
             )  # highest tilt
 
