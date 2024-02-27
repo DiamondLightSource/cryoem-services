@@ -26,6 +26,7 @@ class CryoloParameters(BaseModel):
     min_particles: int = 30
     cryolo_command: str = "cryolo_predict.py"
     particle_diameter: float = None
+    on_the_fly: bool = True
     mc_uuid: int
     picker_uuid: int
     relion_options: RelionServiceOptions
@@ -140,7 +141,8 @@ class CrYOLO(CommonService):
         command = cryolo_params.cryolo_command.split()
         command.extend((["--conf", cryolo_params.cryolo_config_file]))
         command.extend((["-o", str(job_dir)]))
-        command.extend((["--otf"]))
+        if cryolo_params.on_the_fly:
+            command.extend((["--otf"]))
 
         cryolo_flags = {
             "cryolo_model_weights": "--weights",
@@ -336,8 +338,7 @@ class CrYOLO(CommonService):
                     "file": cryolo_params.input_path,
                     "coordinates": coords,
                     "pixel_size": cryolo_params.pixel_size,
-                    "diameter": cryolo_params.pixel_size
-                    * (
+                    "diameter": (
                         cryolo_params.particle_diameter
                         if cryolo_params.particle_diameter
                         else 160
@@ -355,8 +356,7 @@ class CrYOLO(CommonService):
                     "file": cryolo_params.input_path,
                     "coordinates": coords,
                     "pixel_size": cryolo_params.pixel_size,
-                    "diameter": cryolo_params.pixel_size
-                    * (
+                    "diameter": (
                         cryolo_params.particle_diameter
                         if cryolo_params.particle_diameter
                         else 160

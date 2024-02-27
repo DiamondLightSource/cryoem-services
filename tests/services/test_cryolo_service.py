@@ -149,7 +149,7 @@ def test_cryolo_service(mock_subprocess, mock_environment, offline_transport, tm
             "file": cryolo_test_message["parameters"]["input_path"],
             "coordinates": [["1.1", "2.2"]],
             "pixel_size": 0.1,
-            "diameter": 0.1 * 1.1,
+            "diameter": 1.1,
             "outfile": str(output_path.with_suffix(".jpeg")),
         },
     )
