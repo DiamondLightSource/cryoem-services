@@ -6,7 +6,10 @@ import os
 import re
 import subprocess
 from pathlib import Path
+from typing import Optional
 
+import healpy as hp
+import matplotlib.pyplot as plt
 import numpy as np
 from gemmi import cif
 from pydantic import BaseModel, Field, ValidationError
@@ -29,14 +32,14 @@ class Class3DParameters(BaseModel):
     particle_diameter: float = 0
     mask_diameter: float = 190
     do_initial_model: bool = False
-    initial_model_file: str = None
+    initial_model_file: Optional[str] = None
     initial_model_iterations: int = 200
     initial_model_offset_range: float = 6
     initial_model_offset_step: float = 2
     start_initial_model_C1: bool = True
     dont_combine_weights_via_disc: bool = True
     preread_images: bool = True
-    scratch_dir: str = None
+    scratch_dir: Optional[str] = None
     nr_pool: int = 10
     pad: int = 2
     skip_gridding: bool = False
@@ -50,8 +53,8 @@ class Class3DParameters(BaseModel):
     class3d_nr_classes: int = 4
     flatten_solvent: bool = True
     do_zero_mask: bool = True
-    highres_limit: float = None
-    fn_mask: str = None
+    highres_limit: Optional[float] = None
+    fn_mask: Optional[str] = None
     oversampling: int = 1
     skip_align: bool = False
     healpix_order: int = 2
@@ -422,6 +425,52 @@ class Class3DWrapper(BaseWrapper):
                 + result.stderr.decode("utf8", "replace")
             )
             return False
+
+        # Generate healpix image of the particle distribution
+        self.log.info("Generating healpix angular distribution image")
+        data = cif.read_file(
+            str(job_dir / f"run_it{class3d_params.class3d_nr_iter:03}_data.star")
+        )
+        particles_block = data.find_block("particles")
+        if particles_block:
+            angles_rot = np.array(
+                particles_block.find_loop("_rlnAngleRot"), dtype=float
+            )
+            angles_tilt = np.array(
+                particles_block.find_loop("_rlnAngleTilt"), dtype=float
+            )
+            class_numbers = np.array(
+                particles_block.find_loop("_rlnClassNumber"), dtype=int
+            )
+
+            for class_id in range(class3d_params.class3d_nr_classes):
+                if len(angles_tilt[class_numbers == class_id + 1]) == 0:
+                    # Skip any classes with no particles
+                    continue
+                try:
+                    # Extract counts of particles in each healpix bin
+                    angle_pixel_bins = hp.pixelfunc.ang2pix(
+                        8,
+                        angles_tilt[class_numbers == class_id + 1] * np.pi / 180,
+                        angles_rot[class_numbers == class_id + 1] * np.pi / 180,
+                    )
+                    bin_ids, pixel_counts = np.unique(
+                        angle_pixel_bins, return_counts=True
+                    )
+                    all_pixel_bins = np.zeros(hp.nside2npix(8))
+                    all_pixel_bins[bin_ids] = pixel_counts
+
+                    # Create and save the healpix image
+                    hp.mollview(
+                        all_pixel_bins, title=f"Class {class_id+1} angular distribution"
+                    )
+                    hp.graticule()
+                    plt.savefig(
+                        job_dir
+                        / f"run_it{class3d_params.class3d_nr_iter:03}_class{class_id+1:03}_angdist.jpeg"
+                    )
+                except ValueError as e:
+                    self.log.warning(f"Healpix failed with error {e}")
 
         # Send classification job information to ispyb
         ispyb_parameters = []
