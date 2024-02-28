@@ -444,20 +444,22 @@ class Class3DWrapper(BaseWrapper):
             )
 
             for class_id in range(class3d_params.class3d_nr_classes):
-                if len(angles_tilt[class_numbers == class_id + 1]) == 0:
+                if not len(angles_tilt[class_numbers == class_id + 1]):
                     # Skip any classes with no particles
                     continue
                 try:
                     # Extract counts of particles in each healpix bin
                     angle_pixel_bins = hp.pixelfunc.ang2pix(
-                        8,
+                        np.power(2, class3d_params.healpix_order + 1),
                         angles_tilt[class_numbers == class_id + 1] * np.pi / 180,
                         angles_rot[class_numbers == class_id + 1] * np.pi / 180,
                     )
                     bin_ids, pixel_counts = np.unique(
                         angle_pixel_bins, return_counts=True
                     )
-                    all_pixel_bins = np.zeros(hp.nside2npix(8))
+                    all_pixel_bins = np.zeros(
+                        hp.nside2npix(np.power(2, class3d_params.healpix_order + 1))
+                    )
                     all_pixel_bins[bin_ids] = pixel_counts
 
                     # Create and save the healpix image
