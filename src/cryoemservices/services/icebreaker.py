@@ -128,7 +128,7 @@ class IceBreaker(CommonService):
         this_job_type = f"{self.job_type}.{icebreaker_params.icebreaker_type}"
         summary_results = []
 
-        icebreaker_success = False
+        icebreaker_success = True
         if icebreaker_params.icebreaker_type in ["micrographs", "enhancecontrast"]:
             # Create the temporary working directory
             icebreaker_tmp_dir = Path(f"IB_tmp_{micrograph_name.stem}")
