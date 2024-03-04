@@ -1,12 +1,16 @@
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
+import subprocess
+import time
 from pathlib import Path
 from typing import Literal, Optional
 
 import workflows.recipe
+import yaml
 from gemmi import cif
 from icebreaker import ice_groups, icebreaker_equalize_multi, icebreaker_icegroups_multi
 from icebreaker.five_figures import single_mic_5fig
@@ -23,11 +27,12 @@ class IceBreakerParameters(BaseModel):
     icebreaker_type: str = Literal[
         "micrographs", "enhancecontrast", "summary", "particles"
     ]
-    cpus: int = 1
+    cpus: int = 10
     total_motion: float = 0
     early_motion: float = 0
     late_motion: float = 0
     mc_uuid: int
+    submit_to_slurm: bool = True
     relion_options: RelionServiceOptions
 
 
@@ -123,6 +128,7 @@ class IceBreaker(CommonService):
         this_job_type = f"{self.job_type}.{icebreaker_params.icebreaker_type}"
         summary_results = []
 
+        icebreaker_success = False
         if icebreaker_params.icebreaker_type in ["micrographs", "enhancecontrast"]:
             # Create the temporary working directory
             icebreaker_tmp_dir = Path(f"IB_tmp_{micrograph_name.stem}")
@@ -194,35 +200,19 @@ class IceBreaker(CommonService):
             # Create the command this replicates
             command = [
                 "ib_5fig",
+                "--j",
+                str(icebreaker_params.cpus),
                 "--single_mic",
                 str(mic_from_project),
                 "--o",
                 icebreaker_params.output_path,
             ]
         elif icebreaker_params.icebreaker_type == "particles":
-            # Run the icebreaker particle batch function
-            try:
-                ice_groups.main(
-                    icebreaker_params.input_particles,
-                    icebreaker_params.input_micrographs,
-                )
-            except FileNotFoundError as e:
-                self.log.warning(f"IceBreaker failed to find file: {e}")
-                rw.transport.nack(header)
-                return
-
-            # Create a star file with the input data
-            icegroups_doc = cif.Document()
-            icegroups_block = icegroups_doc.add_new_block("input_files")
-            loop = icegroups_block.init_loop("", ["_rlnParticles", "_rlnMicrographs"])
-            loop.add_row(
-                [icebreaker_params.input_particles, icebreaker_params.input_micrographs]
-            )
-            icegroups_doc.write_file("ib_icegroups.star")
-
             # Create the command this replicates
             command = [
                 "ib_group",
+                "--j",
+                str(icebreaker_params.cpus),
                 "--in_mics",
                 str(mic_from_project),
                 "--in_parts",
@@ -230,6 +220,40 @@ class IceBreaker(CommonService):
                 "--o",
                 icebreaker_params.output_path,
             ]
+
+            if not icebreaker_params.submit_to_slurm:
+                # Run the icebreaker particle batch function
+                try:
+                    ice_groups.main(
+                        icebreaker_params.input_particles,
+                        icebreaker_params.input_micrographs,
+                    )
+                except FileNotFoundError as e:
+                    self.log.warning(f"IceBreaker failed to find file: {e}")
+                    rw.transport.nack(header)
+                    return
+
+                # Create a star file with the input data
+                icegroups_doc = cif.Document()
+                icegroups_block = icegroups_doc.add_new_block("input_files")
+                loop = icegroups_block.init_loop(
+                    "", ["_rlnParticles", "_rlnMicrographs"]
+                )
+                loop.add_row(
+                    [
+                        icebreaker_params.input_particles,
+                        icebreaker_params.input_micrographs,
+                    ]
+                )
+                icegroups_doc.write_file("ib_icegroups.star")
+            else:
+                # Run the icebreaker command and confirm it ran successfully
+                icebreaker_success = self.slurm_submission(
+                    command,
+                    project_dir=project_dir,
+                    job_dir=Path(icebreaker_params.output_path),
+                    cpus=icebreaker_params.cpus,
+                )
         else:
             self.log.warning(
                 f"Unknown IceBreaker job type {icebreaker_params.icebreaker_type}"
@@ -247,7 +271,6 @@ class IceBreaker(CommonService):
             "command": " ".join(command),
             "stdout": "",
             "stderr": "",
-            "success": True,
             "results": {
                 "icebreaker_type": icebreaker_params.icebreaker_type,
                 "total_motion": icebreaker_params.total_motion,
@@ -255,6 +278,10 @@ class IceBreaker(CommonService):
                 "late_motion": icebreaker_params.late_motion,
             },
         }
+        if not icebreaker_success:
+            node_creator_parameters["success"] = False
+        else:
+            node_creator_parameters["success"] = True
         if icebreaker_params.icebreaker_type == "summary":
             # Summary jobs need to send results to node creation
             node_creator_parameters["results"]["summary"] = summary_results[1:]
@@ -269,6 +296,12 @@ class IceBreaker(CommonService):
             )
         else:
             rw.send_to("node_creator", node_creator_parameters)
+
+        # End here if the command failed
+        if not icebreaker_success:
+            self.log.error("IceBreaker failed")
+            rw.transport.nack(header)
+            return
 
         # Forward results to next IceBreaker job
         if icebreaker_params.icebreaker_type == "micrographs":
@@ -342,3 +375,161 @@ class IceBreaker(CommonService):
             f"Done {this_job_type} for {icebreaker_params.input_micrographs}."
         )
         rw.transport.ack(header)
+
+    def slurm_submission(
+        self, command: list, project_dir: Path, job_dir: Path, cpus: int
+    ):
+        """Submit jobs to a slurm cluster via the RestAPI"""
+        slurm_json_job_template = {
+            "v0.0.38": {
+                "name": "IceBreaker",
+                "nodes": 1,
+                "tasks": 1,
+                "cpus_per_task": cpus,
+                "memory_per_cpu": 12000,
+                "time_limit": "1:00:00",
+            },
+            "v0.0.40": {
+                "name": "IceBreaker",
+                "minimum_nodes": 1,
+                "maximum_nodes": 1,
+                "tasks": 1,
+                "cpus_per_task": cpus,
+                "memory_per_node": {
+                    "number": 12000,
+                    "set": True,
+                    "infinite": False,
+                },
+                "time_limit": {
+                    "number": 3600,
+                    "set": True,
+                    "infinite": False,
+                },
+            },
+        }
+        slurm_script_template = (
+            "#!/bin/bash\n"
+            "echo \"$(date '+%Y-%m-%d %H:%M:%S.%3N'): running IceBreaker\"\n"
+            "source /etc/profile.d/modules.sh\n"
+            "module load EM/icebreaker/0.3.9\n"
+        )
+
+        try:
+            # Get the configuration and token for the restAPI
+            with open(os.environ["SLURM_RESTAPI_CONFIG"], "r") as f:
+                slurm_rest = yaml.safe_load(f)
+            user = slurm_rest["user"]
+            user_home = slurm_rest["user_home"]
+            with open(slurm_rest["user_token"], "r") as f:
+                slurm_token = f.read().strip()
+        except (KeyError, FileNotFoundError):
+            self.log.error("Unable to load slurm restAPI config file and token")
+            return False
+
+        # Check the API version is one this service has been tested with
+        api_version = slurm_rest["api_version"]
+        print(api_version)
+        if api_version not in ["v0.0.38", "v0.0.40"]:
+            return subprocess.CompletedProcess(
+                args="",
+                returncode=1,
+                stdout="".encode("utf8"),
+                stderr=f"Unsupported API version {api_version}".encode("utf8"),
+            )
+
+        # Construct the json for submission
+        mc_output_file = f"{job_dir}/slurm.out"
+        mc_error_file = f"{job_dir}/slurm.err"
+        submission_file = f"{job_dir}/slurm.json"
+        slurm_config = {
+            "standard_output": mc_output_file,
+            "standard_error": mc_error_file,
+            "current_working_directory": str(project_dir),
+        }
+        if api_version == "v0.0.38":
+            slurm_config["environment"] = {"USER": user, "HOME": user_home}
+        else:
+            slurm_config["environment"] = [f"USER: {user}", f"HOME: {user_home}"]
+
+        # Add slurm partition and cluster preferences if given
+        if slurm_rest.get("partition"):
+            slurm_config["partition"] = slurm_rest["partition"]
+        if slurm_rest.get("partition_preference"):
+            slurm_config["prefer"] = slurm_rest["partition_preference"]
+        if slurm_rest.get("clusters"):
+            slurm_config["clusters"] = slurm_rest["clusters"]
+        # Combine this with the template for the given API version
+        slurm_json_job = dict(slurm_json_job_template[api_version], **slurm_config)
+        slurm_json_job["cpus_per_task"] = cpus
+
+        # Make the script command and save the submission json
+        job_command = slurm_script_template + " ".join(command)
+        slurm_json = {"job": slurm_json_job, "script": job_command}
+        with open(submission_file, "w") as f:
+            json.dump(slurm_json, f)
+
+        # Command to submit jobs to the restAPI
+        slurm_submit_command = (
+            f'curl -H "X-SLURM-USER-NAME:{user}" -H "X-SLURM-USER-TOKEN:{slurm_token}" '
+            '-H "Content-Type: application/json" -X POST '
+            f'{slurm_rest["url"]}/slurm/{slurm_rest["api_version"]}/job/submit '
+            f"-d @{submission_file}"
+        )
+        slurm_submission_json = subprocess.run(
+            slurm_submit_command, capture_output=True, shell=True
+        )
+        try:
+            # Extract the job id from the submission response to use in the next query
+            slurm_response = slurm_submission_json.stdout.decode("utf8", "replace")
+            job_id = json.loads(slurm_response)["job_id"]
+        except (json.JSONDecodeError, KeyError):
+            self.log.error(
+                f"Unable to submit job to {slurm_rest['url']}. The restAPI returned "
+                f"{slurm_submission_json.stdout.decode('utf8', 'replace')}"
+            )
+            return False
+        self.log.info(f"Submitted job {job_id} to Wilson. Waiting...")
+
+        # Command to get the status of the submitted job from the restAPI
+        slurm_status_command = (
+            f'curl -H "X-SLURM-USER-NAME:{user}" -H "X-SLURM-USER-TOKEN:{slurm_token}" '
+            '-H "Content-Type: application/json" -X GET '
+            f'{slurm_rest["url"]}/slurm/{slurm_rest["api_version"]}/job/{job_id}'
+        )
+        slurm_job_state = "PENDING"
+
+        # Wait until the job has a status indicating it has finished
+        loop_counter = 0
+        while slurm_job_state in (
+            "PENDING",
+            "CONFIGURING",
+            "RUNNING",
+            "COMPLETING",
+        ):
+            if loop_counter < 5:
+                time.sleep(5)
+            else:
+                time.sleep(30)
+            loop_counter += 1
+
+            # Call the restAPI to find out the job state
+            slurm_status_json = subprocess.run(
+                slurm_status_command, capture_output=True, shell=True
+            )
+            try:
+                slurm_response = slurm_status_json.stdout.decode("utf8", "replace")
+                slurm_job_state = json.loads(slurm_response)["jobs"][0]["job_state"]
+            except (json.JSONDecodeError, KeyError):
+                print(slurm_status_command)
+                self.log.error(
+                    f"Unable to get status for job {job_id}. The restAPI returned "
+                    f"{slurm_status_json.stdout.decode('utf8', 'replace')}"
+                )
+                return False
+
+        # Read in the output then clean up the files
+        self.log.info(f"Job {job_id} has finished!")
+        if slurm_job_state == "COMPLETED":
+            return True
+        else:
+            return False
