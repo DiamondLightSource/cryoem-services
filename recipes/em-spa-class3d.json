@@ -44,8 +44,8 @@
         "partition": "{partition}",
         "prefer": "{partition_preference}",
         "scheduler": "slurm",
-        "standard_error": "{class2d_dir}/run.err",
-        "standard_output": "{class2d_dir}/run.out",
+        "standard_error": "{class3d_dir}/run.err",
+        "standard_output": "{class3d_dir}/run.out",
         "tasks": 9,
         "time_limit": "6:00:00"
       },
