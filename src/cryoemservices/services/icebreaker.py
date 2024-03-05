@@ -527,6 +527,17 @@ class IceBreaker(CommonService):
                 )
                 return False
 
+            if loop_counter >= 60:
+                slurm_cancel_command = (
+                    f'curl -H "X-SLURM-USER-NAME:{user}" '
+                    f'-H "X-SLURM-USER-TOKEN:{slurm_token}" '
+                    '-H "Content-Type: application/json" -X DELETE '
+                    f'{slurm_rest["url"]}/slurm/{slurm_rest["api_version"]}/job/{job_id}'
+                )
+                subprocess.run(slurm_cancel_command, capture_output=True, shell=True)
+                self.log.error("Timeout running IceBreaker")
+                return False
+
         # Read in the output then clean up the files
         self.log.info(f"Job {job_id} has finished!")
         if slurm_job_state == "COMPLETED":
