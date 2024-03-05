@@ -11,6 +11,8 @@ from workflows.services.common_service import CommonService
 
 
 class MonitorParams(BaseModel):
+    dcid: int
+    autoproc_program_id: int
     monitor_command: str = Field(default="setup", alias="register")
     microscope: Optional[str]
     visit: Optional[str]
@@ -231,6 +233,8 @@ class MonitorRefine(CommonService):
                     "picker_id": "0",
                     "refined_grp_uuid": "0",
                     "refined_class_uuid": "0",
+                    "dcid": monitor_params.dcid,
+                    "autoproc_program_id": monitor_params.autoproc_program_id,
                 },
             }
             self.log.info(f"Running refinement in {visit_tmp_dir}")
@@ -276,6 +280,8 @@ class MonitorRefine(CommonService):
                         "refined_class_uuid": "0",
                         "refined_grp_uuid": "0",
                         "project_dir": monitor_params.project_dir,
+                        "dcid": monitor_params.dcid,
+                        "autoproc_program_id": monitor_params.autoproc_program_id,
                     },
                 }
                 self.log.info(f"Running bfactor {particle_count} particles")
