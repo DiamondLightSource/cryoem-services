@@ -223,7 +223,6 @@ class MonitorRefine(CommonService):
                 "parameters": {
                     "refine_job_dir": f"{visit_tmp_dir}/Refine3D/job004",
                     "class3d_dir": f"{class3d_dir}",
-                    "micrographs_file": f"{visit_tmp_dir}/CtfFind/job006/micrographs_ctf.star",
                     "class_number": monitor_params.class_number,
                     "boxsize": boxsize,
                     "pixel_size": pixel_size,

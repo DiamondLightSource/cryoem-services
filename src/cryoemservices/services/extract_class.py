@@ -21,7 +21,6 @@ from cryoemservices.util.spa_relion_service_options import (
 
 class ExtractClassParameters(BaseModel):
     extraction_executable: str
-    micrographs_file: str = Field(..., min_length=1)
     class3d_dir: str = Field(..., min_length=1)
     refine_job_dir: str = Field(..., min_length=1)
     refine_class_nr: int
@@ -127,9 +126,9 @@ class ExtractClass(CommonService):
             )
 
         # Construct the json for submission
-        slurm_output_file = f"{job_dir}/run.out"
-        slurm_error_file = f"{job_dir}/run.err"
-        submission_file = f"{job_dir}/run.json"
+        slurm_output_file = f"{job_dir}/slurm_run.out"
+        slurm_error_file = f"{job_dir}/slurm_run.err"
+        submission_file = f"{job_dir}/slurm_run.json"
         slurm_config = {
             "standard_output": slurm_output_file,
             "standard_error": slurm_error_file,
@@ -266,9 +265,6 @@ class ExtractClass(CommonService):
             slurm_job_state = "FAILED"
 
         if slurm_job_state == "COMPLETED":
-            Path(slurm_output_file).unlink()
-            Path(slurm_error_file).unlink()
-            Path(submission_file).unlink()
             return subprocess.CompletedProcess(
                 args="",
                 returncode=0,
@@ -345,6 +341,9 @@ class ExtractClass(CommonService):
             re.search("/job[0-9]{3}", extract_params.refine_job_dir)[0][4:7]
         )
         original_dir = Path(extract_params.class3d_dir).parent.parent
+        ctf_micrographs_file = list(
+            project_dir.glob("CtfFind/job00*/micrographs_ctf.star")
+        )[0].relative_to(project_dir)
 
         # Link the required files
         particles_data = (
@@ -463,7 +462,7 @@ class ExtractClass(CommonService):
         self.log.info(f"Sending {self.extract_job_type} to node creator")
         node_creator_extract = {
             "job_type": self.extract_job_type,
-            "input_file": f"{select_job_dir}/particles.star:{extract_params.micrographs_file}",
+            "input_file": f"{select_job_dir}/particles.star:{ctf_micrographs_file}",
             "output_file": f"{extract_job_dir}/particles.star",
             "relion_options": dict(extract_params.relion_options),
             "command": " ".join(command),

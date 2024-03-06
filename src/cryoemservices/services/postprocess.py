@@ -215,7 +215,7 @@ class PostProcess(CommonService):
                 "buffer_command": {
                     "ispyb_command": "insert_particle_classification_group"
                 },
-                "type": "refine",
+                "type": "3D",
                 "batch_number": "1",
                 "number_of_particles_per_batch": postprocess_params.number_of_particles,
                 "number_of_classes_per_batch": "1",
