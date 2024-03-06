@@ -25,7 +25,7 @@ class ExtractClassParameters(BaseModel):
     refine_job_dir: str = Field(..., min_length=1)
     refine_class_nr: int
     boxsize: int
-    pixel_size: float
+    original_pixel_size: float
     extracted_pixel_size: float
     nr_iter_3d: int = 20
     bg_radius: int = -1
@@ -33,7 +33,6 @@ class ExtractClassParameters(BaseModel):
     downscale: bool = True
     normalise: bool = True
     invert_contrast: bool = True
-    reextract_name: str = ""
     relion_options: RelionServiceOptions
 
 
@@ -361,11 +360,11 @@ class ExtractClass(CommonService):
             )
             int_scaled_boxsize = int(math.ceil(exact_scaled_boxsize))
             scaled_pixel_size = (
-                extract_params.pixel_size * extract_params.downscale_factor
+                extract_params.original_pixel_size * extract_params.downscale_factor
             )
         else:
             int_scaled_boxsize = int(math.ceil(extract_params.boxsize))
-            scaled_pixel_size = extract_params.pixel_size
+            scaled_pixel_size = extract_params.original_pixel_size
         scaled_boxsize = int_scaled_boxsize + int_scaled_boxsize % 2
         extract_params.relion_options.small_boxsize = scaled_boxsize
         extract_params.relion_options.pixel_size_downscaled = scaled_pixel_size
@@ -443,7 +442,7 @@ class ExtractClass(CommonService):
             "--scaled_boxsize",
             str(scaled_boxsize),
             "--full_pixel_size",
-            str(extract_params.pixel_size),
+            str(extract_params.original_pixel_size),
             "--scaled_pixel_size",
             str(scaled_pixel_size),
             "--bg_radius",
