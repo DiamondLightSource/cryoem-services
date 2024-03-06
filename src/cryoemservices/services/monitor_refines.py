@@ -221,7 +221,7 @@ class MonitorRefine(CommonService):
             refine_message = {
                 "recipes": ["em-spa-refine-test"],
                 "parameters": {
-                    "refine_job_dir": f"{visit_tmp_dir}/Refine3D/job004",
+                    "refine_job_dir": f"{visit_tmp_dir}/Refine3D/job003",
                     "class3d_dir": f"{class3d_dir}",
                     "class_number": monitor_params.class_number,
                     "boxsize": boxsize,
