@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from pathlib import Path
 from typing import Optional
 
@@ -215,7 +216,9 @@ class MonitorRefine(CommonService):
                 return
 
             # Boxsize conversion as in particle extraction, enlarged by 25%
-            boxsize = int(mask_diameter / pixel_size / 1.1 * 1.25)
+            exact_boxsize = int(mask_diameter / pixel_size / 1.1 * 1.25)
+            int_boxsize = int(math.ceil(exact_boxsize))
+            boxsize = int_boxsize + int_boxsize % 2
 
             # Set up and run a first refinement job
             refine_message = {

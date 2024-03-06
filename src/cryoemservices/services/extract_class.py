@@ -20,7 +20,7 @@ from cryoemservices.util.spa_relion_service_options import (
 
 
 class ExtractClassParameters(BaseModel):
-    extraction_executable: str
+    extraction_executable: str = "cryoemservices.reextract"
     class3d_dir: str = Field(..., min_length=1)
     refine_job_dir: str = Field(..., min_length=1)
     refine_class_nr: int
@@ -360,13 +360,13 @@ class ExtractClass(CommonService):
                 extract_params.boxsize / extract_params.downscale_factor
             )
             int_scaled_boxsize = int(math.ceil(exact_scaled_boxsize))
-            scaled_boxsize = int_scaled_boxsize + int_scaled_boxsize % 2
             scaled_pixel_size = (
                 extract_params.pixel_size * extract_params.downscale_factor
             )
         else:
-            scaled_boxsize = extract_params.boxsize
+            int_scaled_boxsize = int(math.ceil(extract_params.boxsize))
             scaled_pixel_size = extract_params.pixel_size
+        scaled_boxsize = int_scaled_boxsize + int_scaled_boxsize % 2
         extract_params.relion_options.small_boxsize = scaled_boxsize
         extract_params.relion_options.pixel_size_downscaled = scaled_pixel_size
 
