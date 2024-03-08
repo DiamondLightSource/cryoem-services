@@ -915,7 +915,7 @@ class EMISPyB(CommonService):
                 bFactorFitId=full_parameters("bfactor_id"),
                 particleClassificationId=full_parameters("particle_classification_id"),
                 resolution=full_parameters("resolution"),
-                numberOfParticles=full_parameters("particle_count"),
+                numberOfParticles=full_parameters("number_of_particles"),
                 particleBatchSize=full_parameters("particle_batch_size"),
             )
             bfactor = (
