@@ -16,6 +16,7 @@ class ClassImage(NamedTuple):
     classification_job: str
     index: int
     class_number: int
+    particle_count: int
 
 
 @lru_cache(maxsize=50)
@@ -118,6 +119,7 @@ def group_classes(
                                 classification_job=Path(mrc_path).parent.name,
                                 index=index,
                                 class_number=index + 1,
+                                particle_count=class_img_labels[1],
                             )
                         )
                         g.add(
@@ -125,6 +127,7 @@ def group_classes(
                                 classification_job=Path(mrc_path_comp).parent.name,
                                 index=comp_index,
                                 class_number=comp_index + 1,
+                                particle_count=comp_img_labels[1],
                             )
                         )
                         break
@@ -135,11 +138,13 @@ def group_classes(
                                 classification_job=Path(mrc_path).parent.name,
                                 index=index,
                                 class_number=index + 1,
+                                particle_count=class_img_labels[1],
                             ),
                             ClassImage(
                                 classification_job=Path(mrc_path_comp).parent.name,
                                 index=comp_index,
                                 class_number=comp_index + 1,
+                                particle_count=comp_img_labels[1],
                             ),
                         }
                     )
@@ -152,6 +157,7 @@ def group_classes(
                             classification_job=Path(mrc_path).parent.name,
                             index=index,
                             class_number=index + 1,
+                            particle_count=class_img_labels[1],
                         )
                     }
                 )
