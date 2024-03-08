@@ -589,7 +589,11 @@ class Class3DWrapper(BaseWrapper):
             "class3d_dir": class3d_params.class3d_dir,
             "best_class": best_class,
         }
-        if best_class_resolution < 11 and best_class_completeness > 0.9:
+        if (
+            class3d_params.batch_size == 200000
+            and best_class_resolution < 11
+            and best_class_completeness > 0.9
+        ):
             murfey_params["do_refinement"] = True
         else:
             murfey_params["do_refinement"] = False
