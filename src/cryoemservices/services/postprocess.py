@@ -250,8 +250,8 @@ class PostProcess(CommonService):
                 "class_image_full_path": f"{postprocess_params.job_dir}/postprocess.mrc",
                 "particles_per_class": postprocess_params.number_of_particles,
                 "class_distribution": 1,
-                "rotation_accuracy": classes_loop.val(0, 2),
-                "translation_accuracy": classes_loop.val(0, 3),
+                "rotation_accuracy": classes_loop[0, 2],
+                "translation_accuracy": classes_loop[0, 3],
                 "estimated_resolution": final_resolution,
                 "selected": "1",
             }
@@ -267,12 +267,12 @@ class PostProcess(CommonService):
                 ] = postprocess_params.refined_class_uuid
 
             # Add the resolution and fourier completeness if they are valid numbers
-            estimated_resolution = float(classes_loop.val(0, 4))
+            estimated_resolution = float(classes_loop[0, 4])
             if np.isfinite(estimated_resolution):
                 refined_ispyb_parameters["estimated_resolution"] = estimated_resolution
             else:
                 refined_ispyb_parameters["estimated_resolution"] = 0.0
-            fourier_completeness = float(classes_loop.val(0, 5))
+            fourier_completeness = float(classes_loop[0, 5])
             if np.isfinite(fourier_completeness):
                 refined_ispyb_parameters[
                     "overall_fourier_completeness"
