@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import math
 from pathlib import Path
 from typing import Optional
 
@@ -193,17 +192,6 @@ class MonitorRefine(CommonService):
             ).glob("job*")
             class3d_dir = sorted(class3d_all)[0]
 
-            with open(class3d_dir / "run_it025_model.star") as class3d_output:
-                postprocess_lines = class3d_output.readlines()
-                for line in postprocess_lines:
-                    if "_rlnPixelSize" in line:
-                        extracted_pixel_size = float(line.split()[-1])
-                        break
-            if not extracted_pixel_size:
-                self.log.warning("No class3d pixel size found")
-                rw.transport.nack(header)
-                return
-
             with open(class3d_dir / "run_it025_optimiser.star") as class3d_output:
                 postprocess_lines = class3d_output.readlines()
                 for line in postprocess_lines:
@@ -215,11 +203,6 @@ class MonitorRefine(CommonService):
                 rw.transport.nack(header)
                 return
 
-            # Boxsize conversion as in particle extraction, enlarged by 25%
-            exact_boxsize = int(mask_diameter / pixel_size / 1.1 * 1.25)
-            int_boxsize = int(math.ceil(exact_boxsize))
-            boxsize = int_boxsize + int_boxsize % 2
-
             # Set up and run a first refinement job
             refine_message = {
                 "recipes": ["em-spa-refine-test"],
@@ -227,9 +210,7 @@ class MonitorRefine(CommonService):
                     "refine_job_dir": f"{visit_tmp_dir}/Refine3D/job003",
                     "class3d_dir": f"{class3d_dir}",
                     "class_number": monitor_params.class_number,
-                    "boxsize": boxsize,
                     "pixel_size": pixel_size,
-                    "extracted_pixel_size": extracted_pixel_size,
                     "mask_diameter": mask_diameter,
                     "nr_iter": "25",
                     "picker_id": "0",

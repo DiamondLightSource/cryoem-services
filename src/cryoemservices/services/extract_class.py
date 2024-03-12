@@ -24,9 +24,8 @@ class ExtractClassParameters(BaseModel):
     class3d_dir: str = Field(..., min_length=1)
     refine_job_dir: str = Field(..., min_length=1)
     refine_class_nr: int
-    boxsize: int
     original_pixel_size: float
-    extracted_pixel_size: float
+    boxsize: int = 150
     nr_iter_3d: int = 20
     bg_radius: int = -1
     downscale_factor: float = 2
@@ -344,11 +343,45 @@ class ExtractClass(CommonService):
             project_dir.glob("CtfFind/job00*/micrographs_ctf.star")
         )[0].relative_to(project_dir)
 
-        # Link the required files
+        # Link the required files and pull out necessary parameters
         particles_data = (
             Path(extract_params.class3d_dir)
             / f"run_it{extract_params.nr_iter_3d:03}_data.star"
         )
+        with open(
+            Path(extract_params.class3d_dir)
+            / f"run_it{extract_params.nr_iter_3d:03}_model.star"
+        ) as class3d_output:
+            postprocess_lines = class3d_output.readlines()
+            for line in postprocess_lines:
+                if "_rlnPixelSize" in line:
+                    downscaled_pixel_size = float(line.split()[-1])
+                    break
+        if not downscaled_pixel_size:
+            self.log.warning("No class3d pixel size found")
+            rw.transport.nack(header)
+            return
+
+        with open(
+            Path(extract_params.class3d_dir)
+            / f"run_it{extract_params.nr_iter_3d:03}_optimiser.star"
+        ) as class3d_output:
+            postprocess_lines = class3d_output.readlines()
+            for line in postprocess_lines:
+                if "_rlnParticleDiameter" in line:
+                    mask_diameter = float(line.split()[-1])
+                    break
+        if not mask_diameter:
+            self.log.warning("No mask diameter found")
+            rw.transport.nack(header)
+            return
+
+        # Boxsize conversion as in particle extraction, enlarged by 25%
+        exact_boxsize = int(
+            mask_diameter / extract_params.original_pixel_size / 1.1 * 1.25
+        )
+        int_boxsize = int(math.ceil(exact_boxsize))
+        extract_params.boxsize = int_boxsize + int_boxsize % 2
 
         # Update the relion options
         extract_params.relion_options = update_relion_options(
@@ -507,7 +540,7 @@ class ExtractClass(CommonService):
             "--o",
             str(rescaled_class_reference),
             "--angpix",
-            str(extract_params.extracted_pixel_size),
+            str(downscaled_pixel_size),
             "--rescale_angpix",
             str(scaled_pixel_size),
             "--force_header_angpix",

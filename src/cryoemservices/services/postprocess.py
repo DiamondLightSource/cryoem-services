@@ -320,6 +320,7 @@ class PostProcess(CommonService):
                 "project_dir": str(project_dir),
                 "resolution": final_resolution,
                 "batch_size": postprocess_params.number_of_particles,
+                "refined_grp_uuid": postprocess_params.refined_grp_uuid,
                 "refined_class_uuid": postprocess_params.refined_class_uuid,
                 "class_reference": postprocess_params.rescaled_class_reference,
                 "class_number": postprocess_params.class_number,

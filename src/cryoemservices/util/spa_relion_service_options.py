@@ -268,8 +268,8 @@ def generate_service_options(
     job_options["relion.extract.reextract"] = {
         "bg_diameter": -1,
         "extract_size": relion_options.boxsize,
-        "do_rescale": False,
-        "rescale": relion_options.boxsize,
+        "do_rescale": True,
+        "rescale": relion_options.small_boxsize,
         "nr_mpi": 1,
     }
 
