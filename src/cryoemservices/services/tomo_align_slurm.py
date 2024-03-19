@@ -2,27 +2,49 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import tarfile
 import time
 from pathlib import Path
+from typing import List
 
+import datasyncer
 import yaml
+from requests import HTTPError
 from workflows.services.common_service import CommonService
 
 from cryoemservices.services.tomo_align import TomoAlign
 
 
-def retrieve_files(*args):
-    pass
+def retrieve_files(job_directory: Path):
+    for dls_file in job_directory.glob("*"):
+        iris_file = Path("/iris") / Path(dls_file).relative_to("/dls")
+        if not iris_file.exists():
+            return f"{iris_file} does not exist"
+        shutil.copy(iris_file, dls_file)
+        iris_file.unlink()
 
 
-def file_transfer(*args):
-    pass
+def file_transfer(file_list: List[str]):
+    try:
+        transfer_id = datasyncer.transfer(file_list)
+        status = "active"
+        while status == "active":
+            status = datasyncer.status(transfer_id)
+    except HTTPError as e:
+        return f"Unable to transfer data: {e}"
+
+    if status == "succeeded":
+        return 0
+    elif status == "failed":
+        return "Data syncer reported a failure"
+    else:
+        return f"Unknown status {status}"
 
 
 # To get the required image run
-# singularity pull docker://gcr.io/diamond-pubreg/em/motioncorr:version
+# singularity pull docker://gcr.io/diamond-pubreg/em/tomo_align:version
 slurm_json_template = {
     "job": {
         "name": "TomoAlign",
@@ -106,9 +128,13 @@ class TomoAlignSlurm(TomoAlign, CommonService):
             slurm_config["cluster"] = slurm_rest["cluster"]
         slurm_json_job = dict(slurm_json_template["job"], **slurm_config)
 
+        # Copy the AreTomo executable into the visit directory
+        aretomo_sif = str(Path(tomo_parameters.stack_file).parent / "AreTomo")
+        shutil.copy(os.environ["ARETOMO_SIF"], aretomo_sif)
+
         # Assemble the command to run AreTomo
         command = [
-            os.environ["ARETOMO_SIF"],
+            aretomo_sif,
             "-OutMrc",
             tomo_parameters.aretomo_output_file,
             "-InMrc",
@@ -184,9 +210,16 @@ class TomoAlignSlurm(TomoAlign, CommonService):
         )
 
         # Transfer the required files
-        file_transfer(
-            "$(stack_file), /dls/ebic/data/staff-scratch/murfey/AreTomo_1.3.0_Cuda112_09292022"
-        )
+        transfer_status = file_transfer([tomo_parameters.stack_file, aretomo_sif])
+        if transfer_status:
+            self.log.error(f"Unable to transfer files: {transfer_status}")
+            return subprocess.CompletedProcess(
+                args="",
+                returncode=1,
+                stdout="",
+                stderr=transfer_status,
+            )
+        # /dls/ebic/data/staff-scratch/murfey/AreTomo_1.3.0_Cuda112_09292022
 
         # Command to submit jobs to the restAPI
         slurm_submit_command = (
@@ -274,11 +307,23 @@ class TomoAlignSlurm(TomoAlign, CommonService):
                 )
 
         # Get back the output files
-        retrieve_files(slurm_output_file, slurm_error_file, "tar_imod")
+        retrieval_status = retrieve_files(
+            Path(tomo_parameters.aretomo_output_dir).parent
+        )
+        if retrieval_status:
+            self.log.error(f"Unable to retrieve files: {retrieval_status}")
+            return subprocess.CompletedProcess(
+                args="",
+                returncode=1,
+                stdout="",
+                stderr=retrieval_status,
+            )
+
         tar_imod_dir = str(Path(self.imod_directory).with_suffix(".tar.gz"))
         file = tarfile.open(tar_imod_dir)
         file.extractall(self.alignment_output_dir)
         file.close()
+        Path(aretomo_sif).unlink()
 
         # Read in the output
         self.log.info(f"Job {job_id} has finished!")
