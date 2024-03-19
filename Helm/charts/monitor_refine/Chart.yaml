@@ -1,4 +1,0 @@
-apiVersion: v2
-name: monitor_refine
-description: A Helm chart for testing refinements
-version: 0.0.1
