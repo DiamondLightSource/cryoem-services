@@ -35,7 +35,7 @@ spec:
         - name: KUBERNETES
           value: "1"
         - name: ZOCALO_CONFIG
-          value: "/zocalo/config/zocalo-dev-config.yaml"
+          value: "/zocalo/config/{{ .Values.configFileName }}"
         - name: ISPYB_CREDENTIALS
           value: "/zocalo/secrets/{{ .Values.dbFileName }}"
         volumeMounts:
