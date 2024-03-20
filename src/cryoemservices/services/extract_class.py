@@ -80,7 +80,7 @@ class ExtractClass(CommonService):
 
     # Job name
     select_job_type = "relion.select.onvalue"
-    extract_job_type = "relion.extract.reextract"
+    extract_job_type = "relion.extract.extract"
 
     def initializing(self):
         """Subscribe to a queue. Received messages must be acknowledged."""

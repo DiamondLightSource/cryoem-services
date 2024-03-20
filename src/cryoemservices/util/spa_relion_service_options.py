@@ -120,6 +120,8 @@ class RelionServiceOptions(BaseModel):
     class3d_nr_iter: int = 25
 
     # Refinement options
+    mask_lowpass: float = 15
+    mask_threshold: float = 0.02
     refine_class_nr: int = 1
 
     class Config:
@@ -265,17 +267,11 @@ def generate_service_options(
         "select_minval": relion_options.refine_class_nr,
     }
 
-    job_options["relion.extract.reextract"] = {
-        "bg_diameter": -1,
-        "extract_size": relion_options.boxsize,
-        "do_rescale": True,
-        "rescale": relion_options.small_boxsize,
-        "nr_mpi": 1,
-    }
-
     job_options["relion.refine3d"] = {
         "particle_diameter": relion_options.mask_diameter,
         "do_preread_images": True,
+        "ini_high": relion_options.initial_lowpass,
+        "sym_name": relion_options.symmetry,
         "use_gpu": True,
         "gpu_ids": "",
         "nr_mpi": 5,
@@ -284,6 +280,8 @@ def generate_service_options(
 
     job_options["relion.maskcreate"] = {
         "angpix": relion_options.pixel_size,
+        "inimask_threshold": relion_options.mask_threshold,
+        "lowpass_filter": relion_options.mask_lowpass,
         "nr_threads": 40,
     }
 

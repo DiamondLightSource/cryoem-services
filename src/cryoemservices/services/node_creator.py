@@ -107,13 +107,6 @@ pipeline_spa_jobs: dict[str, dict] = {
         "folder": "Select",
         "input_stars": {"fn_data": "run_it020_data.star"},
     },
-    "relion.extract.reextract": {
-        "folder": "Extract",
-        "input_stars": {
-            "fndata_reextract": "particles.star",
-            "star_mics": "micrographs_ctf.star",
-        },
-    },
     "relion.refine3d": {
         "folder": "Refine3D",
         "input_stars": {
@@ -289,7 +282,7 @@ class NodeCreator(CommonService):
                     params,
                     f"{job_info.job_type.replace('.', '_')}_job.star",
                 )
-        except IndexError:
+        except (IndexError, ValueError):
             self.log.error(f"Unknown job type: {job_info.job_type}")
             rw.transport.nack(header)
             return

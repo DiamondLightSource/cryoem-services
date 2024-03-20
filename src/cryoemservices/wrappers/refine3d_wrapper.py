@@ -228,6 +228,7 @@ class Refine3DWrapper(zocalo.wrapper.BaseWrapper):
             mask_threshold = (
                 class_header["dmax"] * refine_params.mask_threshold_fraction
             )
+            refine_params.relion_options.mask_threshold = mask_threshold
 
             # Run the mask command
             mask_job_dir.mkdir(parents=True, exist_ok=True)
