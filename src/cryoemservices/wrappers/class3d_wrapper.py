@@ -464,7 +464,10 @@ class Class3DWrapper(BaseWrapper):
 
                     # Create and save the healpix image
                     hp.mollview(
-                        all_pixel_bins, title=f"Class {class_id+1} angular distribution"
+                        all_pixel_bins,
+                        title=f"Angular distribution of particles in class {class_id+1}",
+                        unit="Number of particles",
+                        flip="geo",
                     )
                     hp.graticule()
                     plt.savefig(

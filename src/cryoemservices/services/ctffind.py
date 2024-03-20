@@ -216,6 +216,12 @@ class CTFFind(CommonService):
                 )
             else:
                 rw.send_to("node_creator", node_creator_parameters)
+        elif ctf_params.experiment_type == "tomography":
+            # Write output logs for tomography processing
+            with open(Path(ctf_params.output_image).with_suffix(".out"), "w") as f:
+                f.write(" ".join(command) + "\n\n")
+                f.write(result.stdout.decode("utf8", "replace") + "\n\n")
+                f.write(result.stderr.decode("utf8", "replace") + "\n\n")
 
         # End here if the command failed
         if result.returncode:

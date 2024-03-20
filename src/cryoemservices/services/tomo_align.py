@@ -608,6 +608,10 @@ class TomoAlign(CommonService):
             f"Input stack: {tomo_parameters.stack_file} \n"
             f"Output file: {self.aretomo_output_path}"
         )
+
+        # Save the AreTomo command then run it
+        with open(Path(self.aretomo_output_path).with_suffix(".com"), "w") as f:
+            f.write(" ".join(command))
         result = subprocess.run(command, capture_output=True)
         if tomo_parameters.tilt_cor:
             self.parse_tomo_output(result.stdout.decode("utf8", "replace"))

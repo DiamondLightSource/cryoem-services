@@ -377,6 +377,13 @@ class MotionCorr(CommonService):
             if mc_params.relion_options:
                 mc_params.relion_options.pixel_size *= mc_params.motion_corr_binning
 
+        # Write output logs for tomography processing
+        if mc_params.experiment_type == "tomography":
+            with open(Path(mc_params.mrc_out).with_suffix(".out"), "w") as f:
+                f.write(" ".join(command) + "\n\n")
+                f.write(result.stdout.decode("utf8", "replace") + "\n\n")
+                f.write(result.stderr.decode("utf8", "replace") + "\n\n")
+
         # Confirm the command ran successfully
         if result.returncode:
             self.log.error(
