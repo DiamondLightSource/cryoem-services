@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 from unittest import mock
@@ -261,7 +262,8 @@ def test_icebreaker_summary_service(
                 "output_file": icebreaker_test_message["parameters"]["output_path"],
                 "relion_options": output_relion_options,
                 "command": (
-                    "ib_5fig --single_mic IceBreaker/job003/Movies/sample_grouped.star "
+                    "ib_5fig --j 1 "
+                    "--single_mic IceBreaker/job003/Movies/sample_grouped.star "
                     f"--o {tmp_path}/IceBreaker/job005/"
                 ),
                 "stdout": "",
@@ -322,6 +324,7 @@ def test_icebreaker_particles_service(
             "total_motion": 0.5,
             "early_motion": 0.2,
             "late_motion": 0.3,
+            "submit_to_slurm": False,
         },
         "content": "dummy",
     }
@@ -352,7 +355,8 @@ def test_icebreaker_particles_service(
                 "output_file": icebreaker_test_message["parameters"]["output_path"],
                 "relion_options": output_relion_options,
                 "command": (
-                    "ib_group --in_mics IceBreaker/job003/Movies/sample_grouped.star "
+                    "ib_group --j 1 "
+                    "--in_mics IceBreaker/job003/Movies/sample_grouped.star "
                     "--in_parts Select/job009/particles_split1.star "
                     f"--o {tmp_path}/IceBreaker/job011/"
                 ),
@@ -368,4 +372,84 @@ def test_icebreaker_particles_service(
             },
             "content": "dummy",
         },
+    )
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+@mock.patch("cryoemservices.services.icebreaker.subprocess.run")
+def test_icebreaker_particles_service_slurm(
+    mock_subprocess, mock_environment, offline_transport, tmp_path
+):
+    """
+    Send a test message to IceBreaker for running the particle analysis job
+    using the slurm submission method
+    """
+    mock_subprocess().returncode = 0
+    mock_subprocess().stdout = (
+        '{"job_id": "1", "jobs": [{"job_state": ["COMPLETED"]}]}'.encode("ascii")
+    )
+    mock_subprocess().stderr = "stderr".encode("ascii")
+
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+    icebreaker_test_message = {
+        "parameters": {
+            "icebreaker_type": "particles",
+            "input_micrographs": f"{tmp_path}/IceBreaker/job003/Movies/sample_grouped.star",
+            "input_particles": f"{tmp_path}/Select/job009/particles_split1.star",
+            "output_path": f"{tmp_path}/IceBreaker/job011/",
+            "cpus": 1,
+            "mc_uuid": 0,
+            "relion_options": {"options": "options"},
+            "total_motion": 0.5,
+            "early_motion": 0.2,
+            "late_motion": 0.3,
+            "submit_to_slurm": True,
+        },
+        "content": "dummy",
+    }
+
+    # Construct the file which contains rest api submission information
+    os.environ["SLURM_RESTAPI_CONFIG"] = str(tmp_path / "restapi.txt")
+    with open(tmp_path / "restapi.txt", "w") as restapi_config:
+        restapi_config.write(
+            "user: user\n"
+            "user_home: /home\n"
+            f"user_token: {tmp_path}/token.txt\n"
+            "required_directories: [directory1, directory2]\n"
+            "partition: partition\n"
+            "partition_preference: preference\n"
+            "cluster: cluster\n"
+            "url: /url/of/slurm/restapi\n"
+            "api_version: v0.0.40\n"
+        )
+    with open(tmp_path / "token.txt", "w") as token:
+        token.write("token_key")
+
+    # Set up the mock service and send a message to the service
+    service = icebreaker.IceBreaker(environment=mock_environment)
+    service.transport = offline_transport
+    service.start()
+    service.icebreaker(None, header=header, message=icebreaker_test_message)
+
+    # Check the slurm commands were run
+    slurm_submit_command = (
+        f'curl -H "X-SLURM-USER-NAME:user" -H "X-SLURM-USER-TOKEN:token_key" '
+        '-H "Content-Type: application/json" -X POST '
+        "/url/of/slurm/restapi/slurm/v0.0.40/job/submit "
+        f"-d @{tmp_path}/IceBreaker/job011/slurm.json"
+    )
+    slurm_status_command = (
+        'curl -H "X-SLURM-USER-NAME:user" -H "X-SLURM-USER-TOKEN:token_key" '
+        '-H "Content-Type: application/json" -X GET '
+        "/url/of/slurm/restapi/slurm/v0.0.40/job/1"
+    )
+    assert mock_subprocess.call_count == 5
+    mock_subprocess.assert_any_call(
+        slurm_submit_command, capture_output=True, shell=True
+    )
+    mock_subprocess.assert_any_call(
+        slurm_status_command, capture_output=True, shell=True
     )
