@@ -80,7 +80,7 @@ class ExtractClass(CommonService):
 
     # Job name
     select_job_type = "relion.select.onvalue"
-    extract_job_type = "relion.extract.extract"
+    extract_job_type = "relion.extract"
 
     def initializing(self):
         """Subscribe to a queue. Received messages must be acknowledged."""
@@ -416,6 +416,7 @@ class ExtractClass(CommonService):
 
         self.log.info(f"Running {self.select_job_type} in {select_job_dir}")
         number_of_particles = 0
+        class_number_row = 19  # usual location of Relion class number loop
         with open(particles_data, "r") as classified_particles, open(
             f"{select_job_dir}/particles.star", "w"
         ) as selected_particles:
@@ -423,9 +424,11 @@ class ExtractClass(CommonService):
                 line = classified_particles.readline()
                 if not line:
                     break
+                if line.startswith("_rlnClassNumber"):
+                    class_number_row = int(line.split("#")[1]) - 1
                 if line.lstrip() and line.lstrip()[0].isnumeric():
                     split_line = line.split()
-                    class_number = int(split_line[19])
+                    class_number = int(split_line[class_number_row])
                     if class_number != extract_params.refine_class_nr:
                         continue
                     number_of_particles += 1

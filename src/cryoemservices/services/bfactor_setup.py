@@ -100,7 +100,8 @@ class BFactor(CommonService):
 
         self.log.info(
             f"Setting up b-factor for {bfactor_params.rescaled_class_reference} "
-            f"with {bfactor_params.batch_size} particles"
+            f"with {bfactor_params.number_of_particles} particles "
+            f"from a batch of {bfactor_params.batch_size}."
         )
 
         # Update the relion options
