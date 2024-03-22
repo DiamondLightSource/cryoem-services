@@ -234,11 +234,19 @@ class PostProcess(CommonService):
             ispyb_parameters.append(refined_grp_ispyb_parameters)
 
             # Send individual classes to ispyb
-            class_star_file = cif.read_file(
-                f"{Path(postprocess_params.half_map).parent}/run_model.star"
-            )
-            classes_block = class_star_file.find_block("model_classes")
-            classes_loop = classes_block.find_loop("_rlnReferenceImage").get_loop()
+            try:
+                class_star_file = cif.read_file(
+                    f"{Path(postprocess_params.half_map).parent}/run_model.star"
+                )
+                classes_block = class_star_file.find_block("model_classes")
+                classes_loop = classes_block.find_loop("_rlnReferenceImage").get_loop()
+            except FileNotFoundError:
+                self.log.error(
+                    f"{Path(postprocess_params.half_map).parent}/run_model.star "
+                    f"does not exist"
+                )
+                rw.transport.nack(header)
+                return
 
             refined_ispyb_parameters = {
                 "ispyb_command": "buffer",

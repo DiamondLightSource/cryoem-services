@@ -41,7 +41,7 @@ def test_extract_class_service(
     """
     Send a test message to the class extraction service
     This should run particle selection and launch re-extraction jobs with slurm
-    then send messages on to the refinement and the node_creator
+    then send messages on to refinement and the node_creator
     """
     mock_subprocess().returncode = 0
     mock_subprocess().stdout = (
@@ -228,7 +228,10 @@ def test_extract_class_service(
         message={
             "parameters": {
                 "job_type": "relion.extract",
-                "input_file": f"{tmp_path}/Select/job011/particles.star:CtfFind/job003/micrographs_ctf.star",
+                "input_file": (
+                    f"{tmp_path}/Select/job011/particles.star"
+                    f":CtfFind/job003/micrographs_ctf.star"
+                ),
                 "output_file": f"{tmp_path}/Extract/job012/particles.star",
                 "relion_options": output_relion_options,
                 "command": " ".join(extract_command),

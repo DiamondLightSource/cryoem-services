@@ -36,7 +36,7 @@ def offline_transport(mocker):
 def test_bfactor_service(mock_environment, offline_transport, tmp_path):
     """
     Send a test message to the BFactor setup service
-    This should create a particles file then send messages on to the
+    This should create a particles file then send messages on to
     refinement and the node_creator
     """
     # Create the expected input files
