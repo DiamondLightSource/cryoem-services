@@ -7,8 +7,12 @@ import subprocess
 from pathlib import Path
 from typing import List, Optional
 
+import healpy as hp
+import matplotlib.pyplot as plt
 import mrcfile
+import numpy as np
 import zocalo.wrapper
+from gemmi import cif
 from pydantic import BaseModel, Field, ValidationError
 
 from cryoemservices.util.spa_relion_service_options import (
@@ -214,6 +218,42 @@ class Refine3DWrapper(zocalo.wrapper.BaseWrapper):
                 + refine_result.stderr.decode("utf8", "replace")
             )
             return False
+
+        # Generate healpix image of the particle distribution
+        self.log.info("Generating healpix angular distribution image")
+        data = cif.read_file(f"{refine_params.refine_job_dir}/run_data.star")
+        particles_block = data.find_block("particles")
+        if particles_block:
+            angles_rot = np.array(
+                particles_block.find_loop("_rlnAngleRot"), dtype=float
+            )
+            angles_tilt = np.array(
+                particles_block.find_loop("_rlnAngleTilt"), dtype=float
+            )
+            try:
+                # Extract counts of particles in each healpix bin
+                angle_pixel_bins = hp.pixelfunc.ang2pix(
+                    np.power(2, refine_params.local_healpix_order + 1),
+                    angles_tilt * np.pi / 180,
+                    angles_rot * np.pi / 180,
+                )
+                bin_ids, pixel_counts = np.unique(angle_pixel_bins, return_counts=True)
+                all_pixel_bins = np.zeros(
+                    hp.nside2npix(np.power(2, refine_params.local_healpix_order + 1))
+                )
+                all_pixel_bins[bin_ids] = pixel_counts
+
+                # Create and save the healpix image
+                hp.mollview(
+                    all_pixel_bins,
+                    title="Angular distribution of particles in refined class",
+                    unit="Number of particles",
+                    flip="geo",
+                )
+                hp.graticule()
+                plt.savefig(f"{refine_params.refine_job_dir}/run_class001_angdist.jpeg")
+            except ValueError as e:
+                self.log.warning(f"Healpix failed with error {e}")
 
         # Do the mask creation if one isn't provided
         mask_job_dir = Path(f"MaskCreate/job{job_num_refine + 1:03}")
