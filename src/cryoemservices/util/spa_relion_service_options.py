@@ -119,6 +119,11 @@ class RelionServiceOptions(BaseModel):
     class3d_nr_classes: int = 4
     class3d_nr_iter: int = 25
 
+    # Refinement options
+    mask_lowpass: float = 15
+    mask_threshold: float = 0.02
+    refine_class_nr: int = 1
+
     class Config:
         validate_assignment = True
 
@@ -255,6 +260,32 @@ def generate_service_options(
         "nr_mpi": 5,
         "nr_threads": 8,
     }
+
+    job_options["relion.select.onvalue"] = {
+        "select_label": "rlnClassNumber",
+        "select_maxval": relion_options.refine_class_nr,
+        "select_minval": relion_options.refine_class_nr,
+    }
+
+    job_options["relion.refine3d"] = {
+        "particle_diameter": relion_options.mask_diameter,
+        "do_preread_images": True,
+        "ini_high": relion_options.initial_lowpass,
+        "sym_name": relion_options.symmetry,
+        "use_gpu": True,
+        "gpu_ids": "",
+        "nr_mpi": 5,
+        "nr_threads": 8,
+    }
+
+    job_options["relion.maskcreate"] = {
+        "angpix": relion_options.pixel_size,
+        "inimask_threshold": relion_options.mask_threshold,
+        "lowpass_filter": relion_options.mask_lowpass,
+        "nr_threads": 40,
+    }
+
+    job_options["relion.postprocess"] = {"angpix": relion_options.pixel_size}
 
     if submission_type not in ["relion.import.movies", "combine_star_files_job"]:
         job_options[submission_type].update(queue_options)

@@ -6,6 +6,7 @@ import os
 import re
 import subprocess
 from pathlib import Path
+from typing import Optional
 
 import numpy as np
 from gemmi import cif
@@ -30,7 +31,7 @@ class Class2DParameters(BaseModel):
     do_vdam = False
     dont_combine_weights_via_disc: bool = True
     preread_images: bool = True
-    scratch_dir: str = None
+    scratch_dir: Optional[str] = None
     nr_pool: int = 10
     pad: int = 2
     skip_gridding: bool = False
@@ -41,7 +42,7 @@ class Class2DParameters(BaseModel):
     class2d_nr_classes: int = 50
     flatten_solvent: bool = True
     do_zero_mask: bool = True
-    highres_limit: float = None
+    highres_limit: Optional[float] = None
     centre_classes: bool = True
     oversampling: int = 1
     skip_align: bool = False

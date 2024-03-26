@@ -305,6 +305,10 @@ def _extract_output_files(
     """Extract jobs save a list of particle coordinates"""
     star_file = job_dir / "particles.star"
 
+    if output_file.name == "particles.star":
+        # Do nothing on reextraction jobs
+        return
+
     # Read and append to the existing output file, or otherwise create one
     if not star_file.exists():
         output_cif = get_optics_table(
@@ -371,6 +375,10 @@ _output_files: Dict[str, Callable] = {
     "combine_star_files_job": _relion_no_extra_files,
     "relion.initialmodel": _relion_no_extra_files,
     "relion.class3d": _relion_no_extra_files,
+    "relion.select.onvalue": _relion_no_extra_files,
+    "relion.refine3d": _relion_no_extra_files,
+    "relion.maskcreate": _relion_no_extra_files,
+    "relion.postprocess": _relion_no_extra_files,
 }
 
 

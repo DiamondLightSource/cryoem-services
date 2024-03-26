@@ -507,6 +507,10 @@ class Class3DWrapper(BaseWrapper):
         classes_block = class_star_file.find_block("model_classes")
         classes_loop = classes_block.find_loop("_rlnReferenceImage").get_loop()
 
+        best_class = 0
+        best_class_resolution = 100
+        best_class_completeness = 0
+
         for class_id in range(class3d_params.class3d_nr_classes):
             # Add an ispyb insert for each class
             class_ispyb_parameters = {
@@ -545,7 +549,7 @@ class Class3DWrapper(BaseWrapper):
             if np.isfinite(estimated_resolution):
                 class_ispyb_parameters["estimated_resolution"] = estimated_resolution
             else:
-                class_ispyb_parameters["estimated_resolution"] = 0.0
+                class_ispyb_parameters["estimated_resolution"] = 99.0
             fourier_completeness = float(classes_loop[class_id, 5])
             if np.isfinite(fourier_completeness):
                 class_ispyb_parameters[
@@ -553,6 +557,14 @@ class Class3DWrapper(BaseWrapper):
                 ] = fourier_completeness
             else:
                 class_ispyb_parameters["overall_fourier_completeness"] = 0.0
+
+            # Compare this class to the previous best class
+            if class_ispyb_parameters["estimated_resolution"] < best_class_resolution:
+                best_class = class_id + 1
+                best_class_resolution = class_ispyb_parameters["estimated_resolution"]
+                best_class_completeness = class_ispyb_parameters[
+                    "overall_fourier_completeness"
+                ]
 
             # Add the ispyb command to the command list
             ispyb_parameters.append(class_ispyb_parameters)
@@ -573,7 +585,18 @@ class Class3DWrapper(BaseWrapper):
         # Tell Murfey the batch has finished
         murfey_params = {
             "register": "done_3d_batch",
+            "refine_dir": f"{project_dir}/Refine3D/job",
+            "class3d_dir": class3d_params.class3d_dir,
+            "best_class": best_class,
         }
+        if (
+            class3d_params.batch_size == 200000
+            and best_class_resolution < 11
+            and best_class_completeness > 0.9
+        ):
+            murfey_params["do_refinement"] = True
+        else:
+            murfey_params["do_refinement"] = False
         self.recwrap.send_to("murfey_feedback", murfey_params)
 
         (job_dir / "RELION_JOB_EXIT_SUCCESS").touch(exist_ok=True)

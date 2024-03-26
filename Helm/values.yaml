@@ -3,6 +3,22 @@ global:
   runAsUser: user-id
   runAsGroup: group-id
 
+bfactor_setup:
+  replicas: 1
+  image: gcr.io/image/path
+  command: zocalo.service -s service-name -e environment
+  extraVolumes:
+  - name: home
+    hostPath:
+      path: /home
+      type: Directory
+  extraVolumeMounts:
+  - mountPath: /home
+    name: home
+    mountPropagation: HostToContainer
+    readOnly: true
+  configMap: zocalo-conf
+
 cluster_submission:
   replicas: 1
   image: gcr.io/image/path
@@ -99,6 +115,22 @@ extract:
     readOnly: true
   configMap: zocalo-conf
 
+extract_class:
+  replicas: 1
+  image: gcr.io/image/path
+  command: zocalo.service -s service-name -e environment
+  extraVolumes:
+  - name: home
+    hostPath:
+      path: /home
+      type: Directory
+  extraVolumeMounts:
+  - mountPath: /home
+    name: home
+    mountPropagation: HostToContainer
+    readOnly: true
+  configMap: zocalo-conf
+
 icebreaker:
   replicas: 1
   image: gcr.io/image/path
@@ -180,6 +212,22 @@ motioncorr_slurm:
   configMap: zocalo-conf
 
 node_creator:
+  replicas: 1
+  image: gcr.io/image/path
+  command: zocalo.service -s service-name -e environment
+  extraVolumes:
+  - name: home
+    hostPath:
+      path: /home
+      type: Directory
+  extraVolumeMounts:
+  - mountPath: /home
+    name: home
+    mountPropagation: HostToContainer
+    readOnly: true
+  configMap: zocalo-conf
+
+postprocess:
   replicas: 1
   image: gcr.io/image/path
   command: zocalo.service -s service-name -e environment
