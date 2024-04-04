@@ -30,7 +30,6 @@ slurm_json_job_template = {
     "v0.0.38": {
         "nodes": 1,
         "tasks": 1,
-        "cpus_per_task": 1,
         "gpus": 1,
         "memory_per_gpu": 12000,
         "time_limit": "1:00:00",
@@ -39,7 +38,6 @@ slurm_json_job_template = {
         "minimum_nodes": 1,
         "maximum_nodes": 1,
         "tasks": 1,
-        "cpus_per_task": 1,
         "tres_per_task": "gres/gpu:1",
         "memory_per_node": {
             "number": 12000,
@@ -79,6 +77,7 @@ def slurm_submission(
     output_file: Path,
     cpus: int,
     use_singularity: bool,
+    cif_name: str = "",
 ):
     """Submit jobs to a slurm cluster via the RestAPI"""
     try:
@@ -130,6 +129,7 @@ def slurm_submission(
         slurm_config["prefer"] = slurm_rest["partition_preference"]
     if slurm_rest.get("cluster"):
         slurm_config["cluster"] = slurm_rest["cluster"]
+
     # Combine this with the template for the given API version
     slurm_json_job = dict(slurm_json_job_template[api_version], **slurm_config)
     slurm_json_job["name"] = job_name
@@ -143,7 +143,7 @@ def slurm_submission(
             binding_dirs = ""
         job_command = (
             singularity_script_template
-            + f"{binding_dirs} --home {user_home} "
+            + f"{binding_dirs} --home {user_home} {cif_name} "
             + " ".join(command)
             + slurm_tmp_cleanup
         )
@@ -179,7 +179,7 @@ def slurm_submission(
             stdout=slurm_submission_json.stdout,
             stderr=slurm_submission_json.stderr,
         )
-    log.info(f"Submitted job {job_id} to slurm. Waiting...")
+    log.info(f"Submitted job {job_id} for {job_name} to slurm. Waiting...")
     if slurm_response_json.get("warnings") and slurm_response_json["warnings"]:
         log.warning(f"Slurm reported these warnings: {slurm_response_json['warnings']}")
     if slurm_response_json.get("errors") and slurm_response_json["errors"]:
@@ -262,7 +262,7 @@ def slurm_submission(
     if slurm_job_state == "COMPLETED":
         return subprocess.CompletedProcess(
             args="",
-            returncode=1,
+            returncode=0,
             stdout=stdout.encode("utf8"),
             stderr=stderr.encode("utf8"),
         )

@@ -159,6 +159,10 @@ class TomoAlignSlurm(TomoAlign, CommonService):
             use_singularity=True,
         )
 
+        slurm_output_file = f"{self.aretomo_output_path}.out"
+        if tomo_parameters.tilt_cor and Path(slurm_output_file).is_file():
+            self.parse_tomo_output(slurm_output_file)
+
         # Get back any output files and clean up
         retrieve_files(
             job_directory=Path(self.alignment_output_dir),
