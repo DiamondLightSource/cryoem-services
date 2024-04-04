@@ -7,7 +7,7 @@ import subprocess
 from collections import ChainMap
 from math import hypot
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 import plotly.express as px
 import workflows.recipe
@@ -156,13 +156,13 @@ class MotionCorr(CommonService):
             self.x_shift_list.append(float(x_shifts_str[frame]))
             self.y_shift_list.append(float(y_shifts_str[frame]))
 
-    def motioncor2(self, command, mrc_out):
+    def motioncor2(self, command: List[str], mrc_out: Path):
         """Run the MotionCor2 command"""
         result = subprocess.run(command, capture_output=True)
         self.parse_mc2_stdout(result.stdout.decode("utf8", "replace"))
         return result
 
-    def relion_motioncorr(self, command, mrc_out):
+    def relion_motioncorr(self, command: List[str], mrc_out: Path):
         """Run Relion's owm motion correction"""
         result = subprocess.run(command, capture_output=True)
         if Path(mrc_out).with_suffix(".star").exists():
@@ -321,7 +321,7 @@ class MotionCorr(CommonService):
                     else:
                         command.extend((mc2_flags[k], str(v)))
             # Run MotionCor2
-            result = self.motioncor2(command, mc_params.mrc_out)
+            result = self.motioncor2(command, Path(mc_params.mrc_out))
 
             dose_weighted = Path(mc_params.mrc_out).parent / (
                 Path(mc_params.mrc_out).stem + "_DW.mrc"
