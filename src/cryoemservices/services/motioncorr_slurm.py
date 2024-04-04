@@ -28,7 +28,7 @@ The configuration has the following format:
     api_version: v0.0.38 or v0.0.40
     partition: <optional slurm partition>
     partition_preference: <optional slurm preferences>
-    clusters: <optional slurm clusters>
+    cluster: <optional slurm clusters>
     required_directories: [<list of directories to bind for singularity>]
 """
 
@@ -167,8 +167,8 @@ class MotionCorrSlurm(MotionCorr, CommonService):
             slurm_config["partition"] = slurm_rest["partition"]
         if slurm_rest.get("partition_preference"):
             slurm_config["prefer"] = slurm_rest["partition_preference"]
-        if slurm_rest.get("clusters"):
-            slurm_config["clusters"] = slurm_rest["clusters"]
+        if slurm_rest.get("cluster"):
+            slurm_config["cluster"] = slurm_rest["cluster"]
         # Combine this with the template for the given API version
         slurm_json_job = dict(slurm_json_job_template[api_version], **slurm_config)
 

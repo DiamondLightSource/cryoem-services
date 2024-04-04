@@ -456,8 +456,8 @@ class IceBreaker(CommonService):
             slurm_config["partition"] = slurm_rest["partition"]
         if slurm_rest.get("partition_preference"):
             slurm_config["prefer"] = slurm_rest["partition_preference"]
-        if slurm_rest.get("clusters"):
-            slurm_config["clusters"] = slurm_rest["clusters"]
+        if slurm_rest.get("cluster"):
+            slurm_config["cluster"] = slurm_rest["cluster"]
         # Combine this with the template for the given API version
         slurm_json_job = dict(slurm_json_job_template[api_version], **slurm_config)
         slurm_json_job["cpus_per_task"] = cpus
