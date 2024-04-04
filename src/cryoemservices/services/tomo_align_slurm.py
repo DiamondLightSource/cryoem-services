@@ -4,7 +4,6 @@ import json
 import os
 import shutil
 import subprocess
-import tarfile
 import time
 from pathlib import Path
 from typing import List
@@ -17,20 +16,24 @@ from workflows.services.common_service import CommonService
 from cryoemservices.services.tomo_align import TomoAlign
 
 
-def retrieve_files(job_directory: Path):
-    for dls_file in job_directory.glob("*"):
-        iris_file = Path("/iris") / Path(dls_file).relative_to("/dls")
-        if not iris_file.exists():
-            return f"{iris_file} does not exist"
-        shutil.copy(iris_file, dls_file)
+def retrieve_files(job_directory: Path, files_to_skip: List[Path]):
+    """Copy files back from the Iris cluster"""
+    iris_directory = Path("/iris") / Path(job_directory).relative_to("/dls")
+    for iris_file in iris_directory.glob("*"):
+        dls_file = job_directory / iris_file.relative_to(iris_directory)
+        if dls_file not in files_to_skip:
+            dls_file.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy(iris_file, dls_file)
         iris_file.unlink()
 
 
 def file_transfer(file_list: List[str]):
+    """Transfer files to the Iris cluster"""
     try:
         transfer_id = datasyncer.transfer(file_list)
         status = "active"
         while status == "active":
+            time.sleep(5)
             status = datasyncer.status(transfer_id)
     except HTTPError as e:
         return f"Unable to transfer data: {e}"
@@ -219,7 +222,6 @@ class TomoAlignSlurm(TomoAlign, CommonService):
                 stdout="",
                 stderr=transfer_status,
             )
-        # /dls/ebic/data/staff-scratch/murfey/AreTomo_1.3.0_Cuda112_09292022
 
         # Command to submit jobs to the restAPI
         slurm_submit_command = (
@@ -307,22 +309,10 @@ class TomoAlignSlurm(TomoAlign, CommonService):
                 )
 
         # Get back the output files
-        retrieval_status = retrieve_files(
-            Path(tomo_parameters.aretomo_output_dir).parent
+        retrieve_files(
+            job_directory=Path(tomo_parameters.aretomo_output_dir).parent,
+            files_to_skip=[tomo_parameters.stack_file, aretomo_sif],
         )
-        if retrieval_status:
-            self.log.error(f"Unable to retrieve files: {retrieval_status}")
-            return subprocess.CompletedProcess(
-                args="",
-                returncode=1,
-                stdout="",
-                stderr=retrieval_status,
-            )
-
-        tar_imod_dir = str(Path(self.imod_directory).with_suffix(".tar.gz"))
-        file = tarfile.open(tar_imod_dir)
-        file.extractall(self.alignment_output_dir)
-        file.close()
         Path(aretomo_sif).unlink()
 
         # Read in the output
