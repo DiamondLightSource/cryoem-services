@@ -46,7 +46,7 @@ def retrieve_files(job_directory: Path, files_to_skip: List[Path]):
         iris_file.unlink()
 
 
-def file_transfer(file_list: List[str]):
+def transfer_files(file_list: List[str]):
     """Transfer files to the Iris cluster"""
     try:
         transfer_id = datasyncer.transfer(file_list)
@@ -250,7 +250,7 @@ class TomoAlignSlurm(TomoAlign, CommonService):
         )
 
         # Transfer the required files
-        transfer_status = file_transfer([tomo_parameters.stack_file, aretomo_sif])
+        transfer_status = transfer_files([tomo_parameters.stack_file, aretomo_sif])
         if transfer_status:
             self.log.error(f"Unable to transfer files: {transfer_status}")
             return subprocess.CompletedProcess(
@@ -356,7 +356,7 @@ class TomoAlignSlurm(TomoAlign, CommonService):
 
         # Get back the output files
         retrieve_files(
-            job_directory=Path(tomo_parameters.aretomo_output_dir).parent,
+            job_directory=Path(tomo_parameters.aretomo_output_file).parent,
             files_to_skip=[tomo_parameters.stack_file, aretomo_sif],
         )
         Path(aretomo_sif).unlink()
