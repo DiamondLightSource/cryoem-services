@@ -221,6 +221,7 @@ class TomoAlign(CommonService):
         self.log.info(f"Input list {tomo_params.input_file_list}")
         tomo_params.input_file_list.sort(key=_tilt)
 
+        # Find all the tilt angles and remove duplicates
         tilt_dict: dict = {}
         for tilt in tomo_params.input_file_list:
             if not Path(tilt[0]).is_file():
@@ -236,7 +237,7 @@ class TomoAlign(CommonService):
             if len(values) > 1:
                 # sort by age and remove oldest ones
                 values.sort(key=os.path.getctime)
-                values_to_remove = values[1:]
+                values_to_remove.append(values[1:])
 
         for tilt in tomo_params.input_file_list:
             if tilt[0] in values_to_remove:
