@@ -147,16 +147,14 @@ class TomoAlignSlurm(TomoAlign, CommonService):
             )
 
         # Construct the json for submission
-        slurm_output_file = f"{tomo_parameters.aretomo_output_file}.out"
-        slurm_error_file = f"{tomo_parameters.aretomo_output_file}.err"
-        submission_file = f"{tomo_parameters.aretomo_output_file}.json"
+        slurm_output_file = f"{self.aretomo_output_path}.out"
+        slurm_error_file = f"{self.aretomo_output_path}.err"
+        submission_file = f"{self.aretomo_output_path}.json"
         slurm_config = {
             "environment": [f"USER: {user}", f"HOME: {user_home}"],
             "standard_output": slurm_output_file,
             "standard_error": slurm_error_file,
-            "current_working_directory": str(
-                Path(tomo_parameters.aretomo_output_file).parent
-            ),
+            "current_working_directory": str(Path(self.alignment_output_dir).parent),
         }
 
         # Add slurm partition and cluster preferences if given
@@ -176,7 +174,7 @@ class TomoAlignSlurm(TomoAlign, CommonService):
         command = [
             aretomo_sif,
             "-OutMrc",
-            tomo_parameters.aretomo_output_file,
+            self.aretomo_output_path,
             "-InMrc",
             str(Path(tomo_parameters.stack_file).name),
         ]
@@ -246,7 +244,7 @@ class TomoAlignSlurm(TomoAlign, CommonService):
         self.log.info(f"Running AreTomo with command: {command}")
         self.log.info(
             f"Input stack: {tomo_parameters.stack_file} \n"
-            f"Output file: {tomo_parameters.aretomo_output_file}"
+            f"Output file: {self.aretomo_output_path}"
         )
 
         # Transfer the required files
@@ -354,13 +352,6 @@ class TomoAlignSlurm(TomoAlign, CommonService):
                     stderr="Timeout running motion correction".encode("utf8"),
                 )
 
-        # Get back the output files
-        retrieve_files(
-            job_directory=Path(tomo_parameters.aretomo_output_file).parent,
-            files_to_skip=[tomo_parameters.stack_file, aretomo_sif],
-        )
-        Path(aretomo_sif).unlink()
-
         # Read in the output
         self.log.info(f"Job {job_id} has finished!")
         try:
@@ -376,8 +367,13 @@ class TomoAlignSlurm(TomoAlign, CommonService):
             stderr = f"Reading output file {slurm_error_file} failed"
             slurm_job_state = "FAILED"
 
-        # Read in the output then clean up the files
-        self.log.info(f"Job {job_id} has finished!")
+        # Get back the output files
+        retrieve_files(
+            job_directory=Path(self.alignment_output_dir),
+            files_to_skip=[tomo_parameters.stack_file, aretomo_sif],
+        )
+        Path(aretomo_sif).unlink()
+
         if slurm_job_state == "COMPLETED":
             return subprocess.CompletedProcess(
                 args="",

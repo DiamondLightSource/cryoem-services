@@ -19,7 +19,6 @@ class TomoParameters(BaseModel):
     path_pattern: str = None
     input_file_list: str = None
     position: Optional[str] = None
-    aretomo_output_file: Optional[str] = None
     vol_z: int = 1200
     align: Optional[int] = None
     out_bin: int = 4
@@ -103,6 +102,7 @@ class TomoAlign(CommonService):
     newstack_path: str | None = None
     alignment_output_dir: str | None = None
     stack_name: str | None = None
+    aretomo_output_path: str | None = None
     alignment_quality: float | None = None
 
     def __init__(self, *args, **kwargs):
@@ -248,9 +248,8 @@ class TomoAlign(CommonService):
         self.alignment_output_dir = str(Path(tomo_params.stack_file).parent)
         self.stack_name = str(Path(tomo_params.stack_file).stem)
 
-        tomo_params.aretomo_output_file = self.stack_name + "_aretomo.mrc"
         self.aretomo_output_path = (
-            self.alignment_output_dir + "/" + tomo_params.aretomo_output_file
+            self.alignment_output_dir + "/" + self.stack_name + "_aretomo.mrc"
         )
         self.plot_file = self.stack_name + "_xy_shift_plot.json"
         self.plot_path = self.alignment_output_dir + "/" + self.plot_file
@@ -344,7 +343,7 @@ class TomoAlign(CommonService):
         ispyb_command_list = [
             {
                 "ispyb_command": "insert_tomogram",
-                "volume_file": tomo_params.aretomo_output_file,
+                "volume_file": self.aretomo_output_path,
                 "stack_file": tomo_params.stack_file,
                 "size_x": None,  # volume image size, pix
                 "size_y": None,
