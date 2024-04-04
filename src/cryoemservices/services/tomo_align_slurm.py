@@ -156,7 +156,7 @@ class TomoAlignSlurm(TomoAlign, CommonService):
             project_dir=Path(self.alignment_output_dir),
             output_file=Path(self.aretomo_output_path),
             cpus=1,
-            use_singularity=True,
+            use_singularity=False,
         )
 
         slurm_output_file = f"{self.aretomo_output_path}.out"
