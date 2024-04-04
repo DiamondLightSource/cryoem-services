@@ -21,4 +21,4 @@ dependencies:
 - name: select_classes
 - name: select_particles
 - name: tomo_align
-- name: tomo_align_iris
+- name: tomo_align_slurm

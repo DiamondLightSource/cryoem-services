@@ -1,23 +1,23 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: tomo-align-iris
+  name: tomo-align-slurm
   namespace: {{ .Values.global.namespace }}
 spec:
   replicas: {{ .Values.replicas }}
   selector:
     matchLabels:
-      app: tomo-align-iris
+      app: tomo-align-slurm
   template:
     metadata:
       labels:
-        app: tomo-align-iris
+        app: tomo-align-slurm
     spec:
       securityContext:
         runAsUser: {{ .Values.global.runAsUser }}
         runAsGroup: {{ .Values.global.runAsGroup }}
       containers:
-      - name: tomo-align-iris-runner
+      - name: tomo-align-slurm-runner
         image: {{ .Values.image }}
         imagePullPolicy: Always
         resources:
@@ -74,11 +74,11 @@ spec:
 apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
 metadata:
-  name: tomo-align-iris
+  name: tomo-align-slurm
   namespace: {{ .Values.global.namespace }}
 spec:
   scaleTargetRef:
-    name: tomo-align-iris
+    name: tomo-align-slurm
   triggers:
     - type: rabbitmq
       metadata:
