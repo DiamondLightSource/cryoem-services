@@ -15,6 +15,25 @@ from workflows.services.common_service import CommonService
 
 from cryoemservices.services.tomo_align import TomoAlign
 
+"""
+This service submits AreTomo jobs to a slurm cluster (currently the STFC IRIS cluster)
+To do this it needs environment variables set for the following:
+    ARETOMO_SIF: singularity image of AreTomo
+    SLURM_RESTAPI_CONFIG: configuration yaml file for the slurm cluster
+
+The configuration has the following format:
+    plugin: slurm
+    url: <url>:<port>
+    user_token: <file with restapi token>
+    user: <username>
+    user_home: <home directory>
+    api_version: v0.0.40
+    partition: <optional slurm partition>
+    partition_preference: <optional slurm preferences>
+    cluster: <optional slurm clusters>
+    required_directories: [<list of directories to bind for singularity>]
+"""
+
 
 def retrieve_files(job_directory: Path, files_to_skip: List[Path]):
     """Copy files back from the Iris cluster"""
@@ -46,27 +65,34 @@ def file_transfer(file_list: List[str]):
         return f"Unknown status {status}"
 
 
-# To get the required image run
-# singularity pull docker://gcr.io/diamond-pubreg/em/tomo_align:version
-slurm_json_template = {
-    "job": {
+slurm_json_job_template = {
+    "v0.0.40": {
         "name": "TomoAlign",
-        "nodes": 1,
+        "minimum_nodes": 1,
+        "maximum_nodes": 1,
         "tasks": 1,
         "cpus_per_task": 1,
-        "gpus": 1,
-        "memory_per_gpu": 7000,
-        "time_limit": "1:00:00",
+        "tres_per_task": "gres/gpu:1",
+        "memory_per_node": {
+            "number": 7000,
+            "set": True,
+            "infinite": False,
+        },
+        "time_limit": {
+            "number": 3600,
+            "set": True,
+            "infinite": False,
+        },
     },
-    "script": (
-        "#!/bin/bash\n"
-        "echo \"$(date '+%Y-%m-%d %H:%M:%S.%3N'): running AreTomo\"\n"
-        "mkdir /tmp/tmp_$SLURM_JOB_ID\n"
-        "export SINGULARITY_CACHEDIR=/tmp/tmp_$SLURM_JOB_ID\n"
-        "export SINGULARITY_TMPDIR=/tmp/tmp_$SLURM_JOB_ID\n"
-        "singularity exec --nv --bind /tmp/tmp_$SLURM_JOB_ID:/tmp"
-    ),
 }
+slurm_script_template = (
+    "#!/bin/bash\n"
+    "echo \"$(date '+%Y-%m-%d %H:%M:%S.%3N'): running AreTomo\"\n"
+    "mkdir /tmp/tmp_$SLURM_JOB_ID\n"
+    "export APPTAINER_CACHEDIR=/tmp/tmp_$SLURM_JOB_ID\n"
+    "export APPTAINER_TMPDIR=/tmp/tmp_$SLURM_JOB_ID\n"
+    "singularity exec --nv --bind /tmp/tmp_$SLURM_JOB_ID:/tmp"
+)
 slurm_tmp_cleanup = "\nrm -rf /tmp/tmp_$SLURM_JOB_ID"
 
 
@@ -109,12 +135,23 @@ class TomoAlignSlurm(TomoAlign, CommonService):
                 stderr="No restAPI config or token".encode("utf8"),
             )
 
+        # Check the API version is one this service has been tested with
+        api_version = slurm_rest["api_version"]
+        print(api_version)
+        if api_version not in ["v0.0.40"]:
+            return subprocess.CompletedProcess(
+                args="",
+                returncode=1,
+                stdout="".encode("utf8"),
+                stderr=f"Unsupported API version {api_version}".encode("utf8"),
+            )
+
         # Construct the json for submission
         slurm_output_file = f"{tomo_parameters.aretomo_output_file}.out"
         slurm_error_file = f"{tomo_parameters.aretomo_output_file}.err"
         submission_file = f"{tomo_parameters.aretomo_output_file}.json"
         slurm_config = {
-            "environment": {"USER": user, "HOME": user_home},
+            "environment": [f"USER: {user}", f"HOME: {user_home}"],
             "standard_output": slurm_output_file,
             "standard_error": slurm_error_file,
             "current_working_directory": str(
@@ -129,7 +166,7 @@ class TomoAlignSlurm(TomoAlign, CommonService):
             slurm_config["prefer"] = slurm_rest["partition_preference"]
         if slurm_rest.get("cluster"):
             slurm_config["cluster"] = slurm_rest["cluster"]
-        slurm_json_job = dict(slurm_json_template["job"], **slurm_config)
+        slurm_json_job = dict(slurm_json_job_template[api_version], **slurm_config)
 
         # Copy the AreTomo executable into the visit directory
         aretomo_sif = str(Path(tomo_parameters.stack_file).parent / "AreTomo")
@@ -197,7 +234,7 @@ class TomoAlignSlurm(TomoAlign, CommonService):
         else:
             binding_dirs = ""
         job_command = (
-            slurm_json_template["script"]
+            slurm_script_template
             + f"{binding_dirs} --home {user_home} "
             + " ".join(command)
             + slurm_tmp_cleanup
@@ -236,7 +273,8 @@ class TomoAlignSlurm(TomoAlign, CommonService):
         try:
             # Extract the job id from the submission response to use in the next query
             slurm_response = slurm_submission_json.stdout.decode("utf8", "replace")
-            job_id = json.loads(slurm_response)["job_id"]
+            slurm_response_json = json.loads(slurm_response)
+            job_id = slurm_response_json["job_id"]
         except (json.JSONDecodeError, KeyError):
             self.log.error(
                 f"Unable to submit job to {slurm_rest['url']}. The restAPI returned "
@@ -248,7 +286,15 @@ class TomoAlignSlurm(TomoAlign, CommonService):
                 stdout=slurm_submission_json.stdout,
                 stderr=slurm_submission_json.stderr,
             )
-        self.log.info(f"Submitted job {job_id} to Wilson. Waiting...")
+        self.log.info(f"Submitted job {job_id} to slurm. Waiting...")
+        if slurm_response_json.get("warnings") and slurm_response_json["warnings"]:
+            self.log.warning(
+                f"Slurm reported these warnings: {slurm_response_json['warnings']}"
+            )
+        if slurm_response_json.get("errors") and slurm_response_json["errors"]:
+            self.log.warning(
+                f"Slurm reported these errors: {slurm_response_json['errors']}"
+            )
 
         # Command to get the status of the submitted job from the restAPI
         slurm_status_command = (
@@ -278,7 +324,7 @@ class TomoAlignSlurm(TomoAlign, CommonService):
             )
             try:
                 slurm_response = slurm_status_json.stdout.decode("utf8", "replace")
-                slurm_job_state = json.loads(slurm_response)["jobs"][0]["job_state"]
+                slurm_job_state = json.loads(slurm_response)["jobs"][0]["job_state"][0]
             except (json.JSONDecodeError, KeyError):
                 print(slurm_status_command)
                 self.log.error(
