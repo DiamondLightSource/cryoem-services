@@ -438,12 +438,12 @@ class IceBreaker(CommonService):
             )
 
         # Construct the json for submission
-        mc_output_file = f"{job_dir}/slurm.out"
-        mc_error_file = f"{job_dir}/slurm.err"
+        slurm_output_file = f"{job_dir}/slurm.out"
+        slurm_error_file = f"{job_dir}/slurm.err"
         submission_file = f"{job_dir}/slurm.json"
         slurm_config = {
-            "standard_output": mc_output_file,
-            "standard_error": mc_error_file,
+            "standard_output": slurm_output_file,
+            "standard_error": slurm_error_file,
             "current_working_directory": str(project_dir),
         }
         if api_version == "v0.0.38":
