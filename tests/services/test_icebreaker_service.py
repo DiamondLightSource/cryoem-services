@@ -376,7 +376,7 @@ def test_icebreaker_particles_service(
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-@mock.patch("cryoemservices.services.icebreaker.subprocess.run")
+@mock.patch("cryoemservices.util.slurm_submission.subprocess.run")
 def test_icebreaker_particles_service_slurm(
     mock_subprocess, mock_environment, offline_transport, tmp_path
 ):

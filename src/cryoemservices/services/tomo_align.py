@@ -343,7 +343,11 @@ class TomoAlign(CommonService):
         ispyb_command_list = [
             {
                 "ispyb_command": "insert_tomogram",
-                "volume_file": self.aretomo_output_path,
+                "volume_file": str(
+                    Path(self.aretomo_output_path).relative_to(
+                        self.alignment_output_dir
+                    )
+                ),
                 "stack_file": tomo_params.stack_file,
                 "size_x": None,  # volume image size, pix
                 "size_y": None,
