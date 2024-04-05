@@ -148,6 +148,7 @@ class TomoAlignSlurm(TomoAlign, CommonService):
             project_dir=Path(self.alignment_output_dir),
             output_file=Path(self.aretomo_output_path),
             cpus=1,
+            use_gpu=True,
             use_singularity=False,
             script_extras=(
                 f"export LD_LIBRARY_PATH={os.environ['ARETOMO_LIBRARIES']}:$LD_LIBRARY_PATH"

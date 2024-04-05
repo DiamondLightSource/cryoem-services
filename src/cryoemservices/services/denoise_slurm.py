@@ -185,6 +185,7 @@ class DenoiseIris(CommonService):
             project_dir=alignment_output_dir,
             output_file=denoised_full_path,
             cpus=1,
+            use_gpu=True,
             use_singularity=True,
             cif_name=os.environ["DENOISING_CIF"],
         )

@@ -30,15 +30,12 @@ slurm_json_job_template = {
     "v0.0.38": {
         "nodes": 1,
         "tasks": 1,
-        "gpus": 1,
-        "memory_per_gpu": 12000,
         "time_limit": "1:00:00",
     },
     "v0.0.40": {
         "minimum_nodes": 1,
         "maximum_nodes": 1,
         "tasks": 1,
-        "tres_per_task": "gres/gpu:1",
         "memory_per_node": {
             "number": 12000,
             "set": True,
@@ -75,6 +72,7 @@ def slurm_submission(
     project_dir: Path,
     output_file: Path,
     cpus: int,
+    use_gpu: bool,
     use_singularity: bool,
     cif_name: str = "",
     script_extras: str = "",
@@ -134,6 +132,14 @@ def slurm_submission(
     slurm_json_job = dict(slurm_json_job_template[api_version], **slurm_config)
     slurm_json_job["name"] = job_name
     slurm_json_job["cpus_per_task"] = cpus
+    if use_gpu:
+        if api_version == "v0.0.38":
+            slurm_json_job["gpus"] = 1
+            slurm_json_job["memory_per_gpu"] = 12000
+        else:
+            slurm_json_job["tres_per_task"] = "gres/gpu:1"
+    elif api_version == "v0.0.38":
+        slurm_json_job["memory_per_cpu"] = 1000
 
     # Construct the job command and save the job script
     if use_singularity:

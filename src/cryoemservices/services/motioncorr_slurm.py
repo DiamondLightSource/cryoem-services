@@ -52,6 +52,7 @@ class MotionCorrSlurm(MotionCorr, CommonService):
             project_dir=mrc_out.parent,
             output_file=mrc_out,
             cpus=1,
+            use_gpu=True,
             use_singularity=True,
             cif_name=os.environ["MOTIONCOR2_SIF"],
         )
