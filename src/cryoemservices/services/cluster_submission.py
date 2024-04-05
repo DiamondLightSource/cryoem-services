@@ -19,7 +19,6 @@ from zocalo.util import slurm
 
 class JobSubmissionParameters(BaseModel):
     scheduler: str = "slurm"
-    cluster: Optional[str]
     partition: Optional[str]
     prefer: Optional[str]
     job_name: Optional[str]
@@ -35,7 +34,6 @@ class JobSubmissionParameters(BaseModel):
     time_limit: Optional[datetime.timedelta] = None
     gpus: Optional[int] = None
     exclusive: bool = False
-    account: Optional[str]
     commands: str | list[str]
     qos: Optional[str]
 
@@ -75,8 +73,6 @@ def submit_to_slurm(
             memory_per_cpu=params.min_memory_per_cpu,
             time_limit=time_limit_minutes,
             gpus=params.gpus,
-            # exclusive=params.exclusive,
-            account=params.account,
             current_working_directory=os.fspath(working_directory),
             qos=params.qos,
         ),
@@ -226,4 +222,4 @@ class ClusterSubmission(CommonService):
 
         # Commit transaction
         self._transport.transaction_commit(txn)
-        self.log.info(f"Submitted job {jobnumber} to {cluster_params.cluster}")
+        self.log.info(f"Submitted job {jobnumber} to slurm")
