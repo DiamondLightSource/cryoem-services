@@ -59,7 +59,6 @@ singularity_script_template = (
     "mkdir /tmp/tmp_$SLURM_JOB_ID\n"
     "export APPTAINER_CACHEDIR=/tmp/tmp_$SLURM_JOB_ID\n"
     "export APPTAINER_TMPDIR=/tmp/tmp_$SLURM_JOB_ID\n"
-    "singularity exec --nv --bind /lib64,/tmp/tmp_$SLURM_JOB_ID:/tmp"
 )
 module_script_template = (
     "#!/bin/bash\n"
@@ -78,6 +77,7 @@ def slurm_submission(
     cpus: int,
     use_singularity: bool,
     cif_name: str = "",
+    script_extras: str = "",
 ):
     """Submit jobs to a slurm cluster via the RestAPI"""
     try:
@@ -143,12 +143,15 @@ def slurm_submission(
             binding_dirs = ""
         job_command = (
             singularity_script_template
+            + script_extras
+            + "\n"
+            + "singularity exec --nv --bind /lib64,/tmp/tmp_$SLURM_JOB_ID:/tmp"
             + f"{binding_dirs} --home {user_home} {cif_name} "
             + " ".join(command)
             + slurm_tmp_cleanup
         )
     else:
-        job_command = module_script_template + " ".join(command)
+        job_command = module_script_template + script_extras + "\n" + " ".join(command)
     slurm_json = {"job": slurm_json_job, "script": job_command}
     with open(submission_file, "w") as f:
         json.dump(slurm_json, f)

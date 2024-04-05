@@ -68,15 +68,9 @@ class TomoAlignSlurm(TomoAlign, CommonService):
     def aretomo(self, tomo_parameters):
         """Submit AreTomo jobs to the slurm cluster via the RestAPI"""
 
-        # Copy the AreTomo executable into the visit directory
-        aretomo_executable = (
-            str(Path(self.aretomo_output_path).with_suffix("")) + "_AreTomo"
-        )
-        shutil.copy(os.environ["ARETOMO_EXECUTABLE"], aretomo_executable)
-
         # Assemble the command to run AreTomo
         command = [
-            aretomo_executable,
+            os.environ["ARETOMO_EXECUTABLE"],
             "-OutMrc",
             self.aretomo_output_path,
             "-InMrc",
@@ -137,9 +131,7 @@ class TomoAlignSlurm(TomoAlign, CommonService):
         )
 
         # Transfer the required files
-        transfer_status = transfer_files(
-            [tomo_parameters.stack_file, aretomo_executable]
-        )
+        transfer_status = transfer_files([tomo_parameters.stack_file])
         if transfer_status:
             self.log.error(f"Unable to transfer files: {transfer_status}")
             return subprocess.CompletedProcess(
@@ -157,6 +149,7 @@ class TomoAlignSlurm(TomoAlign, CommonService):
             output_file=Path(self.aretomo_output_path),
             cpus=1,
             use_singularity=False,
+            script_extras=os.environ["ARETOMO_LIBRARIES"],
         )
 
         slurm_output_file = f"{self.aretomo_output_path}.out"
@@ -166,8 +159,7 @@ class TomoAlignSlurm(TomoAlign, CommonService):
         # Get back any output files and clean up
         retrieve_files(
             job_directory=Path(self.alignment_output_dir),
-            files_to_skip=[tomo_parameters.stack_file, aretomo_executable],
+            files_to_skip=[tomo_parameters.stack_file],
         )
-        Path(aretomo_executable).unlink()
 
         return slurm_outcome
