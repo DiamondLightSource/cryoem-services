@@ -207,14 +207,14 @@ class DenoiseSlurm(CommonService):
                 destination="images",
                 message={
                     "image_command": "mrc_central_slice",
-                    "file": denoised_full_path,
+                    "file": str(denoised_full_path),
                 },
             )
             rw.transport.send(
                 destination="movie",
                 message={
                     "image_command": "mrc_to_apng",
-                    "file": denoised_full_path,
+                    "file": str(denoised_full_path),
                 },
             )
         else:
@@ -222,14 +222,14 @@ class DenoiseSlurm(CommonService):
                 "images",
                 {
                     "image_command": "mrc_central_slice",
-                    "file": denoised_full_path,
+                    "file": str(denoised_full_path),
                 },
             )
             rw.send_to(
                 "movie",
                 {
                     "image_command": "mrc_to_apng",
-                    "file": denoised_full_path,
+                    "file": str(denoised_full_path),
                 },
             )
 
