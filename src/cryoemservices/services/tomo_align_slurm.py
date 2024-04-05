@@ -19,21 +19,22 @@ def retrieve_files(job_directory: Path, files_to_skip: List[Path]):
     """Copy files back from the Iris cluster"""
     iris_directory = Path("/iris") / Path(job_directory).relative_to("/dls")
     for iris_item in iris_directory.glob("*"):
+        # Find all files in the job directory
         dls_item = job_directory / iris_item.relative_to(iris_directory)
-        if dls_item not in files_to_skip:
-            dls_item.parent.mkdir(parents=True, exist_ok=True)
-            if iris_item.is_dir():
-                # Imod directory files (assumes only one layer of subdirectories)
-                dls_item.mkdir(exist_ok=True)
-                for iris_imod in iris_item.glob("*"):
-                    dls_imod = job_directory / iris_imod.relative_to(iris_directory)
-                    shutil.copy(iris_imod, dls_imod)
-                    iris_imod.unlink()
-                iris_item.rmdir()
-            else:
-                # All other files
+        dls_item.parent.mkdir(parents=True, exist_ok=True)
+        if iris_item.is_dir():
+            # Transfer imod directory files (assumes only one layer of subdirectories)
+            dls_item.mkdir(exist_ok=True)
+            for iris_imod in iris_item.glob("*"):
+                dls_imod = job_directory / iris_imod.relative_to(iris_directory)
+                shutil.copy(iris_imod, dls_imod)
+                iris_imod.unlink()
+            iris_item.rmdir()
+        else:
+            # Transfer and remove all other files, but skip copying input files
+            if dls_item not in files_to_skip:
                 shutil.copy(iris_item, dls_item)
-                iris_item.unlink()
+            iris_item.unlink()
 
 
 def transfer_files(file_list: List[str]):
