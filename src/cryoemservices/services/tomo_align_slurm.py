@@ -18,12 +18,22 @@ from cryoemservices.util.slurm_submission import slurm_submission
 def retrieve_files(job_directory: Path, files_to_skip: List[Path]):
     """Copy files back from the Iris cluster"""
     iris_directory = Path("/iris") / Path(job_directory).relative_to("/dls")
-    for iris_file in iris_directory.glob("*"):
-        dls_file = job_directory / iris_file.relative_to(iris_directory)
-        if dls_file not in files_to_skip:
-            dls_file.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy(iris_file, dls_file)
-        iris_file.unlink()
+    for iris_item in iris_directory.glob("*"):
+        dls_item = job_directory / iris_item.relative_to(iris_directory)
+        if dls_item not in files_to_skip:
+            dls_item.parent.mkdir(parents=True, exist_ok=True)
+            if iris_item.is_dir():
+                # Imod directory files (assumes only one layer of subdirectories)
+                dls_item.mkdir(exist_ok=True)
+                for iris_imod in iris_item.glob("*"):
+                    dls_imod = job_directory / iris_imod.relative_to(iris_directory)
+                    shutil.copy(iris_imod, dls_imod)
+                    iris_imod.unlink()
+                iris_item.rmdir()
+            else:
+                # All other files
+                shutil.copy(iris_item, dls_item)
+                iris_item.unlink()
 
 
 def transfer_files(file_list: List[str]):
