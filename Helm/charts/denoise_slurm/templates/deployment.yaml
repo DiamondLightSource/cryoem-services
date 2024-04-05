@@ -1,23 +1,23 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: denoise-iris
+  name: denoise-slurm
   namespace: {{ .Values.global.namespace }}
 spec:
   replicas: {{ .Values.replicas }}
   selector:
     matchLabels:
-      app: denoise-iris
+      app: denoise-slurm
   template:
     metadata:
       labels:
-        app: denoise-iris
+        app: denoise-slurm
     spec:
       securityContext:
         runAsUser: {{ .Values.global.runAsUser }}
         runAsGroup: {{ .Values.global.runAsGroup }}
       containers:
-      - name: denoise-iris-runner
+      - name: denoise-slurm-runner
         image: {{ .Values.image }}
         imagePullPolicy: Always
         resources:
@@ -68,11 +68,11 @@ spec:
 apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
 metadata:
-  name: denoise-iris
+  name: denoise-slurm
   namespace: {{ .Values.global.namespace }}
 spec:
   scaleTargetRef:
-    name: denoise-iris
+    name: denoise-slurm
   triggers:
     - type: rabbitmq
       metadata:

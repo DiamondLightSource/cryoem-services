@@ -187,7 +187,7 @@ class DenoiseIris(CommonService):
             cpus=1,
             use_gpu=True,
             use_singularity=True,
-            cif_name=os.environ["DENOISING_CIF"],
+            cif_name=os.environ["DENOISING_SIF"],
         )
         if slurm_outcome.returncode:
             self.log.error("Denoising failed to run on Iris")
