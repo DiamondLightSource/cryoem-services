@@ -58,7 +58,7 @@ class DenoiseParameters(BaseModel):
         return v
 
 
-class DenoiseIris(CommonService):
+class DenoiseSlurm(CommonService):
     """
     A service for denoising cryoEM tomograms using Topaz
     Submits jobs to a slurm cluster via RestAPI
