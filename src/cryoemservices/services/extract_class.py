@@ -64,6 +64,8 @@ slurm_json_job_template = {
 }
 slurm_script_template = (
     "#!/bin/bash\necho \"$(date '+%Y-%m-%d %H:%M:%S.%3N'): running ReExtraction\"\n"
+    "source /etc/profile.d/modules.sh\n"
+    "module load EM/cryoem-services\n"
 )
 
 
