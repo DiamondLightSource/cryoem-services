@@ -510,6 +510,7 @@ class Class3DWrapper(BaseWrapper):
         best_class = 0
         best_class_resolution = 100
         best_class_completeness = 0
+        best_class_particles = 0
 
         for class_id in range(class3d_params.class3d_nr_classes):
             # Add an ispyb insert for each class
@@ -559,12 +560,18 @@ class Class3DWrapper(BaseWrapper):
                 class_ispyb_parameters["overall_fourier_completeness"] = 0.0
 
             # Compare this class to the previous best class
-            if class_ispyb_parameters["estimated_resolution"] < best_class_resolution:
+            if class_ispyb_parameters[
+                "estimated_resolution"
+            ] < best_class_resolution or (
+                class_ispyb_parameters["estimated_resolution"] == best_class_resolution
+                and class_ispyb_parameters["particles_per_class"] > best_class_particles
+            ):
                 best_class = class_id + 1
                 best_class_resolution = class_ispyb_parameters["estimated_resolution"]
                 best_class_completeness = class_ispyb_parameters[
                     "overall_fourier_completeness"
                 ]
+                best_class_particles = class_ispyb_parameters["particles_per_class"]
 
             # Add the ispyb command to the command list
             ispyb_parameters.append(class_ispyb_parameters)
