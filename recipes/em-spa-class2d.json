@@ -27,8 +27,6 @@
     },
     "parameters": {
       "cluster": {
-        "account": "em",
-        "cluster": "em",
         "commands": [
           "source /etc/profile.d/modules.sh",
           "module load EM/cryoem-services",
@@ -41,8 +39,10 @@
           "USER": "{user}"
         },
         "gpus": 4,
+        "gpus_per_node": 4,
         "job_name": "Class2D-EM",
         "min_memory_per_gpu": 4096,
+        "nodes": 1,
         "partition": "{partition}",
         "prefer": "{partition_preference}",
         "scheduler": "slurm",

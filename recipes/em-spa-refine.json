@@ -22,6 +22,7 @@
   "3": {
     "job_parameters": {
       "mask_diameter": "{mask_diameter}",
+      "particle_diameter": "{particle_diameter}",
       "relion_options": {}
     },
     "output": {
@@ -30,8 +31,6 @@
     },
     "parameters": {
       "cluster": {
-        "account": "em",
-        "cluster": "em",
         "commands": [
           "source /etc/profile.d/modules.sh",
           "module load EM/cryoem-services",
@@ -44,13 +43,15 @@
           "USER": "{user}"
         },
         "gpus": 4,
+        "gpus_per_node": 4,
         "job_name": "Refine3D-EM",
         "min_memory_per_gpu": 4096,
+        "nodes": 1,
         "partition": "{partition}",
         "prefer": "{partition_preference}",
         "scheduler": "slurm",
-        "standard_error": "{refine_dir}/run.err",
-        "standard_output": "{refine_dir}/run.out",
+        "standard_error": "{refine_job_dir}/run.err",
+        "standard_output": "{refine_job_dir}/run.out",
         "tasks": 5,
         "time_limit": "12:00:00"
       },
