@@ -34,7 +34,7 @@ def offline_transport(mocker):
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-@mock.patch("cryoemservices.services.extract_class.subprocess.run")
+@mock.patch("cryoemservices.util.slurm_submission.subprocess.run")
 def test_extract_class_service(
     mock_subprocess, mock_environment, offline_transport, tmp_path
 ):

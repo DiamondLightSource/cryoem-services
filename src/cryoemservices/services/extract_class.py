@@ -1,18 +1,15 @@
 from __future__ import annotations
 
-import json
 import math
 import os
 import re
-import subprocess
-import time
 from pathlib import Path
 
 import workflows.recipe
-import yaml
 from pydantic import BaseModel, Field, ValidationError
 from workflows.services.common_service import CommonService
 
+from cryoemservices.util.slurm_submission import slurm_submission
 from cryoemservices.util.spa_relion_service_options import (
     RelionServiceOptions,
     update_relion_options,
@@ -33,40 +30,6 @@ class ExtractClassParameters(BaseModel):
     normalise: bool = True
     invert_contrast: bool = True
     relion_options: RelionServiceOptions
-
-
-slurm_json_job_template = {
-    "v0.0.38": {
-        "name": "ReExtract",
-        "nodes": 1,
-        "tasks": 1,
-        "cpus_per_task": 40,
-        "memory_per_cpu": 7000,
-        "time_limit": "1:00:00",
-    },
-    "v0.0.40": {
-        "name": "ReExtract",
-        "minimum_nodes": 1,
-        "maximum_nodes": 1,
-        "tasks": 1,
-        "cpus_per_task": 40,
-        "memory_per_cpu": {
-            "number": 7000,
-            "set": True,
-            "infinite": False,
-        },
-        "time_limit": {
-            "number": 3600,
-            "set": True,
-            "infinite": False,
-        },
-    },
-}
-slurm_script_template = (
-    "#!/bin/bash\necho \"$(date '+%Y-%m-%d %H:%M:%S.%3N'): running ReExtraction\"\n"
-    "source /etc/profile.d/modules.sh\n"
-    "module load EM/cryoem-services\n"
-)
 
 
 class ExtractClass(CommonService):
@@ -95,189 +58,6 @@ class ExtractClass(CommonService):
             log_extender=self.extend_log,
             allow_non_recipe_messages=True,
         )
-
-    def submit_slurm_job(self, command, job_dir):
-        """Submit ReExtract jobs to the slurm cluster via the RestAPI"""
-        try:
-            # Get the configuration and token for the restAPI
-            with open(os.environ["SLURM_RESTAPI_CONFIG"], "r") as f:
-                slurm_rest = yaml.safe_load(f)
-            user = slurm_rest["user"]
-            user_home = slurm_rest["user_home"]
-            with open(slurm_rest["user_token"], "r") as f:
-                slurm_token = f.read().strip()
-        except (KeyError, FileNotFoundError):
-            return subprocess.CompletedProcess(
-                args="",
-                returncode=1,
-                stdout="".encode("utf8"),
-                stderr="No restAPI config or token".encode("utf8"),
-            )
-
-        # Check the API version is one this service has been tested with
-        api_version = slurm_rest["api_version"]
-        print(api_version)
-        if api_version not in ["v0.0.38", "v0.0.40"]:
-            return subprocess.CompletedProcess(
-                args="",
-                returncode=1,
-                stdout="".encode("utf8"),
-                stderr=f"Unsupported API version {api_version}".encode("utf8"),
-            )
-
-        # Construct the json for submission
-        slurm_output_file = f"{job_dir}/slurm_run.out"
-        slurm_error_file = f"{job_dir}/slurm_run.err"
-        submission_file = f"{job_dir}/slurm_run.json"
-        slurm_config = {
-            "standard_output": slurm_output_file,
-            "standard_error": slurm_error_file,
-            "current_working_directory": str(job_dir),
-        }
-        if api_version == "v0.0.38":
-            slurm_config["environment"] = {"USER": user, "HOME": user_home}
-        else:
-            slurm_config["environment"] = [f"USER: {user}", f"HOME: {user_home}"]
-
-        # Add slurm partition and cluster preferences if given
-        if slurm_rest.get("partition"):
-            slurm_config["partition"] = slurm_rest["partition"]
-        if slurm_rest.get("partition_preference"):
-            slurm_config["prefer"] = slurm_rest["partition_preference"]
-        if slurm_rest.get("clusters"):
-            slurm_config["clusters"] = slurm_rest["clusters"]
-        # Combine this with the template for the given API version
-        slurm_json_job = dict(slurm_json_job_template[api_version], **slurm_config)
-
-        # Make the script command and save the submission json
-        job_command = slurm_script_template + " ".join(command)
-        slurm_json = {"job": slurm_json_job, "script": job_command}
-        with open(submission_file, "w") as f:
-            json.dump(slurm_json, f)
-
-        # Command to submit jobs to the restAPI
-        slurm_submit_command = (
-            f'curl -H "X-SLURM-USER-NAME:{user}" -H "X-SLURM-USER-TOKEN:{slurm_token}" '
-            '-H "Content-Type: application/json" -X POST '
-            f'{slurm_rest["url"]}/slurm/{slurm_rest["api_version"]}/job/submit '
-            f"-d @{submission_file}"
-        )
-        slurm_submission_json = subprocess.run(
-            slurm_submit_command, capture_output=True, shell=True
-        )
-        try:
-            # Extract the job id from the submission response to use in the next query
-            slurm_response = slurm_submission_json.stdout.decode("utf8", "replace")
-            slurm_response_json = json.loads(slurm_response)
-            job_id = slurm_response_json["job_id"]
-        except (json.JSONDecodeError, KeyError):
-            self.log.error(
-                f"Unable to submit job to {slurm_rest['url']}. The restAPI returned "
-                f"{slurm_submission_json.stdout.decode('utf8', 'replace')}"
-            )
-            return subprocess.CompletedProcess(
-                args="",
-                returncode=1,
-                stdout=slurm_submission_json.stdout,
-                stderr=slurm_submission_json.stderr,
-            )
-        self.log.info(f"Submitted job {job_id} to slurm. Waiting...")
-        if slurm_response_json.get("warnings") and slurm_response_json["warnings"]:
-            self.log.warning(
-                f"Slurm reported these warnings: {slurm_response_json['warnings']}"
-            )
-        if slurm_response_json.get("errors") and slurm_response_json["errors"]:
-            self.log.warning(
-                f"Slurm reported these errors: {slurm_response_json['errors']}"
-            )
-
-        # Command to get the status of the submitted job from the restAPI
-        slurm_status_command = (
-            f'curl -H "X-SLURM-USER-NAME:{user}" -H "X-SLURM-USER-TOKEN:{slurm_token}" '
-            '-H "Content-Type: application/json" -X GET '
-            f'{slurm_rest["url"]}/slurm/{slurm_rest["api_version"]}/job/{job_id}'
-        )
-        slurm_job_state = "PENDING"
-
-        # Wait until the job has a status indicating it has finished
-        loop_counter = 0
-        while slurm_job_state in (
-            "PENDING",
-            "CONFIGURING",
-            "RUNNING",
-            "COMPLETING",
-        ):
-            if loop_counter < 5:
-                time.sleep(5)
-            else:
-                time.sleep(30)
-            loop_counter += 1
-
-            # Call the restAPI to find out the job state
-            slurm_status_json = subprocess.run(
-                slurm_status_command, capture_output=True, shell=True
-            )
-            try:
-                slurm_response = slurm_status_json.stdout.decode("utf8", "replace")
-                slurm_job_state = json.loads(slurm_response)["jobs"][0]["job_state"]
-                if api_version == "v0.0.40":
-                    slurm_job_state = slurm_job_state[0]
-            except (json.JSONDecodeError, KeyError):
-                print(slurm_status_command)
-                self.log.error(
-                    f"Unable to get status for job {job_id}. The restAPI returned "
-                    f"{slurm_status_json.stdout.decode('utf8', 'replace')}"
-                )
-                return subprocess.CompletedProcess(
-                    args="",
-                    returncode=1,
-                    stdout=slurm_status_json.stdout,
-                    stderr=slurm_status_json.stderr,
-                )
-
-            if loop_counter >= 60:
-                slurm_cancel_command = (
-                    f'curl -H "X-SLURM-USER-NAME:{user}" '
-                    f'-H "X-SLURM-USER-TOKEN:{slurm_token}" '
-                    '-H "Content-Type: application/json" -X DELETE '
-                    f'{slurm_rest["url"]}/slurm/{slurm_rest["api_version"]}/job/{job_id}'
-                )
-                subprocess.run(slurm_cancel_command, capture_output=True, shell=True)
-                self.log.error("Timeout running slurm job")
-                return subprocess.CompletedProcess(
-                    args="",
-                    returncode=1,
-                    stdout="".encode("utf8"),
-                    stderr="Timeout running slurm job".encode("utf8"),
-                )
-
-        # Read in the output then clean up the files
-        self.log.info(f"Job {job_id} has finished!")
-        try:
-            with open(slurm_output_file, "r") as slurm_stdout:
-                stdout = slurm_stdout.read()
-            with open(slurm_error_file, "r") as slurm_stderr:
-                stderr = slurm_stderr.read()
-        except FileNotFoundError:
-            self.log.error(f"Output file {slurm_output_file} not found")
-            stdout = ""
-            stderr = f"Reading output file {slurm_output_file} failed"
-            slurm_job_state = "FAILED"
-
-        if slurm_job_state == "COMPLETED":
-            return subprocess.CompletedProcess(
-                args="",
-                returncode=0,
-                stdout=stdout.encode("utf8"),
-                stderr=stderr.encode("utf8"),
-            )
-        else:
-            return subprocess.CompletedProcess(
-                args="",
-                returncode=1,
-                stdout=stdout.encode("utf8"),
-                stderr=stderr.encode("utf8"),
-            )
 
     def extract_class(self, rw, header: dict, message: dict):
         class MockRW:
@@ -493,7 +273,17 @@ class ExtractClass(CommonService):
         if extract_params.downscale:
             command.append("--downscale")
 
-        result = self.submit_slurm_job(command, extract_job_dir)
+        result = slurm_submission(
+            log=self.log,
+            job_name="ReExtract",
+            command=command,
+            project_dir=extract_job_dir,
+            output_file=extract_job_dir / "slurm_run",
+            cpus=40,
+            use_gpu=False,
+            use_singularity=False,
+            script_extras="module load EM/cryoem-services",
+        )
 
         # Register the Re-extraction job with the node creator
         self.log.info(f"Sending {self.extract_job_type} to node creator")
