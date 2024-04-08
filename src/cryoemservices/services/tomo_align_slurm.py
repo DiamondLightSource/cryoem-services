@@ -148,8 +148,8 @@ class TomoAlignSlurm(TomoAlign, CommonService):
             return subprocess.CompletedProcess(
                 args="",
                 returncode=1,
-                stdout="",
-                stderr=transfer_status,
+                stdout="".encode("utf8"),
+                stderr=transfer_status.encode("utf8"),
             )
 
         slurm_outcome = slurm_submission(
