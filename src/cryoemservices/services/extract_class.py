@@ -26,7 +26,7 @@ class ExtractClassParameters(BaseModel):
     refine_class_nr: int
     original_pixel_size: float
     boxsize: int = 150
-    nr_iter_3d: int = 20
+    nr_iter_3d: int = 25
     bg_radius: int = -1
     downscale_factor: float = 2
     downscale: bool = True

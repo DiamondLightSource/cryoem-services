@@ -33,7 +33,8 @@ class RefineParameters(BaseModel):
     batch_size: int
     pixel_size: float
     class_number: int
-    mask_diameter: float
+    particle_diameter: float = 0
+    mask_diameter: float = 190
     mask: Optional[str] = None
     mask_lowpass: float = 15
     mask_threshold_fraction: float = 0.2
@@ -147,7 +148,7 @@ class Refine3DWrapper(zocalo.wrapper.BaseWrapper):
                 "--ref",
                 str(refine_params.rescaled_class_reference),
                 "--particle_diameter",
-                f"{refine_params.mask_diameter}",
+                f"{refine_params.relion_options.mask_diameter}",
                 "--auto_refine",
                 "--split_random_halves",
             ]

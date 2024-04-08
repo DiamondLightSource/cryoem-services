@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -182,6 +183,15 @@ class PostProcess(CommonService):
             rw.transport.nack(header)
             return
 
+        # Copy the angular distribution from Refinement
+        refine_angdist = (
+            Path(postprocess_params.half_map).parent / "run_class001_angdist.jpeg"
+        )
+        if refine_angdist.is_file():
+            shutil.copy(
+                refine_angdist, f"{postprocess_params.job_dir}/postprocess_angdist.jpeg"
+            )
+
         # Get the bfactor and resolution from the postprocessing output
         # Should this be interpolated??
         postprocess_lines = postprocess_result.stdout.decode("utf8", "replace").split(
@@ -327,7 +337,7 @@ class PostProcess(CommonService):
                 "register": "done_refinement",
                 "project_dir": str(project_dir),
                 "resolution": final_resolution,
-                "batch_size": postprocess_params.number_of_particles,
+                "number_of_particles": postprocess_params.number_of_particles,
                 "refined_grp_uuid": postprocess_params.refined_grp_uuid,
                 "refined_class_uuid": postprocess_params.refined_class_uuid,
                 "class_reference": postprocess_params.rescaled_class_reference,

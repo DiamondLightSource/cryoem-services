@@ -105,13 +105,13 @@ pipeline_spa_jobs: dict[str, dict] = {
     },
     "relion.select.onvalue": {
         "folder": "Select",
-        "input_stars": {"fn_data": "run_it020_data.star"},
+        "input_stars": {"fn_data": "run_it025_data.star"},
     },
     "relion.refine3d": {
         "folder": "Refine3D",
         "input_stars": {
             "fn_img": "particles_split1.star",
-            "fn_ref": "run_it020_class.mrc",
+            "fn_ref": "run_it025_class.mrc",
         },
     },
     "relion.maskcreate": {
