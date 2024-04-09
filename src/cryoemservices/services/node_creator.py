@@ -4,6 +4,7 @@ import datetime
 import json
 import os
 import re
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -369,6 +370,16 @@ class NodeCreator(CommonService):
                 results_displays = pipeliner_job.create_results_display()
                 for results_obj in results_displays:
                     results_obj.write_displayobj_file(outdir=str(job_dir))
+
+        # Check the lock status
+        if Path(project_dir / ".relion_lock").is_dir():
+            self.log.warning("WARNING: Relion project lock found")
+            time.sleep(5)
+            try:
+                Path(project_dir / ".relion_lock").rmdir()
+                self.log.warning("Relion lock has been removed")
+            except FileNotFoundError:
+                self.log.warning("Relion lock vanished - another process removed it")
 
         # Create the node and default_pipeline.star files in the project directory
         with ProjectGraph(read_only=False) as project:
