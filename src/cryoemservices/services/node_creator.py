@@ -372,14 +372,22 @@ class NodeCreator(CommonService):
                     results_obj.write_displayobj_file(outdir=str(job_dir))
 
         # Check the lock status
-        if Path(project_dir / ".relion_lock").is_dir():
-            self.log.warning("WARNING: Relion project lock found")
+        if (
+            Path(project_dir / ".relion_lock").is_dir()
+            or Path(job_dir / ".relion_lock").is_dir()
+        ):
+            self.log.warning("WARNING: Relion lock found")
             time.sleep(5)
             try:
                 Path(project_dir / ".relion_lock").rmdir()
-                self.log.warning("Relion lock has been removed")
+                self.log.warning("Relion project lock has been removed")
             except FileNotFoundError:
-                self.log.warning("Relion lock vanished - another process removed it")
+                self.log.warning("No project lock found to remove")
+            try:
+                Path(job_dir / ".relion_lock").rmdir()
+                self.log.warning("Relion job lock has been removed")
+            except FileNotFoundError:
+                self.log.warning("No job lock found to remove")
 
         # Create the node and default_pipeline.star files in the project directory
         with ProjectGraph(read_only=False) as project:
