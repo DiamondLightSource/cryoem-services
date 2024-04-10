@@ -97,7 +97,6 @@ def slurm_submission(
 
     # Check the API version is one this service has been tested with
     api_version = slurm_rest["api_version"]
-    print(api_version)
     if api_version not in ["v0.0.38", "v0.0.40"]:
         return subprocess.CompletedProcess(
             args="",
