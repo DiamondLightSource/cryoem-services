@@ -40,7 +40,7 @@ def test_tomo_align_service(
     """
     Send a test message to TomoAlign
     This should call the mock subprocess then send messages on to
-    the murfey_feedback, ispyb_connector and images services.
+    the denoising, ispyb_connector and images services.
     """
     mock_subprocess().returncode = 0
     mock_subprocess().stdout = "stdout".encode("ascii")

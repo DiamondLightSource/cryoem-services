@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import os
 import sys
-from pathlib import Path
 from unittest import mock
 
 import pytest
@@ -50,7 +49,7 @@ def test_tomo_align_slurm_service(
     """
     Send a test message to TomoAlign for the slurm submission version
     This should call the mock subprocess then send messages on to
-    the murfey_feedback, ispyb_connector and images services.
+    the denoising, ispyb_connector and images services.
     """
     mock_subprocess().returncode = 0
     mock_subprocess().stdout = (
@@ -59,10 +58,6 @@ def test_tomo_align_slurm_service(
     mock_subprocess().stderr = "stderr".encode("ascii")
 
     mock_transfer.return_value = 0
-
-    movie = Path(f"{tmp_path}/Movies/sample.tiff")
-    movie.parent.mkdir(parents=True)
-    movie.touch()
 
     header = {
         "message-id": mock.sentinel,
