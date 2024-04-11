@@ -115,7 +115,7 @@ def reextract_single_micrograph(
             output_mrc_stack = np.array([particle_subimage], dtype=np.float32)
 
     # Produce the mrc file of the extracted particles
-    Path(reextract_name).parent.mkdir(exist_ok=True)
+    Path(reextract_name).parent.mkdir(exist_ok=True, parents=True)
     particle_count = np.shape(output_mrc_stack)[0]
     if particle_count > 0:
         with mrcfile.new(str(reextract_name), overwrite=True) as mrc:
