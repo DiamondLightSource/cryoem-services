@@ -148,10 +148,8 @@ class TomoAlign(CommonService):
             for line in lines:
                 if not line.startswith("#"):
                     line_split = line.split()
-                    if self.rot is None:
-                        self.rot = float(line_split[1])
-                    if self.mag is None:
-                        self.mag = float(line_split[2])
+                    self.rot = float(line_split[1])
+                    self.mag = float(line_split[2])
                     x_shift.append(float(line_split[3]))
                     y_shift.append(float(line_split[4]))
                     self.refined_tilts.append(float(line_split[9]))
