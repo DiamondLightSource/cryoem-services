@@ -24,6 +24,8 @@ from cryoemservices.util.spa_relion_service_options import RelionServiceOptions
 class SelectClassesParameters(BaseModel):
     input_file: str = Field(..., min_length=1)
     combine_star_job_number: int
+    pixel_size: float
+    particle_diameter: float
     class2d_fraction_of_classes_to_remove: float = 0.9
     particles_file: str = "particles.star"
     classes_file: str = "class_averages.star"
@@ -483,6 +485,83 @@ class SelectClasses(CommonService):
             self.log.error("Star file splitting failed")
             rw.transport.nack(header)
             return
+
+        # Request selected particles image from images service
+        files_selected_from = []
+        (select_dir / "Movies").mkdir(exist_ok=True)
+        with open(
+            select_dir / autoselect_params.particles_file, "r"
+        ) as selected_particles:
+            while True:
+                line = selected_particles.readline()
+                if not line:
+                    break
+                if line[0].isnumeric():
+                    extracted_file = line.split()[2]  # Fix this
+                    if extracted_file not in files_selected_from:
+                        files_selected_from.append(extracted_file)
+                    with open(
+                        select_dir / f"Movies{Path(extracted_file).name}", "a"
+                    ) as selected_file:
+                        selected_file.write(f"{line.split()[0]} {line.split([1])}\n")
+
+        extract_job_number = 8  # Fix this
+        for extracted_file in files_selected_from:
+            with open(
+                select_dir / f"Movies{Path(extracted_file).name}", "e"
+            ) as selected_file:
+                selected_coords = [line.split() for line in selected_file]
+            motioncorr_file = Path(
+                re.sub(
+                    f"Extract/job{extract_job_number:03}/Movies/.+",
+                    "MotionCorr/job002/",
+                    extracted_file,
+                )
+            ) / re.sub("_extracted", ".mrc", str(Path(extracted_file).stem))
+            cryolo_output_path = (
+                Path(
+                    re.sub(
+                        "MotionCorr/job002/.+",
+                        f"AutoPick/job{extract_job_number - 1:03}/STAR/",
+                        str(motioncorr_file),
+                    )
+                )
+                / Path(motioncorr_file).with_suffix(".star").name
+            )
+
+            try:
+                with open(cryolo_output_path, "r") as coords_file:
+                    coords = [line.split() for line in coords_file][6:]
+            except FileNotFoundError:
+                coords = []
+
+            self.log.info("Sending to images service")
+            if isinstance(rw, MockRW):
+                rw.transport.send(
+                    destination="images",
+                    message={
+                        "image_command": "picked_particles",
+                        "file": motioncorr_file,
+                        "coordinates": coords,
+                        "selected_coordinates": selected_coords,
+                        "pixel_size": autoselect_params.pixel_size,
+                        "diameter": autoselect_params.particle_diameter,
+                        "outfile": str(Path(cryolo_output_path).with_suffix(".jpeg")),
+                    },
+                )
+            else:
+                rw.send_to(
+                    "images",
+                    {
+                        "image_command": "picked_particles",
+                        "file": motioncorr_file,
+                        "coordinates": coords,
+                        "selected_coordinates": selected_coords,
+                        "pixel_size": autoselect_params.pixel_size,
+                        "diameter": autoselect_params.particle_diameter,
+                        "outfile": str(Path(cryolo_output_path).with_suffix(".jpeg")),
+                    },
+                )
 
         # Create 3D classification jobs
         if send_to_3d_classification:
