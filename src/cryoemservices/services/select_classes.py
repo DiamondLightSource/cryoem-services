@@ -487,6 +487,7 @@ class SelectClasses(CommonService):
             return
 
         # Request selected particles image from images service
+        self.log.info("Sending to images service")
         files_selected_from = []
         (select_dir / "Movies").mkdir(exist_ok=True)
         with open(
@@ -496,7 +497,7 @@ class SelectClasses(CommonService):
                 line = selected_particles.readline()
                 if not line:
                     break
-                if line[0].isnumeric():
+                if line.strip()[0].isnumeric():
                     # Second entry is particle files in the form 001@Extract/file.star
                     extracted_file = line.split()[2].split("@")[1]
                     if extracted_file not in files_selected_from:
@@ -504,7 +505,7 @@ class SelectClasses(CommonService):
                         files_selected_from.append(extracted_file)
                     # Append any newly selected particles to a file
                     with open(
-                        select_dir / f"Movies{Path(extracted_file).name}", "a"
+                        select_dir / f"Movies/{Path(extracted_file).name}", "a"
                     ) as selected_file:
                         selected_file.write(f"{line.split()[0]} {line.split()[1]}\n")
 
@@ -543,7 +544,6 @@ class SelectClasses(CommonService):
                 coords = []
 
             # Generate image of selected and non-selected picks
-            self.log.info("Sending to images service")
             if isinstance(rw, MockRW):
                 rw.transport.send(
                     destination="images",
