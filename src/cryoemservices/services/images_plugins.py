@@ -161,8 +161,8 @@ def picked_particles(plugin_params):
                         (float(x) - radius, float(y) - radius),
                         (float(x) + radius, float(y) + radius),
                     ],
-                    width=8,
-                    outline="#05992a",
+                    width=12,
+                    outline="#98df8a",
                 )
         try:
             fim.save(outfile)
