@@ -98,7 +98,7 @@ def picked_particles(plugin_params):
         logger.info(f"Replacing jpeg extension with mrc extension for {basefilename}")
         basefilename = basefilename.replace(".jpeg", ".mrc")
     coords = plugin_params.parameters("coordinates")
-    selected_coords = plugin_params("selected_coordinates")
+    selected_coords = plugin_params.parameters("selected_coordinates")
     pixel_size = plugin_params.parameters("pixel_size")
     if not pixel_size:
         # Legacy case of zocalo-relion
