@@ -151,6 +151,8 @@ def picked_particles(plugin_params):
                     width=8,
                     outline="#f58a07",
                 )
+        else:
+            logger.warning(f"No coordinates provided for {basefilename}")
         if selected_coords and selected_coords[0]:
             # Green circles if selected coordinates are provided
             for x, y in selected_coords:
@@ -162,8 +164,6 @@ def picked_particles(plugin_params):
                     width=8,
                     outline="#05992a",
                 )
-        else:
-            logger.warning(f"No coordinates provided for {basefilename}")
         try:
             fim.save(outfile)
         except FileNotFoundError:
