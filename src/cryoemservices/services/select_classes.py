@@ -497,6 +497,8 @@ class SelectClasses(CommonService):
                 line = selected_particles.readline()
                 if not line:
                     break
+                if not line.strip():
+                    continue
                 if line.strip()[0].isnumeric():
                     # Second entry is particle files in the form 001@Extract/file.star
                     extracted_file = line.split()[2].split("@")[1]
