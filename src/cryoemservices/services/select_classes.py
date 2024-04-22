@@ -497,20 +497,26 @@ class SelectClasses(CommonService):
                 if not line:
                     break
                 if line[0].isnumeric():
-                    extracted_file = line.split()[2]  # Fix this
+                    # Second entry is particle files in the form 001@Extract/file.star
+                    extracted_file = line.split()[2].split("@")[1]
                     if extracted_file not in files_selected_from:
+                        # Make a list of all files
                         files_selected_from.append(extracted_file)
+                    # Append any newly selected particles to a file
                     with open(
                         select_dir / f"Movies{Path(extracted_file).name}", "a"
                     ) as selected_file:
-                        selected_file.write(f"{line.split()[0]} {line.split([1])}\n")
+                        selected_file.write(f"{line.split()[0]} {line.split()[1]}\n")
 
-        extract_job_number = 8  # Fix this
         for extracted_file in files_selected_from:
+            # Get the selected picks for each file
+            extract_job_number = int(extracted_file.split("job")[1][:3])
             with open(
-                select_dir / f"Movies{Path(extracted_file).name}", "e"
+                select_dir / f"Movies/{Path(extracted_file).name}", "e"
             ) as selected_file:
                 selected_coords = [line.split() for line in selected_file]
+
+            # Get the names of the files needed to display picking
             motioncorr_file = Path(
                 re.sub(
                     f"Extract/job{extract_job_number:03}/Movies/.+",
@@ -529,12 +535,14 @@ class SelectClasses(CommonService):
                 / Path(motioncorr_file).with_suffix(".star").name
             )
 
+            # Get all the picks
             try:
                 with open(cryolo_output_path, "r") as coords_file:
                     coords = [line.split() for line in coords_file][6:]
             except FileNotFoundError:
                 coords = []
 
+            # Generate image of selected and non-selected picks
             self.log.info("Sending to images service")
             if isinstance(rw, MockRW):
                 rw.transport.send(
