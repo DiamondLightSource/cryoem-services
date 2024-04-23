@@ -147,7 +147,9 @@ def test_denoise_slurm_service(
     mock_transfer.assert_any_call([f"{tmp_path}/test_stack_aretomo.mrc"])
     assert mock_retrieve.call_count == 1
     mock_retrieve.assert_any_call(
-        job_directory=tmp_path, files_to_skip=[tmp_path / "test_stack_aretomo.mrc"]
+        job_directory=tmp_path,
+        files_to_skip=[tmp_path / "test_stack_aretomo.mrc"],
+        basepath="test_stack_aretomo",
     )
     assert mock_subprocess.call_count == 5
 

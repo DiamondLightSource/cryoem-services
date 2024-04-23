@@ -172,7 +172,9 @@ def test_tomo_align_slurm_service(
     mock_transfer.assert_any_call([f"{tmp_path}/test_stack.st"])
     assert mock_retrieve.call_count == 1
     mock_retrieve.assert_any_call(
-        job_directory=tmp_path, files_to_skip=[f"{tmp_path}/test_stack.st"]
+        job_directory=tmp_path,
+        files_to_skip=[f"{tmp_path}/test_stack.st"],
+        basepath="test_stack",
     )
     assert mock_plotly.call_count == 1
     assert mock_subprocess.call_count == 6
