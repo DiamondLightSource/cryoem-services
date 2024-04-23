@@ -15,10 +15,10 @@ from cryoemservices.services.tomo_align import TomoAlign
 from cryoemservices.util.slurm_submission import slurm_submission
 
 
-def retrieve_files(job_directory: Path, files_to_skip: List[Path]):
+def retrieve_files(job_directory: Path, files_to_skip: List[Path], basepath: str):
     """Copy files back from the Iris cluster"""
     iris_directory = Path("/iris") / Path(job_directory).relative_to("/dls")
-    for iris_item in iris_directory.glob("*"):
+    for iris_item in iris_directory.glob(f"{basepath}*"):
         # Find all files in the job directory
         dls_item = job_directory / iris_item.relative_to(iris_directory)
         dls_item.parent.mkdir(parents=True, exist_ok=True)
@@ -174,6 +174,7 @@ class TomoAlignSlurm(TomoAlign, CommonService):
         retrieve_files(
             job_directory=Path(self.alignment_output_dir),
             files_to_skip=[tomo_parameters.stack_file],
+            basepath=str(Path(tomo_parameters.stack_file).stem),
         )
 
         return slurm_outcome

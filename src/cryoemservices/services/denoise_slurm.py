@@ -198,6 +198,7 @@ class DenoiseSlurm(CommonService):
         retrieve_files(
             job_directory=alignment_output_dir,
             files_to_skip=[Path(denoise_params.volume)],
+            basepath=str(Path(denoise_params.volume).stem),
         )
 
         # Forward results to images service
