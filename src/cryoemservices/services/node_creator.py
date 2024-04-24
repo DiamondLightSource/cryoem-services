@@ -390,6 +390,9 @@ class NodeCreator(CommonService):
             except FileNotFoundError:
                 self.log.warning("No job lock found to remove")
 
+        if job_info.alias:
+            (job_dir.parent / job_info.alias).unlink(missing_ok=True)
+
         # Create the node and default_pipeline.star files in the project directory
         with ProjectGraph(read_only=False) as project:
             process = project.add_job(
