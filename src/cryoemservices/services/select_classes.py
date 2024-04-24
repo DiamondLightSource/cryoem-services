@@ -333,6 +333,7 @@ class SelectClasses(CommonService):
                 ),
                 "stdout": "",
                 "stderr": "",
+                "alias": "Best_particles",
             }
 
             # Call the combining function and redirect prints to an io object
@@ -450,6 +451,7 @@ class SelectClasses(CommonService):
             ),
             "stdout": "",
             "stderr": "",
+            "alias": "Best_particles",
         }
 
         # Call the combining function and redirect prints to an io object

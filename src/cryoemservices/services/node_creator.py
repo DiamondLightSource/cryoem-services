@@ -139,6 +139,7 @@ class NodeCreatorParameters(BaseModel):
     stderr: str
     success: bool = True
     results: Optional[dict] = None
+    alias: Optional[str] = None
 
 
 class NodeCreator(CommonService):
@@ -395,6 +396,7 @@ class NodeCreator(CommonService):
                 pipeliner_job,
                 as_status=("Succeeded" if job_info.success else "Failed"),
                 do_overwrite=True,
+                alias=job_info.alias,
             )
             # Add the job commands to the process .CCPEM_pipeliner_jobinfo file
             if not (job_dir / ".CCPEM_pipeliner_jobinfo").exists():
