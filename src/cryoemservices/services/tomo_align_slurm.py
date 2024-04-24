@@ -78,6 +78,10 @@ class TomoAlignSlurm(TomoAlign, CommonService):
 
     def aretomo(self, tomo_parameters):
         """Submit AreTomo jobs to the slurm cluster via the RestAPI"""
+        self.log.info(
+            f"Input stack: {tomo_parameters.stack_file} \n"
+            f"Output file: {self.aretomo_output_path}"
+        )
 
         # Assemble the command to run AreTomo
         command = [
@@ -130,18 +134,12 @@ class TomoAlignSlurm(TomoAlign, CommonService):
             "out_imod_xf": "-OutXf",
             "dark_tol": "-DarkTol",
         }
-
         for k, v in tomo_parameters.dict().items():
             if v and (k in aretomo_flags):
                 command.extend((aretomo_flags[k], str(v)))
 
-        self.log.info(f"Running AreTomo with command: {command}")
-        self.log.info(
-            f"Input stack: {tomo_parameters.stack_file} \n"
-            f"Output file: {self.aretomo_output_path}"
-        )
-
         # Transfer the required files
+        self.log.info("Transferring files...")
         transfer_status = transfer_files([tomo_parameters.stack_file])
         if transfer_status:
             self.log.error(f"Unable to transfer files: {transfer_status}")
@@ -151,6 +149,8 @@ class TomoAlignSlurm(TomoAlign, CommonService):
                 stdout="".encode("utf8"),
                 stderr=transfer_status.encode("utf8"),
             )
+        self.log.info("All files transferred")
+        self.log.info(f"Running AreTomo with command: {command}")
 
         slurm_outcome = slurm_submission(
             log=self.log,
@@ -171,10 +171,12 @@ class TomoAlignSlurm(TomoAlign, CommonService):
             self.parse_tomo_output(slurm_output_file)
 
         # Get back any output files and clean up
+        self.log.info("Retrieving output files...")
         retrieve_files(
             job_directory=Path(self.alignment_output_dir),
             files_to_skip=[tomo_parameters.stack_file],
             basepath=str(Path(tomo_parameters.stack_file).stem),
         )
+        self.log.info("All output files retrieved")
 
         return slurm_outcome

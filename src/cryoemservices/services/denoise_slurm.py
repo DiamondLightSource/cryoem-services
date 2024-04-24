@@ -157,7 +157,6 @@ class DenoiseSlurm(CommonService):
             "patch_padding": "-p",
             "device": "-d",
         }
-
         for k, v in denoise_params.dict().items():
             if v and (k in denoise_flags):
                 command.extend((denoise_flags[k], str(v)))
@@ -167,15 +166,17 @@ class DenoiseSlurm(CommonService):
         denoised_file = str(Path(denoise_params.volume).stem) + ".denoised" + suffix
         denoised_full_path = Path(denoise_params.volume).parent / denoised_file
 
-        self.log.info(f"Running Topaz {command}")
         self.log.info(f"Input: {denoise_params.volume} Output: {denoised_full_path}")
 
         # Transfer the required files
+        self.log.info("Transferring files...")
         transfer_status = transfer_files([denoise_params.volume])
         if transfer_status:
             self.log.error(f"Unable to transfer files: {transfer_status}")
             rw.transport.nack(header)
             return
+        self.log.info("All files transferred")
+        self.log.info(f"Running Topaz {command}")
 
         # Submit the command to slurm
         slurm_outcome = slurm_submission(
@@ -194,11 +195,13 @@ class DenoiseSlurm(CommonService):
         )
 
         # Get back the output files
+        self.log.info("Retrieving output files...")
         retrieve_files(
             job_directory=alignment_output_dir,
             files_to_skip=[Path(denoise_params.volume)],
             basepath=str(Path(denoise_params.volume).stem),
         )
+        self.log.info("All output files retrieved")
 
         # Stop here if the job failed
         if slurm_outcome.returncode:
