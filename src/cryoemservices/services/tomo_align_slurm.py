@@ -162,7 +162,7 @@ class TomoAlignSlurm(TomoAlign, CommonService):
             use_gpu=True,
             use_singularity=False,
             script_extras=(
-                f"export LD_LIBRARY_PATH={os.environ['ARETOMO_LIBRARIES']}:$LD_LIBRARY_PATH"
+                f"export LD_LIBRARY_PATH={os.environ['EXTRA_LIBRARIES']}:$LD_LIBRARY_PATH"
             ),
         )
 

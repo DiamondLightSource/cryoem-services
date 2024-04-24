@@ -188,11 +188,10 @@ class DenoiseSlurm(CommonService):
             use_gpu=True,
             use_singularity=True,
             cif_name=os.environ["DENOISING_SIF"],
+            script_extras=(
+                f"export LD_LIBRARY_PATH={os.environ['EXTRA_LIBRARIES']}:$LD_LIBRARY_PATH"
+            ),
         )
-        if slurm_outcome.returncode:
-            self.log.error("Denoising failed to run on Iris")
-            rw.transport.nack(header)
-            return
 
         # Get back the output files
         retrieve_files(
@@ -200,6 +199,12 @@ class DenoiseSlurm(CommonService):
             files_to_skip=[Path(denoise_params.volume)],
             basepath=str(Path(denoise_params.volume).stem),
         )
+
+        # Stop here if the job failed
+        if slurm_outcome.returncode:
+            self.log.error("Denoising failed to run on Iris")
+            rw.transport.nack(header)
+            return
 
         # Forward results to images service
         self.log.info(f"Sending to images service {denoise_params.volume}")
