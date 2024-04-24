@@ -515,7 +515,7 @@ class SelectClasses(CommonService):
             # Get the selected picks for each file
             extract_job_number = int(extracted_file.split("job")[1][:3])
             with open(
-                select_dir / f"Movies/{Path(extracted_file).name}", "e"
+                select_dir / f"Movies/{Path(extracted_file).name}", "a"
             ) as selected_file:
                 selected_coords = [line.split() for line in selected_file]
 
