@@ -501,17 +501,20 @@ class SelectClasses(CommonService):
                     continue
                 if line.strip()[0].isnumeric():
                     # Second entry is particle files in the form 001@Extract/file.star
+                    particle_x = line.split()[0]
+                    particle_y = line.split()[1]
                     extracted_file = line.split()[2].split("@")[1]
+                    motioncorr_file = line.split()[3]
                     if extracted_file not in files_selected_from:
                         # Make a list of all files
-                        files_selected_from.append(extracted_file)
+                        files_selected_from.append([extracted_file, motioncorr_file])
                     # Append any newly selected particles to a file
                     with open(
                         select_dir / f"Movies/{Path(extracted_file).stem}.star", "a"
                     ) as selected_file:
-                        selected_file.write(f"{line.split()[0]} {line.split()[1]}\n")
+                        selected_file.write(f"{particle_x} {particle_y}\n")
 
-        for extracted_file in files_selected_from:
+        for extracted_file, motioncorr_file in files_selected_from:
             # Get the selected picks for each file
             extract_job_number = int(extracted_file.split("job")[1][:3])
             try:
@@ -522,18 +525,7 @@ class SelectClasses(CommonService):
             except FileNotFoundError:
                 selected_coords = []
 
-            # Get the names of the files needed to display picking
-            motioncorr_file = (
-                project_dir
-                / Path(
-                    re.sub(
-                        f"Extract/job{extract_job_number:03}/Movies/.+",
-                        "MotionCorr/job002/",
-                        extracted_file,
-                    )
-                )
-                / (Path(extracted_file).stem + ".mrc")
-            )
+            # Get the name of the  picking image file
             cryolo_output_path = (
                 Path(
                     re.sub(
