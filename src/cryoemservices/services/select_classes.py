@@ -523,13 +523,17 @@ class SelectClasses(CommonService):
                 selected_coords = []
 
             # Get the names of the files needed to display picking
-            motioncorr_file = Path(
-                re.sub(
-                    f"Extract/job{extract_job_number:03}/Movies/.+",
-                    "MotionCorr/job002/",
-                    extracted_file,
+            motioncorr_file = (
+                project_dir
+                / Path(
+                    re.sub(
+                        f"Extract/job{extract_job_number:03}/Movies/.+",
+                        "MotionCorr/job002/",
+                        extracted_file,
+                    )
                 )
-            ) / re.sub("_extracted", ".mrc", str(Path(extracted_file).stem))
+                / (Path(extracted_file).stem + ".mrc")
+            )
             cryolo_output_path = (
                 Path(
                     re.sub(
@@ -554,7 +558,7 @@ class SelectClasses(CommonService):
                     destination="images",
                     message={
                         "image_command": "picked_particles",
-                        "file": motioncorr_file,
+                        "file": str(motioncorr_file),
                         "coordinates": coords,
                         "selected_coordinates": selected_coords,
                         "pixel_size": autoselect_params.pixel_size,
@@ -567,7 +571,7 @@ class SelectClasses(CommonService):
                     "images",
                     {
                         "image_command": "picked_particles",
-                        "file": motioncorr_file,
+                        "file": str(motioncorr_file),
                         "coordinates": coords,
                         "selected_coordinates": selected_coords,
                         "pixel_size": autoselect_params.pixel_size,
