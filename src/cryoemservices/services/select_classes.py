@@ -514,15 +514,13 @@ class SelectClasses(CommonService):
         for extracted_file in files_selected_from:
             # Get the selected picks for each file
             extract_job_number = int(extracted_file.split("job")[1][:3])
-            selected_coords = []
-            with open(
-                select_dir / f"Movies/{Path(extracted_file).name}", "a"
-            ) as selected_file:
-                while True:
-                    line = selected_file.readline()
-                    if not line:
-                        break
-                    selected_coords.append(line.split())
+            try:
+                with open(
+                    select_dir / f"Movies/{Path(extracted_file).stem}.star", "r"
+                ) as selected_file:
+                    selected_coords = [line.split() for line in selected_file]
+            except FileNotFoundError:
+                selected_coords = []
 
             # Get the names of the files needed to display picking
             motioncorr_file = Path(
