@@ -126,7 +126,7 @@ class DenoiseSlurm(CommonService):
             return
 
         command = [
-            "/usr/local/conda/bin/topaz",
+            "topaz",
             "denoise3d",
             str(Path(denoise_params.volume).name),
         ]
@@ -189,9 +189,6 @@ class DenoiseSlurm(CommonService):
             use_gpu=True,
             use_singularity=True,
             cif_name=os.environ["DENOISING_SIF"],
-            script_extras=(
-                f"export LD_LIBRARY_PATH={os.environ['EXTRA_LIBRARIES']}:$LD_LIBRARY_PATH"
-            ),
         )
 
         # Get back the output files
