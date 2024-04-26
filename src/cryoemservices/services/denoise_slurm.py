@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from typing import Optional
 
@@ -8,7 +7,6 @@ import workflows.recipe
 from pydantic import BaseModel, Field, ValidationError, validator
 from workflows.services.common_service import CommonService
 
-from cryoemservices.services.tomo_align_slurm import retrieve_files, transfer_files
 from cryoemservices.util.slurm_submission import slurm_submission
 
 
@@ -167,15 +165,6 @@ class DenoiseSlurm(CommonService):
         denoised_full_path = Path(denoise_params.volume).parent / denoised_file
 
         self.log.info(f"Input: {denoise_params.volume} Output: {denoised_full_path}")
-
-        # Transfer the required files
-        self.log.info("Transferring files...")
-        transfer_status = transfer_files([denoise_params.volume])
-        if transfer_status:
-            self.log.error(f"Unable to transfer files: {transfer_status}")
-            rw.transport.nack(header)
-            return
-        self.log.info("All files transferred")
         self.log.info(f"Running Topaz {command}")
 
         # Submit the command to slurm
@@ -187,18 +176,9 @@ class DenoiseSlurm(CommonService):
             output_file=denoised_full_path,
             cpus=1,
             use_gpu=True,
-            use_singularity=True,
-            cif_name=os.environ["DENOISING_SIF"],
+            use_singularity=False,
+            script_extras="module load EM/topaz",
         )
-
-        # Get back the output files
-        self.log.info("Retrieving output files...")
-        retrieve_files(
-            job_directory=alignment_output_dir,
-            files_to_skip=[Path(denoise_params.volume)],
-            basepath=str(Path(denoise_params.volume).stem),
-        )
-        self.log.info("All output files retrieved")
 
         # Stop here if the job failed
         if slurm_outcome.returncode:
