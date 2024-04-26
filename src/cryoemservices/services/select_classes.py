@@ -525,6 +525,9 @@ class SelectClasses(CommonService):
             except FileNotFoundError:
                 selected_coords = []
 
+            if not Path(motioncorr_file).is_relative_to(project_dir):
+                motioncorr_file = project_dir / motioncorr_file
+
             # Get the name of the  picking image file
             cryolo_output_path = (
                 Path(
