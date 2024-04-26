@@ -505,7 +505,7 @@ class SelectClasses(CommonService):
                     particle_y = line.split()[1]
                     extracted_file = line.split()[2].split("@")[1]
                     motioncorr_file = line.split()[3]
-                    if extracted_file not in files_selected_from:
+                    if [extracted_file, motioncorr_file] not in files_selected_from:
                         # Make a list of all files
                         files_selected_from.append([extracted_file, motioncorr_file])
                     # Append any newly selected particles to a file
