@@ -396,7 +396,7 @@ class MotionCorr(CommonService):
                 f"failed with exitcode {result.returncode}:\n"
                 + result.stderr.decode("utf8", "replace")
             )
-            if mc_params.experiment_type == "spa" and not job_is_rerun:
+            if not job_is_rerun:
                 # On spa failure send the outputs to the node creator
                 node_creator_parameters = {
                     "job_type": self.job_type,
@@ -603,7 +603,7 @@ class MotionCorr(CommonService):
             )
 
         # If this is a new SPA run, send the results to be processed by the node creator
-        if mc_params.experiment_type == "spa" and not job_is_rerun:
+        if not job_is_rerun:
             # As this is the entry point we need to import the file to the project
             self.log.info("Sending relion.import.movies to node creator")
             project_dir = Path(
