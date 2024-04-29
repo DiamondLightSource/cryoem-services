@@ -76,6 +76,7 @@ def slurm_submission(
     use_singularity: bool,
     cif_name: str = "",
     script_extras: str = "",
+    external_filesystem: bool = False,
 ):
     """Submit jobs to a slurm cluster via the RestAPI"""
     try:
@@ -255,16 +256,20 @@ def slurm_submission(
 
     # Read in the output
     log.info(f"Job {job_id} has finished!")
-    try:
-        with open(slurm_output_file, "r") as slurm_stdout:
-            stdout = slurm_stdout.read()
-        with open(slurm_error_file, "r") as slurm_stderr:
-            stderr = slurm_stderr.read()
-    except FileNotFoundError:
-        log.error(f"Output file {slurm_output_file} not found")
+    if not external_filesystem:
+        try:
+            with open(slurm_output_file, "r") as slurm_stdout:
+                stdout = slurm_stdout.read()
+            with open(slurm_error_file, "r") as slurm_stderr:
+                stderr = slurm_stderr.read()
+        except FileNotFoundError:
+            log.error(f"Output file {slurm_output_file} not found")
+            stdout = ""
+            stderr = f"Reading output file {slurm_error_file} failed"
+            slurm_job_state = "FAILED"
+    else:
         stdout = ""
-        stderr = f"Reading output file {slurm_error_file} failed"
-        slurm_job_state = "FAILED"
+        stderr = ""
 
     # Read in the output then clean up the files
     if slurm_job_state == "COMPLETED":

@@ -164,11 +164,8 @@ class TomoAlignSlurm(TomoAlign, CommonService):
             script_extras=(
                 f"export LD_LIBRARY_PATH={os.environ['EXTRA_LIBRARIES']}:$LD_LIBRARY_PATH"
             ),
+            external_filesystem=True,
         )
-
-        slurm_output_file = f"{self.aretomo_output_path}.out"
-        if tomo_parameters.tilt_cor and Path(slurm_output_file).is_file():
-            self.parse_tomo_output(slurm_output_file)
 
         # Get back any output files and clean up
         self.log.info("Retrieving output files...")
@@ -178,5 +175,20 @@ class TomoAlignSlurm(TomoAlign, CommonService):
             basepath=str(Path(tomo_parameters.stack_file).stem),
         )
         self.log.info("All output files retrieved")
+
+        slurm_output_file = f"{self.aretomo_output_path}.out"
+        slurm_error_file = f"{self.aretomo_output_path}.out"
+        if tomo_parameters.tilt_cor and Path(slurm_output_file).is_file():
+            self.parse_tomo_output(slurm_output_file)
+
+        try:
+            with open(slurm_output_file, "r") as slurm_stdout:
+                slurm_outcome.stdout = slurm_stdout.read()
+            with open(slurm_error_file, "r") as slurm_stderr:
+                slurm_outcome.stderr = slurm_stderr.read()
+        except FileNotFoundError:
+            self.log.error(f"Output file {slurm_output_file} not found")
+            slurm_outcome.stdout = ""
+            slurm_outcome.stderr = f"Reading output file {slurm_output_file} failed"
 
         return slurm_outcome
