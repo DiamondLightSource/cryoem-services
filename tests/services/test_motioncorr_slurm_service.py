@@ -35,7 +35,7 @@ def offline_transport(mocker):
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-@mock.patch("cryoemservices.services.motioncorr.subprocess.run")
+@mock.patch("cryoemservices.util.slurm_submission.subprocess.run")
 def test_motioncor2_service_spa(
     mock_subprocess, mock_environment, offline_transport, tmp_path
 ):
@@ -287,7 +287,7 @@ def test_motioncor2_service_spa(
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-@mock.patch("cryoemservices.services.motioncorr.subprocess.run")
+@mock.patch("cryoemservices.util.slurm_submission.subprocess.run")
 def test_motioncor2_service_tomo(
     mock_subprocess, mock_environment, offline_transport, tmp_path
 ):

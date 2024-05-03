@@ -67,7 +67,7 @@ ctffind:
     readOnly: true
   configMap: zocalo-conf
 
-denoise_iris:
+denoise_slurm:
   replicas: 1
   image: gcr.io/image/path
   command: zocalo.service -s service-name -e environment
@@ -291,7 +291,7 @@ tomo_align:
     readOnly: true
   configMap: zocalo-conf
 
-tomo_align_iris:
+tomo_align_slurm:
   replicas: 1
   image: gcr.io/image/path
   command: zocalo.service -s service-name -e environment

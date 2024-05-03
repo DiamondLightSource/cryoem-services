@@ -1,23 +1,23 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: denoise-iris
+  name: tomo-align-slurm
   namespace: {{ .Values.global.namespace }}
 spec:
   replicas: {{ .Values.replicas }}
   selector:
     matchLabels:
-      app: denoise-iris
+      app: tomo-align-slurm
   template:
     metadata:
       labels:
-        app: denoise-iris
+        app: tomo-align-slurm
     spec:
       securityContext:
         runAsUser: {{ .Values.global.runAsUser }}
         runAsGroup: {{ .Values.global.runAsGroup }}
       containers:
-      - name: denoise-iris-runner
+      - name: tomo-align-slurm-runner
         image: {{ .Values.image }}
         imagePullPolicy: Always
         resources:
@@ -27,7 +27,7 @@ spec:
             cpu: {{ .Values.cpuLimit }}
             memory: {{ .Values.memoryLimit }}
         command: ["/bin/sh"]
-        args:
+        args: 
           - -c
           - >-
               {{ .Values.command }}
@@ -38,6 +38,12 @@ spec:
           value: "/zocalo/config/{{ .Values.configFileName }}"
         - name: ISPYB_CREDENTIALS
           value: "/zocalo/secrets/{{ .Values.dbFileName }}"
+        - name: LD_LIBRARY_PATH
+          value: "/IMOD/4.11.1/IMOD/lib:/IMOD/4.11.1/IMOD/qtlib"
+        - name: IMOD_DIR
+          value: "/IMOD/4.11.1/IMOD"
+        - name: CONDOR_CONFIG
+          value: "ONLY_ENV"
         volumeMounts:
         - name: config-file
           mountPath: /zocalo/config
@@ -68,16 +74,16 @@ spec:
 apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
 metadata:
-  name: denoise-iris
+  name: tomo-align-slurm
   namespace: {{ .Values.global.namespace }}
 spec:
   scaleTargetRef:
-    name: denoise-iris
+    name: tomo-align-slurm
   triggers:
     - type: rabbitmq
       metadata:
         host: {{ .Values.global.rmqHost }}
-        queueName: denoise
+        queueName: tomo_align
         mode: QueueLength
         value: "{{ .Values.queueLengthTrigger }}"
   minReplicaCount: {{ .Values.minReplicaCount }}
