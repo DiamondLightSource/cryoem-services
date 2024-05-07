@@ -468,13 +468,6 @@ class MotionCorr(CommonService):
             if mc_params.relion_options:
                 mc_params.relion_options.pixel_size *= mc_params.motion_corr_binning
 
-        # Write output logs for tomography processing
-        if mc_params.experiment_type == "tomography":
-            with open(Path(mc_params.mrc_out).with_suffix(".out"), "w") as f:
-                f.write(" ".join(command) + "\n\n")
-                f.write(result.stdout.decode("utf8", "replace") + "\n\n")
-                f.write(result.stderr.decode("utf8", "replace") + "\n\n")
-
         # Confirm the command ran successfully
         if result.returncode:
             self.log.error(
@@ -482,28 +475,27 @@ class MotionCorr(CommonService):
                 f"failed with exitcode {result.returncode}:\n"
                 + result.stderr.decode("utf8", "replace")
             )
-            if not job_is_rerun:
-                # On spa failure send the outputs to the node creator
-                node_creator_parameters = {
-                    "job_type": self.job_type,
-                    "input_file": mc_params.mrc_out,
-                    "output_file": mc_params.mrc_out,
-                    "relion_options": dict(mc_params.relion_options),
-                    "command": " ".join(command),
-                    "stdout": result.stdout.decode("utf8", "replace"),
-                    "stderr": result.stderr.decode("utf8", "replace"),
-                    "success": False,
-                }
-                if isinstance(rw, MockRW):
-                    rw.transport.send(
-                        destination="node_creator",
-                        message={
-                            "parameters": node_creator_parameters,
-                            "content": "dummy",
-                        },
-                    )
-                else:
-                    rw.send_to("node_creator", node_creator_parameters)
+            # On failure send the outputs to the node creator
+            node_creator_parameters = {
+                "job_type": self.job_type,
+                "input_file": mc_params.mrc_out,
+                "output_file": mc_params.mrc_out,
+                "relion_options": dict(mc_params.relion_options),
+                "command": " ".join(command),
+                "stdout": result.stdout.decode("utf8", "replace"),
+                "stderr": result.stderr.decode("utf8", "replace"),
+                "success": False,
+            }
+            if isinstance(rw, MockRW):
+                rw.transport.send(
+                    destination="node_creator",
+                    message={
+                        "parameters": node_creator_parameters,
+                        "content": "dummy",
+                    },
+                )
+            else:
+                rw.send_to("node_creator", node_creator_parameters)
             rw.transport.nack(header)
             return
 
@@ -688,7 +680,7 @@ class MotionCorr(CommonService):
                 },
             )
 
-        # If this is a new SPA run, send the results to be processed by the node creator
+        # If this is a new run, send the results to be processed by the node creator
         if not job_is_rerun:
             # As this is the entry point we need to import the file to the project
             self.log.info("Sending relion.import.movies to node creator")
@@ -707,15 +699,26 @@ class MotionCorr(CommonService):
                 import_movie.parent.mkdir(parents=True)
             import_movie.unlink(missing_ok=True)
             import_movie.symlink_to(mc_params.movie)
-            import_parameters = {
-                "job_type": "relion.import.movies",
-                "input_file": str(mc_params.movie),
-                "output_file": str(import_movie),
-                "relion_options": dict(mc_params.relion_options),
-                "command": "",
-                "stdout": "",
-                "stderr": "",
-            }
+            if mc_params.experiment_type == "spa":
+                import_parameters = {
+                    "job_type": "relion.import.movies",
+                    "input_file": str(mc_params.movie),
+                    "output_file": str(import_movie),
+                    "relion_options": dict(mc_params.relion_options),
+                    "command": "",
+                    "stdout": "",
+                    "stderr": "",
+                }
+            else:
+                import_parameters = {
+                    "job_type": "relion.import.tilt_series",
+                    "input_file": str(mc_params.movie),
+                    "output_file": str(import_movie),
+                    "relion_options": dict(mc_params.relion_options),
+                    "command": "",
+                    "stdout": "",
+                    "stderr": "",
+                }
             if isinstance(rw, MockRW):
                 rw.transport.send(
                     destination="node_creator",
