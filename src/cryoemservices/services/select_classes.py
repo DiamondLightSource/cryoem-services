@@ -530,7 +530,7 @@ class SelectClasses(CommonService):
                 motioncorr_file = project_dir / motioncorr_file
 
             if not original_pixel_size:
-                with mrcfile.read(motioncorr_file) as mrc:
+                with mrcfile.open(motioncorr_file) as mrc:
                     original_pixel_size = float(mrc.header.cella.z)
 
             # Get the name of the  picking image file
