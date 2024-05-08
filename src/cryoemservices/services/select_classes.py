@@ -8,6 +8,7 @@ import subprocess
 from contextlib import redirect_stdout
 from pathlib import Path
 
+import mrcfile
 import numpy as np
 import workflows.recipe
 from gemmi import cif
@@ -24,7 +25,6 @@ from cryoemservices.util.spa_relion_service_options import RelionServiceOptions
 class SelectClassesParameters(BaseModel):
     input_file: str = Field(..., min_length=1)
     combine_star_job_number: int
-    pixel_size: float
     particle_diameter: float
     class2d_fraction_of_classes_to_remove: float = 0.9
     particles_file: str = "particles.star"
@@ -514,6 +514,7 @@ class SelectClasses(CommonService):
                     ) as selected_file:
                         selected_file.write(f"{particle_x} {particle_y}\n")
 
+        original_pixel_size = None
         for extracted_file, motioncorr_file in files_selected_from:
             # Get the selected picks for each file
             extract_job_number = int(extracted_file.split("job")[1][:3])
@@ -527,6 +528,10 @@ class SelectClasses(CommonService):
 
             if not Path(motioncorr_file).is_relative_to(project_dir):
                 motioncorr_file = project_dir / motioncorr_file
+
+            if not original_pixel_size:
+                with mrcfile.read(motioncorr_file) as mrc:
+                    original_pixel_size = float(mrc.header.cella.z)
 
             # Get the name of the  picking image file
             cryolo_output_path = (
