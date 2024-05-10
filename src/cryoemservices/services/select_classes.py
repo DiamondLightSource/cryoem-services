@@ -489,7 +489,7 @@ class SelectClasses(CommonService):
         # Request selected particles image from images service
         self.log.info("Sending to images service")
         files_selected_from = []
-        (select_dir / "Movies").mkdir(exist_ok=True)
+        (combine_star_dir / "Movies").mkdir(exist_ok=True)
         with open(
             select_dir / autoselect_params.particles_file, "r"
         ) as selected_particles:
@@ -510,7 +510,8 @@ class SelectClasses(CommonService):
                         files_selected_from.append([extracted_file, motioncorr_file])
                     # Append any newly selected particles to a file
                     with open(
-                        select_dir / f"Movies/{Path(extracted_file).stem}.star", "a"
+                        combine_star_dir / f"Movies/{Path(extracted_file).stem}.star",
+                        "a",
                     ) as selected_file:
                         selected_file.write(f"{particle_x} {particle_y}\n")
 
@@ -520,7 +521,7 @@ class SelectClasses(CommonService):
             extract_job_number = int(extracted_file.split("job")[1][:3])
             try:
                 with open(
-                    select_dir / f"Movies/{Path(extracted_file).stem}.star", "r"
+                    combine_star_dir / f"Movies/{Path(extracted_file).stem}.star", "r"
                 ) as selected_file:
                     selected_coords = [line.split() for line in selected_file]
             except FileNotFoundError:
