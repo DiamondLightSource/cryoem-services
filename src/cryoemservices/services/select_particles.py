@@ -96,14 +96,10 @@ class SelectParticles(CommonService):
         self.log.info(f"Inputs: {select_params.input_file}")
         select_params.relion_options.batch_size = select_params.batch_size
 
-        extract_job_dir = Path(
-            re.search(".+/job[0-9]{3}/", select_params.input_file)[0]
-        )
+        extract_job_dir = Path(re.search(".+/job[0-9]+/", select_params.input_file)[0])
         project_dir = extract_job_dir.parent.parent
 
-        select_job_num = (
-            int(re.search("/job[0-9]{3}", str(extract_job_dir))[0][4:7]) + 1
-        )
+        select_job_num = int(re.search("/job[0-9]+", str(extract_job_dir))[0][4:7]) + 1
         select_dir = project_dir / f"Select/job{select_job_num:03}"
         select_dir.mkdir(parents=True, exist_ok=True)
 
