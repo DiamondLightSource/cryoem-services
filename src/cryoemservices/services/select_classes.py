@@ -8,6 +8,7 @@ import subprocess
 from contextlib import redirect_stdout
 from pathlib import Path
 
+import mrcfile
 import numpy as np
 import workflows.recipe
 from gemmi import cif
@@ -24,6 +25,7 @@ from cryoemservices.util.spa_relion_service_options import RelionServiceOptions
 class SelectClassesParameters(BaseModel):
     input_file: str = Field(..., min_length=1)
     combine_star_job_number: int
+    particle_diameter: float
     class2d_fraction_of_classes_to_remove: float = 0.9
     particles_file: str = "particles.star"
     classes_file: str = "class_averages.star"
@@ -483,6 +485,101 @@ class SelectClasses(CommonService):
             self.log.error("Star file splitting failed")
             rw.transport.nack(header)
             return
+
+        # Request selected particles image from images service
+        self.log.info("Sending to images service")
+        files_selected_from = []
+        (combine_star_dir / "Movies").mkdir(exist_ok=True)
+        with open(
+            select_dir / autoselect_params.particles_file, "r"
+        ) as selected_particles:
+            while True:
+                line = selected_particles.readline()
+                if not line:
+                    break
+                if not line.strip():
+                    continue
+                if line.strip()[0].isnumeric():
+                    # Second entry is particle files in the form 001@Extract/file.star
+                    particle_x = line.split()[0]
+                    particle_y = line.split()[1]
+                    extracted_file = line.split()[2].split("@")[1]
+                    motioncorr_file = line.split()[3]
+                    if [extracted_file, motioncorr_file] not in files_selected_from:
+                        # Make a list of all files
+                        files_selected_from.append([extracted_file, motioncorr_file])
+                    # Append any newly selected particles to a file
+                    with open(
+                        combine_star_dir / f"Movies/{Path(extracted_file).stem}.star",
+                        "a",
+                    ) as selected_file:
+                        selected_file.write(f"{particle_x} {particle_y}\n")
+
+        original_pixel_size = None
+        for extracted_file, motioncorr_file in files_selected_from:
+            # Get the selected picks for each file
+            extract_job_number = int(extracted_file.split("job")[1][:3])
+            try:
+                with open(
+                    combine_star_dir / f"Movies/{Path(extracted_file).stem}.star", "r"
+                ) as selected_file:
+                    selected_coords = [line.split() for line in selected_file]
+            except FileNotFoundError:
+                selected_coords = []
+
+            if not Path(motioncorr_file).is_relative_to(project_dir):
+                motioncorr_file = project_dir / motioncorr_file
+
+            if not original_pixel_size:
+                with mrcfile.open(motioncorr_file) as mrc:
+                    original_pixel_size = float(mrc.header.cella.z)
+
+            # Get the name of the  picking image file
+            cryolo_output_path = (
+                Path(
+                    re.sub(
+                        "MotionCorr/job002/.+",
+                        f"AutoPick/job{extract_job_number - 1:03}/STAR/",
+                        str(motioncorr_file),
+                    )
+                )
+                / Path(motioncorr_file).with_suffix(".star").name
+            )
+
+            # Get all the picks
+            try:
+                with open(cryolo_output_path, "r") as coords_file:
+                    coords = [line.split() for line in coords_file][6:]
+            except FileNotFoundError:
+                coords = []
+
+            # Generate image of selected and non-selected picks
+            if isinstance(rw, MockRW):
+                rw.transport.send(
+                    destination="images",
+                    message={
+                        "image_command": "picked_particles",
+                        "file": str(motioncorr_file),
+                        "coordinates": coords,
+                        "selected_coordinates": selected_coords,
+                        "pixel_size": original_pixel_size,
+                        "diameter": autoselect_params.particle_diameter,
+                        "outfile": str(Path(cryolo_output_path).with_suffix(".jpeg")),
+                    },
+                )
+            else:
+                rw.send_to(
+                    "images",
+                    {
+                        "image_command": "picked_particles",
+                        "file": str(motioncorr_file),
+                        "coordinates": coords,
+                        "selected_coordinates": selected_coords,
+                        "pixel_size": original_pixel_size,
+                        "diameter": autoselect_params.particle_diameter,
+                        "outfile": str(Path(cryolo_output_path).with_suffix(".jpeg")),
+                    },
+                )
 
         # Create 3D classification jobs
         if send_to_3d_classification:

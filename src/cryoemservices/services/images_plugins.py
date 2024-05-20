@@ -98,6 +98,7 @@ def picked_particles(plugin_params):
         logger.info(f"Replacing jpeg extension with mrc extension for {basefilename}")
         basefilename = basefilename.replace(".jpeg", ".mrc")
     coords = plugin_params.parameters("coordinates")
+    selected_coords = plugin_params.parameters("selected_coordinates")
     pixel_size = plugin_params.parameters("pixel_size")
     if not pixel_size:
         # Legacy case of zocalo-relion
@@ -140,6 +141,7 @@ def picked_particles(plugin_params):
         fim = enhanced.filter(ImageFilter.BLUR)
         dim = ImageDraw.Draw(fim)
         if coords and coords[0]:
+            # Orange circles for all coordinates
             for x, y in coords:
                 dim.ellipse(
                     [
@@ -151,6 +153,17 @@ def picked_particles(plugin_params):
                 )
         else:
             logger.warning(f"No coordinates provided for {basefilename}")
+        if selected_coords and selected_coords[0]:
+            # Green circles if selected coordinates are provided
+            for x, y in selected_coords:
+                dim.ellipse(
+                    [
+                        (float(x) - radius, float(y) - radius),
+                        (float(x) + radius, float(y) + radius),
+                    ],
+                    width=12,
+                    outline="#98df8a",
+                )
         try:
             fim.save(outfile)
         except FileNotFoundError:
