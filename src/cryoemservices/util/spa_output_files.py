@@ -4,11 +4,20 @@ import re
 from pathlib import Path
 from typing import Callable, Dict
 
+import numpy as np
 from gemmi import cif
 
 from cryoemservices.util.spa_relion_service_options import RelionServiceOptions
 
 NODE_PARTICLEGROUPMETADATA = "ParticleGroupMetadata"
+
+
+def get_ice_ring_density(output_file: Path):
+    with open(f"{output_file.with_suffix('')}_avrot.txt", "r") as f:
+        ctf_rings = f.readlines()[5:7]
+    ring_levels = np.array(ctf_rings[0].split(), dtype=float)
+    ice_values = np.array(ctf_rings[1].split(), dtype=float)
+    return np.sum(np.abs(ice_values[(ring_levels > 0.25) * (ring_levels < 0.28)]))
 
 
 def get_optics_table(
@@ -148,6 +157,8 @@ def _ctffind_output_files(
     # Results needed in the star file are stored in a txt file with the output
     with open(output_file.with_suffix(".txt"), "r") as f:
         ctf_results = f.readlines()[-1].split()
+    ice_ring_density = get_ice_ring_density(output_file)
+
     added_line = [
         str(input_file),
         "1",
@@ -158,6 +169,7 @@ def _ctffind_output_files(
         ctf_results[3],
         ctf_results[5],
         ctf_results[6],
+        ice_ring_density,
     ]
 
     # Read and append to the existing output file, or otherwise create one
@@ -177,6 +189,7 @@ def _ctffind_output_files(
                 "DefocusAngle",
                 "CtfFigureOfMerit",
                 "CtfMaxResolution",
+                "CtfIceRingDensity",
             ],
         )
         movies_loop.add_row(added_line)
