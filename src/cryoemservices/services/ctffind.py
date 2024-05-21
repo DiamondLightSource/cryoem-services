@@ -9,7 +9,7 @@ import workflows.recipe
 from pydantic import BaseModel, Field, ValidationError, validator
 from workflows.services.common_service import CommonService
 
-from cryoemservices.util.spa_relion_service_options import RelionServiceOptions
+from cryoemservices.util.relion_service_options import RelionServiceOptions
 
 
 class CTFParameters(BaseModel):

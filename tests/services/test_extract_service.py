@@ -10,7 +10,7 @@ from gemmi import cif
 from workflows.transport.offline_transport import OfflineTransport
 
 from cryoemservices.services import extract
-from cryoemservices.util.spa_relion_service_options import RelionServiceOptions
+from cryoemservices.util.relion_service_options import RelionServiceOptions
 
 
 @pytest.fixture

@@ -19,7 +19,7 @@ from cryoemservices.pipeliner_plugins.combine_star_files import (
     combine_star_files,
     split_star_file,
 )
-from cryoemservices.util.spa_relion_service_options import RelionServiceOptions
+from cryoemservices.util.relion_service_options import RelionServiceOptions
 
 
 class SelectClassesParameters(BaseModel):
