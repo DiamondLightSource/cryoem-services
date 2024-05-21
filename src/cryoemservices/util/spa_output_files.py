@@ -169,7 +169,7 @@ def _ctffind_output_files(
         ctf_results[3],
         ctf_results[5],
         ctf_results[6],
-        ice_ring_density,
+        str(ice_ring_density),
     ]
 
     # Read and append to the existing output file, or otherwise create one

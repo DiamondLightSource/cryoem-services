@@ -183,6 +183,7 @@ def test_ctffind_service(
         destination="node_creator",
         message={
             "parameters": {
+                "experiment_type": "spa",
                 "job_type": "relion.ctffind.ctffind4",
                 "input_file": f"{tmp_path}/MotionCorr/job002/sample.mrc",
                 "output_file": f"{tmp_path}/CtfFind/job006/sample.ctf",

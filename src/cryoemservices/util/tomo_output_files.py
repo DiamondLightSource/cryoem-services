@@ -235,7 +235,7 @@ def _ctffind_output_files(
         ctf_results[3],
         ctf_results[5],
         ctf_results[6],
-        ice_ring_density,
+        str(ice_ring_density),
     ]
 
     # Create or append to the star file for the individual tilt series
