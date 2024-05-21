@@ -682,7 +682,7 @@ class MotionCorr(CommonService):
         # If this is a new run, send the results to be processed by the node creator
         if not job_is_rerun:
             # As this is the entry point we need to import the file to the project
-            self.log.info("Sending relion.import.movies to node creator")
+            self.log.info("Sending relion.import to node creator")
             project_dir = Path(
                 re.search(".+/job[0-9]+/", mc_params.mrc_out)[0]
             ).parent.parent
