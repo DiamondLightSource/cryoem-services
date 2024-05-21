@@ -10,7 +10,7 @@ import zocalo.configuration
 from workflows.transport.offline_transport import OfflineTransport
 
 from cryoemservices.services import icebreaker
-from cryoemservices.util.spa_relion_service_options import RelionServiceOptions
+from cryoemservices.util.relion_service_options import RelionServiceOptions
 
 output_relion_options = dict(RelionServiceOptions())
 

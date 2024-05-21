@@ -8,8 +8,8 @@ from gemmi import cif
 from pydantic import BaseModel, Field, ValidationError
 from workflows.services.common_service import CommonService
 
+from cryoemservices.util.relion_service_options import RelionServiceOptions
 from cryoemservices.util.spa_output_files import get_optics_table
-from cryoemservices.util.spa_relion_service_options import RelionServiceOptions
 
 
 class SelectParticlesParameters(BaseModel):
