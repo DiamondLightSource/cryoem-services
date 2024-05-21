@@ -13,7 +13,7 @@ from gemmi import cif
 from pydantic import BaseModel, Field, ValidationError
 from zocalo.wrapper import BaseWrapper
 
-from cryoemservices.util.spa_relion_service_options import (
+from cryoemservices.util.relion_service_options import (
     RelionServiceOptions,
     update_relion_options,
 )

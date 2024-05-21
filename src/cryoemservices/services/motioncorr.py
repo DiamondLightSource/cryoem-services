@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field, ValidationError, validator
 from workflows.services.common_service import CommonService
 
 from cryoemservices.util.slurm_submission import slurm_submission
-from cryoemservices.util.spa_relion_service_options import (
+from cryoemservices.util.relion_service_options import (
     RelionServiceOptions,
     update_relion_options,
 )
