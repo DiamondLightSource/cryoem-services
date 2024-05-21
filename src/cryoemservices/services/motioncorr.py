@@ -626,7 +626,7 @@ class MotionCorr(CommonService):
             else:
                 import_parameters = {
                     "job_type": "relion.import.tilt_series",
-                    "input_file": str(mc_params.movie),
+                    "input_file": f"{mc_params.movie}:{Path(mc_params.movie).parent}/*.mdoc",
                     "output_file": str(import_movie),
                     "relion_options": dict(mc_params.relion_options),
                     "command": "",

@@ -19,14 +19,15 @@ from pipeliner.data_structure import FAIL_FILE, SUCCESS_FILE
 from pipeliner.job_factory import read_job
 from pipeliner.project_graph import ProjectGraph
 from pipeliner.utils import DirectoryBasedLock
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, validator
 from workflows.services.common_service import CommonService
 
-from cryoemservices.util.spa_output_files import create_output_files
-from cryoemservices.util.spa_relion_service_options import (
+from cryoemservices.util.relion_service_options import (
     RelionServiceOptions,
     generate_service_options,
 )
+from cryoemservices.util.spa_output_files import create_spa_output_files
+from cryoemservices.util.tomo_output_files import create_tomo_output_files
 
 
 @lru_cache(maxsize=2)
@@ -46,6 +47,7 @@ class CachedProjectGraph(ProjectGraph):
 # the folder name they run in, and the names of their inputs in the job star
 pipeline_spa_jobs: dict[str, dict] = {
     "relion.import.movies": {"folder": "Import", "input_stars": {}},
+    "relion.import.tilt_series": {"folder": "Import", "input_stars": {}},
     "relion.motioncorr.own": {
         "folder": "MotionCorr",
         "input_stars": {"input_star_mics": "movies.star"},
@@ -152,9 +154,16 @@ class NodeCreatorParameters(BaseModel):
     command: str
     stdout: str
     stderr: str
+    experiment_type: str = "spa"
     success: bool = True
     results: Optional[dict] = None
     alias: Optional[str] = None
+
+    @validator("experiment_type")
+    def is_spa_or_tomo(cls, experiment):
+        if experiment not in ["spa", "tomography"]:
+            raise ValueError("Specify an experiment type of spa or tomography.")
+        return experiment
 
 
 class NodeCreator(CommonService):
@@ -272,8 +281,11 @@ class NodeCreator(CommonService):
                         )
                         pipeline_options[label] = input_job_dir / star
                     ii += 1
-            else:
+            elif job_info.job_type == "relion.import.movies":
                 pipeline_options["fn_in_raw"] = job_info.input_file
+            elif job_info.job_type == "relion.import.tilt_series":
+                pipeline_options["movie_files"] = job_info.input_file.split(":")[0]
+                pipeline_options["mdoc_files"] = job_info.input_file.split(":")[1]
 
             # If this is a new job we need a job.star
             if not Path(f"{job_info.job_type.replace('.', '_')}_job.star").is_file():
@@ -324,10 +336,11 @@ class NodeCreator(CommonService):
             if job_dir.is_relative_to(project_dir)
             else job_dir
         )
+        first_input_file = job_info.input_file.split(":")[0]
         relative_input_file = (
-            Path(job_info.input_file).relative_to(project_dir)
-            if Path(job_info.input_file).is_relative_to(project_dir)
-            else job_info.input_file
+            Path(first_input_file).relative_to(project_dir)
+            if Path(first_input_file).is_relative_to(project_dir)
+            else first_input_file
         )
         relative_output_file = (
             Path(job_info.output_file).relative_to(project_dir)
@@ -367,14 +380,24 @@ class NodeCreator(CommonService):
         extra_output_nodes = None
         if job_info.success:
             # Write the output files which Relion produces
-            extra_output_nodes = create_output_files(
-                job_type=job_info.job_type,
-                job_dir=relative_job_dir,
-                input_file=relative_input_file,
-                output_file=relative_output_file,
-                relion_options=job_info.relion_options,
-                results=job_info.results,
-            )
+            if job_info.experiment_type == "spa":
+                extra_output_nodes = create_spa_output_files(
+                    job_type=job_info.job_type,
+                    job_dir=relative_job_dir,
+                    input_file=relative_input_file,
+                    output_file=relative_output_file,
+                    relion_options=job_info.relion_options,
+                    results=job_info.results,
+                )
+            else:
+                extra_output_nodes = create_tomo_output_files(
+                    job_type=job_info.job_type,
+                    job_dir=relative_job_dir,
+                    input_file=relative_input_file,
+                    output_file=relative_output_file,
+                    relion_options=job_info.relion_options,
+                    results=job_info.results,
+                )
             if extra_output_nodes:
                 # Add any extra nodes if they are not already present
                 existing_nodes = []
