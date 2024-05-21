@@ -62,7 +62,7 @@ class MotionCorrParameters(BaseModel):
     movie_id: int
     mc_uuid: int
     picker_uuid: int
-    relion_options: Optional[RelionServiceOptions] = None
+    relion_options: RelionServiceOptions
     ctf: dict = {}
 
     @validator("experiment_type")
@@ -253,12 +253,11 @@ class MotionCorr(CommonService):
                 except ValueError:
                     self.log.warning("Cannot read eer grouping")
 
-        if mc_params.experiment_type == "spa":
-            # Update the relion options
-            mc_params.relion_options = update_relion_options(
-                mc_params.relion_options, dict(mc_params)
-            )
-            mc_params.relion_options.eer_grouping = eer_grouping
+        # Update the relion options
+        mc_params.relion_options = update_relion_options(
+            mc_params.relion_options, dict(mc_params)
+        )
+        mc_params.relion_options.eer_grouping = eer_grouping
 
         # Determine the input and output files
         self.log.info(f"Input: {mc_params.movie} Output: {mc_params.mrc_out}")
@@ -391,6 +390,7 @@ class MotionCorr(CommonService):
             )
             # On failure send the outputs to the node creator
             node_creator_parameters = {
+                "experiment_type": mc_params.experiment_type,
                 "job_type": self.job_type,
                 "input_file": mc_params.mrc_out,
                 "output_file": mc_params.mrc_out,
@@ -470,7 +470,7 @@ class MotionCorr(CommonService):
         else:
             rw.send_to("ispyb_connector", ispyb_parameters)
 
-        # If this is SPA, determine and set up the next jobs
+        # Determine and set up the next jobs
         if mc_params.experiment_type == "spa":
             # Set up icebreaker if requested, then ctffind
             icebreaker_output = Path(
@@ -546,19 +546,9 @@ class MotionCorr(CommonService):
             else:
                 # No IceBreaker jobs: CtfFind job is MC+1
                 ctf_job_number = 3
-            mc_params.ctf["output_image"] = str(
-                Path(
-                    mc_params.mrc_out.replace(
-                        "MotionCorr/job002", f"CtfFind/job{ctf_job_number:03}"
-                    )
-                ).with_suffix(".ctf")
-            )
-            mc_params.ctf["relion_options"] = dict(mc_params.relion_options)
-            mc_params.ctf["amplitude_contrast"] = mc_params.relion_options.ampl_contrast
         else:
-            mc_params.ctf["output_image"] = mc_params.mrc_out.replace(
-                "MotionCorr", "CTF"
-            ).replace("_motion_corrected", "_ctf")
+            # Tomography: CtfFind job is MC+1
+            ctf_job_number = 3
 
         # Forward results to ctffind (in both SPA and tomography)
         self.log.info(f"Sending to ctf: {mc_params.mrc_out}")
@@ -567,6 +557,15 @@ class MotionCorr(CommonService):
         mc_params.ctf["mc_uuid"] = mc_params.mc_uuid
         mc_params.ctf["picker_uuid"] = mc_params.picker_uuid
         mc_params.ctf["pixel_size"] = mc_params.pixel_size
+        mc_params.ctf["relion_options"] = dict(mc_params.relion_options)
+        mc_params.ctf["amplitude_contrast"] = mc_params.relion_options.ampl_contrast
+        mc_params.ctf["output_image"] = str(
+            Path(
+                mc_params.mrc_out.replace(
+                    "MotionCorr/job002", f"CtfFind/job{ctf_job_number:03}"
+                )
+            ).with_suffix(".ctf")
+        )
         if isinstance(rw, MockRW):
             rw.transport.send(  # type: ignore
                 destination="ctffind",
@@ -615,6 +614,7 @@ class MotionCorr(CommonService):
             import_movie.symlink_to(mc_params.movie)
             if mc_params.experiment_type == "spa":
                 import_parameters = {
+                    "experiment_type": mc_params.experiment_type,
                     "job_type": "relion.import.movies",
                     "input_file": str(mc_params.movie),
                     "output_file": str(import_movie),
@@ -625,6 +625,7 @@ class MotionCorr(CommonService):
                 }
             else:
                 import_parameters = {
+                    "experiment_type": mc_params.experiment_type,
                     "job_type": "relion.import.tilt_series",
                     "input_file": f"{mc_params.movie}:{Path(mc_params.movie).parent}/*.mdoc",
                     "output_file": str(import_movie),
@@ -644,6 +645,7 @@ class MotionCorr(CommonService):
             # Then register the motion correction job with the node creator
             self.log.info(f"Sending {self.job_type} to node creator")
             node_creator_parameters = {
+                "experiment_type": mc_params.experiment_type,
                 "job_type": self.job_type,
                 "input_file": str(import_movie),
                 "output_file": mc_params.mrc_out,

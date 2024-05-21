@@ -3,7 +3,6 @@ from __future__ import annotations
 import re
 import subprocess
 from pathlib import Path
-from typing import Optional
 
 import workflows.recipe
 from pydantic import BaseModel, Field, ValidationError, validator
@@ -33,7 +32,7 @@ class CTFParameters(BaseModel):
     expert_options: str = "no"
     mc_uuid: int
     picker_uuid: int
-    relion_options: Optional[RelionServiceOptions] = None
+    relion_options: RelionServiceOptions
     autopick: dict = {}
 
     @validator("experiment_type")
@@ -189,10 +188,11 @@ class CTFFind(CommonService):
         self.parse_ctf_output(result.stdout.decode("utf8", "replace"))
 
         # If this is a new SPA run, send the results to be processed by the node creator
-        if ctf_params.experiment_type == "spa" and not job_is_rerun:
+        if not job_is_rerun:
             # Register the ctf job with the node creator
             self.log.info(f"Sending {self.job_type} to node creator")
             node_creator_parameters = {
+                "experiment_type": ctf_params.experiment_type,
                 "job_type": self.job_type,
                 "input_file": ctf_params.input_image,
                 "output_file": ctf_params.output_image,
@@ -216,12 +216,6 @@ class CTFFind(CommonService):
                 )
             else:
                 rw.send_to("node_creator", node_creator_parameters)
-        elif ctf_params.experiment_type == "tomography":
-            # Write output logs for tomography processing
-            with open(Path(ctf_params.output_image).with_suffix(".out"), "w") as f:
-                f.write(" ".join(command) + "\n\n")
-                f.write(result.stdout.decode("utf8", "replace") + "\n\n")
-                f.write(result.stderr.decode("utf8", "replace") + "\n\n")
 
         # End here if the command failed
         if result.returncode:
