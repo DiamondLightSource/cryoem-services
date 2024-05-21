@@ -141,6 +141,9 @@ class SelectClasses(CommonService):
         autoselect_params.relion_options.autoselect_min_score = (
             autoselect_params.autoselect_min_score
         )
+        autoselect_params.relion_options.particle_diameter = (
+            autoselect_params.particle_diameter
+        )
 
         self.log.info(f"Inputs: {autoselect_params.input_file}")
 

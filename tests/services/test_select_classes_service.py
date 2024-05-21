@@ -4,6 +4,8 @@ import sys
 from pathlib import Path
 from unittest import mock
 
+import mrcfile
+import numpy as np
 import pytest
 import zocalo.configuration
 from workflows.transport.offline_transport import OfflineTransport
@@ -41,18 +43,29 @@ def select_classes_common_setup(
     particles_file.parent.mkdir(parents=True)
     with open(particles_file, "w") as f:
         f.write("data_optics\n\nloop_\n_group\nopticsGroup1\n\n")
-        f.write("data_particles\n\nloop_\n_particle\n")
+        f.write("data_particles\n\nloop_\n_x\n_y\n_particle\n_movie\n")
         for i in range(particles_to_add):
-            f.write(f"{i}\n")
+            f.write(
+                f"{i / 100} {i / 100} {i}@Extract/job008/classes.mrcs "
+                f"MotionCorr/job002/Movies/movie.mrc\n"
+            )
 
     if initial_particle_count:
         particles_file = job_dir / "Select/job013/particles_all.star"
         particles_file.parent.mkdir(parents=True)
         with open(particles_file, "w") as f:
             f.write("data_optics\n\nloop_\n_group\nopticsGroup1\n\n")
-            f.write("data_particles\n\nloop_\n_particle\n")
+            f.write("data_particles\n\nloop_\n_x\n_y\n_particle\n_movie\n")
             for i in range(initial_particle_count):
-                f.write(f"{i}\n")
+                f.write(
+                    f"{i/100} {i/100} {i}@Extract/job008/classes.mrcs "
+                    f"MotionCorr/job002/Movies/movie.mrc\n"
+                )
+
+    Path(job_dir / "MotionCorr/job002/Movies").mkdir(parents=True, exist_ok=True)
+    with mrcfile.new(job_dir / "MotionCorr/job002/Movies/movie.mrc") as mrc:
+        mrc.set_data(np.array([[0.1, 0.2], [0.3, 0.4]], dtype=np.float32))
+        mrc.header.cella.z = 1
 
     autoselect_file = job_dir / "Select/job012/rank_model.star"
     with open(autoselect_file, "w") as f:
@@ -84,14 +97,17 @@ def select_classes_common_setup(
             "0.015038 0.029918 1.500000 0.752250 9.628800"
         )
 
-    output_relion_options = dict(RelionServiceOptions())
-    output_relion_options["class2d_fraction_of_classes_to_remove"] = 0.5
-    output_relion_options["autoselect_min_score"] = 0.0
+    output_relion_options = RelionServiceOptions()
+    output_relion_options.class2d_fraction_of_classes_to_remove = 0.5
+    output_relion_options.autoselect_min_score = 0.0
+    output_relion_options.particle_diameter = 100
+    output_relion_options = dict(output_relion_options)
 
     select_test_message = {
         "parameters": {
             "input_file": f"{job_dir}/Class2D/job010/run_it020_optimiser.star",
             "combine_star_job_number": 13,
+            "particle_diameter": 100,
             "class2d_fraction_of_classes_to_remove": 0.5,
             "particles_file": "particles.star",
             "classes_file": "class_averages.star",
@@ -229,6 +245,7 @@ def test_select_classes_service_first_batch(
         destination="node_creator",
         message={
             "parameters": {
+                "alias": "Best_particles",
                 "job_type": "combine_star_files_job",
                 "input_file": f"{tmp_path}/Select/job012/particles.star",
                 "output_file": f"{tmp_path}/Select/job013/particles_all.star",
@@ -248,6 +265,7 @@ def test_select_classes_service_first_batch(
         destination="node_creator",
         message={
             "parameters": {
+                "alias": "Best_particles",
                 "job_type": "combine_star_files_job",
                 "input_file": f"{tmp_path}/Select/job012/particles.star",
                 "output_file": f"{tmp_path}/Select/job013/particles_all.star",
@@ -261,6 +279,20 @@ def test_select_classes_service_first_batch(
                 "success": True,
             },
             "content": "dummy",
+        },
+    )
+    offline_transport.send.assert_any_call(
+        destination="images",
+        message={
+            "image_command": "picked_particles",
+            "file": f"{tmp_path}/MotionCorr/job002/Movies/movie.mrc",
+            "coordinates": [],
+            "selected_coordinates": [
+                [str(i / 100), str(i / 100)] for i in range(60000)
+            ],
+            "pixel_size": 1.0,
+            "diameter": 100.0,
+            "outfile": f"{tmp_path}/AutoPick/job007/STAR/movie.jpeg",
         },
     )
     offline_transport.send.assert_any_call(
@@ -483,7 +515,7 @@ def test_select_classes_service_not_threshold(
 
     # Don't bother to check the auto-selection calls here, they are checked above
     # Do check the Murfey 3D calls
-    assert len(offline_transport.send.call_args_list) == 6
+    assert len(offline_transport.send.call_args_list) == 7
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
@@ -523,7 +555,7 @@ def test_select_classes_service_past_maximum(
 
     # Don't bother to check the auto-selection calls here, they are checked above
     # Do check the Murfey 3D calls
-    assert len(offline_transport.send.call_args_list) == 6
+    assert len(offline_transport.send.call_args_list) == 7
 
 
 def test_parse_combiner_output(mock_environment, offline_transport):

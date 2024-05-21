@@ -122,7 +122,7 @@ def test_postprocess_first_refine(
                 "register": "done_refinement",
                 "project_dir": str(tmp_path),
                 "resolution": 4.5,
-                "batch_size": 5,
+                "number_of_particles": 5,
                 "refined_grp_uuid": 2,
                 "refined_class_uuid": 3,
                 "class_reference": postprocess_test_message["parameters"][
