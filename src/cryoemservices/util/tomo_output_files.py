@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import List
+from typing import Callable, Dict, List
 
 from gemmi import cif
 
+from cryoemservices.util.relion_service_options import RelionServiceOptions
 from cryoemservices.util.spa_output_files import get_ice_ring_density
-from cryoemservices.util.tomo_service_options import TomographyOptions
 
 
 def _find_angle_index(split_name: List[str]) -> int:
@@ -41,7 +41,7 @@ def _global_tilt_series_file(
     global_tilt_star: Path,
     tilt_series_tag: str,
     tilt_series_star: str,
-    relion_options: TomographyOptions,
+    relion_options: RelionServiceOptions,
 ):
     """Construction of files which list all tilt series"""
     tilt_series_line = [
@@ -90,7 +90,7 @@ def _import_output_files(
     job_dir: Path,
     input_file: Path,
     output_file: Path,
-    relion_options: TomographyOptions,
+    relion_options: RelionServiceOptions,
     results: dict,
 ):
     """Import jobs save a list of all micrographs"""
@@ -147,7 +147,7 @@ def _motioncorr_output_files(
     job_dir: Path,
     input_file: Path,
     output_file: Path,
-    relion_options: TomographyOptions,
+    relion_options: RelionServiceOptions,
     results: dict,
 ):
     """Motion correction saves a list of micrographs and their motion"""
@@ -202,7 +202,7 @@ def _ctffind_output_files(
     job_dir: Path,
     input_file: Path,
     output_file: Path,
-    relion_options: TomographyOptions,
+    relion_options: RelionServiceOptions,
     results: dict,
 ):
     """Ctf estimation saves a list of micrographs and their ctf parameters"""
@@ -262,3 +262,24 @@ def _ctffind_output_files(
     else:
         with open(movies_file, "a") as output_cif:
             output_cif.write(" ".join(added_line) + "\n")
+
+
+_output_files: Dict[str, Callable] = {
+    "relion.import.tilt_series": _import_output_files,
+    "relion.motioncorr.own": _motioncorr_output_files,
+    "relion.motioncorr.motioncor2": _motioncorr_output_files,
+    "relion.ctffind.ctffind4": _ctffind_output_files,
+}
+
+
+def create_tomo_output_files(
+    job_type: str,
+    job_dir: Path,
+    input_file: Path,
+    output_file: Path,
+    relion_options: RelionServiceOptions,
+    results: dict,
+):
+    return _output_files[job_type](
+        job_dir, input_file, output_file, relion_options, results
+    )

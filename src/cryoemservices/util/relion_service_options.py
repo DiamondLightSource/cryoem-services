@@ -72,6 +72,16 @@ class RelionServiceOptions(BaseModel):
     # Run icebreaker?
     do_icebreaker_jobs: bool = True
 
+    """Extra options needed for tomography"""
+    # Number of movie frames
+    frame_count: int = 10
+    # Axis of tilt
+    tilt_axis_angle: float = 85.0
+    # Defocus used
+    defocus: float = -4
+    # Invert the handedness of the tilts?
+    invert_hand: int = -1
+
     """Parameters used in internal calculations"""
     pixel_size_downscaled: float = 0
     # Diameter of particles picked by cryolo
@@ -152,6 +162,17 @@ def generate_service_options(
     job_options["relion.import.movies"] = {
         "angpix": relion_options.pixel_size,
         "kV": relion_options.voltage,
+    }
+
+    job_options["relion.import.tilt_series"] = {
+        "angpix": relion_options.pixel_size,
+        "kV": relion_options.voltage,
+        "Cs": relion_options.spher_aber,
+        "Q0": relion_options.ampl_contrast,
+        "tilt_axis_angle": relion_options.tilt_axis_angle,
+        "scale_factor": 1,
+        "dose_rate": relion_options.dose_per_frame,
+        "dose_is_per_movie_frame": "Yes",
     }
 
     job_options["relion.motioncorr.own"] = {
