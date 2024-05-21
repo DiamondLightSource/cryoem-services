@@ -7,7 +7,7 @@ from typing import Callable, Dict
 import numpy as np
 from gemmi import cif
 
-from cryoemservices.util.spa_relion_service_options import RelionServiceOptions
+from cryoemservices.util.relion_service_options import RelionServiceOptions
 
 NODE_PARTICLEGROUPMETADATA = "ParticleGroupMetadata"
 
@@ -395,7 +395,7 @@ _output_files: Dict[str, Callable] = {
 }
 
 
-def create_output_files(
+def create_spa_output_files(
     job_type: str,
     job_dir: Path,
     input_file: Path,
