@@ -14,7 +14,6 @@ from cryoemservices.services.extract import ExtractParameters
 from cryoemservices.services.extract_class import ExtractClassParameters
 from cryoemservices.services.icebreaker import IceBreakerParameters
 from cryoemservices.services.motioncorr import MotionCorrParameters
-from cryoemservices.services.node_creator import NodeCreatorParameters
 from cryoemservices.services.postprocess import PostProcessParameters
 from cryoemservices.services.select_classes import SelectClassesParameters
 from cryoemservices.services.select_particles import SelectParticlesParameters
@@ -22,6 +21,15 @@ from cryoemservices.services.tomo_align import TomoParameters
 from cryoemservices.wrappers.class2d_wrapper import Class2DParameters
 from cryoemservices.wrappers.class3d_wrapper import Class3DParameters
 from cryoemservices.wrappers.refine3d_wrapper import RefineParameters
+
+try:
+    from cryoemservices.services.node_creator import NodeCreatorParameters
+except ImportError:
+
+    class NodeCreatorParameters(BaseModel):
+        job_type: str
+        input_file: str
+        output_file: str
 
 
 class ISPyBParameters(BaseModel):

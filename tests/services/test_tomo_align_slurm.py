@@ -8,7 +8,10 @@ import pytest
 import zocalo.configuration
 from workflows.transport.offline_transport import OfflineTransport
 
-from cryoemservices.services import tomo_align_slurm
+tomo_align_slurm = pytest.importorskip(
+    "cryoemservices.services.tomo_align_slurm",
+    reason="these tests require the IRIS datasyncer",
+)
 
 
 @pytest.fixture
