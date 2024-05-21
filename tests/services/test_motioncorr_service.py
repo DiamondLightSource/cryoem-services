@@ -306,6 +306,7 @@ def test_motioncor2_service_spa(
         destination="node_creator",
         message={
             "parameters": {
+                "experiment_type": "spa",
                 "job_type": "relion.import.movies",
                 "input_file": str(movie),
                 "output_file": f"{tmp_path}/Import/job001/Movies/sample.tiff",
@@ -321,6 +322,7 @@ def test_motioncor2_service_spa(
         destination="node_creator",
         message={
             "parameters": {
+                "experiment_type": "spa",
                 "job_type": "relion.motioncorr.motioncor2",
                 "input_file": f"{tmp_path}/Import/job001/Movies/sample.tiff",
                 "output_file": motioncorr_test_message["parameters"]["mrc_out"],
@@ -599,6 +601,7 @@ def test_motioncor_relion_service_spa(
         destination="node_creator",
         message={
             "parameters": {
+                "experiment_type": "spa",
                 "job_type": "relion.import.movies",
                 "input_file": str(movie),
                 "output_file": f"{tmp_path}/Import/job001/Movies/sample.eer",
@@ -614,6 +617,7 @@ def test_motioncor_relion_service_spa(
         destination="node_creator",
         message={
             "parameters": {
+                "experiment_type": "spa",
                 "job_type": "relion.motioncorr.own",
                 "input_file": f"{tmp_path}/Import/job001/Movies/sample.eer",
                 "output_file": motioncorr_test_message["parameters"]["mrc_out"],
@@ -663,7 +667,7 @@ def test_motioncor2_service_tomo(
             "autopick": {"autopick": "autopick"},
             "ctf": {"ctf": "ctf"},
             "movie": str(movie),
-            "mrc_out": f"{tmp_path}/MotionCorr/Movies/sample_motion_corrected.mrc",
+            "mrc_out": f"{tmp_path}/MotionCorr/job002/Movies/sample_motion_corrected.mrc",
             "patch_sizes": {"x": 5, "y": 5},
             "gpu": 0,
             "threads": 1,
@@ -698,9 +702,30 @@ def test_motioncor2_service_tomo(
             "in_fm_motion": None,
             "split_sum": None,
             "movie_id": 1,
+            "relion_options": {
+                "frame_count": 5,
+                "tilt_axis_angle": 83.0,
+                "defocus": -2.0,
+                "invert_hand": 1,
+            },
         },
         "content": "dummy",
     }
+
+    output_relion_options = dict(RelionServiceOptions())
+    output_relion_options["pixel_size"] = motioncorr_test_message["parameters"][
+        "pixel_size"
+    ]
+    output_relion_options["dose_per_frame"] = motioncorr_test_message["parameters"][
+        "dose_per_frame"
+    ]
+    output_relion_options["gain_ref"] = motioncorr_test_message["parameters"][
+        "gain_ref"
+    ]
+    output_relion_options.update(
+        motioncorr_test_message["parameters"]["relion_options"]
+    )
+    output_relion_options["eer_grouping"] = 0
 
     # Set up the mock service
     service = motioncorr.MotionCorr(environment=mock_environment)
@@ -712,32 +737,36 @@ def test_motioncor2_service_tomo(
     service.y_shift_list = [4.0, -4.0]
     service.each_total_motion = [5.0, 5.0]
     total_motion = 10.0
+    early_motion = 10.0
+    late_motion = 0.0
     average_motion_per_frame = 5
 
     # Send a message to the service
     service.motion_correction(None, header=header, message=motioncorr_test_message)
 
+    mc_command = [
+        "MotionCor2",
+        "-InTiff",
+        str(movie),
+        "-OutMrc",
+        motioncorr_test_message["parameters"]["mrc_out"],
+        "-PixSize",
+        str(motioncorr_test_message["parameters"]["pixel_size"]),
+        "-FmDose",
+        "1.0",
+        "-Patch",
+        "5 5",
+        "-Gpu",
+        "0",
+        "-Gain",
+        motioncorr_test_message["parameters"]["gain_ref"],
+        "-FmRef",
+        "1",
+    ]
+
     assert mock_subprocess.call_count == 4
     mock_subprocess.assert_called_with(
-        [
-            "MotionCor2",
-            "-InTiff",
-            str(movie),
-            "-OutMrc",
-            motioncorr_test_message["parameters"]["mrc_out"],
-            "-PixSize",
-            str(motioncorr_test_message["parameters"]["pixel_size"]),
-            "-FmDose",
-            "1.0",
-            "-Patch",
-            "5 5",
-            "-Gpu",
-            "0",
-            "-Gain",
-            motioncorr_test_message["parameters"]["gain_ref"],
-            "-FmRef",
-            "1",
-        ],
+        mc_command,
         capture_output=True,
     )
 
@@ -748,9 +777,11 @@ def test_motioncor2_service_tomo(
             "parameters": {
                 "ctf": "ctf",
                 "input_image": motioncorr_test_message["parameters"]["mrc_out"],
-                "output_image": f"{tmp_path}/CTF/Movies/sample_ctf.mrc",
+                "output_image": f"{tmp_path}/CtfFind/job003/Movies/sample_motion_corrected.ctf",
                 "mc_uuid": motioncorr_test_message["parameters"]["mc_uuid"],
                 "picker_uuid": motioncorr_test_message["parameters"]["picker_uuid"],
+                "relion_options": output_relion_options,
+                "amplitude_contrast": output_relion_options["ampl_contrast"],
                 "experiment_type": "tomography",
                 "pixel_size": motioncorr_test_message["parameters"]["pixel_size"],
             },
@@ -765,8 +796,8 @@ def test_motioncor2_service_tomo(
                 "last_frame": 2,
                 "total_motion": total_motion,
                 "average_motion_per_frame": average_motion_per_frame,
-                "drift_plot_full_path": f"{tmp_path}/MotionCorr/Movies/sample_drift_plot.json",
-                "micrograph_snapshot_full_path": f"{tmp_path}/MotionCorr/Movies/sample_motion_corrected.jpeg",
+                "drift_plot_full_path": f"{tmp_path}/MotionCorr/job002/Movies/sample_drift_plot.json",
+                "micrograph_snapshot_full_path": f"{tmp_path}/MotionCorr/job002/Movies/sample_motion_corrected.jpeg",
                 "micrograph_full_path": motioncorr_test_message["parameters"][
                     "mrc_out"
                 ],
@@ -800,6 +831,43 @@ def test_motioncor2_service_tomo(
         message={
             "image_command": "mrc_to_jpeg",
             "file": motioncorr_test_message["parameters"]["mrc_out"],
+        },
+    )
+    offline_transport.send.assert_any_call(
+        destination="node_creator",
+        message={
+            "parameters": {
+                "experiment_type": "tomography",
+                "job_type": "relion.import.tilt_series",
+                "input_file": f"{movie}:{tmp_path}/Movies/*.mdoc",
+                "output_file": f"{tmp_path}/Import/job001/Movies/sample.tiff",
+                "relion_options": output_relion_options,
+                "command": "",
+                "stdout": "",
+                "stderr": "",
+            },
+            "content": "dummy",
+        },
+    )
+    offline_transport.send.assert_any_call(
+        destination="node_creator",
+        message={
+            "parameters": {
+                "experiment_type": "tomography",
+                "job_type": "relion.motioncorr.motioncor2",
+                "input_file": f"{tmp_path}/Import/job001/Movies/sample.tiff",
+                "output_file": motioncorr_test_message["parameters"]["mrc_out"],
+                "relion_options": output_relion_options,
+                "command": " ".join(mc_command),
+                "stdout": "stdout",
+                "stderr": "stderr",
+                "results": {
+                    "total_motion": total_motion,
+                    "early_motion": early_motion,
+                    "late_motion": late_motion,
+                },
+            },
+            "content": "dummy",
         },
     )
 
@@ -835,7 +903,7 @@ def test_motioncor_relion_service_tomo(
             "autopick": {"autopick": "autopick"},
             "ctf": {"ctf": "ctf"},
             "movie": str(movie),
-            "mrc_out": f"{tmp_path}/MotionCorr/Movies/sample_motion_corrected.mrc",
+            "mrc_out": f"{tmp_path}/MotionCorr/job002/Movies/sample_motion_corrected.mrc",
             "patch_sizes": {"x": 5, "y": 5},
             "gpu": 0,
             "threads": 1,
@@ -870,9 +938,30 @@ def test_motioncor_relion_service_tomo(
             "in_fm_motion": None,
             "split_sum": None,
             "movie_id": 1,
+            "relion_options": {
+                "frame_count": 5,
+                "tilt_axis_angle": 83.0,
+                "defocus": -2.0,
+                "invert_hand": 1,
+            },
         },
         "content": "dummy",
     }
+
+    output_relion_options = dict(RelionServiceOptions())
+    output_relion_options["pixel_size"] = motioncorr_test_message["parameters"][
+        "pixel_size"
+    ]
+    output_relion_options["dose_per_frame"] = motioncorr_test_message["parameters"][
+        "dose_per_frame"
+    ]
+    output_relion_options["gain_ref"] = motioncorr_test_message["parameters"][
+        "gain_ref"
+    ]
+    output_relion_options.update(
+        motioncorr_test_message["parameters"]["relion_options"]
+    )
+    output_relion_options["eer_grouping"] = 0
 
     # Set up the mock service
     service = motioncorr.MotionCorr(environment=mock_environment)
@@ -884,6 +973,8 @@ def test_motioncor_relion_service_tomo(
     service.y_shift_list = [4.0, -4.0]
     service.each_total_motion = [5.0, 5.0]
     total_motion = 10.0
+    early_motion = 10.0
+    late_motion = 0.0
     average_motion_per_frame = 5
 
     # Touch expected output file
@@ -898,31 +989,33 @@ def test_motioncor_relion_service_tomo(
     # Send a message to the service
     service.motion_correction(None, header=header, message=motioncorr_test_message)
 
+    mc_command = [
+        "relion_motion_correction",
+        "--use_own",
+        "--in_movie",
+        str(movie),
+        "--out_mic",
+        motioncorr_test_message["parameters"]["mrc_out"],
+        "--angpix",
+        str(motioncorr_test_message["parameters"]["pixel_size"]),
+        "--dose_per_frame",
+        "1.0",
+        "--patch_x",
+        "5",
+        "--patch_y",
+        "5",
+        "--j",
+        "1",
+        "--gainref",
+        motioncorr_test_message["parameters"]["gain_ref"],
+        "--dose_weighting",
+        "--i",
+        "dummy",
+    ]
+
     assert mock_subprocess.call_count == 4
     mock_subprocess.assert_called_with(
-        [
-            "relion_motion_correction",
-            "--use_own",
-            "--in_movie",
-            str(movie),
-            "--out_mic",
-            motioncorr_test_message["parameters"]["mrc_out"],
-            "--angpix",
-            str(motioncorr_test_message["parameters"]["pixel_size"]),
-            "--dose_per_frame",
-            "1.0",
-            "--patch_x",
-            "5",
-            "--patch_y",
-            "5",
-            "--j",
-            "1",
-            "--gainref",
-            motioncorr_test_message["parameters"]["gain_ref"],
-            "--dose_weighting",
-            "--i",
-            "dummy",
-        ],
+        mc_command,
         capture_output=True,
     )
 
@@ -933,9 +1026,11 @@ def test_motioncor_relion_service_tomo(
             "parameters": {
                 "ctf": "ctf",
                 "input_image": motioncorr_test_message["parameters"]["mrc_out"],
-                "output_image": f"{tmp_path}/CTF/Movies/sample_ctf.mrc",
+                "output_image": f"{tmp_path}/CtfFind/job003/Movies/sample_motion_corrected.ctf",
                 "mc_uuid": motioncorr_test_message["parameters"]["mc_uuid"],
                 "picker_uuid": motioncorr_test_message["parameters"]["picker_uuid"],
+                "relion_options": output_relion_options,
+                "amplitude_contrast": output_relion_options["ampl_contrast"],
                 "experiment_type": "tomography",
                 "pixel_size": motioncorr_test_message["parameters"]["pixel_size"],
             },
@@ -950,8 +1045,8 @@ def test_motioncor_relion_service_tomo(
                 "last_frame": 2,
                 "total_motion": total_motion,
                 "average_motion_per_frame": average_motion_per_frame,
-                "drift_plot_full_path": f"{tmp_path}/MotionCorr/Movies/sample_drift_plot.json",
-                "micrograph_snapshot_full_path": f"{tmp_path}/MotionCorr/Movies/sample_motion_corrected.jpeg",
+                "drift_plot_full_path": f"{tmp_path}/MotionCorr/job002/Movies/sample_drift_plot.json",
+                "micrograph_snapshot_full_path": f"{tmp_path}/MotionCorr/job002/Movies/sample_motion_corrected.jpeg",
                 "micrograph_full_path": motioncorr_test_message["parameters"][
                     "mrc_out"
                 ],
@@ -985,6 +1080,43 @@ def test_motioncor_relion_service_tomo(
         message={
             "image_command": "mrc_to_jpeg",
             "file": motioncorr_test_message["parameters"]["mrc_out"],
+        },
+    )
+    offline_transport.send.assert_any_call(
+        destination="node_creator",
+        message={
+            "parameters": {
+                "experiment_type": "tomography",
+                "job_type": "relion.import.tilt_series",
+                "input_file": f"{movie}:{tmp_path}/Movies/*.mdoc",
+                "output_file": f"{tmp_path}/Import/job001/Movies/sample.tiff",
+                "relion_options": output_relion_options,
+                "command": "",
+                "stdout": "",
+                "stderr": "",
+            },
+            "content": "dummy",
+        },
+    )
+    offline_transport.send.assert_any_call(
+        destination="node_creator",
+        message={
+            "parameters": {
+                "experiment_type": "tomography",
+                "job_type": "relion.motioncorr.own",
+                "input_file": f"{tmp_path}/Import/job001/Movies/sample.tiff",
+                "output_file": motioncorr_test_message["parameters"]["mrc_out"],
+                "relion_options": output_relion_options,
+                "command": " ".join(mc_command),
+                "stdout": "stdout",
+                "stderr": "stderr",
+                "results": {
+                    "total_motion": total_motion,
+                    "early_motion": early_motion,
+                    "late_motion": late_motion,
+                },
+            },
+            "content": "dummy",
         },
     )
 
