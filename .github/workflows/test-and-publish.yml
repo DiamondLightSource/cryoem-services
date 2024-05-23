@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 jobs:
-  build:
+  build-test:
     name: Build distribution and run tests
     runs-on: ubuntu-latest
 
@@ -31,6 +31,17 @@ jobs:
       - name: Test with pytest
         run: |
           pytest tests
+
+  build-wheel:
+    name: Build wheel
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
       - name: Install pypa/build
         run: >-
           python3 -m
