@@ -145,19 +145,17 @@ def _ctffind_output_files(
     """Ctf estimation saves a list of micrographs and their ctf parameters"""
     star_file = job_dir / "micrographs_ctf.star"
 
-    # Results needed in the star file are stored in a txt file with the output
-    with open(output_file.with_suffix(".txt"), "r") as f:
-        ctf_results = f.readlines()[-1].split()
+    # Results sent across need to be written to the star file
     added_line = [
         str(input_file),
         "1",
         str(output_file.with_suffix(".ctf")) + ":mrc",
-        ctf_results[1],
-        ctf_results[2],
-        str(abs(float(ctf_results[1]) - float(ctf_results[2]))),
-        ctf_results[3],
-        ctf_results[5],
-        ctf_results[6],
+        results["defocus1"],
+        results["defocus2"],
+        str(abs(float(results["defocus1"]) - float(results["defocus2"]))),
+        results["astimatism_angle"],
+        results["cc_value"],
+        results["estimated_resolution"],
     ]
 
     # Read and append to the existing output file, or otherwise create one
@@ -328,6 +326,7 @@ def _extract_output_files(
             for new_row in added_lines:
                 if new_row[:1].isdigit():
                     output_cif.write(new_row)
+    output_file.unlink()
 
 
 def _select_output_files(

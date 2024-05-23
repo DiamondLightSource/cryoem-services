@@ -327,6 +327,11 @@ class MotionCorr(CommonService):
                 Path(mc_params.mrc_out).stem + "_DW.mrc"
             )
             if dose_weighted.is_file():
+                # Remove DWS file and set DW as the output
+                dws = Path(mc_params.mrc_out).parent / (
+                    Path(mc_params.mrc_out).stem + "_DWS.mrc"
+                )
+                dws.unlink(missing_ok=True)
                 mc_params.mrc_out = str(dose_weighted)
         else:
             # Construct the command for Relion motion correction

@@ -204,6 +204,13 @@ class CTFFind(CommonService):
                 ),
                 "stdout": result.stdout.decode("utf8", "replace"),
                 "stderr": result.stderr.decode("utf8", "replace"),
+                "results": {
+                    "defocus1": str(self.defocus1),
+                    "defocus2": str(self.defocus2),
+                    "astigmatism_angle": str(self.astigmatism_angle),
+                    "cc_value": str(self.cc_value),
+                    "estimated_resolution": str(self.estimated_resolution),
+                },
             }
             if result.returncode:
                 node_creator_parameters["success"] = False
@@ -332,6 +339,13 @@ class CTFFind(CommonService):
                 )
             else:
                 rw.send_to("cryolo", ctf_params.autopick)
+
+        # Remove unnecessary files
+        log_file = Path(ctf_params.output_image).parent / (
+            Path(ctf_params.output_image).stem + "_ctffind4.log"
+        )
+        log_file.unlink(missing_ok=True)
+        Path(ctf_params.output_image).with_suffix(".txt").unlink(missing_ok=True)
 
         self.log.info(f"Done {self.job_type} for {ctf_params.input_image}.")
         rw.transport.ack(header)
