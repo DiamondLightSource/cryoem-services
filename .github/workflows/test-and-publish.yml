@@ -34,6 +34,8 @@ jobs:
 
   build:
     name: Build wheel for pypi
+    needs:
+      - test
     runs-on: ubuntu-latest
 
     steps:
