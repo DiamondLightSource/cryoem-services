@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 jobs:
-  build-test:
+  test:
     name: Build distribution and run tests
     runs-on: ubuntu-latest
 
@@ -32,8 +32,8 @@ jobs:
         run: |
           pytest tests
 
-  build-wheel:
-    name: Build wheel
+  build:
+    name: Build wheel for pypi
     runs-on: ubuntu-latest
 
     steps:
