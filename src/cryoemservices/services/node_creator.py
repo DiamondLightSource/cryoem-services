@@ -323,7 +323,19 @@ class NodeCreator(CommonService):
         pipeliner_job = read_job(f"{job_dir}/job.star")
         pipeliner_job.output_dir = str(relative_job_dir) + "/"
         relion_commands = [[], pipeliner_job.get_final_commands()]
-        pipeliner_job.prepare_to_run(ignore_invalid_joboptions=True)
+
+        # These parts would normally happen in pipeliner_job.prepare_to_run
+        try:
+            pipeliner_job.handle_doppio_uploads()
+        except ValueError:
+            self.log.info("Cannot copy Doppio input file that already exists")
+        pipeliner_job.create_input_nodes()
+        pipeliner_job.create_output_nodes()
+        pipeliner_job.write_runjob(pipeliner_job.output_dir)
+        pipeliner_job.write_jobstar(pipeliner_job.output_dir)
+        pipeliner_job.write_jobstar(
+            f"{pipeliner_job.output_dir}/continue_", is_continue=True
+        )
 
         # Write the log files
         with open(job_dir / "run.out", "w") as f:

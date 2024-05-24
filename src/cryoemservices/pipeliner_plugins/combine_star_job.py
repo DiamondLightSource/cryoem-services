@@ -2,10 +2,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pipeliner.data_structure import SELECT_DIR
+from pipeliner.data_structure import NODE_PARTICLEGROUPMETADATA, SELECT_DIR
 from pipeliner.display_tools import mini_montage_from_starfile
 from pipeliner.job_options import BooleanJobOption, IntJobOption, StringJobOption
-from pipeliner.nodes import NODE_PARTICLESDATA, Node
+from pipeliner.nodes import Node
 from pipeliner.pipeliner_job import ExternalProgram, PipelinerJob
 
 try:
@@ -92,9 +92,12 @@ class ProcessStarFiles(PipelinerJob):
         # Add files as input nodes, as long as they are not also the output node
         for particle_file in file_list:
             if particle_file != str(Path(self.output_dir) / "particles_all.star"):
-                self.input_nodes.append(Node(particle_file, NODE_PARTICLESDATA))
+                self.input_nodes.append(Node(particle_file, NODE_PARTICLEGROUPMETADATA))
         self.output_nodes.append(
-            Node(str(Path(self.output_dir) / "particles_all.star"), NODE_PARTICLESDATA)
+            Node(
+                str(Path(self.output_dir) / "particles_all.star"),
+                NODE_PARTICLEGROUPMETADATA,
+            )
         )
 
         if PipelinerCommand is None:
@@ -103,13 +106,15 @@ class ProcessStarFiles(PipelinerJob):
         return pipeliner_commands
 
     def create_output_nodes(self):
-        self.add_output_node("particles_all.star", NODE_PARTICLESDATA, ["relion"])
+        self.add_output_node(
+            "particles_all.star", NODE_PARTICLEGROUPMETADATA, ["relion"]
+        )
 
     def post_run_actions(self):
         """Find any output files produced by the splitting"""
         output_files = Path(self.output_dir).glob("particles_split*.star")
         for split in output_files:
-            self.output_nodes.append(Node(str(split), NODE_PARTICLESDATA))
+            self.output_nodes.append(Node(str(split), NODE_PARTICLEGROUPMETADATA))
 
     def create_results_display(self):
         with open(
