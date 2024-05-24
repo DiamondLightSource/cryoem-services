@@ -253,6 +253,7 @@ def test_motioncor2_service_spa(
         destination="node_creator",
         message={
             "parameters": {
+                "experiment_type": "spa",
                 "job_type": "relion.import.movies",
                 "input_file": str(movie),
                 "output_file": f"{tmp_path}/Import/job001/Movies/sample.tiff",
@@ -268,6 +269,7 @@ def test_motioncor2_service_spa(
         destination="node_creator",
         message={
             "parameters": {
+                "experiment_type": "spa",
                 "job_type": "relion.motioncorr.motioncor2",
                 "input_file": f"{tmp_path}/Import/job001/Movies/sample.tiff",
                 "output_file": motioncorr_test_message["parameters"]["mrc_out"],
@@ -314,7 +316,7 @@ def test_motioncor2_service_tomo(
     motioncorr_test_message = {
         "parameters": {
             "movie": str(movie),
-            "mrc_out": f"{tmp_path}/MotionCorr/Movies/sample_motion_corrected.mrc",
+            "mrc_out": f"{tmp_path}/MotionCorr/job002/Movies/sample_motion_corrected.mrc",
             "experiment_type": "tomography",
             "pixel_size": 0.1,
             "dose_per_frame": 1,
@@ -327,6 +329,14 @@ def test_motioncor2_service_tomo(
         },
         "content": "dummy",
     }
+    output_relion_options = dict(RelionServiceOptions())
+    output_relion_options["pixel_size"] = motioncorr_test_message["parameters"][
+        "pixel_size"
+    ]
+    output_relion_options["dose_per_frame"] = motioncorr_test_message["parameters"][
+        "dose_per_frame"
+    ]
+    output_relion_options["eer_grouping"] = 0
 
     # Set up the mock service
     service = motioncorr_slurm.MotionCorrSlurm(environment=mock_environment)
@@ -338,6 +348,8 @@ def test_motioncor2_service_tomo(
     service.y_shift_list = [4.0, -4.0]
     service.each_total_motion = [5.0, 5.0]
     total_motion = 10.0
+    early_motion = 10.0
+    late_motion = 0.0
     average_motion_per_frame = 5
 
     # Construct the file which contains rest api submission information
@@ -359,19 +371,38 @@ def test_motioncor2_service_tomo(
         token.write("token_key")
 
     # Touch the expected output files
-    (tmp_path / "MotionCorr/Movies").mkdir(parents=True)
-    (tmp_path / "MotionCorr/Movies/sample_motion_corrected.mrc.out").touch()
-    (tmp_path / "MotionCorr/Movies/sample_motion_corrected.mrc.err").touch()
+    (tmp_path / "MotionCorr/job002/Movies").mkdir(parents=True)
+    (tmp_path / "MotionCorr/job002/Movies/sample_motion_corrected.mrc.out").touch()
+    (tmp_path / "MotionCorr/job002/Movies/sample_motion_corrected.mrc.err").touch()
 
     # Send a message to the service
     service.motion_correction(None, header=header, message=motioncorr_test_message)
+
+    # Get the expected motion correction command
+    mc_command = [
+        "MotionCor2",
+        "-InTiff",
+        str(movie),
+        "-OutMrc",
+        motioncorr_test_message["parameters"]["mrc_out"],
+        "-PixSize",
+        str(motioncorr_test_message["parameters"]["pixel_size"]),
+        "-FmDose",
+        "1.0",
+        "-Patch",
+        "5 5",
+        "-Gpu",
+        "0",
+        "-FmRef",
+        "0",
+    ]
 
     # Check the slurm commands were run
     slurm_submit_command = (
         f'curl -H "X-SLURM-USER-NAME:user" -H "X-SLURM-USER-TOKEN:token_key" '
         '-H "Content-Type: application/json" -X POST '
         "/url/of/slurm/restapi/slurm/v0.0.40/job/submit "
-        f"-d @{tmp_path}/MotionCorr/Movies/sample_motion_corrected.mrc.json"
+        f"-d @{tmp_path}/MotionCorr/job002/Movies/sample_motion_corrected.mrc.json"
     )
     slurm_status_command = (
         'curl -H "X-SLURM-USER-NAME:user" -H "X-SLURM-USER-TOKEN:token_key" '
@@ -392,9 +423,11 @@ def test_motioncor2_service_tomo(
         message={
             "parameters": {
                 "input_image": motioncorr_test_message["parameters"]["mrc_out"],
-                "output_image": f"{tmp_path}/CTF/Movies/sample_ctf.mrc",
+                "output_image": f"{tmp_path}/CtfFind/job003/Movies/sample_motion_corrected.ctf",
                 "mc_uuid": motioncorr_test_message["parameters"]["mc_uuid"],
                 "picker_uuid": motioncorr_test_message["parameters"]["picker_uuid"],
+                "relion_options": output_relion_options,
+                "amplitude_contrast": output_relion_options["ampl_contrast"],
                 "experiment_type": "tomography",
                 "pixel_size": motioncorr_test_message["parameters"]["pixel_size"],
             },
@@ -409,8 +442,8 @@ def test_motioncor2_service_tomo(
                 "last_frame": 2,
                 "total_motion": total_motion,
                 "average_motion_per_frame": average_motion_per_frame,
-                "drift_plot_full_path": f"{tmp_path}/MotionCorr/Movies/sample_drift_plot.json",
-                "micrograph_snapshot_full_path": f"{tmp_path}/MotionCorr/Movies/sample_motion_corrected.jpeg",
+                "drift_plot_full_path": f"{tmp_path}/MotionCorr/job002/Movies/sample_drift_plot.json",
+                "micrograph_snapshot_full_path": f"{tmp_path}/MotionCorr/job002/Movies/sample_motion_corrected.jpeg",
                 "micrograph_full_path": motioncorr_test_message["parameters"][
                     "mrc_out"
                 ],
@@ -444,6 +477,43 @@ def test_motioncor2_service_tomo(
         message={
             "image_command": "mrc_to_jpeg",
             "file": motioncorr_test_message["parameters"]["mrc_out"],
+        },
+    )
+    offline_transport.send.assert_any_call(
+        destination="node_creator",
+        message={
+            "parameters": {
+                "experiment_type": "tomography",
+                "job_type": "relion.import.tilt_series",
+                "input_file": f"{movie}:{tmp_path}/Movies/*.mdoc",
+                "output_file": f"{tmp_path}/Import/job001/Movies/sample.tiff",
+                "relion_options": output_relion_options,
+                "command": "",
+                "stdout": "",
+                "stderr": "",
+            },
+            "content": "dummy",
+        },
+    )
+    offline_transport.send.assert_any_call(
+        destination="node_creator",
+        message={
+            "parameters": {
+                "experiment_type": "tomography",
+                "job_type": "relion.motioncorr.motioncor2",
+                "input_file": f"{tmp_path}/Import/job001/Movies/sample.tiff",
+                "output_file": motioncorr_test_message["parameters"]["mrc_out"],
+                "relion_options": output_relion_options,
+                "command": " ".join(mc_command),
+                "stdout": "",
+                "stderr": "",
+                "results": {
+                    "total_motion": total_motion,
+                    "early_motion": early_motion,
+                    "late_motion": late_motion,
+                },
+            },
+            "content": "dummy",
         },
     )
 
