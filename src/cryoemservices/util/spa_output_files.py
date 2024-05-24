@@ -153,7 +153,7 @@ def _ctffind_output_files(
         results["defocus1"],
         results["defocus2"],
         str(abs(float(results["defocus1"]) - float(results["defocus2"]))),
-        results["astimatism_angle"],
+        results["astigmatism_angle"],
         results["cc_value"],
         results["estimated_resolution"],
     ]
