@@ -224,6 +224,10 @@ class Extract(CommonService):
         extracted_parts_doc.write_file(
             extract_params.output_file, style=cif.Style.Simple
         )
+        file_for_selection = Path(extract_params.output_file).parent / (
+            Path(extract_params.output_file).stem + "_to_select.star"
+        )
+        extracted_parts_doc.write_file(str(file_for_selection), style=cif.Style.Simple)
 
         # Extraction
         with mrcfile.open(extract_params.micrographs_file) as input_micrograph:
@@ -422,7 +426,7 @@ class Extract(CommonService):
         # Register the files needed for selection and batching
         self.log.info("Sending to particle selection")
         select_params = {
-            "input_file": extract_params.output_file,
+            "input_file": str(file_for_selection),
             "batch_size": extract_params.batch_size,
             "image_size": box_len,
             "relion_options": dict(extract_params.relion_options),

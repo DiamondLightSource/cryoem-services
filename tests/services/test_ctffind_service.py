@@ -191,6 +191,13 @@ def test_ctffind_service(
                 "stdout": "stdout",
                 "stderr": "stderr",
                 "success": True,
+                "results": {
+                    "defocus1": str(service.defocus1),
+                    "defocus2": str(service.defocus2),
+                    "astigmatism_angle": str(service.astigmatism_angle),
+                    "cc_value": str(service.cc_value),
+                    "estimated_resolution": str(service.estimated_resolution),
+                },
             },
             "content": "dummy",
         },

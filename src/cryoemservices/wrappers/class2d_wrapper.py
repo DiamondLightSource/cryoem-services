@@ -373,6 +373,14 @@ class Class2DWrapper(BaseWrapper):
             }
             self.recwrap.send_to("murfey_feedback", murfey_params)
 
+        # Remove unnecessary files
+        for iteration in range(class2d_params.class2d_nr_iter):
+            (job_dir / f"run_it{iteration:03}_classes.mrcs").unlink(missing_ok=True)
+            (job_dir / f"run_it{iteration:03}_data.star").unlink(missing_ok=True)
+            (job_dir / f"run_it{iteration:03}_model.star").unlink(missing_ok=True)
+            (job_dir / f"run_it{iteration:03}_optimiser.star").unlink(missing_ok=True)
+            (job_dir / f"run_it{iteration:03}_sampling.star").unlink(missing_ok=True)
+
         (job_dir / "RELION_JOB_EXIT_SUCCESS").touch(exist_ok=True)
         self.log.info(f"Done {job_type} for {class2d_params.particles_file}.")
         return True

@@ -109,7 +109,9 @@ def test_extract_service(mock_mrcfile, mock_environment, offline_transport, tmp_
         destination="select_particles",
         message={
             "parameters": {
-                "input_file": extract_test_message["parameters"]["output_file"],
+                "input_file": str(
+                    tmp_path / "Extract/job008/Movies/sample_to_select.star"
+                ),
                 "relion_options": output_relion_options,
                 "batch_size": output_relion_options["batch_size"],
                 "image_size": 64,

@@ -291,5 +291,8 @@ class SelectParticles(CommonService):
         else:
             rw.send_to("murfey_feedback", murfey_confirmation)
 
+        # Remove unnecessary files
+        Path(select_params.input_file).unlink(missing_ok=True)
+
         self.log.info(f"Done {self.job_type} for {select_params.input_file}.")
         rw.transport.ack(header)

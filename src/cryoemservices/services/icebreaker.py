@@ -193,6 +193,7 @@ class IceBreaker(CommonService):
             summary_results = five_fig_csv.split(",")
             if len(summary_results) != 6:
                 summary_results = ["0", "0", "0", "0", "0", "0"]
+            (Path("IB_input") / mic_from_project.name).unlink(missing_ok=True)
 
             # Create the command this replicates
             command = [

@@ -410,5 +410,11 @@ class CrYOLO(CommonService):
                 },
             )
 
+        # Remove unnecessary files
+        eman_file = (
+            job_dir / f"EMAN/{Path(cryolo_params.output_path).with_suffix('.box').name}"
+        )
+        eman_file.unlink(missing_ok=True)
+
         self.log.info(f"Done {self.job_type} for {cryolo_params.input_path}.")
         rw.transport.ack(header)
