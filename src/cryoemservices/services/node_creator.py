@@ -364,6 +364,7 @@ class NodeCreator(CommonService):
                 self.log.info("Cannot copy Doppio input file that already exists")
             pipeliner_job.write_runjob(pipeliner_job.output_dir)
             pipeliner_job.write_jobstar(pipeliner_job.output_dir)
+            pipeliner_job.write_jobstar(".gui_" + job_info.job_type.replace(".", "_"))
             pipeliner_job.write_jobstar(
                 f"{pipeliner_job.output_dir}/continue_", is_continue=True
             )
