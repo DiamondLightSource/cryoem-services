@@ -118,7 +118,7 @@ class ExtractClass(CommonService):
             f"Input: {extract_params.class3d_dir}, Output: {extract_params.refine_job_dir}"
         )
         job_num_refine = int(
-            re.search("/job[0-9]{3}", extract_params.refine_job_dir)[0][4:7]
+            re.search("/job[0-9]+", extract_params.refine_job_dir)[0][4:7]
         )
         original_dir = Path(extract_params.class3d_dir).parent.parent
         ctf_micrographs_file = list(

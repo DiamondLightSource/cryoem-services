@@ -126,7 +126,7 @@ class Extract(CommonService):
         )
 
         # Make sure the output directory exists
-        job_dir = Path(re.search(".+/job[0-9]{3}/", extract_params.output_file)[0])
+        job_dir = Path(re.search(".+/job[0-9]+/", extract_params.output_file)[0])
         project_dir = job_dir.parent.parent
         if not Path(extract_params.output_file).parent.exists():
             Path(extract_params.output_file).parent.mkdir(parents=True)

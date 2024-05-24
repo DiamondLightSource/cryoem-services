@@ -602,7 +602,7 @@ class MotionCorr(CommonService):
             # As this is the entry point we need to import the file to the project
             self.log.info("Sending relion.import.movies to node creator")
             project_dir = Path(
-                re.search(".+/job[0-9]{3}/", mc_params.mrc_out)[0]
+                re.search(".+/job[0-9]+/", mc_params.mrc_out)[0]
             ).parent.parent
             import_movie = (
                 project_dir

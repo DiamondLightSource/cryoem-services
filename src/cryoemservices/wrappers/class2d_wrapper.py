@@ -129,9 +129,7 @@ class Class2DWrapper(BaseWrapper):
             job_dir.mkdir(parents=True, exist_ok=True)
         project_dir = job_dir.parent.parent
         os.chdir(project_dir)
-        job_num = int(
-            re.search("/job[0-9]{3}", str(class2d_params.class2d_dir))[0][4:7]
-        )
+        job_num = int(re.search("/job[0-9]+", str(class2d_params.class2d_dir))[0][4:7])
 
         particles_file = str(
             Path(class2d_params.particles_file).relative_to(project_dir)

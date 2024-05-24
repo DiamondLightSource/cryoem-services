@@ -219,7 +219,7 @@ class NodeCreator(CommonService):
         start_time = datetime.datetime.now()
 
         # Find the job directory and make sure we are in the processing directory
-        job_dir = Path(re.search(".+/job[0-9]{3}", job_info.output_file)[0])
+        job_dir = Path(re.search(".+/job[0-9]+", job_info.output_file)[0])
         project_dir = job_dir.parent.parent
         os.chdir(project_dir)
 
@@ -245,9 +245,7 @@ class NodeCreator(CommonService):
                     "input_stars"
                 ].items():
                     input_job_dir = Path(
-                        re.search(
-                            ".+/job[0-9]{3}/", job_info.input_file.split(":")[ii]
-                        )[0]
+                        re.search(".+/job[0-9]+", job_info.input_file.split(":")[ii])[0]
                     )
                     try:
                         pipeline_options[label] = (

@@ -134,7 +134,7 @@ class CrYOLO(CommonService):
             job_is_rerun = False
 
         # CrYOLO requires running in the project directory or job directory
-        job_dir = Path(re.search(".+/job[0-9]{3}/", cryolo_params.output_path)[0])
+        job_dir = Path(re.search(".+/job[0-9]+/", cryolo_params.output_path)[0])
         job_dir.mkdir(parents=True, exist_ok=True)
 
         # Construct a command to run cryolo with the given parameters
@@ -373,7 +373,7 @@ class CrYOLO(CommonService):
             "micrographs_file": cryolo_params.input_path,
             "coord_list_file": cryolo_params.output_path,
         }
-        job_number = int(re.search("/job[0-9]{3}/", cryolo_params.output_path)[0][4:7])
+        job_number = int(re.search("/job[0-9]+/", cryolo_params.output_path)[0][4:7])
         extraction_params["extract_file"] = str(
             Path(
                 re.sub(

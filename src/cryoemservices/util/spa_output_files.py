@@ -207,7 +207,7 @@ def _icebreaker_output_files(
         star_file = job_dir / "grouped_micrographs.star"
         file_to_add = (
             str(
-                Path(re.sub(".+/job[0-9]{3}", str(output_file), str(input_file))).parent
+                Path(re.sub(".+/job[0-9]+", str(output_file), str(input_file))).parent
                 / input_file.stem
             )
             + "_grouped.mrc"
@@ -217,7 +217,7 @@ def _icebreaker_output_files(
         star_file = job_dir / "flattened_micrographs.star"
         file_to_add = (
             str(
-                Path(re.sub(".+/job[0-9]{3}", str(output_file), str(input_file))).parent
+                Path(re.sub(".+/job[0-9]+", str(output_file), str(input_file))).parent
                 / input_file.stem
             )
             + "_flattened.mrc"

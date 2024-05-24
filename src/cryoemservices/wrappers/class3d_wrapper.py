@@ -336,7 +336,7 @@ class Class3DWrapper(BaseWrapper):
         # Run the initial model if requested, otherwise look for a pre-existing file
         if class3d_params.do_initial_model:
             job_num_3d = int(
-                re.search("/job[0-9]{3}", class3d_params.class3d_dir)[0][4:7]
+                re.search("/job[0-9]+", class3d_params.class3d_dir)[0][4:7]
             )
             initial_model_file, initial_model_ispyb_parameters = self.run_initial_model(
                 class3d_params, project_dir, job_num_3d - 1

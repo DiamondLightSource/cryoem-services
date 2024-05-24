@@ -256,7 +256,7 @@ def run():
                 # Create a dictionary of the images and their particles
                 mrcs_name = split_line[2].split("@")[1]
                 reextract_name = re.sub(
-                    ".*Extract/job00./",
+                    ".*Extract/job[0-9]+/",
                     f"{extract_job_dir.relative_to(project_dir)}/",
                     mrcs_name,
                 )

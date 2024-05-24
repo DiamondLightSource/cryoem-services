@@ -99,7 +99,7 @@ class Refine3DWrapper(zocalo.wrapper.BaseWrapper):
         os.chdir(project_dir)
 
         job_num_refine = int(
-            re.search("/job[0-9]{3}", refine_params.refine_job_dir)[0][4:7]
+            re.search("/job[0-9]+", refine_params.refine_job_dir)[0][4:7]
         )
         job_num_postprocess = (
             job_num_refine + 1 if refine_params.mask else job_num_refine + 2

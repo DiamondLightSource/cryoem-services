@@ -301,7 +301,7 @@ class CTFFind(CommonService):
             self.log.info(f"Sending to autopicking: {ctf_params.input_image}")
             ctf_params.autopick["input_path"] = ctf_params.input_image
             ctf_job_number = int(
-                re.search("/job[0-9]{3}/", ctf_params.output_image)[0][4:7]
+                re.search("/job[0-9]+/", ctf_params.output_image)[0][4:7]
             )
             ctf_params.autopick["output_path"] = str(
                 Path(

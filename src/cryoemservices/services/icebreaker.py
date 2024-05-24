@@ -316,7 +316,7 @@ class IceBreaker(CommonService):
                 "input_micrographs": str(
                     Path(
                         re.sub(
-                            ".+/job[0-9]{3}/",
+                            ".+/job[0-9]+/",
                             icebreaker_params.output_path,
                             str(mic_from_project),
                         )
@@ -328,7 +328,7 @@ class IceBreaker(CommonService):
                 "mc_uuid": icebreaker_params.mc_uuid,
             }
             job_number = int(
-                re.search("/job[0-9]{3}/", icebreaker_params.output_path)[0][4:7]
+                re.search("/job[0-9]+", icebreaker_params.output_path)[0][4:]
             )
             next_icebreaker_params["output_path"] = re.sub(
                 f"IceBreaker/job{job_number:03}/",
