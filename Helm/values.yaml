@@ -2,6 +2,17 @@ global:
   namespace: my-namespace
   runAsUser: user-id
   runAsGroup: group-id
+  tolerations:
+  - key: nodetype
+    operator: Equal
+    value: nodevalue
+    effect: NoSchedule
+  - key: science_group
+    operator: Equal
+    value: group
+    effect: NoSchedule
+  nodeSelector:
+    science_group: group
 
 bfactor_setup:
   replicas: 1
