@@ -47,13 +47,13 @@ def _global_tilt_series_file(
     tilt_series_line = [
         tilt_series_tag,
         tilt_series_star,
-        relion_options.voltage,
-        relion_options.spher_aber,
-        relion_options.ampl_contrast,
-        relion_options.pixel_size,
-        relion_options.invert_hand,
+        str(relion_options.voltage),
+        str(relion_options.spher_aber),
+        str(relion_options.ampl_contrast),
+        str(relion_options.pixel_size),
+        str(relion_options.invert_hand),
         "optics1",
-        relion_options.pixel_size,
+        str(relion_options.pixel_size),
     ]
 
     # Create or append to the overall tilt series star file
