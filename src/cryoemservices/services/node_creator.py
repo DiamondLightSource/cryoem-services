@@ -45,7 +45,7 @@ class CachedProjectGraph(ProjectGraph):
 
 # A dictionary of all the available jobs,
 # the folder name they run in, and the names of their inputs in the job star
-pipeline_spa_jobs: dict[str, dict] = {
+pipeline_jobs: dict[str, dict] = {
     "relion.import.movies": {"folder": "Import", "input_stars": {}},
     "relion.import.tilt_series": {"folder": "Import", "input_stars": {}},
     "relion.motioncorr.own": {
@@ -251,8 +251,8 @@ class NodeCreator(CommonService):
             self.log.info("No existing project found, so creating one")
             PipelinerProject(make_new_project=True)
 
-        if not pipeline_spa_jobs.get(job_info.job_type):
-            self.log.error(f"Unknown job type {job_info.job_type}")
+        if not pipeline_jobs.get(job_info.job_type):
+            self.log.error(f"Unknown node creator job type {job_info.job_type}")
             rw.transport.nack(header)
             return
 
@@ -265,7 +265,7 @@ class NodeCreator(CommonService):
             # Work out the name of the input star file and add this to the job.star
             if job_dir.parent.name != "Import":
                 ii = 0
-                for label, star in pipeline_spa_jobs[job_info.job_type][
+                for label, star in pipeline_jobs[job_info.job_type][
                     "input_stars"
                 ].items():
                     input_job_dir = Path(
@@ -310,7 +310,7 @@ class NodeCreator(CommonService):
                     f"{job_info.job_type.replace('.', '_')}_job.star",
                 )
         except (IndexError, ValueError):
-            self.log.error(f"Unknown job type: {job_info.job_type}")
+            self.log.error(f"Unknown pipeliner job type: {job_info.job_type}")
             rw.transport.nack(header)
             return
 
@@ -413,9 +413,13 @@ class NodeCreator(CommonService):
                         )
 
             # Save the metadata file
-            # metadata_dict = pipeliner_job.gather_metadata()
-            # with open(job_dir / "job_metadata.json", "w") as metadata_file:
-            #    metadata_file.write(json.dumps(metadata_dict))
+            # try:
+            #     metadata_dict = pipeliner_job.gather_metadata()
+            #     with open(job_dir / "job_metadata.json", "w") as metadata_file:
+            #         metadata_file.write(json.dumps(metadata_dict))
+            # except FileNotFoundError as e:
+            #     self.log.info(f"Cannot open expected metadata file: {e}")
+            #     (job_dir / "job_metadata.json").touch()
 
             # Create the results display for the non-pipeliner job
             if job_info.job_type == "combine_star_files_job":
