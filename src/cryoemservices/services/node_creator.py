@@ -320,8 +320,13 @@ class NodeCreator(CommonService):
                     params,
                     f"{job_info.job_type.replace('.', '_')}_job.star",
                 )
+<<<<<<< HEAD
         except (IndexError, ValueError) as e:
             self.log.error(f"Pipeliner failed for {job_info.job_type}, error {e}")
+=======
+        except (IndexError, ValueError):
+            self.log.error(f"Unknown pipeliner job type: {job_info.job_type}")
+>>>>>>> ca9fb57 (Catch failure to make metadata file)
             rw.transport.nack(header)
             return
 
@@ -424,12 +429,22 @@ class NodeCreator(CommonService):
                         )
 
             # Save the metadata file
+<<<<<<< HEAD
             # try:
             #     metadata_dict = pipeliner_job.gather_metadata()
             #     with open(job_dir / "job_metadata.json", "w") as metadata_file:
             #         metadata_file.write(json.dumps(metadata_dict))
             # except FileNotFoundError as e:
             #     self.log.info(f"Cannot open expected metadata file: {e}")
+=======
+            try:
+                metadata_dict = pipeliner_job.gather_metadata()
+                with open(job_dir / "job_metadata.json", "w") as metadata_file:
+                    metadata_file.write(json.dumps(metadata_dict))
+            except FileNotFoundError as e:
+                self.log.info(f"Cannot open expected metadata file: {e}")
+                (job_dir / "job_metadata.json").touch()
+>>>>>>> ca9fb57 (Catch failure to make metadata file)
 
             # Create the results display for the non-pipeliner job
             if job_info.job_type == "combine_star_files_job":
