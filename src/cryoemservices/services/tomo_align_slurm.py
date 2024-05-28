@@ -11,7 +11,7 @@ import datasyncer
 from requests import HTTPError
 from workflows.services.common_service import CommonService
 
-from cryoemservices.services.tomo_align import TomoAlign
+from cryoemservices.services.tomo_align import TomoAlign, TomoParameters
 from cryoemservices.util.slurm_submission import slurm_submission
 
 
@@ -76,18 +76,18 @@ class TomoAlignSlurm(TomoAlign, CommonService):
                 self.alignment_quality = float(line.split()[5])
         tomo_file.close()
 
-    def aretomo(self, tomo_parameters):
-        """Submit AreTomo2 jobs to the slurm cluster via the RestAPI"""
+    def aretomo(self, tomo_parameters: TomoParameters, aretomo_output_path: str):
+        """Submit AreTomo jobs to the slurm cluster via the RestAPI"""
         self.log.info(
             f"Input stack: {tomo_parameters.stack_file} \n"
-            f"Output file: {self.aretomo_output_path}"
+            f"Output file: {aretomo_output_path}"
         )
 
         # Assemble the command to run AreTomo2
         command = [
             os.environ["ARETOMO2_EXECUTABLE"],
             "-OutMrc",
-            self.aretomo_output_path,
+            aretomo_output_path,
             "-InMrc",
             str(Path(tomo_parameters.stack_file).name),
         ]
@@ -157,7 +157,7 @@ class TomoAlignSlurm(TomoAlign, CommonService):
             job_name="AreTomo2",
             command=command,
             project_dir=Path(self.alignment_output_dir),
-            output_file=Path(self.aretomo_output_path),
+            output_file=Path(aretomo_output_path),
             cpus=1,
             use_gpu=True,
             use_singularity=False,
@@ -171,13 +171,13 @@ class TomoAlignSlurm(TomoAlign, CommonService):
         self.log.info("Retrieving output files...")
         retrieve_files(
             job_directory=Path(self.alignment_output_dir),
-            files_to_skip=[tomo_parameters.stack_file],
+            files_to_skip=[Path(tomo_parameters.stack_file)],
             basepath=str(Path(tomo_parameters.stack_file).stem),
         )
         self.log.info("All output files retrieved")
 
-        slurm_output_file = f"{self.aretomo_output_path}.out"
-        slurm_error_file = f"{self.aretomo_output_path}.out"
+        slurm_output_file = f"{aretomo_output_path}.out"
+        slurm_error_file = f"{aretomo_output_path}.out"
         if tomo_parameters.tilt_cor and Path(slurm_output_file).is_file():
             self.parse_tomo_output(slurm_output_file)
 
@@ -191,4 +191,4 @@ class TomoAlignSlurm(TomoAlign, CommonService):
             slurm_outcome.stdout = ""
             slurm_outcome.stderr = f"Reading output file {slurm_output_file} failed"
 
-        return slurm_outcome
+        return slurm_outcome, command

@@ -13,12 +13,13 @@ import workflows.transport
 from pydantic import BaseModel, Field, ValidationError, validator
 from workflows.services.common_service import CommonService
 
+from cryoemservices.util.relion_service_options import RelionServiceOptions
+
 
 class TomoParameters(BaseModel):
     stack_file: str = Field(..., min_length=1)
     path_pattern: str = None
     input_file_list: str = None
-    position: Optional[str] = None
     vol_z: int = 1200
     align: Optional[int] = None
     out_bin: int = 4
@@ -40,6 +41,7 @@ class TomoParameters(BaseModel):
     out_imod_xf: Optional[int] = None
     dark_tol: Optional[Union[int, str]] = None
     manual_tilt_offset: Optional[float] = None
+    relion_options: RelionServiceOptions
 
     @validator("input_file_list")
     def check_only_one_is_provided(cls, v, values):
@@ -82,8 +84,12 @@ class TomoAlign(CommonService):
 
     # Human readable service name
     _service_name = "TomoAlign"
+
     # Logger name
     _logger_name = "cryoemservices.services.tomo_align"
+
+    # Job name
+    job_type = "aretomo.align_tiltseries"
 
     # Values to extract for ISPyB
     refined_tilts: List[float]
@@ -93,17 +99,7 @@ class TomoAlign(CommonService):
     rot: float | None = None
     mag: float | None = None
     plot_path: str | None = None
-    plot_file: str | None = None
-    dark_images_file: str | None = None
-    imod_directory: str | None = None
-    xy_proj_file: str | None = None
-    xz_proj_file: str | None = None
-    central_slice_file: str | None = None
-    tomogram_movie_file: str | None = None
-    newstack_path: str | None = None
     alignment_output_dir: str | None = None
-    stack_name: str | None = None
-    aretomo_output_path: str | None = None
     alignment_quality: float | None = None
 
     def __init__(self, *args, **kwargs):
@@ -180,7 +176,6 @@ class TomoAlign(CommonService):
 
             # Create a wrapper-like object that can be passed to functions
             # as if a recipe wrapper was present.
-
             rw = MockRW()
             rw.transport = self._transport
             rw.recipe_step = {"parameters": message["parameters"]}
@@ -208,6 +203,7 @@ class TomoAlign(CommonService):
         def _tilt(file_list):
             return float(file_list[1])
 
+        # Convert a path pattern into a file list
         if tomo_params.path_pattern:
             directory = Path(tomo_params.path_pattern).parent
 
@@ -246,24 +242,13 @@ class TomoAlign(CommonService):
                 self.log.warning(f"Removing: {values_to_remove}")
                 tomo_params.input_file_list.remove(tomo_params.input_file_list[index])
 
+        # Get the names of the output files expected
         self.alignment_output_dir = str(Path(tomo_params.stack_file).parent)
-        self.stack_name = str(Path(tomo_params.stack_file).stem)
+        stack_name = str(Path(tomo_params.stack_file).stem)
 
-        self.aretomo_output_path = (
-            self.alignment_output_dir + "/" + self.stack_name + "_aretomo.mrc"
-        )
-        self.plot_file = self.stack_name + "_xy_shift_plot.json"
-        self.plot_path = self.alignment_output_dir + "/" + self.plot_file
-        self.dark_images_file = self.stack_name + "_DarkImgs.txt"
-        self.xy_proj_file = self.stack_name + "_aretomo_projXY.jpeg"
-        self.xz_proj_file = self.stack_name + "_aretomo_projXZ.jpeg"
-        self.central_slice_file = self.stack_name + "_aretomo_thumbnail.jpeg"
-        self.tomogram_movie_file = self.stack_name + "_aretomo_movie.png"
-        self.newstack_path = (
-            self.alignment_output_dir + "/" + self.stack_name + "_newstack.txt"
-        )
-
-        newstack_result = self.newstack(tomo_params)
+        # Stack the tilts with newstack
+        newstack_path = self.alignment_output_dir + "/" + stack_name + "_newstack.txt"
+        newstack_result = self.newstack(tomo_params, newstack_path)
         if newstack_result.returncode:
             self.log.error(
                 f"Newstack failed with exitcode {newstack_result.returncode}:\n"
@@ -272,24 +257,11 @@ class TomoAlign(CommonService):
             rw.transport.nack(header)
             return
 
-        tomo_params.position = str(Path(tomo_params.input_file_list[0][0]).name).split(
-            "_"
-        )[1]
-
-        p = Path(self.plot_path)
-        if p.is_file():
-            p.chmod(0o740)
-
-        d = Path(self.dark_images_file)
-        if d.is_file():
-            d.chmod(0o740)
-
-        if tomo_params.out_imod:
-            self.imod_directory = (
-                self.alignment_output_dir + "/" + self.stack_name + "_aretomo_Imod"
-            )
-
-        aretomo_result = self.aretomo(tomo_params)
+        # Do alignment with AreTomo
+        aretomo_output_path = (
+            self.alignment_output_dir + "/" + stack_name + "_aretomo.mrc"
+        )
+        aretomo_result, aretomo_command = self.aretomo(tomo_params, aretomo_output_path)
         if aretomo_result.returncode:
             self.log.error(
                 f"AreTomo2 failed with exitcode {aretomo_result.returncode}:\n"
@@ -309,24 +281,30 @@ class TomoAlign(CommonService):
             rw.transport.nack(header)
             return
 
+        imod_directory = self.alignment_output_dir + "/" + stack_name + "_aretomo_Imod"
         if tomo_params.out_imod:
             start_time = time.time()
-            while not Path(self.imod_directory).is_dir():
+            while not Path(imod_directory).is_dir():
                 time.sleep(30)
                 elapsed = time.time() - start_time
                 if elapsed > 600:
                     self.log.warning("Timeout waiting for Imod directory")
                     break
             else:
-                _f = Path(self.imod_directory)
+                _f = Path(imod_directory)
                 _f.chmod(0o750)
                 for file in _f.iterdir():
                     file.chmod(0o740)
 
-        # Extract results for ispyb
+        # Names of the files made for ispyb images
+        plot_file = stack_name + "_xy_shift_plot.json"
+        self.plot_path = self.alignment_output_dir + "/" + plot_file
+        xy_proj_file = stack_name + "_aretomo_projXY.jpeg"
+        xz_proj_file = stack_name + "_aretomo_projXZ.jpeg"
+        central_slice_file = stack_name + "_aretomo_thumbnail.jpeg"
+        tomogram_movie_file = stack_name + "_aretomo_movie.png"
 
-        # XY shift plot
-        # Autoproc program attachment - plot
+        # Extract results for ispyb
         self.extract_from_aln(tomo_params)
         if tomo_params.tilt_cor:
             try:
@@ -347,9 +325,7 @@ class TomoAlign(CommonService):
             {
                 "ispyb_command": "insert_tomogram",
                 "volume_file": str(
-                    Path(self.aretomo_output_path).relative_to(
-                        self.alignment_output_dir
-                    )
+                    Path(aretomo_output_path).relative_to(self.alignment_output_dir)
                 ),
                 "stack_file": tomo_params.stack_file,
                 "size_x": None,  # volume image size, pix
@@ -359,23 +335,25 @@ class TomoAlign(CommonService):
                 "tilt_angle_offset": str(self.tilt_offset),
                 "z_shift": self.rot_centre_z,
                 "file_directory": self.alignment_output_dir,
-                "central_slice_image": self.central_slice_file,
-                "tomogram_movie": self.tomogram_movie_file,
-                "xy_shift_plot": self.plot_file,
-                "proj_xy": self.xy_proj_file,
-                "proj_xz": self.xz_proj_file,
+                "central_slice_image": central_slice_file,
+                "tomogram_movie": tomogram_movie_file,
+                "xy_shift_plot": plot_file,
+                "proj_xy": xy_proj_file,
+                "proj_xz": xz_proj_file,
                 "alignment_quality": str(self.alignment_quality),
                 "store_result": "ispyb_tomogram_id",
             }
         ]
 
+        # Find the indexes of the dark images removed by AreTomo
         missing_indices = []
-        if Path(self.dark_images_file).is_file():
-            with open(self.dark_images_file) as f:
+        dark_images_file = Path(stack_name + "_DarkImgs.txt")
+        if dark_images_file.is_file():
+            with open(dark_images_file) as f:
                 missing_indices = [int(i) for i in f.readlines()[2:]]
-        elif self.imod_directory and Path(self.imod_directory).is_dir():
-            self.dark_images_file = str(Path(self.imod_directory) / "tilt.com")
-            with open(self.dark_images_file) as f:
+        elif Path(imod_directory).is_dir():
+            dark_images_file = Path(imod_directory) / "tilt.com"
+            with open(dark_images_file) as f:
                 lines = f.readlines()
                 for line in lines:
                     if line.startswith("EXCLUDELIST"):
@@ -424,21 +402,44 @@ class TomoAlign(CommonService):
         else:
             rw.send_to("ispyb_connector", ispyb_parameters)
 
+        # Send to node creator
+        self.log.info("Sending tomo align to node creator")
+        node_creator_parameters = {
+            "experiment_type": "tomography",
+            "job_type": self.job_type,
+            "input_file": tomo_params.input_file_list[0][0],
+            "output_file": aretomo_output_path,
+            "relion_options": dict(tomo_params.relion_options),
+            "command": " ".join(aretomo_command),
+            "stdout": "",
+            "stderr": "",
+            "results": {
+                "exclude_list": missing_indices,
+            },
+        }
+        if isinstance(rw, MockRW):
+            rw.transport.send(
+                destination="node_creator",
+                message={"parameters": node_creator_parameters, "content": "dummy"},
+            )
+        else:
+            rw.send_to("node_creator", node_creator_parameters)
+
         # Forward results to images service
-        self.log.info(f"Sending to images service {self.aretomo_output_path}")
+        self.log.info(f"Sending to images service {aretomo_output_path}")
         if isinstance(rw, MockRW):
             rw.transport.send(
                 destination="images",
                 message={
                     "image_command": "mrc_central_slice",
-                    "file": self.aretomo_output_path,
+                    "file": aretomo_output_path,
                 },
             )
             rw.transport.send(
-                destination="movie",
+                destination="images",
                 message={
                     "image_command": "mrc_to_apng",
-                    "file": self.aretomo_output_path,
+                    "file": aretomo_output_path,
                 },
             )
         else:
@@ -446,72 +447,56 @@ class TomoAlign(CommonService):
                 "images",
                 {
                     "image_command": "mrc_central_slice",
-                    "file": self.aretomo_output_path,
+                    "file": aretomo_output_path,
                 },
             )
             rw.send_to(
-                "movie",
+                "images",
                 {
                     "image_command": "mrc_to_apng",
-                    "file": self.aretomo_output_path,
-                },
-            )
-        xy_input = (
-            self.alignment_output_dir
-            + "/"
-            + str(Path(self.xy_proj_file).with_suffix(".mrc"))
-        )
-        xz_input = (
-            self.alignment_output_dir
-            + "/"
-            + str(Path(self.xz_proj_file).with_suffix(".mrc"))
-        )
-        self.log.info(f"Sending to images service {xy_input}, {xz_input}")
-        if isinstance(rw, MockRW):
-            rw.transport.send(
-                destination="projxy",
-                message={
-                    "image_command": "mrc_to_jpeg",
-                    "file": xy_input,
-                },
-            )
-            rw.transport.send(
-                destination="projxz",
-                message={
-                    "image_command": "mrc_to_jpeg",
-                    "file": xz_input,
-                },
-            )
-        else:
-            rw.send_to(
-                "projxy",
-                {
-                    "image_command": "mrc_to_jpeg",
-                    "file": xy_input,
-                },
-            )
-            rw.send_to(
-                "projxz",
-                {
-                    "image_command": "mrc_to_jpeg",
-                    "file": xz_input,
+                    "file": aretomo_output_path,
                 },
             )
 
+        xy_input = Path(self.alignment_output_dir) / Path(xy_proj_file).with_suffix(
+            ".mrc"
+        )
+        xz_input = Path(self.alignment_output_dir) / Path(xz_proj_file).with_suffix(
+            ".mrc"
+        )
+        self.log.info(f"Sending to images service {xy_input}, {xz_input}")
+        for projection_mrc in [xy_input, xz_input]:
+            if isinstance(rw, MockRW):
+                rw.transport.send(
+                    destination="images",
+                    message={
+                        "image_command": "mrc_to_jpeg",
+                        "file": str(projection_mrc),
+                    },
+                )
+            else:
+                rw.send_to(
+                    "images",
+                    {
+                        "image_command": "mrc_to_jpeg",
+                        "file": str(projection_mrc),
+                    },
+                )
+
         # Forward results to denoise service
-        self.log.info(f"Sending to denoise service {self.aretomo_output_path}")
+        self.log.info(f"Sending to denoise service {aretomo_output_path}")
         if isinstance(rw, MockRW):
             rw.transport.send(
                 destination="denoise",
                 message={
-                    "volume": self.aretomo_output_path,
+                    "volume": aretomo_output_path,
                 },
             )
         else:
             rw.send_to(
                 "denoise",
                 {
-                    "volume": self.aretomo_output_path,
+                    "volume": aretomo_output_path,
                 },
             )
 
@@ -529,14 +514,14 @@ class TomoAlign(CommonService):
         self.log.info(f"Done tomogram alignment for {tomo_params.stack_file}")
         rw.transport.ack(header)
 
-    def newstack(self, tomo_parameters):
+    def newstack(self, tomo_parameters: TomoParameters, newstack_path: str):
         """
         Construct file containing a list of files
         Run newstack
         """
 
         # Write a file with a list of .mrcs for input to Newstack
-        with open(self.newstack_path, "w") as f:
+        with open(newstack_path, "w") as f:
             f.write(f"{len(tomo_parameters.input_file_list)}\n")
             f.write("\n0\n".join(i[0] for i in tomo_parameters.input_file_list))
             f.write("\n0\n")
@@ -544,7 +529,7 @@ class TomoAlign(CommonService):
         newstack_cmd = [
             "newstack",
             "-fileinlist",
-            self.newstack_path,
+            newstack_path,
             "-output",
             tomo_parameters.stack_file,
             "-quiet",
@@ -553,11 +538,11 @@ class TomoAlign(CommonService):
         result = subprocess.run(newstack_cmd)
         return result
 
-    def aretomo(self, tomo_parameters):
+    def aretomo(self, tomo_parameters: TomoParameters, aretomo_output_path: str):
         """
         Run AreTomo2 on output of Newstack
         """
-        command = ["AreTomo2", "-OutMrc", self.aretomo_output_path]
+        command = ["AreTomo2", "-OutMrc", aretomo_output_path]
 
         if tomo_parameters.angle_file:
             command.extend(("-AngFile", tomo_parameters.angle_file))
@@ -610,13 +595,13 @@ class TomoAlign(CommonService):
         self.log.info(f"Running AreTomo2 {command}")
         self.log.info(
             f"Input stack: {tomo_parameters.stack_file} \n"
-            f"Output file: {self.aretomo_output_path}"
+            f"Output file: {aretomo_output_path}"
         )
 
         # Save the AreTomo2 command then run it
-        with open(Path(self.aretomo_output_path).with_suffix(".com"), "w") as f:
+        with open(Path(aretomo_output_path).with_suffix(".com"), "w") as f:
             f.write(" ".join(command))
         result = subprocess.run(command, capture_output=True)
         if tomo_parameters.tilt_cor:
             self.parse_tomo_output(result.stdout.decode("utf8", "replace"))
-        return result
+        return result, command
