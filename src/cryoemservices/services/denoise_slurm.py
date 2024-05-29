@@ -182,7 +182,7 @@ class DenoiseSlurm(CommonService):
 
         # Stop here if the job failed
         if slurm_outcome.returncode:
-            self.log.error("Denoising failed to run on Iris")
+            self.log.error("Denoising failed to run")
             rw.transport.nack(header)
             return
 
@@ -216,6 +216,23 @@ class DenoiseSlurm(CommonService):
                 {
                     "image_command": "mrc_to_apng",
                     "file": str(denoised_full_path),
+                },
+            )
+
+        # Send to segmentation
+        self.log.info(f"Sending {denoised_full_path} for segmentation")
+        if isinstance(rw, MockRW):
+            rw.transport.send(
+                destination="segmentation",
+                message={
+                    "tomogram": str(denoised_full_path),
+                },
+            )
+        else:
+            rw.send_to(
+                "segmentation",
+                {
+                    "tomogram": str(denoised_full_path),
                 },
             )
 

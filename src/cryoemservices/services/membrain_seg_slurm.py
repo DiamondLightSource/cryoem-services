@@ -1,0 +1,169 @@
+from __future__ import annotations
+
+from pathlib import Path
+from typing import Optional
+
+import workflows.recipe
+from pydantic import BaseModel, Field, ValidationError
+from workflows.services.common_service import CommonService
+
+from cryoemservices.util.slurm_submission import slurm_submission
+
+
+class MembrainSegParameters(BaseModel):
+    tomogram: str = Field(..., min_length=1)
+    model_checkpoint: str = Field(..., min_length=1)
+    pixel_size: Optional[float] = None
+    output_folder: Optional[str] = None  # volume directory
+    suffix: str = ".segmented"
+    rescale_patches: bool = True
+    augmentation: bool = False
+    store_probabilities: bool = False
+    store_connected_components: bool = False
+    window_size: int = 160
+    connected_component_threshold: Optional[int] = None
+    segmentation_threshold: Optional[float] = None
+
+
+class MembrainSegSlurm(CommonService):
+    """
+    A service for segmenting cryoEM tomograms using membrain-seg
+    Submits jobs to a slurm cluster via RestAPI
+    """
+
+    # Human readable service name
+    _service_name = "MembrainSeg"
+
+    # Logger name
+    _logger_name = "cryoemservices.services.membrain_seg"
+
+    def initializing(self):
+        """Subscribe to a queue. Received messages must be acknowledged."""
+        self.log.info("membrain-seg service starting")
+        workflows.recipe.wrap_subscribe(
+            self._transport,
+            "denoise",
+            self.membrain_seg,
+            acknowledgement=True,
+            log_extender=self.extend_log,
+            allow_non_recipe_messages=True,
+        )
+
+    def membrain_seg(self, rw, header: dict, message: dict):
+        class MockRW:
+            def dummy(self, *args, **kwargs):
+                pass
+
+        if not rw:
+            if (
+                not isinstance(message, dict)
+                or not message.get("parameters")
+                or not message.get("content")
+            ):
+                self.log.error("Rejected invalid simple message")
+                self._transport.nack(header)
+                return
+
+            # Create a wrapper-like object that can be passed to functions
+            # as if a recipe wrapper was present.
+            rw = MockRW()
+            rw.transport = self._transport
+            rw.recipe_step = {"parameters": message["parameters"], "output": None}
+            rw.environment = {"has_recipe_wrapper": False}
+            rw.set_default_channel = rw.dummy
+            rw.send = rw.dummy
+            message = message["content"]
+
+        try:
+            if isinstance(message, dict):
+                membrain_seg_params = MembrainSegParameters(
+                    **{**rw.recipe_step.get("parameters", {}), **message}
+                )
+            else:
+                membrain_seg_params = MembrainSegParameters(
+                    **{**rw.recipe_step.get("parameters", {})}
+                )
+        except (ValidationError, TypeError) as e:
+            self.log.warning(
+                f"membrain-seg parameter validation failed for message: {message} "
+                f"and recipe parameters: {rw.recipe_step.get('parameters', {})} "
+                f"with exception: {e}"
+            )
+            rw.transport.nack(header)
+            return
+
+        # Assemble the membrain-seg command
+        command = ["membrain", "segment"]
+
+        membrain_seg_flags = {
+            "tomogram": "--tomogram-path",
+            "model_checkpoint": "--ckpt-path",
+            "output_folder": "--out-folder",
+            "pixel_size": "--in-pixel-size",
+            "connected_component_threshold": "--connected-component-thres",
+            "segmentation_threshold": "--segmentation-threshold",
+            "window_size": "--sliding-window-size",
+        }
+        for k, v in membrain_seg_params.dict().items():
+            if v and (k in membrain_seg_params):
+                command.extend((membrain_seg_flags[k], str(v)))
+
+        if membrain_seg_params.rescale_patches:
+            command.append("--rescale-patches")
+        else:
+            command.append("--no-rescale-patches")
+
+        if membrain_seg_params.augmentation:
+            command.append("--test-time-augmentation")
+        else:
+            command.append("--no-test-time-augmentation")
+
+        if membrain_seg_params.store_probabilities:
+            command.append("--store-probabilities")
+        else:
+            command.append("--no-store-probabilities")
+
+        if membrain_seg_params.store_connected_components:
+            command.append("--store-connected-components")
+        else:
+            command.append("--no-store-connected-components")
+
+        # Determine the output paths
+        alignment_output_dir = Path(membrain_seg_params.tomogram).parent
+        segmented_file = str(Path(membrain_seg_params.tomogram).stem) + "_segmented.mrc"
+        segmented_path = Path(membrain_seg_params.tomogram).parent / segmented_file
+
+        membrain_file = f"{Path(membrain_seg_params.tomogram).stem}_{Path(membrain_seg_params.model_checkpoint).name}_segmented.mrc"
+        membrain_path = Path(membrain_seg_params.tomogram).parent / membrain_file
+
+        self.log.info(f"Input: {membrain_seg_params.tomogram} Output: {segmented_path}")
+        self.log.info(f"Running {command}")
+
+        # Submit the command to slurm
+        slurm_outcome = slurm_submission(
+            log=self.log,
+            job_name="membrain-seg",
+            command=command,
+            project_dir=alignment_output_dir,
+            output_file=segmented_path,
+            cpus=1,
+            use_gpu=True,
+            use_singularity=False,
+            script_extras="module load EM/membrain-seg",
+        )
+
+        # Stop here if the job failed
+        if slurm_outcome.returncode:
+            self.log.error("membrain-seg failed to run")
+            rw.transport.nack(header)
+            return
+
+        # Rename the output file
+        if membrain_path.is_file():
+            membrain_path.rename(segmented_path)
+
+        # Forward results to images service?
+
+        self.log.info(f"Done segmentation for {membrain_seg_params.tomogram}")
+        rw.transport.ack(header)
+        return
