@@ -115,7 +115,7 @@ def _import_output_files(
         str(output_file),
         relion_options.frame_count,
         stage_tilt_angle,
-        relion_options.tilt_axis,
+        relion_options.tilt_axis_angle,
         int(tilt_number) * relion_options.frame_count * relion_options.dose_per_frame,
         relion_options.defocus,
     ]
@@ -207,6 +207,7 @@ def _ctffind_output_files(
 ):
     """Ctf estimation saves a list of micrographs and their ctf parameters"""
     tilt_series_tag = _get_tilt_tag_v5_12(output_file)
+    stage_tilt_angle = _get_tilt_angle_v5_12(output_file)
 
     # Construct the global file for all tilt series
     _global_tilt_series_file(
@@ -228,6 +229,7 @@ def _ctffind_output_files(
 
     added_line = [
         str(input_file),
+        str(stage_tilt_angle),
         str(output_file.with_suffix(".ctf")) + ":mrc",
         ctf_results[1],
         ctf_results[2],
@@ -247,6 +249,7 @@ def _ctffind_output_files(
             "_rln",
             [
                 "MicrographName",
+                "TomoNominalTiltAxisAngle",
                 "CtfImage",
                 "DefocusU",
                 "DefocusV",
