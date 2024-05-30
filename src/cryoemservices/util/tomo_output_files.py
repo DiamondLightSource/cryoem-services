@@ -146,6 +146,8 @@ def _import_output_files(
         with open(movies_file, "a") as output_cif:
             output_cif.write(" ".join(added_line) + "\n")
 
+    return {f"{job_dir}/tilt_series.star": ["TomogramGroupMetadata", "relion"]}
+
 
 def _motioncorr_output_files(
     job_dir: Path,
@@ -200,6 +202,10 @@ def _motioncorr_output_files(
     else:
         with open(movies_file, "a") as output_cif:
             output_cif.write(" ".join(added_line) + "\n")
+
+    return {
+        f"{job_dir}/corrected_tilt_series.star": ["TomogramGroupMetadata", "relion"]
+    }
 
 
 def _ctffind_output_files(
@@ -269,6 +275,8 @@ def _ctffind_output_files(
     else:
         with open(movies_file, "a") as output_cif:
             output_cif.write(" ".join(added_line) + "\n")
+
+    return {f"{job_dir}/tilt_series_ctf.star": ["TomogramGroupMetadata", "relion"]}
 
 
 _output_files: Dict[str, Callable] = {
