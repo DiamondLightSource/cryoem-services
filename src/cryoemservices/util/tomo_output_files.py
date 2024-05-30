@@ -113,11 +113,15 @@ def _import_output_files(
 
     added_line = [
         str(output_file),
-        relion_options.frame_count,
-        stage_tilt_angle,
-        relion_options.tilt_axis_angle,
-        int(tilt_number) * relion_options.frame_count * relion_options.dose_per_frame,
-        relion_options.defocus,
+        str(relion_options.frame_count),
+        str(stage_tilt_angle),
+        str(relion_options.tilt_axis_angle),
+        str(
+            int(tilt_number)
+            * relion_options.frame_count
+            * relion_options.dose_per_frame
+        ),
+        str(relion_options.defocus),
     ]
 
     # Create or append to the star file for the individual tilt series
