@@ -226,6 +226,7 @@ class DenoiseSlurm(CommonService):
                 destination="segmentation",
                 message={
                     "tomogram": str(denoised_full_path),
+                    "output_folder": str(denoised_full_path.parent),
                 },
             )
         else:
@@ -233,6 +234,7 @@ class DenoiseSlurm(CommonService):
                 "segmentation",
                 {
                     "tomogram": str(denoised_full_path),
+                    "output_folder": str(denoised_full_path.parent),
                 },
             )
 

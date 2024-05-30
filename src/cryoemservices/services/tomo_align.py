@@ -33,7 +33,7 @@ class TomoParameters(BaseModel):
     align_file: Optional[str] = None
     angle_file: Optional[str] = None
     align_z: Optional[int] = None
-    pix_size: Optional[float] = None
+    pixel_size: Optional[float] = None
     init_val: Optional[int] = None
     refine_flag: Optional[int] = None
     out_imod: int = 1
@@ -333,10 +333,12 @@ class TomoAlign(CommonService):
             except IndexError:
                 self.log.warning(f"No rot Z {self.rot_centre_z_list}")
 
-        if tomo_params.pix_size:
-            pix_spacing: str | None = str(tomo_params.pix_size * tomo_params.out_bin)
+        if tomo_params.pixel_size:
+            pixel_spacing: str | None = str(
+                tomo_params.pixel_size * tomo_params.out_bin
+            )
         else:
-            pix_spacing = None
+            pixel_spacing = None
         # Forward results to ispyb
 
         # Tomogram (one per-tilt-series)
@@ -352,7 +354,7 @@ class TomoAlign(CommonService):
                 "size_x": None,  # volume image size, pix
                 "size_y": None,
                 "size_z": None,
-                "pixel_spacing": pix_spacing,
+                "pixel_spacing": pixel_spacing,
                 "tilt_angle_offset": str(self.tilt_offset),
                 "z_shift": self.rot_centre_z,
                 "file_directory": self.alignment_output_dir,
@@ -592,7 +594,7 @@ class TomoAlign(CommonService):
             "kv": "-Kv",
             "align_file": "-AlnFile",
             "align_z": "-AlignZ",
-            "pix_size": "-PixSize",
+            "pixel_size": "-PixSize",
             "init_val": "initVal",
             "refine_flag": "refineFlag",
             "out_imod": "-OutImod",

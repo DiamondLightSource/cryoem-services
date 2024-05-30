@@ -12,7 +12,9 @@ from cryoemservices.util.slurm_submission import slurm_submission
 
 class MembrainSegParameters(BaseModel):
     tomogram: str = Field(..., min_length=1)
-    model_checkpoint: str = Field(..., min_length=1)
+    model_checkpoint: str = (
+        "/dls_sw/apps/EM/membrain-seg/models/MemBrain_seg_v10_alpha.ckpt"
+    )
     pixel_size: Optional[float] = None
     output_folder: Optional[str] = None  # volume directory
     suffix: str = ".segmented"
@@ -130,10 +132,13 @@ class MembrainSegSlurm(CommonService):
 
         # Determine the output paths
         alignment_output_dir = Path(membrain_seg_params.tomogram).parent
-        segmented_file = str(Path(membrain_seg_params.tomogram).stem) + "_segmented.mrc"
+        segmented_file = f"{Path(membrain_seg_params.tomogram).stem}_segmented.mrc"
         segmented_path = Path(membrain_seg_params.tomogram).parent / segmented_file
 
-        membrain_file = f"{Path(membrain_seg_params.tomogram).stem}_{Path(membrain_seg_params.model_checkpoint).name}_segmented.mrc"
+        membrain_file = (
+            f"{Path(membrain_seg_params.tomogram).stem}"
+            f"_{Path(membrain_seg_params.model_checkpoint).name}_segmented.mrc"
+        )
         membrain_path = Path(membrain_seg_params.tomogram).parent / membrain_file
 
         self.log.info(f"Input: {membrain_seg_params.tomogram} Output: {segmented_path}")
