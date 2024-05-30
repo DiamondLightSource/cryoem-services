@@ -46,99 +46,102 @@ class CachedProjectGraph(ProjectGraph):
 # A dictionary of all the available jobs,
 # the folder name they run in, and the names of their inputs in the job star
 pipeline_jobs: dict[str, dict] = {
-    "relion.import.movies": {"folder": "Import", "input_stars": {}},
-    "relion.import.tilt_series": {"folder": "Import", "input_stars": {}},
+    "relion.import.movies": {"folder": "Import", "spa_input": {}},
+    "relion.import.tilt_series": {"folder": "Import", "tomography_input": {}},
     "relion.motioncorr.own": {
         "folder": "MotionCorr",
-        "input_stars": {"input_star_mics": "movies.star"},
+        "spa_input": {"input_star_mics": "movies.star"},
+        "tomography_input": {"input_star_mics": "tilt_series.star"},
     },
     "relion.motioncorr.motioncor2": {
         "folder": "MotionCorr",
-        "input_stars": {"input_star_mics": "movies.star"},
+        "spa_input": {"input_star_mics": "movies.star"},
+        "tomography_input": {"input_star_mics": "tilt_series.star"},
     },
     "icebreaker.micrograph_analysis.micrographs": {
         "folder": "IceBreaker",
-        "input_stars": {"in_mics": "corrected_micrographs.star"},
+        "spa_input": {"in_mics": "corrected_micrographs.star"},
     },
     "icebreaker.micrograph_analysis.enhancecontrast": {
         "folder": "IceBreaker",
-        "input_stars": {"in_mics": "corrected_micrographs.star"},
+        "spa_input": {"in_mics": "corrected_micrographs.star"},
     },
     "icebreaker.micrograph_analysis.summary": {
         "folder": "IceBreaker",
-        "input_stars": {"in_mics": "grouped_micrographs.star"},
+        "spa_input": {"in_mics": "grouped_micrographs.star"},
     },
     "relion.ctffind.ctffind4": {
         "folder": "CtfFind",
-        "input_stars": {"input_star_mics": "corrected_micrographs.star"},
+        "spa_input": {"input_star_mics": "corrected_micrographs.star"},
+        "tomography_input": {"input_star_mics": "corrected_tilt_series.star"},
     },
     "cryolo.autopick": {
         "folder": "AutoPick",
-        "input_stars": {"input_file": "corrected_micrographs.star"},
+        "spa_input": {"input_file": "corrected_micrographs.star"},
     },
     "relion.extract": {
         "folder": "Extract",
-        "input_stars": {
+        "spa_input": {
             "coords_suffix": "autopick.star",
             "star_mics": "micrographs_ctf.star",
         },
     },
     "relion.select.split": {
         "folder": "Select",
-        "input_stars": {"fn_data": "particles.star"},
+        "spa_input": {"fn_data": "particles.star"},
     },
     "icebreaker.micrograph_analysis.particles": {
         "folder": "IceBreaker",
-        "input_stars": {
+        "spa_input": {
             "in_mics": "grouped_micrographs.star",
             "in_parts": "particles_split1.star",
         },
     },
     "relion.class2d.em": {
         "folder": "Class2D",
-        "input_stars": {"fn_img": "particles_split1.star"},
+        "spa_input": {"fn_img": "particles_split1.star"},
     },
     "relion.class2d.vdam": {
         "folder": "Class2D",
-        "input_stars": {"fn_img": "particles_split1.star"},
+        "spa_input": {"fn_img": "particles_split1.star"},
     },
     "relion.select.class2dauto": {
         "folder": "Select",
-        "input_stars": {"fn_model": "run_it020_optimiser.star"},
+        "spa_input": {"fn_model": "run_it020_optimiser.star"},
     },
     "combine_star_files_job": {
         "folder": "Select",
-        "input_stars": {"files_to_process": "particles.star"},
+        "spa_input": {"files_to_process": "particles.star"},
     },
     "relion.initialmodel": {
         "folder": "InitialModel",
-        "input_stars": {"fn_img": "particles_split1.star"},
+        "spa_input": {"fn_img": "particles_split1.star"},
     },
     "relion.class3d": {
         "folder": "Class3D",
-        "input_stars": {
+        "spa_input": {
             "fn_img": "particles_split1.star",
             "fn_ref": "initial_model.mrc",
         },
     },
     "relion.select.onvalue": {
         "folder": "Select",
-        "input_stars": {"fn_data": "run_it025_data.star"},
+        "spa_input": {"fn_data": "run_it025_data.star"},
     },
     "relion.refine3d": {
         "folder": "Refine3D",
-        "input_stars": {
+        "spa_input": {
             "fn_img": "particles_split1.star",
             "fn_ref": "run_it025_class.mrc",
         },
     },
     "relion.maskcreate": {
         "folder": "MaskCreate",
-        "input_stars": {"fn_in": "run_class001.star"},
+        "spa_input": {"fn_in": "run_class001.star"},
     },
     "relion.postprocess": {
         "folder": "PostProcess",
-        "input_stars": {
+        "spa_input": {
             "fn_in": "run_half1_class001_unfil.mrc",
             "fn_mask": "mask.mrc",
         },
@@ -251,8 +254,13 @@ class NodeCreator(CommonService):
             self.log.info("No existing project found, so creating one")
             PipelinerProject(make_new_project=True)
 
-        if not pipeline_jobs.get(job_info.job_type):
-            self.log.error(f"Unknown node creator job type {job_info.job_type}")
+        if not pipeline_jobs.get(job_info.job_type) or not pipeline_jobs[
+            job_info.job_type
+        ].get(job_info.experiment_type + "_input"):
+            self.log.error(
+                f"Unknown node creator job type {job_info.job_type} "
+                f"in {job_info.experiment_type} collection"
+            )
             rw.transport.nack(header)
             return
 
@@ -266,7 +274,7 @@ class NodeCreator(CommonService):
             if job_dir.parent.name != "Import":
                 ii = 0
                 for label, star in pipeline_jobs[job_info.job_type][
-                    "input_stars"
+                    job_info.experiment_type + "_input"
                 ].items():
                     input_job_dir = Path(
                         re.search(".+/job[0-9]+", job_info.input_file.split(":")[ii])[0]
