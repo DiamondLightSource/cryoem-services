@@ -30,7 +30,6 @@ class MembrainSegParameters(BaseModel):
 class MembrainSeg(CommonService):
     """
     A service for segmenting cryoEM tomograms using membrain-seg
-    Submits jobs to a slurm cluster via RestAPI
     """
 
     # Human readable service name
@@ -145,7 +144,7 @@ class MembrainSeg(CommonService):
         self.log.info(f"Running {command}")
 
         # Submit the command to slurm
-        slurm_outcome = slurm_submission(
+        result = slurm_submission(
             log=self.log,
             job_name="membrain-seg",
             command=command,
@@ -157,8 +156,11 @@ class MembrainSeg(CommonService):
             script_extras="module load EM/membrain-seg",
         )
 
+        # Run the command
+        # result = subprocess.run(command, capture_output=True)
+
         # Stop here if the job failed
-        if slurm_outcome.returncode:
+        if result.returncode:
             self.log.error("membrain-seg failed to run")
             rw.transport.nack(header)
             return
