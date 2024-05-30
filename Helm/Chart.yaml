@@ -14,6 +14,7 @@ dependencies:
 - name: icebreaker
 - name: images
 - name: ispyb
+- name: membrain_seg
 - name: motioncorr
 - name: motioncorr_slurm
 - name: node_creator
