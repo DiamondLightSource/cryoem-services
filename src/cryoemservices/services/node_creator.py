@@ -46,8 +46,11 @@ class CachedProjectGraph(ProjectGraph):
 # A dictionary of all the available jobs,
 # the folder name they run in, and the names of their inputs in the job star
 pipeline_jobs: dict[str, dict] = {
-    "relion.import.movies": {"folder": "Import", "spa_input": {}},
-    "relion.import.tilt_series": {"folder": "Import", "tomography_input": {}},
+    "relion.import.movies": {"folder": "Import", "spa_input": {"fn_in_raw": "*.tiff"}},
+    "relion.import.tilt_series": {
+        "folder": "Import",
+        "tomography_input": {"movie_files": "*.tiff", "mdoc_files": "*.mdoc"},
+    },
     "relion.motioncorr.own": {
         "folder": "MotionCorr",
         "spa_input": {"input_star_mics": "movies.star"},
