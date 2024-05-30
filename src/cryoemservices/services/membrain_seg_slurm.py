@@ -27,7 +27,7 @@ class MembrainSegParameters(BaseModel):
     segmentation_threshold: Optional[float] = None
 
 
-class MembrainSegSlurm(CommonService):
+class MembrainSeg(CommonService):
     """
     A service for segmenting cryoEM tomograms using membrain-seg
     Submits jobs to a slurm cluster via RestAPI
@@ -44,7 +44,7 @@ class MembrainSegSlurm(CommonService):
         self.log.info("membrain-seg service starting")
         workflows.recipe.wrap_subscribe(
             self._transport,
-            "denoise",
+            "membrain_seg",
             self.membrain_seg,
             acknowledgement=True,
             log_extender=self.extend_log,
