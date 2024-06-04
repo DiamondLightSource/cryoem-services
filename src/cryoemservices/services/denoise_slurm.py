@@ -186,6 +186,14 @@ class DenoiseSlurm(CommonService):
             rw.transport.nack(header)
             return
 
+        # Clean up the slurm files
+        slurm_output_file = f"{denoised_full_path}.out"
+        slurm_error_file = f"{denoised_full_path}.err"
+        submission_file = f"{denoised_full_path}.json"
+        Path(slurm_output_file).unlink()
+        Path(slurm_error_file).unlink()
+        Path(submission_file).unlink()
+
         # Forward results to images service
         self.log.info(f"Sending to images service {denoise_params.volume}")
         if isinstance(rw, MockRW):
@@ -226,7 +234,6 @@ class DenoiseSlurm(CommonService):
                 destination="segmentation",
                 message={
                     "tomogram": str(denoised_full_path),
-                    "output_folder": str(denoised_full_path.parent),
                 },
             )
         else:
@@ -234,7 +241,6 @@ class DenoiseSlurm(CommonService):
                 "segmentation",
                 {
                     "tomogram": str(denoised_full_path),
-                    "output_folder": str(denoised_full_path.parent),
                 },
             )
 

@@ -16,7 +16,6 @@ class MembrainSegParameters(BaseModel):
         "/dls_sw/apps/EM/membrain-seg/models/MemBrain_seg_v10_alpha.ckpt"
     )
     pixel_size: Optional[float] = None
-    output_folder: Optional[str] = None  # volume directory
     suffix: str = ".segmented"
     rescale_patches: bool = True
     augmentation: bool = False
@@ -94,12 +93,12 @@ class MembrainSeg(CommonService):
             return
 
         # Assemble the membrain-seg command
-        command = ["membrain", "segment"]
+        alignment_output_dir = Path(membrain_seg_params.tomogram).parent
+        command = ["membrain", "segment", "--out-folder", str(alignment_output_dir)]
 
         membrain_seg_flags = {
             "tomogram": "--tomogram-path",
             "model_checkpoint": "--ckpt-path",
-            "output_folder": "--out-folder",
             "pixel_size": "--in-pixel-size",
             "connected_component_threshold": "--connected-component-thres",
             "segmentation_threshold": "--segmentation-threshold",
@@ -130,15 +129,14 @@ class MembrainSeg(CommonService):
             command.append("--no-store-connected-components")
 
         # Determine the output paths
-        alignment_output_dir = Path(membrain_seg_params.tomogram).parent
         segmented_file = f"{Path(membrain_seg_params.tomogram).stem}_segmented.mrc"
-        segmented_path = Path(membrain_seg_params.tomogram).parent / segmented_file
+        segmented_path = alignment_output_dir / segmented_file
 
         membrain_file = (
             f"{Path(membrain_seg_params.tomogram).stem}"
             f"_{Path(membrain_seg_params.model_checkpoint).name}_segmented.mrc"
         )
-        membrain_path = Path(membrain_seg_params.tomogram).parent / membrain_file
+        membrain_path = alignment_output_dir / membrain_file
 
         self.log.info(f"Input: {membrain_seg_params.tomogram} Output: {segmented_path}")
         self.log.info(f"Running {command}")
@@ -169,6 +167,14 @@ class MembrainSeg(CommonService):
         # Rename the output file
         if membrain_path.is_file():
             membrain_path.rename(segmented_path)
+
+        # Clean up the slurm files
+        slurm_output_file = f"{segmented_path}.out"
+        slurm_error_file = f"{segmented_path}.err"
+        submission_file = f"{segmented_path}.json"
+        Path(slurm_output_file).unlink()
+        Path(slurm_error_file).unlink()
+        Path(submission_file).unlink()
 
         # Forward results to images service?
 
