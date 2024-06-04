@@ -153,6 +153,7 @@ class MembrainSeg(CommonService):
             cpus=1,
             use_gpu=True,
             use_singularity=False,
+            memory_request=25000,
             script_extras="module load EM/membrain-seg",
         )
 

@@ -37,7 +37,6 @@ slurm_json_job_template = {
         "maximum_nodes": 1,
         "tasks": 1,
         "memory_per_node": {
-            "number": 12000,
             "set": True,
             "infinite": False,
         },
@@ -76,6 +75,7 @@ def slurm_submission(
     use_singularity: bool,
     cif_name: str = "",
     script_extras: str = "",
+    memory_request: int = 12000,
     external_filesystem: bool = False,
 ):
     """Submit jobs to a slurm cluster via the RestAPI"""
@@ -135,9 +135,10 @@ def slurm_submission(
     if use_gpu:
         if api_version == "v0.0.38":
             slurm_json_job["gpus"] = 1
-            slurm_json_job["memory_per_gpu"] = 12000
+            slurm_json_job["memory_per_gpu"] = memory_request
         else:
             slurm_json_job["tres_per_task"] = "gres/gpu:1"
+            slurm_json_job["memory_per_node"]["number"] = memory_request
     elif api_version == "v0.0.38":
         slurm_json_job["memory_per_cpu"] = 1000
 
