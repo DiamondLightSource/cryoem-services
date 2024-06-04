@@ -16,7 +16,6 @@ class MembrainSegParameters(BaseModel):
         "/dls_sw/apps/EM/membrain-seg/models/MemBrain_seg_v10_alpha.ckpt"
     )
     pixel_size: Optional[float] = None
-    suffix: str = ".segmented"
     rescale_patches: bool = True
     augmentation: bool = False
     store_probabilities: bool = False
@@ -175,7 +174,38 @@ class MembrainSeg(CommonService):
             Path(f"{segmented_path}.err").unlink()
             Path(f"{segmented_path}.json").unlink()
 
-        # Forward results to images service?
+        # Forward results to images service
+        self.log.info(f"Sending to images service {segmented_path}")
+        if isinstance(rw, MockRW):
+            rw.transport.send(
+                destination="images",
+                message={
+                    "image_command": "mrc_central_slice",
+                    "file": str(segmented_path),
+                },
+            )
+            rw.transport.send(
+                destination="movie",
+                message={
+                    "image_command": "mrc_to_apng",
+                    "file": str(segmented_path),
+                },
+            )
+        else:
+            rw.send_to(
+                "images",
+                {
+                    "image_command": "mrc_central_slice",
+                    "file": str(segmented_path),
+                },
+            )
+            rw.send_to(
+                "movie",
+                {
+                    "image_command": "mrc_to_apng",
+                    "file": str(segmented_path),
+                },
+            )
 
         self.log.info(f"Done segmentation for {membrain_seg_params.tomogram}")
         rw.transport.ack(header)
