@@ -83,6 +83,7 @@ def test_denoise_slurm_service(
             "patch_size": 96,
             "patch_padding": 48,
             "device": "-2",
+            "cleanup_output": False,
         },
         "content": "dummy",
     }

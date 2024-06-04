@@ -24,6 +24,7 @@ class MembrainSegParameters(BaseModel):
     window_size: int = 160
     connected_component_threshold: Optional[int] = None
     segmentation_threshold: Optional[float] = None
+    cleanup_output: bool = True
 
 
 class MembrainSeg(CommonService):
@@ -169,12 +170,10 @@ class MembrainSeg(CommonService):
             membrain_path.rename(segmented_path)
 
         # Clean up the slurm files
-        slurm_output_file = f"{segmented_path}.out"
-        slurm_error_file = f"{segmented_path}.err"
-        submission_file = f"{segmented_path}.json"
-        Path(slurm_output_file).unlink()
-        Path(slurm_error_file).unlink()
-        Path(submission_file).unlink()
+        if membrain_seg_params.cleanup_output:
+            Path(f"{segmented_path}.out").unlink()
+            Path(f"{segmented_path}.err").unlink()
+            Path(f"{segmented_path}.json").unlink()
 
         # Forward results to images service?
 

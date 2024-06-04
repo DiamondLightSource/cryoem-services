@@ -36,6 +36,7 @@ class DenoiseParameters(BaseModel):
     patch_size: Optional[int] = None  # 96
     patch_padding: Optional[int] = None  # 48
     device: Optional[int] = None  # -2
+    cleanup_output: bool = True
 
     @validator("model")
     def saved_models(cls, v):
@@ -187,12 +188,10 @@ class DenoiseSlurm(CommonService):
             return
 
         # Clean up the slurm files
-        slurm_output_file = f"{denoised_full_path}.out"
-        slurm_error_file = f"{denoised_full_path}.err"
-        submission_file = f"{denoised_full_path}.json"
-        Path(slurm_output_file).unlink()
-        Path(slurm_error_file).unlink()
-        Path(submission_file).unlink()
+        if denoise_params.cleanup_output:
+            Path(f"{denoised_full_path}.out").unlink()
+            Path(f"{denoised_full_path}.err").unlink()
+            Path(f"{denoised_full_path}.json").unlink()
 
         # Forward results to images service
         self.log.info(f"Sending to images service {denoise_params.volume}")
