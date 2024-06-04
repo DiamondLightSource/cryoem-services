@@ -15,7 +15,6 @@ dependencies:
 - name: images
 - name: ispyb
 - name: motioncorr
-- name: motioncorr_slurm
 - name: node_creator
 - name: postprocess
 - name: select_classes

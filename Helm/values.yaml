@@ -206,22 +206,6 @@ motioncorr:
     readOnly: true
   configMap: zocalo-conf
 
-motioncorr_slurm:
-  replicas: 1
-  image: gcr.io/image/path
-  command: zocalo.service -s service-name -e environment
-  extraVolumes:
-  - name: home
-    hostPath:
-      path: /home
-      type: Directory
-  extraVolumeMounts:
-  - mountPath: /home
-    name: home
-    mountPropagation: HostToContainer
-    readOnly: true
-  configMap: zocalo-conf
-
 node_creator:
   replicas: 1
   image: gcr.io/image/path
