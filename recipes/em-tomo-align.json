@@ -43,8 +43,8 @@
   "4": {
     "output": {
       "images": 5,
-      "membrain_seg": 7,
-      "movie": 5
+      "movie": 5,
+      "segmentation": 7
     },
     "queue": "denoise",
     "service": "Denoise"
@@ -64,7 +64,7 @@
     "service": "EMISPyB"
   },
   "7": {
-    "queue": "membrain_seg",
+    "queue": "segmentation",
     "service": "MembrainSeg"
   },
   "start": [
