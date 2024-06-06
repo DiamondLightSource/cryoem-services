@@ -29,23 +29,21 @@ def _get_tilt_number_v5_12(p: Path) -> str:
     return split_name[angle_idx - 1]
 
 
-def _get_tilt_tag_v5_12(p: Path) -> str:
+def _get_tilt_name_v5_12(p: Path) -> str:
     split_name = p.name.split("_")
     angle_idx = _find_angle_index(split_name)
-    if split_name[angle_idx - 2].isnumeric():
-        return "_".join(split_name[: angle_idx - 2])
     return "_".join(split_name[: angle_idx - 1])
 
 
 def _global_tilt_series_file(
     global_tilt_star: Path,
-    tilt_series_tag: str,
+    tilt_series_name: str,
     tilt_series_star: str,
     relion_options: RelionServiceOptions,
 ):
     """Construction of files which list all tilt series"""
     tilt_series_line = [
-        tilt_series_tag,
+        tilt_series_name,
         tilt_series_star,
         str(relion_options.voltage),
         str(relion_options.spher_aber),
@@ -81,7 +79,7 @@ def _global_tilt_series_file(
         tilts_cif = cif.read_file(str(global_tilt_star))
         tilts_loop = list(tilts_cif.find_block("global").find_loop("_rlnTomoName"))
 
-        if tilt_series_tag not in tilts_loop:
+        if tilt_series_name not in tilts_loop:
             with open(global_tilt_star, "a") as output_cif:
                 output_cif.write(" ".join(tilt_series_line) + "\n")
 
@@ -94,20 +92,20 @@ def _import_output_files(
     results: dict,
 ):
     """Import jobs save a list of all micrographs"""
-    tilt_series_tag = _get_tilt_tag_v5_12(output_file)
+    tilt_series_name = _get_tilt_name_v5_12(output_file)
     tilt_number = _get_tilt_number_v5_12(output_file)
     stage_tilt_angle = _get_tilt_angle_v5_12(output_file)
 
     # Construct the global file for all tilt series
     _global_tilt_series_file(
         job_dir / "tilt_series.star",
-        tilt_series_tag,
-        f"Import/job001/tilt_series/{tilt_series_tag}.star",
+        tilt_series_name,
+        f"Import/job001/tilt_series/{tilt_series_name}.star",
         relion_options,
     )
 
     # Prepare the file for this tilt series
-    movies_file = job_dir / f"tilt_series/{tilt_series_tag}.star"
+    movies_file = job_dir / f"tilt_series/{tilt_series_name}.star"
     if not (job_dir / "tilt_series").is_dir():
         (job_dir / "tilt_series").mkdir()
 
@@ -127,7 +125,7 @@ def _import_output_files(
     # Create or append to the star file for the individual tilt series
     if not Path(movies_file).exists():
         output_cif = cif.Document()
-        data_movies = output_cif.add_new_block(tilt_series_tag)
+        data_movies = output_cif.add_new_block(tilt_series_name)
 
         movies_loop = data_movies.init_loop(
             "_rln",
@@ -157,18 +155,18 @@ def _motioncorr_output_files(
     results: dict,
 ):
     """Motion correction saves a list of micrographs and their motion"""
-    tilt_series_tag = _get_tilt_tag_v5_12(output_file)
+    tilt_series_name = _get_tilt_name_v5_12(output_file)
 
     # Construct the global file for all tilt series
     _global_tilt_series_file(
         job_dir / "corrected_tilt_series.star",
-        tilt_series_tag,
-        f"MotionCorr/job002/tilt_series/{tilt_series_tag}.star",
+        tilt_series_name,
+        f"MotionCorr/job002/tilt_series/{tilt_series_name}.star",
         relion_options,
     )
 
     # Prepare the file for this tilt series
-    movies_file = job_dir / f"tilt_series/{tilt_series_tag}.star"
+    movies_file = job_dir / f"tilt_series/{tilt_series_name}.star"
     if not (job_dir / "tilt_series").is_dir():
         (job_dir / "tilt_series").mkdir()
 
@@ -185,7 +183,7 @@ def _motioncorr_output_files(
     # Create or append to the star file for the individual tilt series
     if not Path(movies_file).exists():
         output_cif = cif.Document()
-        data_movies = output_cif.add_new_block(tilt_series_tag)
+        data_movies = output_cif.add_new_block(tilt_series_name)
 
         movies_loop = data_movies.init_loop(
             "_rln",
@@ -216,19 +214,19 @@ def _ctffind_output_files(
     results: dict,
 ):
     """Ctf estimation saves a list of micrographs and their ctf parameters"""
-    tilt_series_tag = _get_tilt_tag_v5_12(output_file)
+    tilt_series_name = _get_tilt_name_v5_12(output_file)
     stage_tilt_angle = _get_tilt_angle_v5_12(output_file)
 
     # Construct the global file for all tilt series
     _global_tilt_series_file(
         job_dir / "tilt_series_ctf.star",
-        tilt_series_tag,
-        f"CtfFind/job003/tilt_series/{tilt_series_tag}.star",
+        tilt_series_name,
+        f"CtfFind/job003/tilt_series/{tilt_series_name}.star",
         relion_options,
     )
 
     # Prepare the file for this tilt series
-    movies_file = job_dir / f"tilt_series/{tilt_series_tag}.star"
+    movies_file = job_dir / f"tilt_series/{tilt_series_name}.star"
     if not (job_dir / "tilt_series").is_dir():
         (job_dir / "tilt_series").mkdir()
 
@@ -253,7 +251,7 @@ def _ctffind_output_files(
     # Create or append to the star file for the individual tilt series
     if not Path(movies_file).exists():
         output_cif = cif.Document()
-        data_movies = output_cif.add_new_block(tilt_series_tag)
+        data_movies = output_cif.add_new_block(tilt_series_name)
 
         movies_loop = data_movies.init_loop(
             "_rln",
