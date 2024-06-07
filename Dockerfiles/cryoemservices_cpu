@@ -8,16 +8,25 @@ ARG groupid
 ARG userid
 ARG groupname
 
+# Add cryolo files
+RUN mkdir -p /dls_sw/apps/EM/crYOLO/phosaurus_models
+COPY cryolo_models/* /dls_sw/apps/EM/crYOLO/phosaurus_models
+RUN chown -R "${userid}":"${groupid}" /dls_sw
+
 # Install cryoem-services and pipeliner
 COPY --chown="${userid}":"${groupid}" packages/cryoem-services ./cryoem-services
 COPY --chown="${userid}":"${groupid}" packages/ccpem-pipeliner ./ccpem-pipeliner
 RUN python -m pip install ./cryoem-services && \
     python -m pip install ./ccpem-pipeliner
 
-# Add cryolo files
-RUN mkdir -p /dls_sw/apps/EM/crYOLO/phosaurus_models
-COPY cryolo_models/* /dls_sw/apps/EM/crYOLO/phosaurus_models
-RUN chown -R "${userid}":"${groupid}" /dls_sw
+# Install Iris datasyncer
+RUN python -m pip install datasyncer --extra-index-url https://gitlab.diamond.ac.uk/api/v4/projects/6395/packages/pypi/simple
+
+# Install IMOD for tomo align
+COPY --chown="${userid}":"${groupid}" packages/imod-4.11.1 /IMOD/4.11.1
+WORKDIR /IMOD/4.11.1
+ENV PATH=/IMOD/4.11.1/IMOD/bin/realbin:${PATH}
+RUN chmod +x /IMOD/4.11.1
 
 # Create EM user
 RUN groupadd -r -g "${groupid}" "${groupname}" && useradd -r -M "${groupname}" -u "${userid}" -g "${groupname}"

@@ -13,6 +13,8 @@ RUN bash Mambaforge-$(uname)-$(uname -m).sh -b -p "conda"
 
 RUN source "/conda/etc/profile.d/conda.sh" && source "/conda/etc/profile.d/mamba.sh" && mamba create -c conda-forge -p /install/pythonenv python=3.10 pip libtiff=4.4.0 --override-channels -y
 
+RUN chmod -R a+x /install/pythonenv/bin
+
 # Install cryoem-services and ccp-em pipeliner
 RUN mkdir /install/cryoem-services && mkdir /install/ccpem-pipeliner
 COPY packages/cryoem-services /install/cryoem-services
