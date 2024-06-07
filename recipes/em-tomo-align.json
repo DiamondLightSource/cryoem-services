@@ -14,7 +14,7 @@
       "input_file_list": "{input_file_list}",
       "manual_tilt_offset": "{manual_tilt_offset}",
       "path_pattern": "{path_pattern}",
-      "pix_size": "{pix_size}",
+      "pixel_size": "{pix_size}",
       "stack_file": "{stack_file}"
     },
     "queue": "tomo_align",
@@ -43,7 +43,8 @@
   "4": {
     "output": {
       "images": 5,
-      "movie": 5
+      "movie": 5,
+      "segmentation": 7
     },
     "queue": "denoise",
     "service": "Denoise"
@@ -61,6 +62,10 @@
     },
     "queue": "ispyb_connector",
     "service": "EMISPyB"
+  },
+  "7": {
+    "queue": "segmentation",
+    "service": "MembrainSeg"
   },
   "start": [
     [

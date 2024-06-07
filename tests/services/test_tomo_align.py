@@ -71,7 +71,7 @@ def test_tomo_align_service(
             "align_file": None,
             "angle_file": f"{tmp_path}/angles.file",
             "align_z": None,
-            "pix_size": 1e-10,
+            "pixel_size": 1e-10,
             "init_val": None,
             "refine_flag": None,
             "out_imod": 1,

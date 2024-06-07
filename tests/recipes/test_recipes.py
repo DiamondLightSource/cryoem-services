@@ -13,6 +13,7 @@ from cryoemservices.services.denoise_slurm import DenoiseParameters
 from cryoemservices.services.extract import ExtractParameters
 from cryoemservices.services.extract_class import ExtractClassParameters
 from cryoemservices.services.icebreaker import IceBreakerParameters
+from cryoemservices.services.membrain_seg import MembrainSegParameters
 from cryoemservices.services.motioncorr import MotionCorrParameters
 from cryoemservices.services.postprocess import PostProcessParameters
 from cryoemservices.services.select_classes import SelectClassesParameters
@@ -63,6 +64,7 @@ known_services = {
     "ExtractClass": ExtractClassParameters,
     "IceBreaker": IceBreakerParameters,
     "Images": BaseModel,
+    "MembrainSeg": MembrainSegParameters,
     "MotionCorr": MotionCorrParameters,
     "Murfey": MurfeyParameters,
     "NodeCreator": NodeCreatorParameters,

@@ -9,7 +9,7 @@ import pytest
 import zocalo.configuration
 from workflows.transport.offline_transport import OfflineTransport
 
-from cryoemservices.services import denoise_slurm
+from cryoemservices.services import membrain_seg
 
 
 @pytest.fixture
@@ -35,16 +35,15 @@ def offline_transport(mocker):
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.util.slurm_submission.subprocess.run")
-def test_denoise_slurm_service(
+def test_membrain_seg_service(
     mock_subprocess,
     mock_environment,
     offline_transport,
     tmp_path,
 ):
     """
-    Send a test message to Denoising for the slurm submission version
-    This should call the mock subprocess then send messages on to
-    the membrain-seg and images services.
+    Send a test message to membrain-seg for the slurm submission version
+    This should call the mock subprocess then send messages to the images service.
     """
     mock_subprocess().returncode = 0
     mock_subprocess().stdout = (
@@ -56,40 +55,25 @@ def test_denoise_slurm_service(
         "message-id": mock.sentinel,
         "subscription": mock.sentinel,
     }
-    denoise_test_message = {
+    segmentation_test_message = {
         "parameters": {
-            "volume": f"{tmp_path}/test_stack_aretomo.mrc",
-            "output": f"{tmp_path}/denoised",
-            "suffix": ".denoised",
-            "model": "unet-3d",
-            "even_train_path": None,
-            "odd_train_path": None,
-            "n_train": 1000,
-            "n_test": 200,
-            "crop": 96,
-            "base_kernel_width": 11,
-            "optim": "adagrad",
-            "lr": "0.001",
-            "criteria": "L2",
-            "momentum": "0.8",
-            "batch_size": 10,
-            "num_epochs": 500,
-            "weight_decay": 0,
-            "save_interval": 10,
-            "save_prefix": "prefix",
-            "num_workers": 1,
-            "num_threads": 0,
-            "gaussian": 0,
-            "patch_size": 96,
-            "patch_padding": 48,
-            "device": "-2",
+            "tomogram": f"{tmp_path}/test_stack_aretomo.denoised.mrc",
+            "model_checkpoint": "checkpoint.ckpt",
+            "pixel_size": "1.0",
+            "rescale_patches": True,
+            "augmentation": True,
+            "store_probabilities": True,
+            "store_connected_components": True,
+            "window_size": 100,
+            "connected_component_threshold": 2,
+            "segmentation_threshold": 4,
             "cleanup_output": False,
         },
         "content": "dummy",
     }
 
     # Set up the mock service
-    service = denoise_slurm.DenoiseSlurm(environment=mock_environment)
+    service = membrain_seg.MembrainSeg(environment=mock_environment)
     service.transport = offline_transport
     service.start()
 
@@ -112,18 +96,18 @@ def test_denoise_slurm_service(
         token.write("token_key")
 
     # Touch the expected output files
-    (tmp_path / "test_stack_aretomo.denoised.mrc.out").touch()
-    (tmp_path / "test_stack_aretomo.denoised.mrc.err").touch()
+    (tmp_path / "test_stack_aretomo.denoised_segmented.mrc.out").touch()
+    (tmp_path / "test_stack_aretomo.denoised_segmented.mrc.err").touch()
 
     # Send a message to the service
-    service.denoise(None, header=header, message=denoise_test_message)
+    service.membrain_seg(None, header=header, message=segmentation_test_message)
 
     # Check the slurm commands were run
     slurm_submit_command = (
         f'curl -H "X-SLURM-USER-NAME:user" -H "X-SLURM-USER-TOKEN:token_key" '
         '-H "Content-Type: application/json" -X POST '
         "/url/of/slurm/restapi/slurm/v0.0.40/job/submit "
-        f"-d @{tmp_path}/test_stack_aretomo.denoised.mrc.json"
+        f"-d @{tmp_path}/test_stack_aretomo.denoised_segmented.mrc.json"
     )
     slurm_status_command = (
         'curl -H "X-SLURM-USER-NAME:user" -H "X-SLURM-USER-TOKEN:token_key" '
@@ -136,16 +120,6 @@ def test_denoise_slurm_service(
     mock_subprocess.assert_any_call(
         slurm_status_command, capture_output=True, shell=True
     )
-
-    # Check file transfer and retrieval
-    # assert mock_transfer.call_count == 1
-    # mock_transfer.assert_any_call([f"{tmp_path}/test_stack_aretomo.mrc"])
-    # assert mock_retrieve.call_count == 1
-    # mock_retrieve.assert_any_call(
-    #    job_directory=tmp_path,
-    #    files_to_skip=[tmp_path / "test_stack_aretomo.mrc"],
-    #    basepath="test_stack_aretomo",
-    # )
     assert mock_subprocess.call_count == 5
 
     # Check the images service request
@@ -153,66 +127,44 @@ def test_denoise_slurm_service(
         destination="images",
         message={
             "image_command": "mrc_central_slice",
-            "file": f"{tmp_path}/test_stack_aretomo.denoised.mrc",
+            "file": f"{tmp_path}/test_stack_aretomo.denoised_segmented.mrc",
         },
     )
     offline_transport.send.assert_any_call(
         destination="movie",
         message={
             "image_command": "mrc_to_apng",
-            "file": f"{tmp_path}/test_stack_aretomo.denoised.mrc",
+            "file": f"{tmp_path}/test_stack_aretomo.denoised_segmented.mrc",
         },
     )
-    offline_transport.send.assert_any_call(
-        destination="segmentation",
-        message={"tomogram": f"{tmp_path}/test_stack_aretomo.denoised.mrc"},
-    )
 
-    # Check the denoising command
-    with open(tmp_path / "test_stack_aretomo.denoised.mrc.json", "r") as script_file:
+    # Check the segmentation command
+    with open(
+        tmp_path / "test_stack_aretomo.denoised_segmented.mrc.json", "r"
+    ) as script_file:
         script_json = json.load(script_file)
-    topaz_command = script_json["script"].split("\n")[-1]
+    segmentation_command = script_json["script"].split("\n")[-1]
 
     expected_command = [
-        "topaz",
-        "denoise3d",
-        "test_stack_aretomo.mrc",
-        "-o",
-        f"{tmp_path}/denoised",
-        "--suffix",
-        ".denoised",
-        "-m",
-        "unet-3d",
-        "--N-train",
-        "1000",
-        "--N-test",
-        "200",
-        "-c",
-        "96",
-        "--base-kernel-width",
-        "11",
-        "--optim adagrad",
-        "--lr",
-        "0.001",
-        "--criteria",
-        "L2",
-        "--momentum",
-        "0.8",
-        "--batch-size",
-        "10",
-        "--num-epochs",
-        "500",
-        "--save-interval",
-        "10",
-        "--save-prefix",
-        "prefix",
-        "--num-workers",
-        "1",
-        "-s",
-        "96",
-        "-p",
-        "48",
-        "-d",
-        "-2",
+        "membrain",
+        "segment",
+        "--out-folder",
+        str(tmp_path),
+        "--tomogram-path",
+        f"{tmp_path}/test_stack_aretomo.denoised.mrc",
+        "--ckpt-path",
+        "checkpoint.ckpt",
+        "--in-pixel-size",
+        "1.0",
+        "--sliding-window-size",
+        "100",
+        "--connected-component-thres",
+        "2",
+        "--segmentation-threshold",
+        "4.0",
+        "--rescale-patches",
+        "--test-time-augmentation",
+        "--store-probabilities",
+        "--store-connected-components",
     ]
-    assert topaz_command == " ".join(expected_command)
+    assert segmentation_command == " ".join(expected_command)

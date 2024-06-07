@@ -127,7 +127,7 @@ class TomoAlignSlurm(TomoAlign, CommonService):
             "kv": "-Kv",
             "align_file": "-AlnFile",
             "align_z": "-AlignZ",
-            "pix_size": "-PixSize",
+            "pixel_size": "-PixSize",
             "init_val": "initVal",
             "refine_flag": "refineFlag",
             "out_imod": "-OutImod",
