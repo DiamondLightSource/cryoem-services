@@ -2,6 +2,17 @@ global:
   namespace: my-namespace
   runAsUser: user-id
   runAsGroup: group-id
+  tolerations:
+  - key: nodetype
+    operator: Equal
+    value: nodevalue
+    effect: NoSchedule
+  - key: science_group
+    operator: Equal
+    value: group
+    effect: NoSchedule
+  nodeSelector:
+    science_group: group
 
 bfactor_setup:
   replicas: 1
@@ -196,22 +207,6 @@ membrain_seg:
   configMap: zocalo-conf
 
 motioncorr:
-  replicas: 1
-  image: gcr.io/image/path
-  command: zocalo.service -s service-name -e environment
-  extraVolumes:
-  - name: home
-    hostPath:
-      path: /home
-      type: Directory
-  extraVolumeMounts:
-  - mountPath: /home
-    name: home
-    mountPropagation: HostToContainer
-    readOnly: true
-  configMap: zocalo-conf
-
-motioncorr_slurm:
   replicas: 1
   image: gcr.io/image/path
   command: zocalo.service -s service-name -e environment

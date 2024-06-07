@@ -16,7 +16,6 @@ dependencies:
 - name: ispyb
 - name: membrain_seg
 - name: motioncorr
-- name: motioncorr_slurm
 - name: node_creator
 - name: postprocess
 - name: select_classes

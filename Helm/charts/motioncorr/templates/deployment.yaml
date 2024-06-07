@@ -22,9 +22,9 @@ spec:
         imagePullPolicy: Always
         resources:
           requests:
-            nvidia.com/gpu: "1"
+            cpu: {{ .Values.cpuRequest }}
           limits:
-            nvidia.com/gpu: "1"
+            cpu: {{ .Values.cpuLimit }}
             memory: {{ .Values.memoryLimit }}
         command: ["/bin/sh"]
         args:
@@ -65,14 +65,16 @@ spec:
 {{- if .Values.extraVolumes }}
 {{ toYaml .Values.extraVolumes | indent 6 }}
 {{ end }}
+
+{{- if .Values.global.tolerations }}
       tolerations:
-      - effect: NoSchedule
-        key: nvidia.com/gpu
-        operator: Exists
-      - effect: NoSchedule
-        key: nodetype
-        operator: Equal
-        value: gpu
+{{ toYaml .Values.global.tolerations | indent 6 }}
+{{ end }}
+{{- if .Values.global.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.global.nodeSelector | indent 8 }}
+{{ end }}
+
 {{- if .Values.scaleOnQueueLength }}
 ---
 apiVersion: keda.sh/v1alpha1
