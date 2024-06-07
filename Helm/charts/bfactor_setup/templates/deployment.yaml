@@ -87,10 +87,9 @@ spec:
     - type: rabbitmq
       metadata:
         host: {{ .Values.global.rmqHost }}
-        queueName: bfactor_setup
+        queueName: bfactor
         mode: QueueLength
         value: "{{ .Values.queueLengthTrigger }}"
   minReplicaCount: {{ .Values.minReplicaCount }}
   maxReplicaCount: {{ .Values.maxReplicaCount }}
-  idleReplicaCount: {{ .Values.idleReplicaCount }}
 {{ end }}

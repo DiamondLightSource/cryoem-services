@@ -82,5 +82,4 @@ spec:
         value: "{{ .Values.queueLengthTrigger }}"
   minReplicaCount: {{ .Values.minReplicaCount }}
   maxReplicaCount: {{ .Values.maxReplicaCount }}
-  idleReplicaCount: {{ .Values.idleReplicaCount }}
 {{ end }}

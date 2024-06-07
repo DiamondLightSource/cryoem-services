@@ -79,10 +79,9 @@ spec:
     - type: rabbitmq
       metadata:
         host: {{ .Values.global.rmqHost }}
-        queueName: membrain_seg
+        queueName: segmentation
         mode: QueueLength
         value: "{{ .Values.queueLengthTrigger }}"
   minReplicaCount: {{ .Values.minReplicaCount }}
   maxReplicaCount: {{ .Values.maxReplicaCount }}
-  idleReplicaCount: {{ .Values.idleReplicaCount }}
 {{ end }}
