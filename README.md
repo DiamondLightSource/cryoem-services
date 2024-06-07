@@ -23,6 +23,7 @@ The tomography processing pipeline consists of:
 - CTF estimation
 - Tomogram alignment
 - Tomogram denoising using [Topaz](http://topaz-em.readthedocs.io)
+- Segmentation using [membrain-seg](https://github.com/teamtomo/membrain-seg)
 
 
 # Single particle analysis
@@ -41,6 +42,8 @@ The processing pipeline consists of:
 - 2D classification using Relion
 - Automated 2D class selection using Relion
 - 3D classification using Relion
+- 3D Refinement and post-processing
+- BFactor estimation by refinement with varying particle count
 
 
 # Services currently available
@@ -53,25 +56,35 @@ The following services are provided for running the pipelines:
     - **ISPyB**: Inserts results into an ISPyB database
     - **NodeCreator**: Creates Relion project files for the services run
 - Processing services:
+    - **BFactor**: Performs the setup for 3D refinement with varying particle count
     - **CrYOLO**: Particle picking on micrographs using 
 [crYOLO](https://cryolo.readthedocs.io)
     - **CTFFind**: CTF estimation on micrographs using 
 [CTFFIND4](https://grigoriefflab.umassmed.edu/ctffind4)
+    - **DenoiseSlurm**: Tomogram denoising, submitted to a slurm HPC cluster, using
+[Topaz](http://topaz-em.readthedocs.io)
     - **Extract**: Extracts picked particles from micrographs
+    - **ExtractClass**: Extracts particles from a given 3D class
     - **IceBreaker**: Ice thickness estimation with 
 [IceBreaker](https://github.com/DiamondLightSource/python-icebreaker)
+    - **MembrainSeg**: Tomogram segmentation, submitted to a slurm HPC cluster, using 
+[membrain-seg](https://github.com/teamtomo/membrain-seg)
     - **MotionCorr**: Motion correction of micrographs using 
 [MotionCor2](http://emcore.ucsf.edu/ucsf-software) 
 or [Relion](https://relion.readthedocs.io)
     - **MotionCorrSlurm**: MotionCor2 processing submitted to a slurm HPC cluster
+    - **PostProcess**: Post-processing of 3D refinements using 
+[Relion](https://relion.readthedocs.io)
     - **SelectClasses**: Runs automated 2D class selection using 
 [Relion](https://relion.readthedocs.io) and re-batches the particles from these classes
     - **SelectParticles**: Creates files listing batches of extracted particles
     - **TomoAlign**: Tomogram reconstruction from a list of micrographs using 
 [imod](https://bio3d.colorado.edu/imod) and [AreTomo](http://msg.ucsf.edu/software)
+    - **TomoAlignSlurm**: Tomogram alignment processing submitted to a slurm HPC cluster
 
-There are also two zocalo wrapper scripts that can be run on an HPC cluster.
-These perform 2D and 3D classification using [Relion](https://relion.readthedocs.io).
+There are also three zocalo wrapper scripts that can be run on an HPC cluster.
+These perform 2D classification, 3D classification and 3D refinement 
+using [Relion](https://relion.readthedocs.io).
 
 
 # Running services using zocalo
