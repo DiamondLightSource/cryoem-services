@@ -28,7 +28,9 @@ class Class2DParameters(BaseModel):
     batch_size: int
     particle_diameter: float = 0
     mask_diameter: float = 190
-    do_vdam = False
+    do_vdam: bool = False
+    vdam_write_iter: int = 10
+    vdam_threshold: float = 0.1
     dont_combine_weights_via_disc: bool = True
     preread_images: bool = True
     scratch_dir: Optional[str] = None
@@ -186,6 +188,16 @@ class Class2DWrapper(BaseWrapper):
         class2d_command.extend(
             ("--pipeline_control", f"{job_dir.relative_to(project_dir)}/")
         )
+        if class2d_params.do_vdam:
+            class2d_command.extend(
+                (
+                    "--grad",
+                    "--class_inactivity_threshold",
+                    str(class2d_params.vdam_threshold),
+                    "--grad_write_iter",
+                    str(class2d_params.vdam_write_iter),
+                )
+            )
 
         # Run Class2D and confirm it ran successfully
         self.log.info(" ".join(class2d_command))
