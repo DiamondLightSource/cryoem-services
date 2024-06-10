@@ -1241,7 +1241,7 @@ def test_motioncor_relion_slurm_parameters(
     mock_slurm, mock_environment, offline_transport, tmp_path
 ):
     """
-    Test the parameters used for slurm job submission when using MotionCor2
+    Test the parameters used for slurm job submission when using Relion's own
     """
     mock_slurm().returncode = 0
     mock_slurm().stdout = (
