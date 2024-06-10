@@ -71,8 +71,8 @@ The following services are provided for running the pipelines:
 [membrain-seg](https://github.com/teamtomo/membrain-seg)
     - **MotionCorr**: Motion correction of micrographs using 
 [MotionCor2](http://emcore.ucsf.edu/ucsf-software) 
-or [Relion](https://relion.readthedocs.io)
-    - **MotionCorrSlurm**: MotionCor2 processing submitted to a slurm HPC cluster
+or [Relion](https://relion.readthedocs.io),
+optionally submitted to a slurm HPC cluster
     - **PostProcess**: Post-processing of 3D refinements using 
 [Relion](https://relion.readthedocs.io)
     - **SelectClasses**: Runs automated 2D class selection using 
