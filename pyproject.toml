@@ -86,7 +86,6 @@ dev = [
     Images = "cryoemservices.services.images:Images"
     MembrainSeg = "cryoemservices.services.membrain_seg:MembrainSeg"
     MotionCorr = "cryoemservices.services.motioncorr:MotionCorr"
-    MotionCorrSlurm = "cryoemservices.services.motioncorr_slurm:MotionCorrSlurm"
     NodeCreator = "cryoemservices.services.node_creator:NodeCreator"
     PostProcess = "cryoemservices.services.postprocess:PostProcess"
     SelectClasses = "cryoemservices.services.select_classes:SelectClasses"
