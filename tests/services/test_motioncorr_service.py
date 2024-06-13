@@ -438,6 +438,13 @@ def test_motioncor_relion_service_spa(
     with open(f"{tmp_path}/fm_int_file.txt", "w") as fm_int_file:
         fm_int_file.write("100 10 1\n")
 
+    # Touch expected output file
+    (tmp_path / "MotionCorr/job002/Movies").mkdir(parents=True, exist_ok=True)
+    with open(tmp_path / "MotionCorr/job002/Movies/sample.star", "w") as relion_output:
+        relion_output.write(
+            "data_global_shift\nloop_\n_rlnMicrographShiftX\n_rlnMicrographShiftY\n"
+        )
+
     # Set up the mock service
     service = motioncorr.MotionCorr(environment=mock_environment)
     service.transport = offline_transport
@@ -874,6 +881,15 @@ def test_motioncor_relion_service_tomo(
     service.each_total_motion = [5.0, 5.0]
     total_motion = 10.0
     average_motion_per_frame = 5
+
+    # Touch expected output file
+    (tmp_path / "MotionCorr/Movies").mkdir(parents=True, exist_ok=True)
+    with open(
+        tmp_path / "MotionCorr/Movies/sample_motion_corrected.star", "w"
+    ) as relion_output:
+        relion_output.write(
+            "data_global_shift\nloop_\n_rlnMicrographShiftX\n_rlnMicrographShiftY\n"
+        )
 
     # Send a message to the service
     service.motion_correction(None, header=header, message=motioncorr_test_message)

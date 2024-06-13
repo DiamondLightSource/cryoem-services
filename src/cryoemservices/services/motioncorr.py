@@ -171,6 +171,7 @@ class MotionCorr(CommonService):
             self.log.error(
                 f"Relion output log {Path(mrc_out).with_suffix('.star')} not found"
             )
+            result.returncode = 1
         return result
 
     def motion_correction(self, rw, header: dict, message: dict):
@@ -369,7 +370,7 @@ class MotionCorr(CommonService):
             # Add some standard flags
             command.extend(("--dose_weighting", "--i", "dummy"))
             # Run Relion motion correction
-            result = self.relion_motioncorr(command, mc_params.mrc_out)
+            result = self.relion_motioncorr(command, Path(mc_params.mrc_out))
 
         # Adjust the pixel size based on the binning
         if mc_params.motion_corr_binning:
