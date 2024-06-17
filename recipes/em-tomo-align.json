@@ -64,6 +64,10 @@
     "service": "EMISPyB"
   },
   "7": {
+    "output": {
+      "images": 5,
+      "movie": 5
+    },
     "queue": "segmentation",
     "service": "MembrainSeg"
   },

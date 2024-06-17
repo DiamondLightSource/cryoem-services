@@ -66,6 +66,7 @@
   },
   "3": {
     "output": {
+      "images": 7,
       "ispyb_connector": 6,
       "murfey_feedback": 4,
       "node_creator": 2
@@ -74,7 +75,8 @@
       "autoselect_min_score": "{autoselect_min_score}",
       "class2d_fraction_of_classes_to_remove": "{class2d_fraction_of_classes_to_remove}",
       "class3d_batch_size": "{batch_size}",
-      "combine_star_job_number": "{combine_star_job_number}"
+      "combine_star_job_number": "{combine_star_job_number}",
+      "particle_diameter": "{particle_diameter}"
     },
     "queue": "select_classes",
     "service": "SelectClasses"
