@@ -182,6 +182,7 @@ class MembrainSeg(CommonService):
                 message={
                     "image_command": "mrc_central_slice",
                     "file": str(segmented_path),
+                    "skip_rescaling": True,
                 },
             )
             rw.transport.send(
@@ -189,6 +190,7 @@ class MembrainSeg(CommonService):
                 message={
                     "image_command": "mrc_to_apng",
                     "file": str(segmented_path),
+                    "skip_rescaling": True,
                 },
             )
         else:
@@ -197,6 +199,7 @@ class MembrainSeg(CommonService):
                 {
                     "image_command": "mrc_central_slice",
                     "file": str(segmented_path),
+                    "skip_rescaling": True,
                 },
             )
             rw.send_to(
@@ -204,6 +207,7 @@ class MembrainSeg(CommonService):
                 {
                     "image_command": "mrc_to_apng",
                     "file": str(segmented_path),
+                    "skip_rescaling": True,
                 },
             )
 

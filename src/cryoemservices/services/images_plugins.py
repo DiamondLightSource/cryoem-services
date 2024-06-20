@@ -181,6 +181,8 @@ def picked_particles(plugin_params):
 
 def mrc_central_slice(plugin_params):
     filename = plugin_params.parameters("file")
+    skip_rescaling = plugin_params.parameters("skip_rescaling")
+
     if not filename or filename == "None":
         logger.error("Skipping mrc to jpeg conversion: filename not specified")
         return False
@@ -210,13 +212,14 @@ def mrc_central_slice(plugin_params):
     central_slice_data = data[central_slice_index, :, :]
 
     # Write as jpeg
-    mean = np.mean(central_slice_data)
-    sdev = np.std(central_slice_data)
-    sigma_min = mean - 3 * sdev
-    sigma_max = mean + 3 * sdev
     central_slice_data = np.ndarray.copy(central_slice_data)
-    central_slice_data[central_slice_data < sigma_min] = sigma_min
-    central_slice_data[central_slice_data > sigma_max] = sigma_max
+    if not skip_rescaling:
+        mean = np.mean(central_slice_data)
+        sdev = np.std(central_slice_data)
+        sigma_min = mean - 3 * sdev
+        sigma_max = mean + 3 * sdev
+        central_slice_data[central_slice_data < sigma_min] = sigma_min
+        central_slice_data[central_slice_data > sigma_max] = sigma_max
     central_slice_data = central_slice_data - central_slice_data.min()
     central_slice_data = central_slice_data * 255 / central_slice_data.max()
     central_slice_data = central_slice_data.astype("uint8")
@@ -240,6 +243,7 @@ def mrc_central_slice(plugin_params):
 
 def mrc_to_apng(plugin_params):
     filename = plugin_params.parameters("file")
+    skip_rescaling = plugin_params.parameters("skip_rescaling")
 
     if not filename or filename == "None":
         logger.error("Skipping mrc to jpeg conversion: filename not specified")
@@ -265,13 +269,14 @@ def mrc_to_apng(plugin_params):
     if len(data.shape) == 3:
         images_to_append = []
         for frame in data:
-            mean = np.mean(frame)
-            sdev = np.std(frame)
-            sigma_min = mean - 3 * sdev
-            sigma_max = mean + 3 * sdev
             frame = np.ndarray.copy(frame)
-            frame[frame < sigma_min] = sigma_min
-            frame[frame > sigma_max] = sigma_max
+            if not skip_rescaling:
+                mean = np.mean(frame)
+                sdev = np.std(frame)
+                sigma_min = mean - 3 * sdev
+                sigma_max = mean + 3 * sdev
+                frame[frame < sigma_min] = sigma_min
+                frame[frame > sigma_max] = sigma_max
             frame = frame - frame.min()
             frame = frame * 255 / frame.max()
             frame = frame.astype("uint8")
