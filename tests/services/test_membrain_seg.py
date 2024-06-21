@@ -128,6 +128,7 @@ def test_membrain_seg_service(
         message={
             "image_command": "mrc_central_slice",
             "file": f"{tmp_path}/test_stack_aretomo.denoised_segmented.mrc",
+            "skip_rescaling": True,
         },
     )
     offline_transport.send.assert_any_call(
@@ -135,6 +136,7 @@ def test_membrain_seg_service(
         message={
             "image_command": "mrc_to_apng",
             "file": f"{tmp_path}/test_stack_aretomo.denoised_segmented.mrc",
+            "skip_rescaling": True,
         },
     )
 
