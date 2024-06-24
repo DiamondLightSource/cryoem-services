@@ -267,37 +267,37 @@ class NodeCreator(CommonService):
             rw.transport.nack(header)
             return
 
-        try:
-            # Get the options for this job out of the RelionServiceOptions
-            pipeline_options = generate_service_options(
-                job_info.relion_options,
-                job_info.job_type,
-            )
-            # Work out the name of the input star file and add this to the job.star
-            if job_dir.parent.name != "Import":
-                ii = 0
-                for label, star in pipeline_jobs[job_info.job_type][
-                    job_info.experiment_type + "_input"
-                ].items():
-                    input_job_dir = Path(
-                        re.search(".+/job[0-9]+", job_info.input_file.split(":")[ii])[0]
+        # Get the options for this job out of the RelionServiceOptions
+        pipeline_options = generate_service_options(
+            job_info.relion_options,
+            job_info.job_type,
+        )
+        # Work out the name of the input star file and add this to the job.star
+        if job_dir.parent.name != "Import":
+            ii = 0
+            for label, star in pipeline_jobs[job_info.job_type][
+                job_info.experiment_type + "_input"
+            ].items():
+                input_job_dir = Path(
+                    re.search(".+/job[0-9]+", job_info.input_file.split(":")[ii])[0]
+                )
+                try:
+                    pipeline_options[label] = (
+                        input_job_dir.relative_to(project_dir) / star
                     )
-                    try:
-                        pipeline_options[label] = (
-                            input_job_dir.relative_to(project_dir) / star
-                        )
-                    except ValueError:
-                        self.log.warning(
-                            f"WARNING: {input_job_dir} is not relative to {project_dir}"
-                        )
-                        pipeline_options[label] = input_job_dir / star
-                    ii += 1
-            elif job_info.job_type == "relion.import.movies":
-                pipeline_options["fn_in_raw"] = job_info.input_file
-            elif job_info.job_type == "relion.import.tilt_series":
-                pipeline_options["movie_files"] = job_info.input_file.split(":")[0]
-                pipeline_options["mdoc_files"] = job_info.input_file.split(":")[1]
+                except ValueError:
+                    self.log.warning(
+                        f"WARNING: {input_job_dir} is not relative to {project_dir}"
+                    )
+                    pipeline_options[label] = input_job_dir / star
+                ii += 1
+        elif job_info.job_type == "relion.import.movies":
+            pipeline_options["fn_in_raw"] = job_info.input_file
+        elif job_info.job_type == "relion.import.tilt_series":
+            pipeline_options["movie_files"] = job_info.input_file.split(":")[0]
+            pipeline_options["mdoc_files"] = job_info.input_file.split(":")[1]
 
+        try:
             # If this is a new job we need a job.star
             if not Path(f"{job_info.job_type.replace('.', '_')}_job.star").is_file():
                 self.log.info(f"Generating options for new job: {job_info.job_type}")
@@ -320,8 +320,8 @@ class NodeCreator(CommonService):
                     params,
                     f"{job_info.job_type.replace('.', '_')}_job.star",
                 )
-        except (IndexError, ValueError):
-            self.log.error(f"Unknown pipeliner job type: {job_info.job_type}")
+        except (IndexError, ValueError) as e:
+            self.log.error(f"Pipeliner failed for {job_info.job_type}, error {e}")
             rw.transport.nack(header)
             return
 
