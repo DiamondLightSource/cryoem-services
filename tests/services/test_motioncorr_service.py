@@ -978,9 +978,9 @@ def test_motioncor_relion_service_tomo(
     average_motion_per_frame = 5
 
     # Touch expected output file
-    (tmp_path / "MotionCorr/Movies").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "MotionCorr/job002/Movies").mkdir(parents=True, exist_ok=True)
     with open(
-        tmp_path / "MotionCorr/Movies/sample_motion_corrected.star", "w"
+        tmp_path / "MotionCorr/job002/Movies/sample_motion_corrected.star", "w"
     ) as relion_output:
         relion_output.write(
             "data_global_shift\nloop_\n_rlnMicrographShiftX\n_rlnMicrographShiftY\n"
