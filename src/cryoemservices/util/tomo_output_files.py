@@ -156,6 +156,8 @@ def _motioncorr_output_files(
 ):
     """Motion correction saves a list of micrographs and their motion"""
     tilt_series_name = _get_tilt_name_v5_12(output_file)
+    tilt_number = _get_tilt_number_v5_12(output_file)
+    stage_tilt_angle = _get_tilt_angle_v5_12(output_file)
 
     # Construct the global file for all tilt series
     _global_tilt_series_file(
@@ -171,6 +173,16 @@ def _motioncorr_output_files(
         (job_dir / "tilt_series").mkdir()
 
     added_line = [
+        str(input_file),
+        str(relion_options.frame_count),
+        str(stage_tilt_angle),
+        str(relion_options.tilt_axis_angle),
+        str(
+            int(tilt_number)
+            * relion_options.frame_count
+            * relion_options.dose_per_frame
+        ),
+        str(relion_options.defocus),
         str(output_file),
         str(output_file.with_suffix(".star")),
         str(results["total_motion"]),
@@ -188,6 +200,12 @@ def _motioncorr_output_files(
         movies_loop = data_movies.init_loop(
             "_rln",
             [
+                "MicrographMovieName",
+                "TomoTiltMovieFrameCount",
+                "TomoNominalStageTiltAngle",
+                "TomoNominalTiltAxisAngle",
+                "MicrographPreExposure",
+                "TomoNominalDefocus",
                 "MicrographName",
                 "MicrographMetadata",
                 "AccumMotionTotal",
@@ -215,6 +233,7 @@ def _ctffind_output_files(
 ):
     """Ctf estimation saves a list of micrographs and their ctf parameters"""
     tilt_series_name = _get_tilt_name_v5_12(output_file)
+    tilt_number = _get_tilt_number_v5_12(output_file)
     stage_tilt_angle = _get_tilt_angle_v5_12(output_file)
 
     # Construct the global file for all tilt series
@@ -236,8 +255,16 @@ def _ctffind_output_files(
     ice_ring_density = get_ice_ring_density(output_file)
 
     added_line = [
-        str(input_file),
+        str(relion_options.frame_count),
         str(stage_tilt_angle),
+        str(relion_options.tilt_axis_angle),
+        str(
+            int(tilt_number)
+            * relion_options.frame_count
+            * relion_options.dose_per_frame
+        ),
+        str(relion_options.defocus),
+        str(input_file),
         str(output_file.with_suffix(".ctf")) + ":mrc",
         ctf_results[1],
         ctf_results[2],
@@ -256,8 +283,12 @@ def _ctffind_output_files(
         movies_loop = data_movies.init_loop(
             "_rln",
             [
-                "MicrographName",
+                "TomoTiltMovieFrameCount",
+                "TomoNominalStageTiltAngle",
                 "TomoNominalTiltAxisAngle",
+                "MicrographPreExposure",
+                "TomoNominalDefocus",
+                "MicrographName",
                 "CtfImage",
                 "DefocusU",
                 "DefocusV",
