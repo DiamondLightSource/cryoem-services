@@ -310,11 +310,149 @@ def _ctffind_output_files(
     return {f"{job_dir}/tilt_series_ctf.star": ["TomogramGroupMetadata", "relion"]}
 
 
+def _exclude_tilt_output_files(
+    job_dir: Path,
+    input_file: Path,
+    output_file: Path,
+    relion_options: RelionServiceOptions,
+    results: dict,
+):
+    """Ctf estimation saves a list of micrographs and their ctf parameters"""
+    tilt_series_name = _get_tilt_name_v5_12(output_file)
+    tilt_number = _get_tilt_number_v5_12(output_file)
+    stage_tilt_angle = _get_tilt_angle_v5_12(output_file)
+
+    # Construct the global file for all tilt series
+    _global_tilt_series_file(
+        job_dir / "selected_tilt_series.star",
+        tilt_series_name,
+        f"ExcludeTiltImages/job004/tilt_series/{tilt_series_name}.star",
+        relion_options,
+    )
+
+    # Prepare the file for this tilt series
+    movies_file = job_dir / f"tilt_series/{tilt_series_name}.star"
+    if not (job_dir / "tilt_series").is_dir():
+        (job_dir / "tilt_series").mkdir()
+
+    added_line = [
+        str(relion_options.frame_count),
+        str(stage_tilt_angle),
+        str(relion_options.tilt_axis_angle),
+        str(
+            int(tilt_number)
+            * relion_options.frame_count
+            * relion_options.dose_per_frame
+        ),
+        str(relion_options.defocus),
+        str(input_file),
+    ]
+
+    # Create or append to the star file for the individual tilt series
+    if not Path(movies_file).exists():
+        output_cif = cif.Document()
+        data_movies = output_cif.add_new_block(tilt_series_name)
+
+        movies_loop = data_movies.init_loop(
+            "_rln",
+            [
+                "TomoTiltMovieFrameCount",
+                "TomoNominalStageTiltAngle",
+                "TomoNominalTiltAxisAngle",
+                "MicrographPreExposure",
+                "TomoNominalDefocus",
+                "MicrographName",
+            ],
+        )
+        movies_loop.add_row(added_line)
+        output_cif.write_file(str(movies_file), style=cif.Style.Simple)
+    else:
+        with open(movies_file, "a") as output_cif:
+            output_cif.write(" ".join(added_line) + "\n")
+
+    return {f"{job_dir}/selected_tilt_series.star": ["TomogramGroupMetadata", "relion"]}
+
+
+def _align_tilt_output_files(
+    job_dir: Path,
+    input_file: Path,
+    output_file: Path,
+    relion_options: RelionServiceOptions,
+    results: dict,
+):
+    """Ctf estimation saves a list of micrographs and their ctf parameters"""
+    tilt_series_name = _get_tilt_name_v5_12(output_file)
+    tilt_number = _get_tilt_number_v5_12(output_file)
+    stage_tilt_angle = _get_tilt_angle_v5_12(output_file)
+
+    # Construct the global file for all tilt series
+    _global_tilt_series_file(
+        job_dir / "aligned_tilt_series.star",
+        tilt_series_name,
+        f"AlignTiltSeries/job005/tilt_series/{tilt_series_name}.star",
+        relion_options,
+    )
+
+    # Prepare the file for this tilt series
+    movies_file = job_dir / f"tilt_series/{tilt_series_name}.star"
+    if not (job_dir / "tilt_series").is_dir():
+        (job_dir / "tilt_series").mkdir()
+
+    added_line = [
+        str(relion_options.frame_count),
+        str(stage_tilt_angle),
+        str(relion_options.tilt_axis_angle),
+        str(
+            int(tilt_number)
+            * relion_options.frame_count
+            * relion_options.dose_per_frame
+        ),
+        str(relion_options.defocus),
+        str(input_file),
+        results["TomoXTilt"],
+        results["TomoYTilt"],
+        results["TomoZRot"],
+        results["TomoXShiftAngst"],
+        results["TomoYShiftAngst"],
+    ]
+
+    # Create or append to the star file for the individual tilt series
+    if not Path(movies_file).exists():
+        output_cif = cif.Document()
+        data_movies = output_cif.add_new_block(tilt_series_name)
+
+        movies_loop = data_movies.init_loop(
+            "_rln",
+            [
+                "TomoTiltMovieFrameCount",
+                "TomoNominalStageTiltAngle",
+                "TomoNominalTiltAxisAngle",
+                "MicrographPreExposure",
+                "TomoNominalDefocus",
+                "MicrographName",
+                "TomoXTilt",
+                "TomoYTilt",
+                "TomoZRot",
+                "TomoXShiftAngst",
+                "TomoYShiftAngst",
+            ],
+        )
+        movies_loop.add_row(added_line)
+        output_cif.write_file(str(movies_file), style=cif.Style.Simple)
+    else:
+        with open(movies_file, "a") as output_cif:
+            output_cif.write(" ".join(added_line) + "\n")
+
+    return {f"{job_dir}/aligned_tilt_series.star": ["TomogramGroupMetadata", "relion"]}
+
+
 _output_files: Dict[str, Callable] = {
     "relion.import.tilt_series": _import_output_files,
     "relion.motioncorr.own": _motioncorr_output_files,
     "relion.motioncorr.motioncor2": _motioncorr_output_files,
     "relion.ctffind.ctffind4": _ctffind_output_files,
+    "relion.excludetilts": _exclude_tilt_output_files,
+    "relion.aligntiltseries": _align_tilt_output_files,
 }
 
 

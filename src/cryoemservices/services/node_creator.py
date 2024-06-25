@@ -149,6 +149,14 @@ pipeline_jobs: dict[str, dict] = {
             "fn_mask": "mask.mrc",
         },
     },
+    "relion.excludetilts": {
+        "folder": "ExcludeTiltImages",
+        "tomography_input": {"in_tiltseries": "tilt_series_ctf.star"},
+    },
+    "relion.aligntiltseries": {
+        "folder": "AlignTiltSeries",
+        "tomography_input": {"in_tiltseries": "selected_tilt_series.star"},
+    },
 }
 
 

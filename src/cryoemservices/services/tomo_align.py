@@ -93,6 +93,8 @@ class TomoAlign(CommonService):
 
     # Values to extract for ISPyB
     refined_tilts: List[float]
+    x_shift: List[float]
+    y_shift: List[float]
     rot_centre_z_list: List[str]
     tilt_offset: float | None = None
     rot_centre_z: str | None = None
@@ -130,8 +132,8 @@ class TomoAlign(CommonService):
 
     def extract_from_aln(self, tomo_parameters):
         tomo_aln_file = None
-        x_shift = []
-        y_shift = []
+        self.x_shift = []
+        self.y_shift = []
         self.refined_tilts = []
         aln_files = list(Path(self.alignment_output_dir).glob("*.aln"))
 
@@ -147,10 +149,10 @@ class TomoAlign(CommonService):
                     line_split = line.split()
                     self.rot = float(line_split[1])
                     self.mag = float(line_split[2])
-                    x_shift.append(float(line_split[3]))
-                    y_shift.append(float(line_split[4]))
+                    self.x_shift.append(float(line_split[3]))
+                    self.y_shift.append(float(line_split[4]))
                     self.refined_tilts.append(float(line_split[9]))
-        fig = px.scatter(x=x_shift, y=y_shift)
+        fig = px.scatter(x=self.x_shift, y=self.y_shift)
         fig.write_json(self.plot_path)
         return tomo_aln_file  # not needed anywhere atm
 
@@ -364,6 +366,7 @@ class TomoAlign(CommonService):
 
         im_diff = 0
         # TiltImageAlignment (one per movie)
+        node_creator_params_list = []
         for im, movie in enumerate(tomo_params.input_file_list):
             if im in missing_indices:
                 im_diff += 1
@@ -381,10 +384,50 @@ class TomoAlign(CommonService):
                             "path": movie[0],
                         }
                     )
+                    node_creator_params_list.append(
+                        {
+                            "job_type": "relion.excludetilts",
+                            "experiment_type": "tomography",
+                            "input_file": str(movie),
+                            "output_file": str(movie),
+                            "relion_options": dict(tomo_params.relion_options),
+                            "command": "",
+                            "stdout": "",
+                            "stderr": "",
+                        }
+                    )
+                    node_creator_params_list.append(
+                        {
+                            "job_type": "relion.aligntiltseries",
+                            "experiment_type": "tomography",
+                            "input_file": str(movie),
+                            "output_file": str(movie),
+                            "relion_options": dict(tomo_params.relion_options),
+                            "command": "",
+                            "stdout": "",
+                            "stderr": "",
+                            "results": {
+                                "TomoXTilt": "0.00",
+                                "TomoYTilt": str(self.refined_tilts[im - im_diff]),
+                                "TomoZRot": str(self.rot_centre_z_list[im - im_diff]),
+                                "TomoXShiftAngst": str(self.x_shift[im - im_diff]),
+                                "TomoYShiftAngst": str(self.y_shift[im - im_diff]),
+                            },
+                        }
+                    )
                 except IndexError as e:
                     self.log.error(
                         f"{e} - Dark images haven't been accounted for properly"
                     )
+
+        for tilt_params in node_creator_params_list:
+            if isinstance(rw, MockRW):
+                rw.transport.send(
+                    destination="node_creator",
+                    message={"parameters": tilt_params, "content": {"dummy": "dummy"}},
+                )
+            else:
+                rw.send_to("node_creator", tilt_params)
 
         ispyb_parameters = {
             "ispyb_command": "multipart_message",
