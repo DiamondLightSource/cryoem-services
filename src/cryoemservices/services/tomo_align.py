@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 import os.path
+import re
 import subprocess
 import time
 from pathlib import Path
@@ -246,7 +247,13 @@ class TomoAlign(CommonService):
 
         # Get the names of the output files expected
         self.alignment_output_dir = str(Path(tomo_params.stack_file).parent)
+        Path(tomo_params.stack_file).parent.mkdir(parents=True, exist_ok=True)
         stack_name = str(Path(tomo_params.stack_file).stem)
+
+        project_dir = Path(
+            re.search(".+/job[0-9]+/", tomo_params.stack_file)[0]
+        ).parent.parent
+        job_number = int(re.search("/job[0-9]+", tomo_params.stack_file)[0][4:])
 
         # Stack the tilts with newstack
         newstack_path = self.alignment_output_dir + "/" + stack_name + "_newstack.txt"
@@ -533,6 +540,7 @@ class TomoAlign(CommonService):
                 destination="denoise",
                 message={
                     "volume": aretomo_output_path,
+                    "output": str(project_dir / f"Denoise/job{job_number+1}/tomograms"),
                 },
             )
         else:
@@ -540,6 +548,7 @@ class TomoAlign(CommonService):
                 "denoise",
                 {
                     "volume": aretomo_output_path,
+                    "output": str(project_dir / f"Denoise/job{job_number+1}/tomograms"),
                 },
             )
 
