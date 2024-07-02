@@ -14,11 +14,15 @@ import workflows.transport
 from pydantic import BaseModel, Field, ValidationError, validator
 from workflows.services.common_service import CommonService
 
-from cryoemservices.util.relion_service_options import RelionServiceOptions
+from cryoemservices.util.relion_service_options import (
+    RelionServiceOptions,
+    update_relion_options,
+)
 
 
 class TomoParameters(BaseModel):
     stack_file: str = Field(..., min_length=1)
+    pixel_size: float
     path_pattern: str = None
     input_file_list: str = None
     vol_z: int = 1200
@@ -35,7 +39,6 @@ class TomoParameters(BaseModel):
     align_file: Optional[str] = None
     angle_file: Optional[str] = None
     align_z: Optional[int] = None
-    pixel_size: Optional[float] = None
     init_val: Optional[int] = None
     refine_flag: Optional[int] = None
     out_imod: int = 1
@@ -206,6 +209,14 @@ class TomoAlign(CommonService):
         def _tilt(file_list):
             return float(file_list[1])
 
+        # Update the relion options
+        tomo_params.relion_options = update_relion_options(
+            tomo_params.relion_options, dict(tomo_params)
+        )
+        tomo_params.relion_options.pixel_size_downscaled = (
+            tomo_params.pixel_size * tomo_params.out_bin
+        )
+
         # Convert a path pattern into a file list
         if tomo_params.path_pattern:
             directory = Path(tomo_params.path_pattern).parent
@@ -321,12 +332,7 @@ class TomoAlign(CommonService):
             except IndexError:
                 self.log.warning(f"No rot Z {self.rot_centre_z_list}")
 
-        if tomo_params.pixel_size:
-            pixel_spacing: str | None = str(
-                tomo_params.pixel_size * tomo_params.out_bin
-            )
-        else:
-            pixel_spacing = None
+        pixel_spacing: str = str(tomo_params.pixel_size * tomo_params.out_bin)
         # Forward results to ispyb
 
         # Tomogram (one per-tilt-series)

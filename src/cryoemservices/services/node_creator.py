@@ -157,6 +157,10 @@ pipeline_jobs: dict[str, dict] = {
         "folder": "AlignTiltSeries",
         "tomography_input": {"in_tiltseries": "selected_tilt_series.star"},
     },
+    "relion.reconstructtomograms": {
+        "folder": "Tomograms",
+        "tomography_input": {"in_tiltseries": "aligned_tilt_series.star"},
+    },
 }
 
 
@@ -280,6 +284,11 @@ class NodeCreator(CommonService):
             job_info.relion_options,
             job_info.job_type,
         )
+        if not pipeline_options:
+            self.log.error(f"Cannot generate pipeline options for {job_info.job_type}")
+            rw.transport.nack(header)
+            return
+
         # Work out the name of the input star file and add this to the job.star
         if job_dir.parent.name != "Import":
             ii = 0

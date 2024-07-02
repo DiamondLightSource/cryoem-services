@@ -81,6 +81,10 @@ class RelionServiceOptions(BaseModel):
     defocus: float = -4
     # Invert the handedness of the tilts?
     invert_hand: int = -1
+    # AreTomo volume
+    vol_z: int = 1200
+    # Tilt offset
+    manual_tilt_offset: float = 0
 
     """Parameters used in internal calculations"""
     pixel_size_downscaled: float = 0
@@ -307,6 +311,26 @@ def generate_service_options(
     }
 
     job_options["relion.postprocess"] = {"angpix": relion_options.pixel_size}
+
+    job_options["relion.excludetilts"] = {"cache_size": 5}
+
+    job_options["relion.aligntiltseries"] = {
+        "do_aretomo": True,
+        "aretomo_thickness": relion_options.vol_z * relion_options.pixel_size / 10,
+        "aretomo_tiltcorrect": True,
+    }
+
+    job_options["relion.reconstructtomograms"] = {
+        "binned_angpix": relion_options.pixel_size_downscaled,
+        "tiltangle_offset": relion_options.manual_tilt_offset,
+        "do_proj": False,
+        "xdim": 4096,
+        "ydim": 4096,
+        "zdim": relion_options.vol_z,
+    }
+
+    if not job_options.get(submission_type):
+        return {}
 
     if submission_type not in ["relion.import.movies", "combine_star_files_job"]:
         job_options[submission_type].update(queue_options)
