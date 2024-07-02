@@ -127,7 +127,7 @@ class DenoiseSlurm(CommonService):
         command = [
             "topaz",
             "denoise3d",
-            str(Path(denoise_params.volume).name),
+            denoise_params.volume,
         ]
 
         denoise_flags = {
