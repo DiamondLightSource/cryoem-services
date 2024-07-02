@@ -90,7 +90,7 @@ class TomoAlign(CommonService):
     _logger_name = "cryoemservices.services.tomo_align"
 
     # Job name
-    job_type = "aretomo.align_tiltseries"
+    job_type = "aretomo.reconstructtomograms"
 
     # Values to extract for ISPyB
     refined_tilts: List[float]
@@ -395,8 +395,12 @@ class TomoAlign(CommonService):
                         {
                             "job_type": "relion.excludetilts",
                             "experiment_type": "tomography",
-                            "input_file": str(movie),
-                            "output_file": str(movie),
+                            "input_file": str(movie[0]),
+                            "output_file": str(
+                                project_dir
+                                / f"ExcludeTiltImages/job{job_number - 2:03}/tilts"
+                                / Path(movie[0]).name
+                            ),
                             "relion_options": dict(tomo_params.relion_options),
                             "command": "",
                             "stdout": "",
@@ -407,8 +411,12 @@ class TomoAlign(CommonService):
                         {
                             "job_type": "relion.aligntiltseries",
                             "experiment_type": "tomography",
-                            "input_file": str(movie),
-                            "output_file": str(movie),
+                            "input_file": str(movie[0]),
+                            "output_file": str(
+                                project_dir
+                                / f"AlignTiltImages/job{job_number - 1:03}/tilts"
+                                / Path(movie[0]).name
+                            ),
                             "relion_options": dict(tomo_params.relion_options),
                             "command": "",
                             "stdout": "",
