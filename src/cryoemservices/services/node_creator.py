@@ -286,18 +286,22 @@ class NodeCreator(CommonService):
             for label, star in pipeline_jobs[job_info.job_type][
                 job_info.experiment_type + "_input"
             ].items():
-                input_job_dir = Path(
-                    re.search(".+/job[0-9]+", job_info.input_file.split(":")[ii])[0]
-                )
-                try:
-                    pipeline_options[label] = (
-                        input_job_dir.relative_to(project_dir) / star
-                    )
-                except ValueError:
-                    self.log.warning(
-                        f"WARNING: {input_job_dir} is not relative to {project_dir}"
-                    )
-                    pipeline_options[label] = input_job_dir / star
+                added_file = job_info.input_file.split(":")[ii]
+                input_job_in_project = re.search(".+/job[0-9]+", added_file)
+                if input_job_in_project:
+                    input_job_dir = Path(input_job_in_project[0])
+                    try:
+                        pipeline_options[label] = (
+                            input_job_dir.relative_to(project_dir) / star
+                        )
+                    except ValueError:
+                        self.log.warning(
+                            f"WARNING: {input_job_dir} is not relative to {project_dir}"
+                        )
+                        pipeline_options[label] = input_job_dir / star
+                else:
+                    self.log.warning(f"WARNING: {added_file} is not in a job")
+                    pipeline_options[label] = Path(added_file)
                 ii += 1
         elif job_info.job_type == "relion.import.movies":
             pipeline_options["fn_in_raw"] = job_info.input_file
