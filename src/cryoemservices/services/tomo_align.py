@@ -539,7 +539,9 @@ class TomoAlign(CommonService):
                 destination="denoise",
                 message={
                     "volume": aretomo_output_path,
-                    "output": str(project_dir / f"Denoise/job{job_number+1}/tomograms"),
+                    "output_dir": str(
+                        project_dir / f"Denoise/job{job_number+1:03}/tomograms"
+                    ),
                 },
             )
         else:
@@ -547,7 +549,9 @@ class TomoAlign(CommonService):
                 "denoise",
                 {
                     "volume": aretomo_output_path,
-                    "output": str(project_dir / f"Denoise/job{job_number+1}/tomograms"),
+                    "output_dir": str(
+                        project_dir / f"Denoise/job{job_number+1:03}/tomograms"
+                    ),
                 },
             )
 

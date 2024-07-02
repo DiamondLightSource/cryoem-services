@@ -12,7 +12,7 @@ from cryoemservices.util.slurm_submission import slurm_submission
 
 class DenoiseParameters(BaseModel):
     volume: str = Field(..., min_length=1)
-    output: Optional[str] = None  # volume directory
+    output_dir: Optional[str] = None  # volume directory
     suffix: Optional[str] = None  # ".denoised"
     model: Optional[str] = None  # "unet-3d"
     even_train_path: Optional[str] = None
@@ -131,7 +131,7 @@ class DenoiseSlurm(CommonService):
         ]
 
         denoise_flags = {
-            "output": "-o",
+            "output_dir": "-o",
             "suffix": "--suffix",
             "model": "-m",
             "even_train_path": "-a",
@@ -160,10 +160,15 @@ class DenoiseSlurm(CommonService):
             if v and (k in denoise_flags):
                 command.extend((denoise_flags[k], str(v)))
 
+        if denoise_params.output_dir:
+            Path(denoise_params.output_dir).mkdir(parents=True, exist_ok=True)
+            alignment_output_dir = Path(denoise_params.output_dir)
+        else:
+            alignment_output_dir = Path(denoise_params.volume).parent
+
         suffix = str(Path(denoise_params.volume).suffix)
-        alignment_output_dir = Path(denoise_params.volume).parent
         denoised_file = str(Path(denoise_params.volume).stem) + ".denoised" + suffix
-        denoised_full_path = Path(denoise_params.volume).parent / denoised_file
+        denoised_full_path = alignment_output_dir / denoised_file
 
         self.log.info(f"Input: {denoise_params.volume} Output: {denoised_full_path}")
         self.log.info(f"Running Topaz {command}")
