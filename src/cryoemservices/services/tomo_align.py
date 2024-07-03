@@ -93,7 +93,7 @@ class TomoAlign(CommonService):
     _logger_name = "cryoemservices.services.tomo_align"
 
     # Job name
-    job_type = "aretomo.reconstructtomograms"
+    job_type = "relion.reconstructtomograms"
 
     # Values to extract for ISPyB
     refined_tilts: List[float]
