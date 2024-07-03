@@ -380,6 +380,12 @@ class TomoAlign(CommonService):
         im_diff = 0
         # TiltImageAlignment (one per movie)
         node_creator_params_list = []
+        (project_dir / f"ExcludeTiltImages/job{job_number - 2:03}/tilts").mkdir(
+            parents=True, exist_ok=True
+        )
+        (project_dir / f"AlignTiltSeries/job{job_number - 1:03}/tilts").mkdir(
+            parents=True, exist_ok=True
+        )
         for im, movie in enumerate(tomo_params.input_file_list):
             if im in missing_indices:
                 im_diff += 1
