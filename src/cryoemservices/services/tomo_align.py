@@ -420,7 +420,7 @@ class TomoAlign(CommonService):
                             "input_file": str(movie[0]),
                             "output_file": str(
                                 project_dir
-                                / f"AlignTiltImages/job{job_number - 1:03}/tilts"
+                                / f"AlignTiltSeries/job{job_number - 1:03}/tilts"
                                 / Path(movie[0]).name
                             ),
                             "relion_options": dict(tomo_params.relion_options),
