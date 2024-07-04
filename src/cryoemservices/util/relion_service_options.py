@@ -329,6 +329,11 @@ def generate_service_options(
         "zdim": relion_options.vol_z,
     }
 
+    job_options["relion.denoisetomo"] = {
+        "cryocare_path": "topaz",
+        "care_denoising_model": "",
+    }
+
     if not job_options.get(submission_type):
         return {}
 

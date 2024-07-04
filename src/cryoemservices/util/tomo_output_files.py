@@ -317,7 +317,7 @@ def _exclude_tilt_output_files(
     relion_options: RelionServiceOptions,
     results: dict,
 ):
-    """Ctf estimation saves a list of micrographs and their ctf parameters"""
+    """Tilt exclusion lists all tilts which have not been removed"""
     tilt_series_name = _get_tilt_name_v5_12(output_file)
     tilt_number = _get_tilt_number_v5_12(output_file)
     stage_tilt_angle = _get_tilt_angle_v5_12(output_file)
@@ -380,7 +380,7 @@ def _align_tilt_output_files(
     relion_options: RelionServiceOptions,
     results: dict,
 ):
-    """Ctf estimation saves a list of micrographs and their ctf parameters"""
+    """Alignment lists all the tilts and their aligned positions"""
     tilt_series_name = _get_tilt_name_v5_12(output_file)
     tilt_number = _get_tilt_number_v5_12(output_file)
     stage_tilt_angle = _get_tilt_angle_v5_12(output_file)
@@ -446,6 +446,130 @@ def _align_tilt_output_files(
     return {f"{job_dir}/aligned_tilt_series.star": ["TomogramGroupMetadata", "relion"]}
 
 
+def _tomogram_output_files(
+    job_dir: Path,
+    input_file: Path,
+    output_file: Path,
+    relion_options: RelionServiceOptions,
+    results: dict,
+):
+    """Tomogram reconstruction lists the details of each tomogram"""
+    tilt_series_name = _get_tilt_name_v5_12(output_file)
+    tomograms_file = job_dir / "tomograms.star"
+
+    added_line = [
+        tilt_series_name,
+        str(relion_options.voltage),
+        str(relion_options.spher_aber),
+        str(relion_options.ampl_contrast),
+        str(relion_options.pixel_size),
+        str(relion_options.invert_hand),
+        "optics1",
+        str(relion_options.pixel_size_downscaled),
+        "AlignTiltSeries/job005/tilt_series.star",
+        str(relion_options.pixel_size_downscaled / relion_options.pixel_size),
+        "4096",
+        "4096",
+        str(relion_options.vol_z),
+        str(output_file),
+    ]
+
+    # Create or append to the star file for the individual tilt series
+    if not Path(tomograms_file).exists():
+        output_cif = cif.Document()
+        data_movies = output_cif.add_new_block(tilt_series_name)
+
+        movies_loop = data_movies.init_loop(
+            "_rln",
+            [
+                "_rlnTomoName",
+                "_rlnVoltage",
+                "_rlnSphericalAberration",
+                "_rlnAmplitudeContrast",
+                "_rlnMicrographOriginalPixelSize",
+                "_rlnTomoHand",
+                "_rlnOpticsGroupName",
+                "_rlnTomoTiltSeriesPixelSize",
+                "_rlnTomoTiltSeriesStarFile",
+                "_rlnTomoTomogramBinning",
+                "_rlnTomoSizeX",
+                "_rlnTomoSizeY",
+                "_rlnTomoSizeZ",
+                "_rlnTomoReconstructedTomogram",
+            ],
+        )
+        movies_loop.add_row(added_line)
+        output_cif.write_file(str(tomograms_file), style=cif.Style.Simple)
+    else:
+        with open(tomograms_file, "a") as output_cif:
+            output_cif.write(" ".join(added_line) + "\n")
+
+    return {f"{job_dir}/tomograms.star": ["TomogramGroupMetadata", "relion"]}
+
+
+def _denoising_output_files(
+    job_dir: Path,
+    input_file: Path,
+    output_file: Path,
+    relion_options: RelionServiceOptions,
+    results: dict,
+):
+    """Denoising lists the details of each tomogram"""
+    tilt_series_name = _get_tilt_name_v5_12(output_file)
+    tomograms_file = job_dir / "tomograms.star"
+
+    added_line = [
+        tilt_series_name,
+        str(relion_options.voltage),
+        str(relion_options.spher_aber),
+        str(relion_options.ampl_contrast),
+        str(relion_options.pixel_size),
+        str(relion_options.invert_hand),
+        "optics1",
+        str(relion_options.pixel_size_downscaled),
+        "AlignTiltSeries/job005/tilt_series.star",
+        str(relion_options.pixel_size_downscaled / relion_options.pixel_size),
+        "4096",
+        "4096",
+        str(relion_options.vol_z),
+        str(input_file),
+        str(output_file),
+    ]
+
+    # Create or append to the star file for the individual tilt series
+    if not Path(tomograms_file).exists():
+        output_cif = cif.Document()
+        data_movies = output_cif.add_new_block(tilt_series_name)
+
+        movies_loop = data_movies.init_loop(
+            "_rln",
+            [
+                "_rlnTomoName",
+                "_rlnVoltage",
+                "_rlnSphericalAberration",
+                "_rlnAmplitudeContrast",
+                "_rlnMicrographOriginalPixelSize",
+                "_rlnTomoHand",
+                "_rlnOpticsGroupName",
+                "_rlnTomoTiltSeriesPixelSize",
+                "_rlnTomoTiltSeriesStarFile",
+                "_rlnTomoTomogramBinning",
+                "_rlnTomoSizeX",
+                "_rlnTomoSizeY",
+                "_rlnTomoSizeZ",
+                "_rlnTomoReconstructedTomogram",
+                "_rlnTomoReconstructedTomogramDenoised",
+            ],
+        )
+        movies_loop.add_row(added_line)
+        output_cif.write_file(str(tomograms_file), style=cif.Style.Simple)
+    else:
+        with open(tomograms_file, "a") as output_cif:
+            output_cif.write(" ".join(added_line) + "\n")
+
+    return {f"{job_dir}/tomograms.star": ["TomogramGroupMetadata", "relion"]}
+
+
 _output_files: Dict[str, Callable] = {
     "relion.import.tilt_series": _import_output_files,
     "relion.motioncorr.own": _motioncorr_output_files,
@@ -453,6 +577,8 @@ _output_files: Dict[str, Callable] = {
     "relion.ctffind.ctffind4": _ctffind_output_files,
     "relion.excludetilts": _exclude_tilt_output_files,
     "relion.aligntiltseries": _align_tilt_output_files,
+    "relion.reconstructtomograms": _tomogram_output_files,
+    "relion.denoisetomo": _denoising_output_files,
 }
 
 

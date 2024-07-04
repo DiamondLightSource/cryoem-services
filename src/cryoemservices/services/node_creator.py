@@ -161,6 +161,10 @@ pipeline_jobs: dict[str, dict] = {
         "folder": "Tomograms",
         "tomography_input": {"in_tiltseries": "aligned_tilt_series.star"},
     },
+    "relion.denoisetomo": {
+        "folder": "Denoise",
+        "tomography_input": {"in_tomoset": "tomograms.star"},
+    },
 }
 
 

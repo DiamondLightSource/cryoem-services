@@ -282,6 +282,32 @@ class TomoAlign(CommonService):
             self.alignment_output_dir + "/" + stack_name + "_aretomo.mrc"
         )
         aretomo_result, aretomo_command = self.aretomo(tomo_params, aretomo_output_path)
+
+        # Send to node creator
+        self.log.info("Sending tomo align to node creator")
+        node_creator_parameters = {
+            "experiment_type": "tomography",
+            "job_type": self.job_type,
+            "input_file": tomo_params.input_file_list[0][0],
+            "output_file": aretomo_output_path,
+            "relion_options": dict(tomo_params.relion_options),
+            "command": " ".join(aretomo_command),
+            "stdout": "",
+            "stderr": "",
+        }
+        if aretomo_result.returncode:
+            node_creator_parameters["success"] = False
+        else:
+            node_creator_parameters["success"] = True
+        if isinstance(rw, MockRW):
+            rw.transport.send(
+                destination="node_creator",
+                message={"parameters": node_creator_parameters, "content": "dummy"},
+            )
+        else:
+            rw.send_to("node_creator", node_creator_parameters)
+
+        # Stop here if the job failed
         if aretomo_result.returncode:
             self.log.error(
                 f"AreTomo2 failed with exitcode {aretomo_result.returncode}:\n"
@@ -417,6 +443,7 @@ class TomoAlign(CommonService):
                             "command": "",
                             "stdout": "",
                             "stderr": "",
+                            "success": True,
                         }
                     )
                     node_creator_params_list.append(
@@ -440,6 +467,7 @@ class TomoAlign(CommonService):
                                 "TomoXShiftAngst": str(self.x_shift[im - im_diff]),
                                 "TomoYShiftAngst": str(self.y_shift[im - im_diff]),
                             },
+                            "success": True,
                         }
                     )
                 except IndexError as e:
@@ -471,29 +499,6 @@ class TomoAlign(CommonService):
             )
         else:
             rw.send_to("ispyb_connector", ispyb_parameters)
-
-        # Send to node creator
-        self.log.info("Sending tomo align to node creator")
-        node_creator_parameters = {
-            "experiment_type": "tomography",
-            "job_type": self.job_type,
-            "input_file": tomo_params.input_file_list[0][0],
-            "output_file": aretomo_output_path,
-            "relion_options": dict(tomo_params.relion_options),
-            "command": " ".join(aretomo_command),
-            "stdout": "",
-            "stderr": "",
-            "results": {
-                "exclude_list": missing_indices,
-            },
-        }
-        if isinstance(rw, MockRW):
-            rw.transport.send(
-                destination="node_creator",
-                message={"parameters": node_creator_parameters, "content": "dummy"},
-            )
-        else:
-            rw.send_to("node_creator", node_creator_parameters)
 
         # Forward results to images service
         self.log.info(f"Sending to images service {aretomo_output_path}")
@@ -563,6 +568,7 @@ class TomoAlign(CommonService):
                     "output_dir": str(
                         project_dir / f"Denoise/job{job_number+1:03}/tomograms"
                     ),
+                    "relion_options": dict(tomo_params.relion_options),
                 },
             )
         else:
@@ -573,6 +579,7 @@ class TomoAlign(CommonService):
                     "output_dir": str(
                         project_dir / f"Denoise/job{job_number+1:03}/tomograms"
                     ),
+                    "relion_options": dict(tomo_params.relion_options),
                 },
             )
 
