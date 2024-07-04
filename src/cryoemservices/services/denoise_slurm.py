@@ -7,6 +7,7 @@ import workflows.recipe
 from pydantic import BaseModel, Field, ValidationError, validator
 from workflows.services.common_service import CommonService
 
+from cryoemservices.util.relion_service_options import RelionServiceOptions
 from cryoemservices.util.slurm_submission import slurm_submission
 
 
@@ -37,6 +38,7 @@ class DenoiseParameters(BaseModel):
     patch_padding: Optional[int] = None  # 48
     device: Optional[int] = None  # -2
     cleanup_output: bool = True
+    relion_options: RelionServiceOptions
 
     @validator("model")
     def saved_models(cls, v):
@@ -68,6 +70,9 @@ class DenoiseSlurm(CommonService):
 
     # Logger name
     _logger_name = "cryoemservices.services.denoise_slurm"
+
+    # Job name
+    job_type = "relion.denoisetomo"
 
     def initializing(self):
         """Subscribe to a queue. Received messages must be acknowledged."""
@@ -170,10 +175,8 @@ class DenoiseSlurm(CommonService):
         denoised_file = str(Path(denoise_params.volume).stem) + ".denoised" + suffix
         denoised_full_path = alignment_output_dir / denoised_file
 
-        self.log.info(f"Input: {denoise_params.volume} Output: {denoised_full_path}")
-        self.log.info(f"Running Topaz {command}")
-
         # Submit the command to slurm
+        self.log.info(f"Input: {denoise_params.volume} Output: {denoised_full_path}")
         slurm_outcome = slurm_submission(
             log=self.log,
             job_name="Denoising",
@@ -185,6 +188,30 @@ class DenoiseSlurm(CommonService):
             use_singularity=False,
             script_extras="module load EM/topaz",
         )
+
+        # Send to node creator
+        self.log.info("Sending denoising to node creator")
+        node_creator_parameters = {
+            "experiment_type": "tomography",
+            "job_type": self.job_type,
+            "input_file": denoise_params.volume,
+            "output_file": str(denoised_full_path),
+            "relion_options": dict(denoise_params.relion_options),
+            "command": " ".join(command),
+            "stdout": "",
+            "stderr": "",
+        }
+        if slurm_outcome.returncode:
+            node_creator_parameters["success"] = False
+        else:
+            node_creator_parameters["success"] = True
+        if isinstance(rw, MockRW):
+            rw.transport.send(
+                destination="node_creator",
+                message={"parameters": node_creator_parameters, "content": "dummy"},
+            )
+        else:
+            rw.send_to("node_creator", node_creator_parameters)
 
         # Stop here if the job failed
         if slurm_outcome.returncode:
