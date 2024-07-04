@@ -380,10 +380,10 @@ class TomoAlign(CommonService):
         im_diff = 0
         # TiltImageAlignment (one per movie)
         node_creator_params_list = []
-        (project_dir / f"ExcludeTiltImages/job{job_number - 2:03}/tilts").mkdir(
+        (project_dir / f"ExcludeTiltImages/job{job_number - 2:03}").mkdir(
             parents=True, exist_ok=True
         )
-        (project_dir / f"AlignTiltSeries/job{job_number - 1:03}/tilts").mkdir(
+        (project_dir / f"AlignTiltSeries/job{job_number - 1:03}").mkdir(
             parents=True, exist_ok=True
         )
         for im, movie in enumerate(tomo_params.input_file_list):
@@ -436,7 +436,7 @@ class TomoAlign(CommonService):
                             "results": {
                                 "TomoXTilt": "0.00",
                                 "TomoYTilt": str(self.refined_tilts[im - im_diff]),
-                                "TomoZRot": str(self.rot_centre_z_list[im - im_diff]),
+                                "TomoZRot": str(self.rot),
                                 "TomoXShiftAngst": str(self.x_shift[im - im_diff]),
                                 "TomoYShiftAngst": str(self.y_shift[im - im_diff]),
                             },
