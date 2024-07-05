@@ -466,7 +466,7 @@ def _tomogram_output_files(
         str(relion_options.invert_hand),
         "optics1",
         str(relion_options.pixel_size_downscaled),
-        "AlignTiltSeries/job005/tilt_series.star",
+        f"AlignTiltSeries/job005/tilt_series/{tilt_series_name}.star",
         str(relion_options.pixel_size_downscaled / relion_options.pixel_size),
         "4096",
         "4096",
@@ -477,25 +477,25 @@ def _tomogram_output_files(
     # Create or append to the star file for the individual tilt series
     if not Path(tomograms_file).exists():
         output_cif = cif.Document()
-        data_movies = output_cif.add_new_block(tilt_series_name)
+        data_movies = output_cif.add_new_block("global")
 
         movies_loop = data_movies.init_loop(
             "_rln",
             [
-                "_rlnTomoName",
-                "_rlnVoltage",
-                "_rlnSphericalAberration",
-                "_rlnAmplitudeContrast",
-                "_rlnMicrographOriginalPixelSize",
-                "_rlnTomoHand",
-                "_rlnOpticsGroupName",
-                "_rlnTomoTiltSeriesPixelSize",
-                "_rlnTomoTiltSeriesStarFile",
-                "_rlnTomoTomogramBinning",
-                "_rlnTomoSizeX",
-                "_rlnTomoSizeY",
-                "_rlnTomoSizeZ",
-                "_rlnTomoReconstructedTomogram",
+                "TomoName",
+                "Voltage",
+                "SphericalAberration",
+                "AmplitudeContrast",
+                "MicrographOriginalPixelSize",
+                "TomoHand",
+                "OpticsGroupName",
+                "TomoTiltSeriesPixelSize",
+                "TomoTiltSeriesStarFile",
+                "TomoTomogramBinning",
+                "TomoSizeX",
+                "TomoSizeY",
+                "TomoSizeZ",
+                "TomoReconstructedTomogram",
             ],
         )
         movies_loop.add_row(added_line)
@@ -527,7 +527,7 @@ def _denoising_output_files(
         str(relion_options.invert_hand),
         "optics1",
         str(relion_options.pixel_size_downscaled),
-        "AlignTiltSeries/job005/tilt_series.star",
+        f"AlignTiltSeries/job005/tilt_series/{tilt_series_name}.star",
         str(relion_options.pixel_size_downscaled / relion_options.pixel_size),
         "4096",
         "4096",
@@ -539,26 +539,26 @@ def _denoising_output_files(
     # Create or append to the star file for the individual tilt series
     if not Path(tomograms_file).exists():
         output_cif = cif.Document()
-        data_movies = output_cif.add_new_block(tilt_series_name)
+        data_movies = output_cif.add_new_block("global")
 
         movies_loop = data_movies.init_loop(
             "_rln",
             [
-                "_rlnTomoName",
-                "_rlnVoltage",
-                "_rlnSphericalAberration",
-                "_rlnAmplitudeContrast",
-                "_rlnMicrographOriginalPixelSize",
-                "_rlnTomoHand",
-                "_rlnOpticsGroupName",
-                "_rlnTomoTiltSeriesPixelSize",
-                "_rlnTomoTiltSeriesStarFile",
-                "_rlnTomoTomogramBinning",
-                "_rlnTomoSizeX",
-                "_rlnTomoSizeY",
-                "_rlnTomoSizeZ",
-                "_rlnTomoReconstructedTomogram",
-                "_rlnTomoReconstructedTomogramDenoised",
+                "TomoName",
+                "Voltage",
+                "SphericalAberration",
+                "AmplitudeContrast",
+                "MicrographOriginalPixelSize",
+                "TomoHand",
+                "OpticsGroupName",
+                "TomoTiltSeriesPixelSize",
+                "TomoTiltSeriesStarFile",
+                "TomoTomogramBinning",
+                "TomoSizeX",
+                "TomoSizeY",
+                "TomoSizeZ",
+                "TomoReconstructedTomogram",
+                "TomoReconstructedTomogramDenoised",
             ],
         )
         movies_loop.add_row(added_line)
