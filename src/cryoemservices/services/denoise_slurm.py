@@ -14,7 +14,7 @@ from cryoemservices.util.slurm_submission import slurm_submission
 class DenoiseParameters(BaseModel):
     volume: str = Field(..., min_length=1)
     output_dir: Optional[str] = None  # volume directory
-    suffix: Optional[str] = None  # ".denoised"
+    suffix: str = ".denoised"
     model: Optional[str] = None  # "unet-3d"
     even_train_path: Optional[str] = None
     odd_train_path: Optional[str] = None
@@ -172,7 +172,9 @@ class DenoiseSlurm(CommonService):
             alignment_output_dir = Path(denoise_params.volume).parent
 
         suffix = str(Path(denoise_params.volume).suffix)
-        denoised_file = str(Path(denoise_params.volume).stem) + ".denoised" + suffix
+        denoised_file = (
+            str(Path(denoise_params.volume).stem) + denoise_params.suffix + suffix
+        )
         denoised_full_path = alignment_output_dir / denoised_file
 
         # Submit the command to slurm
