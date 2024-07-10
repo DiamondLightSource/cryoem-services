@@ -49,6 +49,7 @@ def test_motioncor2_service_spa(
     mock_subprocess().stdout = "stdout".encode("ascii")
     mock_subprocess().stderr = "stderr".encode("ascii")
 
+    (tmp_path / "gain.mrc").touch()
     movie = Path(f"{tmp_path}/Movies/sample.tiff")
     movie.parent.mkdir(parents=True)
     movie.touch()
@@ -68,7 +69,7 @@ def test_motioncor2_service_spa(
             "patch_sizes": {"x": 5, "y": 5},
             "gpu": 0,
             "threads": 1,
-            "gain_ref": "gain.mrc",
+            "gain_ref": f"{tmp_path}/gain.mrc",
             "mc_uuid": 0,
             "picker_uuid": 0,
             "rot_gain": 1,
@@ -356,6 +357,7 @@ def test_motioncor_relion_service_spa(
     mock_subprocess().stdout = "stdout".encode("ascii")
     mock_subprocess().stderr = "stderr".encode("ascii")
 
+    (tmp_path / "gain.mrc").touch()
     movie = Path(f"{tmp_path}/Movies/sample.eer")
     movie.parent.mkdir(parents=True)
     movie.touch()
@@ -375,7 +377,7 @@ def test_motioncor_relion_service_spa(
             "patch_sizes": {"x": 5, "y": 5},
             "gpu": 0,
             "threads": 2,
-            "gain_ref": "gain.mrc",
+            "gain_ref": f"{tmp_path}/gain.mrc",
             "mc_uuid": 0,
             "picker_uuid": 0,
             "rot_gain": 1,
@@ -649,6 +651,7 @@ def test_motioncor2_service_tomo(
     mock_subprocess().stdout = "stdout".encode("ascii")
     mock_subprocess().stderr = "stderr".encode("ascii")
 
+    (tmp_path / "gain.mrc").touch()
     movie = Path(f"{tmp_path}/Movies/sample.tiff")
     movie.parent.mkdir(parents=True)
     movie.touch()
@@ -668,7 +671,7 @@ def test_motioncor2_service_tomo(
             "patch_sizes": {"x": 5, "y": 5},
             "gpu": 0,
             "threads": 1,
-            "gain_ref": "gain.mrc",
+            "gain_ref": f"{tmp_path}/gain.mrc",
             "mc_uuid": 0,
             "picker_uuid": 0,
             "rot_gain": None,
@@ -884,6 +887,7 @@ def test_motioncor_relion_service_tomo(
     mock_subprocess().stdout = "stdout".encode("ascii")
     mock_subprocess().stderr = "stderr".encode("ascii")
 
+    (tmp_path / "gain.mrc").touch()
     movie = Path(f"{tmp_path}/Movies/sample.tiff")
     movie.parent.mkdir(parents=True)
     movie.touch()
@@ -903,7 +907,7 @@ def test_motioncor_relion_service_tomo(
             "patch_sizes": {"x": 5, "y": 5},
             "gpu": 0,
             "threads": 1,
-            "gain_ref": "gain.mrc",
+            "gain_ref": f"{tmp_path}/gain.mrc",
             "mc_uuid": 0,
             "picker_uuid": 0,
             "rot_gain": None,

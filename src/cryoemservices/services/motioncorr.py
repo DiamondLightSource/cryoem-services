@@ -225,6 +225,10 @@ class MotionCorr(CommonService):
             rw.transport.nack(header)
             return
 
+        # Check if the gain file exists:
+        if mc_params.gain_ref and not Path(mc_params.gain_ref).is_file():
+            mc_params.gain_ref = ""
+
         # Generate the plotting paths
         drift_plot_name = str(Path(mc_params.movie).stem) + "_drift_plot.json"
         plot_path = Path(mc_params.mrc_out).parent / drift_plot_name
