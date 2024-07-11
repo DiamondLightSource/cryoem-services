@@ -318,7 +318,7 @@ class MotionCorr(CommonService):
 
             # Add values from input parameters with flags
             for k, v in mc_params.dict().items():
-                if (v is not None) and (k in mc2_flags):
+                if (v not in [None, ""]) and (k in mc2_flags):
                     if type(v) is dict:
                         command.extend(
                             (mc2_flags[k], " ".join(str(_) for _ in v.values()))
@@ -358,7 +358,7 @@ class MotionCorr(CommonService):
             }
             # Add values from input parameters with flags
             for param_k, param_v in mc_params.dict().items():
-                if (param_v is not None) and (param_k in relion_mc_flags):
+                if (param_v not in [None, ""]) and (param_k in relion_mc_flags):
                     if type(param_v) is dict:
                         for flag_k, flag_v in relion_mc_flags[param_k].items():
                             command.extend(
