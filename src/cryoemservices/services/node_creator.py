@@ -418,14 +418,14 @@ class NodeCreator(CommonService):
             # Generate the default_pipeline.star file
             project.check_process_completion()
             # Check the job count in the default_pipeline.star
-            pipeline_star = starfile.read(job_dir / "default_pipeline.star")
+            pipeline_star = starfile.read(Path("default_pipeline.star"))
             job_count = pipeline_star["pipeline_general"]["rlnPipeLineJobCounter"]
             job_number = int(re.search("/job[0-9]+", str(job_dir))[0][4:])
             if job_count <= job_number:
                 pipeline_star["pipeline_general"]["rlnPipeLineJobCounter"] = (
                     job_number + 1
                 )
-                starfile.write(pipeline_star, job_dir / "default_pipeline.star")
+                starfile.write(pipeline_star, Path("default_pipeline.star"))
             # Copy the default_pipeline.star file
             (job_dir / "default_pipeline.star").write_bytes(
                 Path("default_pipeline.star").read_bytes()
