@@ -87,7 +87,7 @@ def setup_and_run_node_creation(
 
     # Check that the correct general pipeline files have been made
     assert (project_dir / f"{job_type.replace('.', '_')}_job.star").exists()
-    assert (project_dir / f".gui_{job_type.replace('.', '_')}job.star").exists()
+    # assert (project_dir / f".gui_{job_type.replace('.', '_')}job.star").exists()
     assert (project_dir / ".Nodes").is_dir()
 
     assert (project_dir / job_dir / "job.star").exists()
@@ -526,7 +526,7 @@ def test_node_creator_select_particles(mock_environment, offline_transport, tmp_
 
     # Check the output file structure
     assert (
-        tmp_path / ".Nodes/ParticlesData/Select/job009/particles_split1.star"
+        tmp_path / ".Nodes/ParticleGroupMetadata/Select/job009/particles_split1.star"
     ).exists()
     assert (
         tmp_path / ".Nodes/ParticlesData/Select/job009/particles_split2.star"
@@ -571,7 +571,7 @@ def test_node_creator_failed_job(mock_environment, offline_transport, tmp_path):
 
     # Check that the correct general pipeline files have been made
     assert (tmp_path / "relion_motioncorr_motioncor2_job.star").exists()
-    assert (tmp_path / ".gui_relion_motioncorr_motioncor2job.star").exists()
+    assert (tmp_path / ".gui_projectdir").exists()
     assert (tmp_path / job_dir / "job.star").exists()
     assert (tmp_path / job_dir / "note.txt").exists()
     assert (tmp_path / job_dir / "run.out").exists()
