@@ -41,9 +41,9 @@ def test_class3d_wrapper_do_initial_model(
 ):
     """
     Send a test message to the Class3D wrapper for a first round of 50000 particles,
-    without a provided initial model,
-    which should then do images, ispyb and node_creator message sends,
-    and tell murfey it has run
+    without a provided initial model.
+    The initial model and 3D classification commands should be run,
+    then both cause ispyb, node_creator and murfey messages.
     """
     mock_subprocess().returncode = 0
     mock_subprocess().stdout = "stdout".encode("utf8")
@@ -123,7 +123,9 @@ def test_class3d_wrapper_do_initial_model(
     output_relion_options = RelionServiceOptions()
     output_relion_options.particle_diameter = 180
     output_relion_options.class3d_nr_classes = 2
-    output_relion_options.batch_size = 50
+    output_relion_options.batch_size = 50000
+    output_relion_options.initial_lowpass = 20
+    output_relion_options.symmetry = "C3"
     output_relion_options = dict(output_relion_options)
 
     # Create the expected output files
@@ -162,21 +164,71 @@ def test_class3d_wrapper_do_initial_model(
     service_wrapper.run()
 
     # Check the initial model command
-    initial_model_command = ["relion_initial_model"]
-    mock_subprocess.assert_called_with(
+    initial_model_command = [
+        "relion_refine",
+        "--grad",
+        "--denovo_3dref",
+        "--i",
+        "Select/job013/particles_50000.star",
+        "--o",
+        "InitialModel/job014/run",
+        "--particle_diameter",
+        str(output_relion_options["mask_diameter"]),
+        "--gpu",
+        "0",
+        "--sym",
+        "C1",
+        "--iter",
+        "10",
+        "--offset_range",
+        "6.0",
+        "--offset_step",
+        "2.0",
+        "--dont_combine_weights_via_disc",
+        "--pool",
+        "5",
+        "--pad",
+        "2",
+        "--ctf",
+        "--K",
+        "2",
+        "--flatten_solvent",
+        "--zero_mask",
+        "--oversampling",
+        "1",
+        "--healpix_order",
+        "2",
+        "--j",
+        "4",
+        "--pipeline_control",
+        "InitialModel/job014/",
+    ]
+    mock_subprocess.assert_any_call(
         initial_model_command, capture_output=True, cwd=str(tmp_path)
     )
-    align_symmetry_command = ["relion_align_symmetry"]
-    mock_subprocess.assert_called_with(
+    align_symmetry_command = [
+        "relion_align_symmetry",
+        "--i",
+        "InitialModel/job014/run_it010_model.star",
+        "--o",
+        "InitialModel/job014/initial_model.mrc",
+        "--sym",
+        str(output_relion_options["symmetry"]),
+        "--apply_sym",
+        "--select_largest_class",
+        "--pipeline_control",
+        "InitialModel/job014/",
+    ]
+    mock_subprocess.assert_any_call(
         align_symmetry_command, capture_output=True, cwd=str(tmp_path)
     )
     # Check the node creator and murfey sends for the initial model
     mock_recwrap_send.assert_any_call(
-        "murfey_feedback",
+        "node_creator",
         {
             "job_type": "relion.initialmodel",
-            "input_file": f"{tmp_path}//particles_50000.star",
-            "output_file": f"{tmp_path}/InitialModel/job015/initial_model.mrc",
+            "input_file": f"{tmp_path}/Select/job013/particles_50000.star",
+            "output_file": f"{tmp_path}/InitialModel/job014/initial_model.mrc",
             "relion_options": output_relion_options,
             "command": " ".join(initial_model_command),
             "stdout": "stdout",
@@ -189,7 +241,7 @@ def test_class3d_wrapper_do_initial_model(
         {
             "job_type": "relion.initialmodel",
             "input_file": f"{tmp_path}/Select/job013/particles_50000.star",
-            "output_file": f"{tmp_path}/InitialModel/job015/initial_model.mrc",
+            "output_file": f"{tmp_path}/InitialModel/job014/initial_model.mrc",
             "relion_options": output_relion_options,
             "command": " ".join(align_symmetry_command),
             "stdout": "stdout",
@@ -201,20 +253,22 @@ def test_class3d_wrapper_do_initial_model(
         "murfey_feedback",
         {
             "register": "save_initial_model",
-            "job_dir": f"{tmp_path}/InitialModel/job014/initial_model.mrc",
+            "initial_model": f"{tmp_path}/InitialModel/job014/initial_model.mrc",
         },
     )
 
-    # Check the expected command was run
-    class2d_command = [
+    # Check the expected 3D classifcation command was run
+    class3d_command = [
         "srun",
         "-n",
         "9",
         "relion_refine_mpi",
         "--i",
-        "Select/job009/particles_split1.star",
+        "Select/job013/particles_50000.star",
         "--o",
-        "Class2D/job010/run",
+        "Class3D/job015/run",
+        "--ref",
+        f"{tmp_path}/InitialModel/job014/initial_model.mrc",
         "--particle_diameter",
         str(output_relion_options["mask_diameter"]),
         "--dont_combine_weights_via_disc",
@@ -222,6 +276,9 @@ def test_class3d_wrapper_do_initial_model(
         "5",
         "--pad",
         "2",
+        "--firstiter_cc",
+        "--ini_high",
+        "20.0",
         "--ctf",
         "--iter",
         "25",
@@ -231,15 +288,16 @@ def test_class3d_wrapper_do_initial_model(
         "2",
         "--flatten_solvent",
         "--zero_mask",
-        "--center_classes",
         "--oversampling",
         "1",
-        "--psi_step",
-        "6.0",
+        "--healpix_order",
+        "2",
         "--offset_range",
         "5.0",
         "--offset_step",
         "2.0",
+        "--sym",
+        str(output_relion_options["symmetry"]),
         "--norm",
         "--scale",
         "--j",
@@ -247,38 +305,25 @@ def test_class3d_wrapper_do_initial_model(
         "--gpu",
         "0",
         "--pipeline_control",
-        "Class2D/job010/",
-        "--grad",
-        "--class_inactivity_threshold",
-        "0.1",
-        "--grad_write_iter",
-        "10",
+        "Class3D/job015/",
     ]
-    mock_subprocess.assert_called_with(
-        class2d_command, capture_output=True, cwd=str(tmp_path)
+    mock_subprocess.assert_any_call(
+        class3d_command, capture_output=True, cwd=str(tmp_path)
     )
 
     # Check the expected message sends to other processes
-    assert mock_recwrap_send.call_count == 4
+    assert mock_recwrap_send.call_count == 6
     mock_recwrap_send.assert_any_call(
         "node_creator",
         {
-            "job_type": "relion.class2d.vdam",
-            "input_file": f"{tmp_path}/Select/job009/particles_split1.star",
-            "output_file": f"{tmp_path}/Class2D/job010",
+            "job_type": "relion.class3d",
+            "input_file": f"{tmp_path}/Select/job013/particles_50000.star:{tmp_path}/InitialModel/job014/initial_model.mrc",
+            "output_file": f"{tmp_path}/Class3D/job015",
             "relion_options": output_relion_options,
-            "command": " ".join(class2d_command),
+            "command": " ".join(class3d_command),
             "stdout": "stdout",
             "stderr": "stderr",
             "success": True,
-        },
-    )
-    mock_recwrap_send.assert_any_call(
-        "images",
-        {
-            "image_command": "mrc_to_jpeg",
-            "file": f"{tmp_path}/Class2D/job010/run_it025_classes.mrcs",
-            "all_frames": "True",
         },
     )
     mock_recwrap_send.assert_any_call(
@@ -287,17 +332,17 @@ def test_class3d_wrapper_do_initial_model(
             "ispyb_command": "multipart_message",
             "ispyb_command_list": [
                 {
-                    "batch_number": 1,
+                    "batch_number": "1",
                     "buffer_command": {
                         "ispyb_command": "insert_particle_classification_group"
                     },
                     "buffer_store": 5,
                     "ispyb_command": "buffer",
                     "number_of_classes_per_batch": 2,
-                    "number_of_particles_per_batch": 5,
+                    "number_of_particles_per_batch": 50000,
                     "particle_picker_id": 6,
-                    "symmetry": "C1",
-                    "type": "2D",
+                    "symmetry": str(output_relion_options["symmetry"]),
+                    "type": "3D",
                 },
                 {
                     "buffer_command": {
@@ -307,13 +352,13 @@ def test_class3d_wrapper_do_initial_model(
                     "buffer_store": 10,
                     "class_distribution": "0.4",
                     "class_image_full_path": (
-                        f"{tmp_path}/Class2D/job010/run_it025_classes_1.jpeg"
+                        f"{tmp_path}/Class3D/job015/run_it025_class001.mrc"
                     ),
                     "class_number": 1,
                     "estimated_resolution": 12.2,
                     "ispyb_command": "buffer",
                     "overall_fourier_completeness": 1.0,
-                    "particles_per_class": 2.0,
+                    "particles_per_class": 20000.0,
                     "rotation_accuracy": "30.3",
                     "translation_accuracy": "33.3",
                 },
@@ -325,15 +370,31 @@ def test_class3d_wrapper_do_initial_model(
                     "buffer_store": 11,
                     "class_distribution": "0.6",
                     "class_image_full_path": (
-                        f"{tmp_path}/Class2D/job010/run_it025_classes_2.jpeg"
+                        f"{tmp_path}/Class3D/job015/run_it025_class002.mrc"
                     ),
                     "class_number": 2,
                     "estimated_resolution": 10.0,
                     "ispyb_command": "buffer",
                     "overall_fourier_completeness": 0.9,
-                    "particles_per_class": 3.0,
+                    "particles_per_class": 30000.0,
                     "rotation_accuracy": "20.2",
                     "translation_accuracy": "22.2",
+                },
+                {
+                    "buffer_command": {"ispyb_command": "insert_cryoem_initial_model"},
+                    "buffer_lookup": {"particle_classification_id": 10},
+                    "ispyb_command": "buffer",
+                    "number_of_particles": 20000.0,
+                    "resolution": "30.3",
+                    "store_result": "ispyb_initial_model_id",
+                },
+                {
+                    "buffer_command": {"ispyb_command": "insert_cryoem_initial_model"},
+                    "buffer_lookup": {"particle_classification_id": 11},
+                    "cryoem_initial_model_id": "$ispyb_initial_model_id",
+                    "ispyb_command": "buffer",
+                    "number_of_particles": 20000.0,
+                    "resolution": "30.3",
                 },
             ],
         },
@@ -341,7 +402,10 @@ def test_class3d_wrapper_do_initial_model(
     mock_recwrap_send.assert_any_call(
         "murfey_feedback",
         {
-            "register": "done_incomplete_2d_batch",
-            "job_dir": f"{tmp_path}/Class2D/job010",
+            "register": "done_3d_batch",
+            "refine_dir": f"{tmp_path}/Refine3D/job",
+            "class3d_dir": f"{tmp_path}/Class3D/job015",
+            "best_class": 2,
+            "do_refinement": False,
         },
     )

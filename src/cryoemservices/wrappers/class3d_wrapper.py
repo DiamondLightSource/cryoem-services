@@ -208,7 +208,7 @@ class Class3DWrapper(BaseWrapper):
             "input_file": f"{project_dir}/{particles_file}",
             "output_file": f"{job_dir}/initial_model.mrc",
             "relion_options": dict(initial_model_params.relion_options),
-            "command": "".join(align_symmetry_command),
+            "command": " ".join(align_symmetry_command),
             "stdout": result.stdout.decode("utf8", "replace"),
             "stderr": result.stderr.decode("utf8", "replace"),
         }
