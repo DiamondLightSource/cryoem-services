@@ -225,8 +225,7 @@ def convert_lif_to_tiff(
     # Check that "processed" has been inserted into file path
     if new_root_folder not in path_parts:
         logger.error(
-            f"Subpath {root_folder!r} was not found in image path "
-            f"{str(file)!r}"
+            f"Subpath {root_folder!r} was not found in image path " f"{str(file)!r}"
         )
         return False
 

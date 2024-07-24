@@ -3,6 +3,8 @@ Array manipulation and image processing functions for the images acquired via th
 light microscope.
 """
 
+from __future__ import annotations
+
 import logging
 from pathlib import Path
 from typing import Optional, Union

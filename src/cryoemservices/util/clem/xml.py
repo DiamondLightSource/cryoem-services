@@ -7,6 +7,8 @@ These include, but are not limited to:
     4.  XLCF
 """
 
+from __future__ import annotations
+
 import logging
 from typing import Generator, List
 from xml.etree import ElementTree as ET
