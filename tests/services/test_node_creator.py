@@ -346,9 +346,13 @@ def test_node_creator_ctffind(mock_environment, offline_transport, tmp_path):
     input_file = tmp_path / "MotionCorr/job002/Movies/sample.mrc"
     output_file = tmp_path / job_dir / "Movies/sample.ctf"
 
-    output_file.parent.mkdir(parents=True)
-    with open(output_file.with_suffix(".txt"), "w") as f:
-        f.write("0.0 1.0 2.0 3.0 4.0 5.0 6.0")
+    ctf_results = {
+        "defocus1": "1.0",
+        "defocus2": "2.0",
+        "astigmatism_angle": "3.0",
+        "cc_value": "5.0",
+        "estimated_resolution": "6.0",
+    }
 
     setup_and_run_node_creation(
         mock_environment,
@@ -358,6 +362,7 @@ def test_node_creator_ctffind(mock_environment, offline_transport, tmp_path):
         "relion.ctffind.ctffind4",
         input_file,
         output_file,
+        ctf_results,
     )
 
     # Check the output file structure
