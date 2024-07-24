@@ -5,6 +5,7 @@ import json
 import os
 import re
 import time
+from functools import lru_cache
 from pathlib import Path
 from typing import Optional
 
@@ -26,6 +27,12 @@ from cryoemservices.util.spa_relion_service_options import (
     RelionServiceOptions,
     generate_service_options,
 )
+
+
+@lru_cache(maxsize=2)
+def cache_project_graph(pipeline_dir: str):
+    return ProjectGraph(read_only=False, pipeline_dir=pipeline_dir)
+
 
 # A dictionary of all the available jobs,
 # the folder name they run in, and the names of their inputs in the job star
@@ -404,7 +411,7 @@ class NodeCreator(CommonService):
             (job_dir.parent / job_info.alias).unlink(missing_ok=True)
 
         # Create the node and default_pipeline.star files in the project directory
-        with ProjectGraph(read_only=False) as project:
+        with cache_project_graph(str(project_dir)) as project:
             process = project.add_job(
                 pipeliner_job,
                 as_status=("Succeeded" if job_info.success else "Failed"),
