@@ -14,8 +14,8 @@ from xml.etree import ElementTree as ET
 import numpy as np
 from readlif.reader import LifFile
 
-from cryoemservices.util.clem.images import process_img_stk, write_to_tiff
-from cryoemservices.util.clem.xml import get_image_elements
+from cryoemservices.clem.images import process_img_stk, write_to_tiff
+from cryoemservices.clem.xml import get_image_elements
 
 # Create logger object to output messages with
 logger = logging.getLogger("murfey.util.clem.lif")
