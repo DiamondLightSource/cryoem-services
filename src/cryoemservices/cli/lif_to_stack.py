@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from cryoemservices.util.clem.lif import convert_lif_to_tiff
+from cryoemservices.clem.lif import convert_lif_to_stack
 
 
 def run():
@@ -18,17 +18,20 @@ def run():
     )
     parser.add_argument(
         "--root-dir",
-        default="images",
         type=str,
+        default="images",
         help="Top subdirectory that LIF files are stored in. Used to determine destination of the created TIFF image stacks",
     )
     parser.add_argument(
-        "-n", "--num-procs", default=1, type=int, help="Number of processes"
+        "-n", "--num-procs",
+        type=int,
+        default=1,
+        help="Number of processes to run the function with"
     )
 
     args = parser.parse_args()
 
-    convert_lif_to_tiff(
+    convert_lif_to_stack(
         file=Path(args.lif_path),
         root_folder=args.root_dir,
         number_of_processes=args.num_procs,

@@ -167,7 +167,7 @@ def process_lif_file(
     return True
 
 
-def convert_lif_to_tiff(
+def convert_lif_to_stack(
     file: Path,
     root_folder: str,  # Name of the folder to treat as the root folder for LIF files
     number_of_processes: int = 1,  # Number of processing threads to run
