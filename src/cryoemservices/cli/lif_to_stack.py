@@ -23,10 +23,11 @@ def run():
         help="Top subdirectory that LIF files are stored in. Used to determine destination of the created TIFF image stacks",
     )
     parser.add_argument(
-        "-n", "--num-procs",
+        "-n",
+        "--num-procs",
         type=int,
         default=1,
-        help="Number of processes to run the function with"
+        help="Number of processes to run",
     )
 
     args = parser.parse_args()
