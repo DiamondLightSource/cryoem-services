@@ -179,24 +179,17 @@ def convert_lif_to_stack(
     image stacks.
 
     FOLDER STRUCTURE:
-    Here is the folder structure of a typical DLS eBIC experiment session, with the
-    folders created as part of the workflow shown as well.
-
-    parent_folder   <- Session ID
-    |_ processing   <- Created by DLS; will be archived; not used
-    |_ spool        <- Created by DLS; for confidential work; not used
-    |_ tmp          <- Created by DLS; for intermediate files; not used
-    |_ xml          <- Created by DLS; not used
-    |_ images       <- Created by us; raw data stored here
-    |  |_ sample_name   <- Folders for samples
-    |     |_ lif files  <- LIF files of specific sample
-    |     |_ metadata   <- Created by us; Save raw XML metadata file here
-    |_ processed    <- ARCHIVED BY DLS; Created by us
-    |  |_ sample_name
-    |     |_ lif_file_names     <- Folders for data from the same LIF file
-    |        |_ sub_image       <- Folders for individual sub-images
-    |           |_ tiffs        <- Save channels as individual image stacks
-    |           |_ metadata     <- Individual XML files saved here (not yet implemented)
+    parent_folder
+    |__ images          <- Raw data stored here
+    |   |__ sample_name     <- Folders for samples
+    |       |__ lif files   <- LIF files of specific sample
+    |       |__ metadata    <- Save raw XML metadata file here
+    |__ processed       <- Processed data goes here
+        |__ sample_name
+            |__ lif_file_names      <- Folders for data from the same LIF file
+                |__ sub_image       <- Folders for individual sub-images
+                |   |__ tiffs       <- Save channels as individual image stacks
+                |   |__ metadata    <- Individual XML files saved here (not yet implemented)
     """
 
     # Validate processor count input
