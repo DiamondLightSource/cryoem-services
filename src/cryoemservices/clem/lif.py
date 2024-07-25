@@ -18,7 +18,7 @@ from cryoemservices.clem.images import process_img_stk, write_to_tiff
 from cryoemservices.clem.xml import get_image_elements
 
 # Create logger object to output messages with
-logger = logging.getLogger("murfey.util.clem.lif")
+logger = logging.getLogger("cryoemservices.clem.lif")
 
 
 def get_lif_xml_metadata(

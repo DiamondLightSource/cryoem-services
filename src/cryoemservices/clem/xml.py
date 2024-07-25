@@ -14,7 +14,7 @@ from typing import Generator, List
 from xml.etree import ElementTree as ET
 
 # Create logger object to output messages with
-logger = logging.getLogger("murfey.util.clem.xml")
+logger = logging.getLogger("cryoemservices.clem.xml")
 
 
 def get_image_elements(root: ET.Element) -> List[ET.Element]:

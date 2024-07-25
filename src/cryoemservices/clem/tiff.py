@@ -18,7 +18,7 @@ from cryoemservices.clem.images import process_img_stk, write_to_tiff
 from cryoemservices.clem.xml import get_axis_resolution, get_image_elements
 
 # Create logger object to output messages with
-logger = logging.getLogger("murfey.util.clem.tiff")
+logger = logging.getLogger("cryoemservices.clem.tiff")
 
 
 def process_tiff_files(

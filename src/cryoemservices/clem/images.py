@@ -13,7 +13,7 @@ import numpy as np
 from tifffile import imwrite
 
 # Create logger object to output messages with
-logger = logging.getLogger("murfey.util.clem.images")
+logger = logging.getLogger("cryoemservices.clem.images")
 
 # Accepted bit depths and corresponding NumPy dtypes
 # For use by various functions in the script
