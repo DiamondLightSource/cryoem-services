@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Optional
 
 import workflows.recipe
-from pydantic import BaseModel, Field, ValidationError, validator
+from pydantic import BaseModel, Field, ValidationError, field_validator
 from workflows.services.common_service import CommonService
 
 from cryoemservices.util.relion_service_options import RelionServiceOptions
@@ -42,19 +42,22 @@ class DenoiseParameters(BaseModel):
     tomogram_uuid: int
     relion_options: RelionServiceOptions
 
-    @validator("model")
+    @field_validator("model")
+    @classmethod
     def saved_models(cls, v):
         if v not in ["unet-3d-10a", "unet-3d-20a", "unet-3d"]:
             raise ValueError("Model must be one of unet-3d-10a, unet-3d-20a, unet-3d")
         return v
 
-    @validator("optim")
+    @field_validator("optim")
+    @classmethod
     def optimizers(cls, v):
         if v not in ["adam", "adagrad", "sgd"]:
             raise ValueError("Optimizer must be one of adam, adagrad, sgd")
         return v
 
-    @validator("criteria")
+    @field_validator("criteria")
+    @classmethod
     def training_criteria(cls, v):
         if v not in ["L1", "L2"]:
             raise ValueError("Optimizer must be one of L1, L2")
