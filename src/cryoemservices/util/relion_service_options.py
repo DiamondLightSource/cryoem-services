@@ -360,4 +360,4 @@ def update_relion_options(relion_options: RelionServiceOptions, new_options: dic
     for k, v in new_options.items():
         if (v is not None) and (k in relion_options_dict.keys()):
             relion_options_dict[k] = v
-    return RelionServiceOptions.parse_obj(relion_options_dict)
+    return RelionServiceOptions.model_validate(relion_options_dict)

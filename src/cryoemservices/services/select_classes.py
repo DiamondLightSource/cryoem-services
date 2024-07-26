@@ -174,7 +174,7 @@ class SelectClasses(CommonService):
             "rank",
             "--do_granularity_features",
         ]
-        for k, v in autoselect_params.dict().items():
+        for k, v in autoselect_params.model_dump().items():
             if v and (k in autoselect_flags):
                 autoselect_command.extend((autoselect_flags[k], str(v)))
         autoselect_command.extend(
