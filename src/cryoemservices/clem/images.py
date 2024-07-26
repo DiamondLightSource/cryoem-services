@@ -82,15 +82,15 @@ def stretch_image_contrast(
 
     # Overwrite outliers and normalise values to range
     for f in range(arr.shape[0]):
-        frame: np.ndarray = arr[0]
+        frame: np.ndarray = arr[f]
         frame[frame < b_lo] = b_lo
         frame[frame > b_up] = b_up
         frame = np.array((frame - b_lo) / (b_up - b_lo) * max_int)  # Normalise
         frame = frame.round(0).astype(dtype)  # Round and convert to dtype
         if f == 0:
-            arr_new: np.ndarray = [frame]
+            arr_new = np.array([frame])
         else:
-            arr_new = np.append(arr_new, [frame])
+            arr_new = np.append(arr_new, [frame], axis=0)
 
     return arr_new
 
@@ -132,9 +132,9 @@ def convert_array_bit_depth(
     for f in range(arr.shape[0]):
         frame_new = np.array(arr[f] / int_init * int_final).round(0).astype(dtype_final)
         if f == 0:
-            arr_new: np.ndarray = [frame_new]
+            arr_new = np.array([frame_new])
         else:
-            arr_new = np.append(arr_new, [frame_new])
+            arr_new = np.append(arr_new, [frame_new], axis=0)
 
     return arr_new
 
