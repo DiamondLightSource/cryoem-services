@@ -35,7 +35,7 @@ class CachedProjectGraph(ProjectGraph):
     def __enter__(self):
         if not self._lock:
             lock = DirectoryBasedLock(self.pipeline_dir / ".relion_lock")
-            acquired = lock.aquire()
+            acquired = lock.acquire()
             if acquired:
                 self._lock = lock
             else:
