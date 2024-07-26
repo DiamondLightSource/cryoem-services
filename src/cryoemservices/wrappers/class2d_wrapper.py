@@ -28,7 +28,7 @@ class Class2DParameters(BaseModel):
     batch_size: int
     particle_diameter: float = 0
     mask_diameter: float = 190
-    do_vdam = False
+    do_vdam: bool = False
     dont_combine_weights_via_disc: bool = True
     preread_images: bool = True
     scratch_dir: Optional[str] = None
