@@ -104,7 +104,7 @@ def test_spa_preprocess_recipe(datafiles):
             if not model_type:
                 continue
 
-            model_parameters = model_type.__fields__
+            model_parameters = model_type.model_fields
             service_parameters = (
                 spa_preprocess_recipe[step]
                 .get(
