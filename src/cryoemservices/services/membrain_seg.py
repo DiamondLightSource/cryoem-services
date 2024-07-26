@@ -104,13 +104,13 @@ class MembrainSeg(CommonService):
 
         membrain_seg_flags = {
             "tomogram": "--tomogram-path",
-            "model_checkpoint": "--ckpt-path",
+            "pretrained_checkpoint": "--ckpt-path",
             "pixel_size": "--in-pixel-size",
             "connected_component_threshold": "--connected-component-thres",
             "segmentation_threshold": "--segmentation-threshold",
             "window_size": "--sliding-window-size",
         }
-        for k, v in membrain_seg_params.dict().items():
+        for k, v in membrain_seg_params.model_dump().items():
             if v and (k in membrain_seg_flags):
                 command.extend((membrain_seg_flags[k], str(v)))
 

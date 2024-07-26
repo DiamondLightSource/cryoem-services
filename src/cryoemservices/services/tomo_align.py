@@ -688,7 +688,7 @@ class TomoAlign(CommonService):
             "dark_tol": "-DarkTol",
         }
 
-        for k, v in tomo_parameters.dict().items():
+        for k, v in tomo_parameters.model_dump().items():
             if v and (k in aretomo_flags):
                 command.extend((aretomo_flags[k], str(v)))
 
