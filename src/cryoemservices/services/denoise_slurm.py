@@ -166,7 +166,7 @@ class DenoiseSlurm(CommonService):
             "patch_padding": "-p",
             "device": "-d",
         }
-        for k, v in denoise_params.dict().items():
+        for k, v in denoise_params.model_dump().items():
             if v and (k in denoise_flags):
                 command.extend((denoise_flags[k], str(v)))
 
