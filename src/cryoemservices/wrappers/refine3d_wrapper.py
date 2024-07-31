@@ -296,7 +296,9 @@ class Refine3DWrapper(zocalo.wrapper.BaseWrapper):
                 "--pipeline_control",
                 f"{mask_job_dir}/",
             ]
-            mask_result = subprocess.run(mask_command, capture_output=True)
+            mask_result = subprocess.run(
+                mask_command, capture_output=True, cwd=str(project_dir)
+            )
 
             # Register the mask creation job with the node creator
             self.log.info(f"Sending {self.mask_job_type} to node creator")
