@@ -79,19 +79,6 @@ class Class2DWrapper(BaseWrapper):
         self.class_uuids_dict = {}
         self.class_uuids_keys = []
 
-    def parse_combiner_output(self, combiner_stdout: str):
-        """
-        Read the output logs of the star file combination
-        """
-        for line in combiner_stdout.split("\n"):
-            if line.startswith("Adding") and "particles_all.star" in line:
-                line_split = line.split()
-                self.previous_total_count = int(line_split[3])
-
-            if line.startswith("Combined"):
-                line_split = line.split()
-                self.total_count = int(line_split[6])
-
     def run(self):
         """
         Run the 2D classification and register results
