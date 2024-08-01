@@ -153,7 +153,7 @@ def process_lif_file(
         # Save as a greyscale TIFF
         arr = write_to_tiff(
             array=arr,
-            save_dir=save_dir,
+            save_dir=img_dir,
             series_name=color,
             x_res=x_res,
             y_res=y_res,

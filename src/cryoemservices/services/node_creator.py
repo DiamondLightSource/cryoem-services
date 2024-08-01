@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import datetime
-import json
 import os
 import re
 import time
@@ -309,7 +308,10 @@ class NodeCreator(CommonService):
         )
 
         # Mark the job completion status
+        job_is_continue = False
         for exit_file in job_dir.glob("PIPELINER_JOB_EXIT_*"):
+            if exit_file.name == "PIPELINER_JOB_EXIT_SUCCESS" and job_info.success:
+                job_is_continue = True
             exit_file.unlink()
         if job_info.success:
             (job_dir / SUCCESS_FILE).touch()
@@ -339,17 +341,19 @@ class NodeCreator(CommonService):
         relion_commands = [[], pipeliner_job.get_final_commands()]
 
         # These parts would normally happen in pipeliner_job.prepare_to_run
-        try:
-            pipeliner_job.handle_doppio_uploads()
-        except ValueError:
-            self.log.info("Cannot copy Doppio input file that already exists")
         pipeliner_job.create_input_nodes()
         pipeliner_job.create_output_nodes()
-        pipeliner_job.write_runjob(pipeliner_job.output_dir)
-        pipeliner_job.write_jobstar(pipeliner_job.output_dir)
-        pipeliner_job.write_jobstar(
-            f"{pipeliner_job.output_dir}/continue_", is_continue=True
-        )
+
+        if not job_is_continue:
+            try:
+                pipeliner_job.handle_doppio_uploads()
+            except ValueError:
+                self.log.info("Cannot copy Doppio input file that already exists")
+            pipeliner_job.write_runjob(pipeliner_job.output_dir)
+            pipeliner_job.write_jobstar(pipeliner_job.output_dir)
+            pipeliner_job.write_jobstar(
+                f"{pipeliner_job.output_dir}/continue_", is_continue=True
+            )
 
         # Write the log files
         with open(job_dir / "run.out", "w") as f:
@@ -384,9 +388,9 @@ class NodeCreator(CommonService):
                         )
 
             # Save the metadata file
-            metadata_dict = pipeliner_job.gather_metadata()
-            with open(job_dir / "job_metadata.json", "w") as metadata_file:
-                metadata_file.write(json.dumps(metadata_dict))
+            # metadata_dict = pipeliner_job.gather_metadata()
+            # with open(job_dir / "job_metadata.json", "w") as metadata_file:
+            #    metadata_file.write(json.dumps(metadata_dict))
 
             # Create the results display for the non-pipeliner job
             if job_info.job_type == "combine_star_files_job":
