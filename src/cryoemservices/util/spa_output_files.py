@@ -132,7 +132,7 @@ def _motioncorr_output_files(
             output_cif.write(" ".join(added_line) + "\n")
 
     # Logfile is expected but will not be made
-    (star_file.parent / "logfile.pdf").touch()
+    (star_file.parent / "logfile.pdf").touch(exist_ok=True)
 
 
 def _ctffind_output_files(
@@ -186,7 +186,7 @@ def _ctffind_output_files(
             output_cif.write(" ".join(added_line) + "\n")
 
     # Logfile is expected but will not be made
-    (star_file.parent / "logfile.pdf").touch()
+    (star_file.parent / "logfile.pdf").touch(exist_ok=True)
 
 
 def _icebreaker_output_files(

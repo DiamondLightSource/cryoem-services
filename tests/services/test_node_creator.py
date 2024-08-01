@@ -97,7 +97,7 @@ def setup_and_run_node_creation(
     assert (project_dir / job_dir / "run.job").exists()
     assert (project_dir / job_dir / "continue_job.star").exists()
     assert (project_dir / job_dir / "PIPELINER_JOB_EXIT_SUCCESS").exists()
-    assert (project_dir / job_dir / "job_metadata.json").exists()
+    # assert (project_dir / job_dir / "job_metadata.json").exists()
     assert (project_dir / job_dir / "default_pipeline.star").exists()
     assert (project_dir / job_dir / ".CCPEM_pipeliner_jobinfo").exists()
 

@@ -449,6 +449,7 @@ class NodeCreator(CommonService):
                         break
             job_number = int(re.search("/job[0-9]+", str(job_dir))[0][4:])
             if job_count <= job_number:
+                project.job_counter = job_number + 1
                 with open("default_pipeline.star", "r") as pipeline_file, open(
                     "default_pipeline.star.tmp", "w"
                 ) as new_pipeline:
@@ -458,9 +459,10 @@ class NodeCreator(CommonService):
                             break
                         if line.startswith("_rlnPipeLineJobCounter"):
                             split_line = line.split()
-                            split_line[1] = str(job_number + 1)
+                            split_line[1] = str(project.job_counter)
                             line = " ".join(split_line)
                         new_pipeline.write(line)
+                Path("default_pipeline.star").unlink()
                 Path("default_pipeline.star.tmp").rename("default_pipeline.star")
             # Copy the default_pipeline.star file
             (job_dir / "default_pipeline.star").write_bytes(
