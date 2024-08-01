@@ -423,3 +423,193 @@ def test_class2d_wrapper_complete_batch(
             "class_uuids": "{'0': 10}",
         },
     )
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+@mock.patch("cryoemservices.wrappers.class2d_wrapper.subprocess.run")
+@mock.patch("workflows.recipe.wrapper.RecipeWrapper.send_to")
+def test_class2d_wrapper_rerun_buffer_lookup(
+    mock_recwrap_send, mock_subprocess, mock_environment, offline_transport, tmp_path
+):
+    """
+    Send a test message to the Class2D wrapper for a re-run incomplete batch.
+    This should cause buffer lookups in the ispyb message
+    """
+    mock_subprocess().returncode = 0
+    mock_subprocess().stdout = "stdout".encode("utf8")
+    mock_subprocess().stderr = "stderr".encode("utf8")
+
+    # Example recipe wrapper message to run the service with
+    class2d_test_message = {
+        "recipe": {
+            "start": [[1, []]],
+            "1": {
+                "job_parameters": {
+                    "batch_is_complete": False,
+                    "batch_size": "50000",
+                    "class2d_dir": f"{tmp_path}/Class2D/job010",
+                    "class2d_grp_uuid": "5",
+                    "class2d_nr_classes": "1",
+                    "class_uuids": "{'0': 10}",
+                    "do_icebreaker_jobs": True,
+                    "particle_diameter": "180",
+                    "particles_file": f"{tmp_path}/Select/job009/particles_split1.star",
+                    "picker_id": "6",
+                    "relion_options": {},
+                },
+            },
+        },
+        "recipe-pointer": 1,
+        "environment": {"ID": "envID"},
+    }
+
+    # Create the expected output files
+    (tmp_path / "Class2D/job010").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "Class2D/job010/RELION_JOB_EXIT_SUCCESS").touch()
+    with open(tmp_path / "Class2D/job010/run_it020_data.star", "w") as data_star:
+        data_star.write("data_particles\nloop_\n_rlnCoordinateX\n1\n2\n3\n4\n5")
+    with open(tmp_path / "Class2D/job010/run_it020_model.star", "w") as model_star:
+        model_star.write(
+            "data_model_classes\nloop_\n"
+            "_rlnReferenceImage\n_Fraction\n_Rotation\n_Translation\n"
+            "_Resolution\n_Completeness\n_OffsetX\n_OffsetY\n"
+            "1@Class2D/job010/run_it020_classes.mrcs 0.4 30.3 33.3 12.2 1.0 0.6 0.01\n"
+        )
+
+    # Create a recipe wrapper with the test message
+    recipe_wrapper = RecipeWrapper(
+        message=class2d_test_message, transport=offline_transport
+    )
+
+    # Set up and run the mock service
+    service_wrapper = class2d_wrapper.Class2DWrapper(environment=mock_environment)
+    service_wrapper.set_recipe_wrapper(recipe_wrapper)
+    service_wrapper.run()
+
+    # Check the expected message send to ispyb
+    mock_recwrap_send.assert_any_call(
+        "ispyb_connector",
+        {
+            "ispyb_command": "multipart_message",
+            "ispyb_command_list": [
+                {
+                    "batch_number": 1,
+                    "buffer_command": {
+                        "ispyb_command": "insert_particle_classification_group"
+                    },
+                    "buffer_lookup": {"particle_classification_group_id": 5},
+                    "ispyb_command": "buffer",
+                    "number_of_classes_per_batch": 1,
+                    "number_of_particles_per_batch": 5,
+                    "particle_picker_id": 6,
+                    "symmetry": "C1",
+                    "type": "2D",
+                },
+                {
+                    "buffer_command": {
+                        "ispyb_command": "insert_particle_classification"
+                    },
+                    "buffer_lookup": {
+                        "particle_classification_group_id": 5,
+                        "particle_classification_id": 10,
+                    },
+                    "class_distribution": "0.4",
+                    "class_image_full_path": (
+                        f"{tmp_path}/Class2D/job010/run_it020_classes_1.jpeg"
+                    ),
+                    "class_number": 1,
+                    "estimated_resolution": 12.2,
+                    "ispyb_command": "buffer",
+                    "overall_fourier_completeness": 1.0,
+                    "particles_per_class": 2.0,
+                    "rotation_accuracy": "30.3",
+                    "translation_accuracy": "33.3",
+                },
+            ],
+        },
+    )
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+@mock.patch("cryoemservices.wrappers.class2d_wrapper.subprocess.run")
+@mock.patch("workflows.recipe.wrapper.RecipeWrapper.send_to")
+def test_class2d_wrapper_failure_releases_hold(
+    mock_recwrap_send, mock_subprocess, mock_environment, offline_transport, tmp_path
+):
+    """
+    Send a test message to the Class2D wrapper which will fail the job.
+    This should send a release message to murfey and report failure to the node creator
+    """
+    mock_subprocess().returncode = 1
+    mock_subprocess().stdout = "stdout".encode("utf8")
+    mock_subprocess().stderr = "stderr".encode("utf8")
+
+    # Example recipe wrapper message to run the service with
+    class2d_test_message = {
+        "recipe": {
+            "start": [[1, []]],
+            "1": {
+                "job_parameters": {
+                    "batch_is_complete": False,
+                    "batch_size": "50000",
+                    "class2d_dir": f"{tmp_path}/Class2D/job010",
+                    "class2d_grp_uuid": "5",
+                    "class2d_nr_classes": "1",
+                    "class_uuids": "{'0': 10}",
+                    "do_icebreaker_jobs": True,
+                    "particle_diameter": "180",
+                    "particles_file": f"{tmp_path}/Select/job009/particles_split1.star",
+                    "picker_id": "6",
+                    "relion_options": {},
+                },
+            },
+        },
+        "recipe-pointer": 1,
+        "environment": {"ID": "envID"},
+    }
+
+    # Create the expected output files
+    (tmp_path / "Class2D/job010").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "Class2D/job010/RELION_JOB_EXIT_SUCCESS").touch()
+    with open(tmp_path / "Class2D/job010/run_it020_data.star", "w") as data_star:
+        data_star.write("data_particles\nloop_\n_rlnCoordinateX\n1\n2\n3\n4\n5")
+    with open(tmp_path / "Class2D/job010/run_it020_model.star", "w") as model_star:
+        model_star.write(
+            "data_model_classes\nloop_\n"
+            "_rlnReferenceImage\n_Fraction\n_Rotation\n_Translation\n"
+            "_Resolution\n_Completeness\n_OffsetX\n_OffsetY\n"
+            "1@Class2D/job010/run_it020_classes.mrcs 0.4 30.3 33.3 12.2 1.0 0.6 0.01\n"
+        )
+
+    # Create a recipe wrapper with the test message
+    recipe_wrapper = RecipeWrapper(
+        message=class2d_test_message, transport=offline_transport
+    )
+
+    # Set up and run the mock service
+    service_wrapper = class2d_wrapper.Class2DWrapper(environment=mock_environment)
+    service_wrapper.set_recipe_wrapper(recipe_wrapper)
+    service_wrapper.run()
+
+    # Check the expected message sends to the node creator and murfey
+    assert mock_recwrap_send.call_count == 2
+    mock_recwrap_send.assert_any_call(
+        "node_creator",
+        {
+            "job_type": "relion.class2d.em",
+            "input_file": f"{tmp_path}/Select/job009/particles_split1.star",
+            "output_file": f"{tmp_path}/Class2D/job010",
+            "relion_options": mock.ANY,
+            "command": mock.ANY,
+            "stdout": "stdout",
+            "stderr": "stderr",
+            "success": False,
+        },
+    )
+    mock_recwrap_send.assert_any_call(
+        "murfey_feedback",
+        {
+            "register": "done_incomplete_2d_batch",
+            "job_dir": f"{tmp_path}/Class2D/job010",
+        },
+    )
