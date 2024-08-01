@@ -76,7 +76,8 @@ class TomoParameters(BaseModel):
 
 class TomoAlign(CommonService):
     """
-    A service for grouping and aligning tomography tilt-series with Newstack and AreTomo
+    A service for grouping and aligning tomography tilt-series
+    with Newstack and AreTomo2
     """
 
     # Human readable service name
@@ -291,7 +292,7 @@ class TomoAlign(CommonService):
         aretomo_result = self.aretomo(tomo_params)
         if aretomo_result.returncode:
             self.log.error(
-                f"AreTomo failed with exitcode {aretomo_result.returncode}:\n"
+                f"AreTomo2 failed with exitcode {aretomo_result.returncode}:\n"
                 + aretomo_result.stderr.decode("utf8", "replace")
             )
             # Update failure processing status
@@ -554,9 +555,9 @@ class TomoAlign(CommonService):
 
     def aretomo(self, tomo_parameters):
         """
-        Run AreTomo on output of Newstack
+        Run AreTomo2 on output of Newstack
         """
-        command = ["AreTomo", "-OutMrc", self.aretomo_output_path]
+        command = ["AreTomo2", "-OutMrc", self.aretomo_output_path]
 
         if tomo_parameters.angle_file:
             command.extend(("-AngFile", tomo_parameters.angle_file))
@@ -606,13 +607,13 @@ class TomoAlign(CommonService):
             if v and (k in aretomo_flags):
                 command.extend((aretomo_flags[k], str(v)))
 
-        self.log.info(f"Running AreTomo {command}")
+        self.log.info(f"Running AreTomo2 {command}")
         self.log.info(
             f"Input stack: {tomo_parameters.stack_file} \n"
             f"Output file: {self.aretomo_output_path}"
         )
 
-        # Save the AreTomo command then run it
+        # Save the AreTomo2 command then run it
         with open(Path(self.aretomo_output_path).with_suffix(".com"), "w") as f:
             f.write(" ".join(command))
         result = subprocess.run(command, capture_output=True)
