@@ -114,7 +114,7 @@ def test_tomo_align_slurm_service(
     (tmp_path / "test_stack_aretomo_Imod/tilt.com").touch()
 
     # Construct the file which contains rest api submission information
-    os.environ["ARETOMO_EXECUTABLE"] = "slurm_AreTomo"
+    os.environ["ARETOMO2_EXECUTABLE"] = "slurm_AreTomo"
     os.environ["EXTRA_LIBRARIES"] = "/lib/aretomo"
     os.environ["SLURM_RESTAPI_CONFIG"] = str(tmp_path / "restapi.txt")
     with open(tmp_path / "restapi.txt", "w") as restapi_config:

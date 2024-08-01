@@ -58,7 +58,7 @@ def transfer_files(file_list: List[str]):
 
 class TomoAlignSlurm(TomoAlign, CommonService):
     """
-    A service for submitting AreTomo jobs to a slurm cluster via RestAPI
+    A service for submitting AreTomo2 jobs to a slurm cluster via RestAPI
     """
 
     # Logger name
@@ -77,15 +77,15 @@ class TomoAlignSlurm(TomoAlign, CommonService):
         tomo_file.close()
 
     def aretomo(self, tomo_parameters):
-        """Submit AreTomo jobs to the slurm cluster via the RestAPI"""
+        """Submit AreTomo2 jobs to the slurm cluster via the RestAPI"""
         self.log.info(
             f"Input stack: {tomo_parameters.stack_file} \n"
             f"Output file: {self.aretomo_output_path}"
         )
 
-        # Assemble the command to run AreTomo
+        # Assemble the command to run AreTomo2
         command = [
-            os.environ["ARETOMO_EXECUTABLE"],
+            os.environ["ARETOMO2_EXECUTABLE"],
             "-OutMrc",
             self.aretomo_output_path,
             "-InMrc",
@@ -150,11 +150,11 @@ class TomoAlignSlurm(TomoAlign, CommonService):
                 stderr=transfer_status.encode("utf8"),
             )
         self.log.info("All files transferred")
-        self.log.info(f"Running AreTomo with command: {command}")
+        self.log.info(f"Running AreTomo2 with command: {command}")
 
         slurm_outcome = slurm_submission(
             log=self.log,
-            job_name="AreTomo",
+            job_name="AreTomo2",
             command=command,
             project_dir=Path(self.alignment_output_dir),
             output_file=Path(self.aretomo_output_path),
