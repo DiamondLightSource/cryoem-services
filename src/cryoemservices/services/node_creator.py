@@ -364,6 +364,7 @@ class NodeCreator(CommonService):
         with open(job_dir / "note.txt", "a") as f:
             f.write(f"{job_info.command}\n")
 
+        extra_output_nodes = None
         if job_info.success:
             # Write the output files which Relion produces
             extra_output_nodes = create_output_files(
@@ -401,6 +402,16 @@ class NodeCreator(CommonService):
                 results_displays = pipeliner_job.create_results_display()
                 for results_obj in results_displays:
                     results_obj.write_displayobj_file(outdir=str(job_dir))
+
+        # If there are no new jobs or new nodes then stop here
+        if job_is_continue and not extra_output_nodes:
+            end_time = datetime.datetime.now()
+            self.log.info(
+                f"Skipping graph update for job {job_info.job_type}, "
+                f"in {(end_time - start_time).total_seconds()} seconds."
+            )
+            rw.transport.ack(header)
+            return
 
         # Check the lock status
         if (
