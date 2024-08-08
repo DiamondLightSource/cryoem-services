@@ -260,6 +260,13 @@ class DenoiseSlurm(CommonService):
                 },
             )
 
+        if denoise_params.output_dir:
+            segmentation_dir = (
+                Path(denoise_params.output_dir).parent.parent / "Segmentation"
+            )
+        else:
+            segmentation_dir = Path(denoise_params.volume).parent
+
         # Send to segmentation
         self.log.info(f"Sending {denoised_full_path} for segmentation")
         if isinstance(rw, MockRW):
@@ -267,6 +274,7 @@ class DenoiseSlurm(CommonService):
                 destination="segmentation",
                 message={
                     "tomogram": str(denoised_full_path),
+                    "output_dir": str(segmentation_dir),
                 },
             )
         else:
@@ -274,6 +282,7 @@ class DenoiseSlurm(CommonService):
                 "segmentation",
                 {
                     "tomogram": str(denoised_full_path),
+                    "output_dir": str(segmentation_dir),
                 },
             )
 

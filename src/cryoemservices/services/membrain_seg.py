@@ -12,6 +12,7 @@ from cryoemservices.util.slurm_submission import slurm_submission
 
 class MembrainSegParameters(BaseModel):
     tomogram: str = Field(..., min_length=1)
+    output_dir: Optional[str] = None
     model_checkpoint: str = (
         "/dls_sw/apps/EM/membrain-seg/models/MemBrain_seg_v10_alpha.ckpt"
     )
@@ -93,7 +94,11 @@ class MembrainSeg(CommonService):
             return
 
         # Assemble the membrain-seg command
-        alignment_output_dir = Path(membrain_seg_params.tomogram).parent
+        if not membrain_seg_params.output_dir:
+            alignment_output_dir = Path(membrain_seg_params.tomogram).parent
+        else:
+            alignment_output_dir = Path(membrain_seg_params.output_dir)
+        alignment_output_dir.mkdir(exist_ok=True, parents=True)
         command = ["membrain", "segment", "--out-folder", str(alignment_output_dir)]
 
         membrain_seg_flags = {
