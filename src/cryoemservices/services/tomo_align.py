@@ -479,7 +479,7 @@ class TomoAlign(CommonService):
             if isinstance(rw, MockRW):
                 rw.transport.send(
                     destination="node_creator",
-                    message={"parameters": tilt_params, "content": {"dummy": "dummy"}},
+                    message={"parameters": tilt_params, "content": "dummy"},
                 )
             else:
                 rw.send_to("node_creator", tilt_params)
