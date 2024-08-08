@@ -10,6 +10,7 @@ import zocalo.configuration
 from workflows.transport.offline_transport import OfflineTransport
 
 from cryoemservices.services import denoise_slurm
+from cryoemservices.util.relion_service_options import RelionServiceOptions
 
 
 @pytest.fixture
@@ -58,8 +59,8 @@ def test_denoise_slurm_service(
     }
     denoise_test_message = {
         "parameters": {
-            "volume": f"{tmp_path}/test_stack_aretomo.mrc",
-            "output": f"{tmp_path}/denoised",
+            "volume": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
+            "output_dir": f"{tmp_path}/Denoise/job007/denoised",
             "suffix": ".denoised",
             "model": "unet-3d",
             "even_train_path": None,
@@ -84,9 +85,11 @@ def test_denoise_slurm_service(
             "patch_padding": 48,
             "device": "-2",
             "cleanup_output": False,
+            "relion_options": {},
         },
         "content": "dummy",
     }
+    output_relion_options = dict(RelionServiceOptions())
 
     # Set up the mock service
     service = denoise_slurm.DenoiseSlurm(environment=mock_environment)
@@ -112,8 +115,9 @@ def test_denoise_slurm_service(
         token.write("token_key")
 
     # Touch the expected output files
-    (tmp_path / "test_stack_aretomo.denoised.mrc.out").touch()
-    (tmp_path / "test_stack_aretomo.denoised.mrc.err").touch()
+    (tmp_path / "Denoise/job007/denoised").mkdir(parents=True)
+    (tmp_path / "Denoise/job007/denoised/test_stack_aretomo.denoised.mrc.out").touch()
+    (tmp_path / "Denoise/job007/denoised/test_stack_aretomo.denoised.mrc.err").touch()
 
     # Send a message to the service
     service.denoise(None, header=header, message=denoise_test_message)
@@ -123,7 +127,7 @@ def test_denoise_slurm_service(
         f'curl -H "X-SLURM-USER-NAME:user" -H "X-SLURM-USER-TOKEN:token_key" '
         '-H "Content-Type: application/json" -X POST '
         "/url/of/slurm/restapi/slurm/v0.0.40/job/submit "
-        f"-d @{tmp_path}/test_stack_aretomo.denoised.mrc.json"
+        f"-d @{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc.json"
     )
     slurm_status_command = (
         'curl -H "X-SLURM-USER-NAME:user" -H "X-SLURM-USER-TOKEN:token_key" '
@@ -148,37 +152,19 @@ def test_denoise_slurm_service(
     # )
     assert mock_subprocess.call_count == 5
 
-    # Check the images service request
-    offline_transport.send.assert_any_call(
-        destination="images",
-        message={
-            "image_command": "mrc_central_slice",
-            "file": f"{tmp_path}/test_stack_aretomo.denoised.mrc",
-        },
-    )
-    offline_transport.send.assert_any_call(
-        destination="movie",
-        message={
-            "image_command": "mrc_to_apng",
-            "file": f"{tmp_path}/test_stack_aretomo.denoised.mrc",
-        },
-    )
-    offline_transport.send.assert_any_call(
-        destination="segmentation",
-        message={"tomogram": f"{tmp_path}/test_stack_aretomo.denoised.mrc"},
-    )
-
     # Check the denoising command
-    with open(tmp_path / "test_stack_aretomo.denoised.mrc.json", "r") as script_file:
+    with open(
+        tmp_path / "Denoise/job007/denoised/test_stack_aretomo.denoised.mrc.json", "r"
+    ) as script_file:
         script_json = json.load(script_file)
     topaz_command = script_json["script"].split("\n")[-1]
 
-    expected_command = [
+    denoise_command = [
         "topaz",
         "denoise3d",
-        "test_stack_aretomo.mrc",
+        f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
         "-o",
-        f"{tmp_path}/denoised",
+        f"{tmp_path}/Denoise/job007/denoised",
         "--suffix",
         ".denoised",
         "-m",
@@ -215,4 +201,45 @@ def test_denoise_slurm_service(
         "-d",
         "-2",
     ]
-    assert topaz_command == " ".join(expected_command)
+    assert topaz_command == " ".join(denoise_command)
+
+    # Check the images service request
+    assert offline_transport.send.call_count == 4
+    offline_transport.send.assert_any_call(
+        destination="node_creator",
+        message={
+            "parameters": {
+                "experiment_type": "tomography",
+                "job_type": "relion.denoisetomo",
+                "input_file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
+                "output_file": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
+                "relion_options": output_relion_options,
+                "command": " ".join(denoise_command),
+                "stdout": "",
+                "stderr": "",
+                "success": True,
+            },
+            "content": "dummy",
+        },
+    )
+    offline_transport.send.assert_any_call(
+        destination="images",
+        message={
+            "image_command": "mrc_central_slice",
+            "file": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
+        },
+    )
+    offline_transport.send.assert_any_call(
+        destination="movie",
+        message={
+            "image_command": "mrc_to_apng",
+            "file": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
+        },
+    )
+    offline_transport.send.assert_any_call(
+        destination="segmentation",
+        message={
+            "tomogram": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
+            "output_dir": f"{tmp_path}/Segmentation/job008",
+        },
+    )
