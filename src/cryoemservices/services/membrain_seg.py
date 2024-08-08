@@ -95,11 +95,11 @@ class MembrainSeg(CommonService):
 
         # Assemble the membrain-seg command
         if not membrain_seg_params.output_dir:
-            alignment_output_dir = Path(membrain_seg_params.tomogram).parent
+            segmented_output_dir = Path(membrain_seg_params.tomogram).parent
         else:
-            alignment_output_dir = Path(membrain_seg_params.output_dir)
-        alignment_output_dir.mkdir(exist_ok=True, parents=True)
-        command = ["membrain", "segment", "--out-folder", str(alignment_output_dir)]
+            segmented_output_dir = Path(membrain_seg_params.output_dir)
+        segmented_output_dir.mkdir(exist_ok=True, parents=True)
+        command = ["membrain", "segment", "--out-folder", str(segmented_output_dir)]
 
         membrain_seg_flags = {
             "tomogram": "--tomogram-path",
@@ -135,13 +135,13 @@ class MembrainSeg(CommonService):
 
         # Determine the output paths
         segmented_file = f"{Path(membrain_seg_params.tomogram).stem}_segmented.mrc"
-        segmented_path = alignment_output_dir / segmented_file
+        segmented_path = segmented_output_dir / segmented_file
 
         membrain_file = (
             f"{Path(membrain_seg_params.tomogram).stem}"
             f"_{Path(membrain_seg_params.model_checkpoint).name}_segmented.mrc"
         )
-        membrain_path = alignment_output_dir / membrain_file
+        membrain_path = segmented_output_dir / membrain_file
 
         self.log.info(f"Input: {membrain_seg_params.tomogram} Output: {segmented_path}")
         self.log.info(f"Running {command}")
@@ -151,7 +151,7 @@ class MembrainSeg(CommonService):
             log=self.log,
             job_name="membrain-seg",
             command=command,
-            project_dir=alignment_output_dir,
+            project_dir=segmented_output_dir,
             output_file=segmented_path,
             cpus=1,
             use_gpu=True,
