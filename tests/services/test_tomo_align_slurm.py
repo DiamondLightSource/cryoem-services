@@ -68,11 +68,11 @@ def test_tomo_align_slurm_service(
     }
     tomo_align_test_message = {
         "parameters": {
-            "stack_file": f"{tmp_path}/test_stack.st",
+            "stack_file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack.mrc",
             "path_pattern": None,
-            "input_file_list": str([[f"{tmp_path}/input_file_1.mrc", "1.00"]]),
-            "position": None,
-            "aretomo_output_file": f"{tmp_path}/test_stack_aretomo.mrc",
+            "input_file_list": str(
+                [[f"{tmp_path}/MotionCorr/job002/Movies/input_file_1.mrc", "1.00"]]
+            ),
             "vol_z": 1200,
             "align": None,
             "out_bin": 4,
@@ -87,13 +87,14 @@ def test_tomo_align_slurm_service(
             "align_file": None,
             "angle_file": f"{tmp_path}/angles.file",
             "align_z": None,
-            "pix_size": 1e-10,
+            "pixel_size": 1e-10,
             "init_val": None,
             "refine_flag": None,
             "out_imod": 1,
             "out_imod_xf": None,
             "dark_tol": None,
             "manual_tilt_offset": None,
+            "relion_options": {},
         },
         "content": "dummy",
     }
@@ -106,12 +107,13 @@ def test_tomo_align_slurm_service(
     service.rot_centre_z_list = [1.1, 2.1]
     service.tilt_offset = 1.1
     service.alignment_quality = 0.5
-    service.mag = 1000
-    service.rot = 0
 
-    (tmp_path / "test_stack_aretomo_Imod").mkdir()
-    (tmp_path / "test_stack.aln").touch()
-    (tmp_path / "test_stack_aretomo_Imod/tilt.com").touch()
+    (tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo_Imod").mkdir(
+        parents=True
+    )
+    (tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo_Imod/tilt.com").touch()
+    with open(tmp_path / "Tomograms/job006/tomograms/test_stack.aln", "w") as aln_file:
+        aln_file.write("dummy 0 1000 1.2 2.3 5 6 7 8 4.5")
 
     # Construct the file which contains rest api submission information
     os.environ["ARETOMO2_EXECUTABLE"] = "slurm_AreTomo"
@@ -133,8 +135,8 @@ def test_tomo_align_slurm_service(
         token.write("token_key")
 
     # Touch the expected output files
-    (tmp_path / "test_stack_aretomo.mrc.out").touch()
-    (tmp_path / "test_stack_aretomo.mrc.err").touch()
+    (tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo.mrc.out").touch()
+    (tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo.mrc.err").touch()
 
     # Send a message to the service
     service.tomo_align(None, header=header, message=tomo_align_test_message)
@@ -144,9 +146,9 @@ def test_tomo_align_slurm_service(
         [
             "newstack",
             "-fileinlist",
-            f"{tmp_path}/test_stack_newstack.txt",
+            f"{tmp_path}/Tomograms/job006/tomograms/test_stack_newstack.txt",
             "-output",
-            f"{tmp_path}/test_stack.st",
+            f"{tmp_path}/Tomograms/job006/tomograms/test_stack.mrc",
             "-quiet",
         ]
     )
@@ -156,7 +158,7 @@ def test_tomo_align_slurm_service(
         f'curl -H "X-SLURM-USER-NAME:user" -H "X-SLURM-USER-TOKEN:token_key" '
         '-H "Content-Type: application/json" -X POST '
         "/url/of/slurm/restapi/slurm/v0.0.40/job/submit "
-        f"-d @{tmp_path}/test_stack_aretomo.mrc.json"
+        f"-d @{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc.json"
     )
     slurm_status_command = (
         'curl -H "X-SLURM-USER-NAME:user" -H "X-SLURM-USER-TOKEN:token_key" '
@@ -172,11 +174,13 @@ def test_tomo_align_slurm_service(
 
     # Check file transfer and retrieval
     assert mock_transfer.call_count == 1
-    mock_transfer.assert_any_call([f"{tmp_path}/test_stack.st"])
+    mock_transfer.assert_any_call(
+        [f"{tmp_path}/Tomograms/job006/tomograms/test_stack.mrc"]
+    )
     assert mock_retrieve.call_count == 1
     mock_retrieve.assert_any_call(
-        job_directory=tmp_path,
-        files_to_skip=[f"{tmp_path}/test_stack.st"],
+        job_directory=tmp_path / "Tomograms/job006/tomograms",
+        files_to_skip=[tmp_path / "Tomograms/job006/tomograms/test_stack.mrc"],
         basepath="test_stack",
     )
     assert mock_plotly.call_count == 1
