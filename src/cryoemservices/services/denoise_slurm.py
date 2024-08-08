@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -261,9 +262,11 @@ class DenoiseSlurm(CommonService):
             )
 
         if denoise_params.output_dir:
-            segmentation_dir = (
-                Path(denoise_params.output_dir).parent.parent / "Segmentation"
-            )
+            project_dir = Path(
+                re.search(".+/job[0-9]+/", denoise_params.output_dir)[0]
+            ).parent.parent
+            job_number = int(re.search("/job[0-9]+", denoise_params.output_dir)[0][4:])
+            segmentation_dir = project_dir / f"Segmentation/job{job_number+1:03}"
         else:
             segmentation_dir = Path(denoise_params.volume).parent
 
