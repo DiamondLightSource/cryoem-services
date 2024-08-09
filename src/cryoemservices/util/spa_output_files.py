@@ -20,14 +20,6 @@ def get_ice_ring_density(output_file: Path):
     return np.sum(np.abs(ice_values[(ring_levels > 0.25) * (ring_levels < 0.28)]))
 
 
-def get_ice_ring_density(output_file: Path):
-    with open(f"{output_file.with_suffix('')}_avrot.txt", "r") as f:
-        ctf_rings = f.readlines()[5:7]
-    ring_levels = np.array(ctf_rings[0].split(), dtype=float)
-    ice_values = np.array(ctf_rings[1].split(), dtype=float)
-    return np.sum(np.abs(ice_values[(ring_levels > 0.25) * (ring_levels < 0.28)]))
-
-
 def get_optics_table(
     relion_options: RelionServiceOptions, particle: bool = False, im_size: int = 0
 ):
