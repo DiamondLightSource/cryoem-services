@@ -25,6 +25,8 @@ The tomography processing pipeline consists of:
 - Tomogram denoising using [Topaz](http://topaz-em.readthedocs.io)
 - Segmentation using [membrain-seg](https://github.com/teamtomo/membrain-seg)
 
+The results of this processing can be opened and continued using
+[Relion 5.0](https://relion.readthedocs.io).
 
 # Single particle analysis
 
