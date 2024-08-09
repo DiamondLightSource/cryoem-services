@@ -28,7 +28,9 @@ class Class2DParameters(BaseModel):
     batch_size: int
     particle_diameter: float = 0
     mask_diameter: float = 190
-    do_vdam = False
+    do_vdam: bool = False
+    vdam_write_iter: int = 10
+    vdam_threshold: float = 0.1
     dont_combine_weights_via_disc: bool = True
     preread_images: bool = True
     scratch_dir: Optional[str] = None
@@ -76,19 +78,6 @@ class Class2DWrapper(BaseWrapper):
         super().__init__(*args, **kwargs)
         self.class_uuids_dict = {}
         self.class_uuids_keys = []
-
-    def parse_combiner_output(self, combiner_stdout: str):
-        """
-        Read the output logs of the star file combination
-        """
-        for line in combiner_stdout.split("\n"):
-            if line.startswith("Adding") and "particles_all.star" in line:
-                line_split = line.split()
-                self.previous_total_count = int(line_split[3])
-
-            if line.startswith("Combined"):
-                line_split = line.split()
-                self.total_count = int(line_split[6])
 
     def run(self):
         """
@@ -186,6 +175,16 @@ class Class2DWrapper(BaseWrapper):
         class2d_command.extend(
             ("--pipeline_control", f"{job_dir.relative_to(project_dir)}/")
         )
+        if class2d_params.do_vdam:
+            class2d_command.extend(
+                (
+                    "--grad",
+                    "--class_inactivity_threshold",
+                    str(class2d_params.vdam_threshold),
+                    "--grad_write_iter",
+                    str(class2d_params.vdam_write_iter),
+                )
+            )
 
         # Run Class2D and confirm it ran successfully
         self.log.info(" ".join(class2d_command))
