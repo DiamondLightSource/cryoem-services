@@ -114,7 +114,7 @@ def test_tomo_align_service(
     )
     mock_subprocess.assert_any_call(
         [
-            "AreTomo",
+            "AreTomo2",
             "-OutMrc",
             f"{tmp_path}/test_stack_aretomo.mrc",
             "-AngFile",
