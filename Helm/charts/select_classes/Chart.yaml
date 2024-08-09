@@ -1,4 +1,4 @@
 apiVersion: v2
 name: select_classes
 description: A Helm chart for class selection service
-version: 0.0.1
+version: 0.3.2
