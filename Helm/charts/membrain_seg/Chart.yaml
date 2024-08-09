@@ -1,4 +1,4 @@
 apiVersion: v2
 name: membrain_seg
 description: A Helm chart for membrain-seg service
-version: 0.3.2
+version: 0.3.1
