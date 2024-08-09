@@ -45,7 +45,7 @@ dependencies = [
     "stomp-py==8.1.0",
     "tifffile", # CLEM workflow
     "workflows",
-    "zocalo==0.30.2",
+    "zocalo==0.32.0",
 ]
 [project.optional-dependencies]
 dev = [
@@ -159,4 +159,4 @@ inputs = "pyproject.toml"
 check = true
 indent = 4
 keep_full_version = true
-max-supported-python = "3.10"
+max-supported-python = "3.11"
