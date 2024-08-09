@@ -1,4 +1,4 @@
 apiVersion: v2
 name: denoise_slurm
 description: A Helm chart for EM Denoise service
-version: 0.0.1
+version: 0.3.2
