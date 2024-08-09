@@ -10,10 +10,10 @@ from typing import Optional
 
 import requests
 import workflows.recipe
-import zocalo.configuration
 from importlib_metadata import entry_points
 from pydantic import BaseModel, Field
 from workflows.services.common_service import CommonService
+from zocalo.configuration import Configuration
 from zocalo.util import slurm
 
 
@@ -34,15 +34,14 @@ class JobSubmissionParameters(BaseModel):
     time_limit: Optional[datetime.timedelta] = None
     gpus: Optional[int] = None
     exclusive: bool = False
-    commands: str | list[str]
-    qos: Optional[str]
+    commands: list[str] | str
 
 
 def submit_to_slurm(
     params: JobSubmissionParameters,
     working_directory: Path,
     logger: logging.Logger,
-    zc: zocalo.configuration,
+    zc: Configuration,
 ) -> int | None:
     api = slurm.SlurmRestApi.from_zocalo_configuration(zc)
 
@@ -51,39 +50,57 @@ def submit_to_slurm(
         script = "\n".join(script)
     script = f"#!/bin/bash\n. /etc/profile.d/modules.sh\n{script}"
 
+    if params.environment:
+        environment = [f"{k}={v}" for k, v in params.environment.items()]
+    else:
+        # The environment must not be empty
+        minimal_environment = {"USER"}
+        # Only attempt to copy variables that already exist.
+        minimal_environment &= set(os.environ)
+        environment = [f"{k}={os.environ[k]}" for k in minimal_environment]
+    if not environment:
+        logger.error("No environment has been set, aborting")
+        return None
+
     logger.debug(f"Submitting script to Slurm:\n{script}")
+    jdm_params = {
+        "cpus_per_task": params.cpus_per_task,
+        "current_working_directory": os.fspath(working_directory),
+        "environment": environment,
+        "name": params.job_name,
+        "nodes": str(params.nodes) if params.nodes else params.nodes,
+        "partition": params.partition,
+        "prefer": params.prefer,
+        "tasks": params.tasks,
+    }
+    if params.min_memory_per_cpu:
+        jdm_params["memory_per_cpu"] = slurm.models.Uint64NoVal(
+            number=params.min_memory_per_cpu, set=True
+        )
+    if params.memory_per_node:
+        jdm_params["memory_per_node"] = slurm.models.Uint64NoVal(
+            number=params.memory_per_node, set=True
+        )
     if params.time_limit:
         time_limit_minutes = math.ceil(params.time_limit.total_seconds() / 60)
-    else:
-        time_limit_minutes = None
-    job_submission = slurm.models.JobSubmission(
-        script=script,
-        job=slurm.models.JobProperties(
-            partition=params.partition,
-            prefer=params.prefer,
-            name=params.job_name,
-            cpus_per_task=params.cpus_per_task,
-            tasks=params.tasks,
-            nodes=[params.nodes, params.nodes] if params.nodes else params.nodes,
-            gpus_per_node=params.gpus_per_node,
-            memory_per_node=params.memory_per_node,
-            environment=os.environ
-            if params.environment is None
-            else params.environment,
-            memory_per_cpu=params.min_memory_per_cpu,
-            time_limit=time_limit_minutes,
-            gpus=params.gpus,
-            current_working_directory=os.fspath(working_directory),
-            qos=params.qos,
-        ),
+        jdm_params["time_limit"] = slurm.models.Uint32NoVal(
+            number=time_limit_minutes, set=True
+        )
+    if params.gpus_per_node:
+        jdm_params["tres_per_node"] = f"gres/gpu:{params.gpus_per_node}"
+    if params.gpus:
+        jdm_params["tres_per_job"] = f"gres/gpu:{params.gpus}"
+
+    job_submission = slurm.models.JobSubmitReq(
+        script=script, job=slurm.models.JobDescMsg(**jdm_params)
     )
     try:
         response = api.submit_job(job_submission)
     except requests.HTTPError as e:
         logger.error(f"Failed Slurm job submission: {e}\n" f"{e.response.text}")
         return None
-    if response.errors:
-        error_message = "\n".join(f"{e.errno}: {e.error}" for e in response.errors)
+    if response.error:
+        error_message = f"{response.error_code}: {response.error}"
         logger.error(f"Failed Slurm job submission: {error_message}")
         return None
     return response.job_id
