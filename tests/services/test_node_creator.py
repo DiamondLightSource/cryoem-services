@@ -529,7 +529,7 @@ def test_node_creator_select_particles(mock_environment, offline_transport, tmp_
         tmp_path / ".Nodes/ParticleGroupMetadata/Select/job009/particles_split1.star"
     ).exists()
     assert (
-        tmp_path / ".Nodes/ParticlesData/Select/job009/particles_split2.star"
+        tmp_path / ".Nodes/ParticleGroupMetadata/Select/job009/particles_split2.star"
     ).exists()
 
 
