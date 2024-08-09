@@ -2,6 +2,7 @@ global:
   namespace: my-namespace
   runAsUser: user-id
   runAsGroup: group-id
+  configMap: zocalo-conf
 
 bfactor_setup:
   replicas: 1
@@ -17,7 +18,6 @@ bfactor_setup:
     name: home
     mountPropagation: HostToContainer
     readOnly: true
-  configMap: zocalo-conf
 
 cluster_submission:
   replicas: 1
@@ -33,7 +33,6 @@ cluster_submission:
     name: home
     mountPropagation: HostToContainer
     readOnly: true
-  configMap: zocalo-conf
 
 cryolo:
   replicas: 1
@@ -49,7 +48,6 @@ cryolo:
     name: home
     mountPropagation: HostToContainer
     readOnly: true
-  configMap: zocalo-conf
 
 ctffind:
   replicas: 1
@@ -65,7 +63,6 @@ ctffind:
     name: home
     mountPropagation: HostToContainer
     readOnly: true
-  configMap: zocalo-conf
 
 denoise_slurm:
   replicas: 1
@@ -81,7 +78,6 @@ denoise_slurm:
     name: dls
     mountPropagation: HostToContainer
     readOnly: true
-  configMap: zocalo-conf
 
 dispatcher:
   replicas: 1
@@ -97,7 +93,6 @@ dispatcher:
     name: home
     mountPropagation: HostToContainer
     readOnly: true
-  configMap: zocalo-conf
 
 extract:
   replicas: 1
@@ -113,7 +108,6 @@ extract:
     name: home
     mountPropagation: HostToContainer
     readOnly: true
-  configMap: zocalo-conf
 
 extract_class:
   replicas: 1
@@ -129,7 +123,6 @@ extract_class:
     name: home
     mountPropagation: HostToContainer
     readOnly: true
-  configMap: zocalo-conf
 
 icebreaker:
   replicas: 1
@@ -145,7 +138,6 @@ icebreaker:
     name: home
     mountPropagation: HostToContainer
     readOnly: true
-  configMap: zocalo-conf
 
 images:
   replicas: 2
@@ -161,7 +153,6 @@ images:
     name: home
     mountPropagation: HostToContainer
     readOnly: true
-  configMap: zocalo-conf
 
 ispyb:
   replicas: 1
@@ -177,7 +168,6 @@ ispyb:
     name: home
     mountPropagation: HostToContainer
     readOnly: true
-  configMap: zocalo-conf
 
 membrain_seg:
   replicas: 1
@@ -193,7 +183,6 @@ membrain_seg:
     name: home
     mountPropagation: HostToContainer
     readOnly: true
-  configMap: zocalo-conf
 
 motioncorr:
   replicas: 1
@@ -209,7 +198,6 @@ motioncorr:
     name: home
     mountPropagation: HostToContainer
     readOnly: true
-  configMap: zocalo-conf
 
 node_creator:
   replicas: 1
@@ -225,7 +213,6 @@ node_creator:
     name: home
     mountPropagation: HostToContainer
     readOnly: true
-  configMap: zocalo-conf
 
 postprocess:
   replicas: 1
@@ -241,7 +228,6 @@ postprocess:
     name: home
     mountPropagation: HostToContainer
     readOnly: true
-  configMap: zocalo-conf
 
 select_classes:
   replicas: 1
@@ -257,7 +243,6 @@ select_classes:
     name: home
     mountPropagation: HostToContainer
     readOnly: true
-  configMap: zocalo-conf
 
 select_particles:
   replicas: 1
@@ -273,7 +258,6 @@ select_particles:
     name: home
     mountPropagation: HostToContainer
     readOnly: true
-  configMap: zocalo-conf
 
 tomo_align:
   replicas: 1
@@ -289,7 +273,6 @@ tomo_align:
     name: dls
     mountPropagation: HostToContainer
     readOnly: true
-  configMap: zocalo-conf
 
 tomo_align_slurm:
   replicas: 1
@@ -305,4 +288,3 @@ tomo_align_slurm:
     name: dls
     mountPropagation: HostToContainer
     readOnly: true
-  configMap: zocalo-conf

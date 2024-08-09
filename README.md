@@ -79,7 +79,8 @@ or [Relion](https://relion.readthedocs.io)
 [Relion](https://relion.readthedocs.io) and re-batches the particles from these classes
     - **SelectParticles**: Creates files listing batches of extracted particles
     - **TomoAlign**: Tomogram reconstruction from a list of micrographs using 
-[imod](https://bio3d.colorado.edu/imod) and [AreTomo](http://msg.ucsf.edu/software)
+[imod](https://bio3d.colorado.edu/imod) 
+and [AreTomo2](https://github.com/czimaginginstitute/AreTomo2)
     - **TomoAlignSlurm**: Tomogram alignment processing submitted to a slurm HPC cluster
 
 There are also three zocalo wrapper scripts that can be run on an HPC cluster.

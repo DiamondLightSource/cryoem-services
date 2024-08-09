@@ -8,7 +8,7 @@ from gemmi import cif
 
 from cryoemservices.util.spa_relion_service_options import RelionServiceOptions
 
-NODE_PARTICLESDATA = "ParticlesData"
+NODE_PARTICLEGROUPMETADATA = "ParticleGroupMetadata"
 
 
 def get_optics_table(
@@ -132,7 +132,7 @@ def _motioncorr_output_files(
             output_cif.write(" ".join(added_line) + "\n")
 
     # Logfile is expected but will not be made
-    (star_file.parent / "logfile.pdf").touch()
+    (star_file.parent / "logfile.pdf").touch(exist_ok=True)
 
 
 def _ctffind_output_files(
@@ -186,7 +186,7 @@ def _ctffind_output_files(
             output_cif.write(" ".join(added_line) + "\n")
 
     # Logfile is expected but will not be made
-    (star_file.parent / "logfile.pdf").touch()
+    (star_file.parent / "logfile.pdf").touch(exist_ok=True)
 
 
 def _icebreaker_output_files(
@@ -343,7 +343,7 @@ def _select_output_files(
     split_files = {}
     for split_file in range(split_count, 0, -1):
         split_name = f"particles_split{split_file}.star"
-        split_files[split_name] = [NODE_PARTICLESDATA, ["relion"]]
+        split_files[split_name] = [NODE_PARTICLEGROUPMETADATA, ["relion"]]
     return split_files
 
 

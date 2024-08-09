@@ -364,6 +364,7 @@ class NodeCreator(CommonService):
         with open(job_dir / "note.txt", "a") as f:
             f.write(f"{job_info.command}\n")
 
+        extra_output_nodes = None
         if job_info.success:
             # Write the output files which Relion produces
             extra_output_nodes = create_output_files(
@@ -401,6 +402,16 @@ class NodeCreator(CommonService):
                 results_displays = pipeliner_job.create_results_display()
                 for results_obj in results_displays:
                     results_obj.write_displayobj_file(outdir=str(job_dir))
+
+        # If there are no new jobs or new nodes then stop here
+        if job_is_continue and not extra_output_nodes:
+            end_time = datetime.datetime.now()
+            self.log.info(
+                f"Skipping graph update for job {job_info.job_type}, "
+                f"in {(end_time - start_time).total_seconds()} seconds."
+            )
+            rw.transport.ack(header)
+            return
 
         # Check the lock status
         if (
@@ -449,6 +460,7 @@ class NodeCreator(CommonService):
                         break
             job_number = int(re.search("/job[0-9]+", str(job_dir))[0][4:])
             if job_count <= job_number:
+                project.job_counter = job_number + 1
                 with open("default_pipeline.star", "r") as pipeline_file, open(
                     "default_pipeline.star.tmp", "w"
                 ) as new_pipeline:
@@ -458,9 +470,10 @@ class NodeCreator(CommonService):
                             break
                         if line.startswith("_rlnPipeLineJobCounter"):
                             split_line = line.split()
-                            split_line[1] = str(job_number + 1)
+                            split_line[1] = str(project.job_counter)
                             line = " ".join(split_line)
                         new_pipeline.write(line)
+                Path("default_pipeline.star").unlink()
                 Path("default_pipeline.star.tmp").rename("default_pipeline.star")
             # Copy the default_pipeline.star file
             (job_dir / "default_pipeline.star").write_bytes(

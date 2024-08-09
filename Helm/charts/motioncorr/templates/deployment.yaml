@@ -35,9 +35,9 @@ spec:
         - name: KUBERNETES
           value: "1"
         - name: ZOCALO_CONFIG
-          value: "/zocalo/config/{{ .Values.configFileName }}"
+          value: "/zocalo/config/{{ .Values.global.configFileName }}"
         - name: ISPYB_CREDENTIALS
-          value: "/zocalo/secrets/{{ .Values.dbFileName }}"
+          value: "/zocalo/secrets/{{ .Values.global.dbFileName }}"
         - name: LD_LIBRARY_PATH
           value: "/install/pythonenv/lib"
         volumeMounts:
@@ -51,17 +51,17 @@ spec:
       volumes:
       - name: config-file
         configMap:
-          name: {{ .Values.configMap }}
+          name: {{ .Values.global.configMap }}
       - name: secrets
         projected:
           defaultMode: 0444
           sources:
           - secret: 
-              name: {{ .Values.dbSecretName }}
+              name: {{ .Values.global.dbSecretName }}
           - secret:
-              name: {{ .Values.rmqSecretName }}
+              name: {{ .Values.global.rmqSecretName }}
           - secret:
-              name: {{ .Values.rmqApiSecretName }}
+              name: {{ .Values.global.rmqApiSecretName }}
 {{- if .Values.extraVolumes }}
 {{ toYaml .Values.extraVolumes | indent 6 }}
 {{ end }}
