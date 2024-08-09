@@ -7,7 +7,7 @@ requires = [
 
 [project]
 name = "cryoemservices"
-version = "0.3.1"
+version = "0.3.2"
 description = "Services for CryoEM processing"
 readme = "README.md"
 keywords = [
