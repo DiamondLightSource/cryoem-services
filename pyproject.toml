@@ -1,7 +1,7 @@
 [build-system]
 build-backend = "setuptools.build_meta"
 requires = [
-    "setuptools>=40.6",
+    "setuptools>=40.6.0",
     "wheel",
 ]
 
@@ -43,10 +43,10 @@ dependencies = [
     "pydantic==1.10.7",
     "readlif", # CLEM workflow
     "starfile",
-    "stomp-py==8.1",
+    "stomp-py==8.1.0",
     "tifffile", # CLEM workflow
     "workflows",
-    "zocalo==0.32",
+    "zocalo==0.32.0",
 ]
 [project.optional-dependencies]
 dev = [
@@ -56,8 +56,8 @@ dev = [
     "pytest",
 ]
 [project.urls]
-Bug-Tracker = "https://github.com/DiamondLightSource/cryoem-services/issues"
-GitHub = "https://github.com/DiamondLightSource/cryoem-services"
+    Bug-Tracker = "https://github.com/DiamondLightSource/cryoem-services/issues"
+    GitHub = "https://github.com/DiamondLightSource/cryoem-services"
 [project.scripts]
     "clem.lif_to_stack" = "cryoemservices.cli.lif_to_stack:run"
     "clem.tiff_to_stack" = "cryoemservices.cli.tiff_to_stack:run"
