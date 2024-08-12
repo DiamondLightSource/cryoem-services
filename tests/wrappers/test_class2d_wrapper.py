@@ -8,7 +8,7 @@ import zocalo.configuration
 from workflows.recipe.wrapper import RecipeWrapper
 from workflows.transport.offline_transport import OfflineTransport
 
-from cryoemservices.util.spa_relion_service_options import RelionServiceOptions
+from cryoemservices.util.relion_service_options import RelionServiceOptions
 from cryoemservices.wrappers import class2d_wrapper
 
 
