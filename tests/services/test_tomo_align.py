@@ -111,7 +111,7 @@ def test_tomo_align_service(
     service.tomo_align(None, header=header, message=tomo_align_test_message)
 
     aretomo_command = [
-        "AreTomo",
+        "AreTomo2",
         "-OutMrc",
         f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
         "-AngFile",
