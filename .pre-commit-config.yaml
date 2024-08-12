@@ -1,45 +1,82 @@
 repos:
-# Syntax validation and some basic sanity checks
-- repo: https://github.com/pre-commit/pre-commit-hooks
-  rev: v4.1.0
-  hooks:
-  - id: check-merge-conflict
-  - id: check-ast
-    fail_fast: True
-  - id: check-json
-  - id: pretty-format-json
-    args: ['--autofix']
-  - id: check-added-large-files
-    args: ['--maxkb=200']
-  - id: check-yaml
+  # Syntax validation and some basic sanity checks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.6.0 # Released 2024-04-06
+    hooks:
+      - id: check-added-large-files
+        name: Checking for added large files
+        args: ["--maxkb=200"]
+        fail_fast: True
+      - id: check-case-conflict
+        name: Checking for name case conflicts
+      - id: check-merge-conflict
+        name: Checking for merge conflicts
+      - id: check-ast
+        name: Verifying Python file syntax
+      - id: check-json
+        name: Verifying JSON file syntax
+      - id: check-yaml
+        name: Verifying YAML file syntax
+        args: [--allow-multiple-documents]
+      - id: check-toml
+        name: Verifying TOML file syntax
 
-# Automatically sort imports
-- repo: https://github.com/PyCQA/isort
-  rev: 5.12.0
-  hooks:
-  - id: isort
-    args: [
-           '-a', 'from __future__ import annotations',        # 3.7-3.11
-           '--rm', 'from __future__ import absolute_import',  # -3.0
-           '--rm', 'from __future__ import division',         # -3.0
-           '--rm', 'from __future__ import generator_stop',   # -3.7
-           '--rm', 'from __future__ import generators',       # -2.3
-           '--rm', 'from __future__ import nested_scopes',    # -2.2
-           '--rm', 'from __future__ import print_function',   # -3.0
-           '--rm', 'from __future__ import unicode_literals', # -3.0
-           '--rm', 'from __future__ import with_statement',   # -2.6
+  # Format the pyproject.toml file
+  - repo: https://github.com/tox-dev/pyproject-fmt
+    rev: 1.8.0 # Released 2024-04-17
+    hooks:
+      - id: pyproject-fmt
+        name: Formatting the pyproject.toml file
+        additional_dependencies: ["tox>=4.9"]
+
+  # Automatic source code formatting
+  - repo: https://github.com/psf/black
+    rev: 24.8.0 # Released 2024-08-02
+    hooks:
+      - id: black
+        name: Formatting Python scripts according to Black
+        args: [--safe, --quiet]
+
+  # Automatically sort imports
+  - repo: https://github.com/PyCQA/isort
+    rev: 5.13.2
+    hooks:
+      - id: isort
+        name: Tidying Python imports via Isort
+        args: [
+            "-a",
+            "from __future__ import annotations", # 3.7-3.11
           ]
 
-# Automatic source code formatting
-- repo: https://github.com/psf/black
-  rev: 22.3.0
-  hooks:
-  - id: black
-    args: [--safe, --quiet]
+  # Linting
+  - repo: https://github.com/PyCQA/flake8
+    rev: 7.1.1 # Released 2024-08-04
+    hooks:
+      - id: flake8
+        additional_dependencies:
+          ["Flake8-pyproject==1.2.3", "flake8-comprehensions==3.14.0"]
 
-# Linting
-- repo: https://github.com/PyCQA/flake8
-  rev: 4.0.1
-  hooks:
-  - id: flake8
-    additional_dependencies: ['flake8-comprehensions==3.8.0']
+  # Type checking
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.11.1 # Released 2024-07-31
+    hooks:
+      - id: mypy
+        name: Checking types in Python scripts using MyPy
+        files: '(src|tests)/.*\.py$' # RegEx string showing directories and files to check
+        # Single quote critical due to escape character '\' used in the search string
+        # (see YAML specifications - 7.3 Flow Scalar Styles)
+
+        additional_dependencies: [
+            # Install missing stub packages
+            types-requests,
+            types-xmltodict,
+            types-PyYAML,
+          ]
+
+  # Use Prettier to format other files
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v3.1.0 # Released 2023-11-13 | Latest stable version
+    hooks:
+      - id: prettier
+        name: Formatting other file types according to Prettier
+        # types_or: [css, html, json, yaml]
