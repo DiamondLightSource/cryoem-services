@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 from math import ceil
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 import starfile
 
@@ -82,12 +82,15 @@ def combine_star_files(files_to_process: List[Path], output_dir: Path):
             ref_value = reference_optics[optics_label]
             new_value = new_optics[optics_label]
             if ref_value[0].isdigit() and new_value[0].isdigit():
-                ref_value = float(ref_value)
-                new_value = float(new_value)
-            if ref_value != new_value:
-                print(ref_value, new_value)
+                if float(ref_value) != float(new_value):
+                    raise IndexError(
+                        "Cannot combine star files with different optics tables: "
+                        f"{ref_value}, {new_value}"
+                    )
+            elif ref_value != new_value:
                 raise IndexError(
-                    "Cannot combine star files with different values in optics tables."
+                    "Cannot combine star files with different optics tables. "
+                    f"{ref_value}, {new_value}"
                 )
 
         # Add the particles lines to the final star file
@@ -118,8 +121,8 @@ def combine_star_files(files_to_process: List[Path], output_dir: Path):
 def split_star_file(
     file_to_process: Path,
     output_dir: Path,
-    number_of_splits: int or None = None,
-    split_size: int or None = None,
+    number_of_splits: Optional[int] = None,
+    split_size: Optional[int] = None,
 ):
     """Splits a star file into subfiles.
 
@@ -162,32 +165,33 @@ def split_star_file(
     else:
         raise KeyError("Either number_of_splits or split_size must be given.")
 
-    with open(file_to_process, "r") as full_starfile:
-        # Read in the full file line by line, removing the header lines first
-        for start_line in range(starfile_starter_lines):
-            full_starfile.readline()
+    if number_of_splits and split_size:
+        with open(file_to_process, "r") as full_starfile:
+            # Read in the full file line by line, removing the header lines first
+            for start_line in range(starfile_starter_lines):
+                full_starfile.readline()
 
-        for split in range(number_of_splits):
-            # Give each new file the header information
-            write_empty_particles_file(
-                output_dir / f".particles_split{split+1}_tmp.star",
-                star_dictionary["optics"],
-                star_dictionary["particles"],
-            )
+            for split in range(number_of_splits):
+                # Give each new file the header information
+                write_empty_particles_file(
+                    output_dir / f".particles_split{split+1}_tmp.star",
+                    star_dictionary["optics"],
+                    star_dictionary["particles"],
+                )
 
-            # Write particles to the split files by reading in lines from the full file
-            with open(
-                output_dir / f".particles_split{split+1}_tmp.star", "a"
-            ) as split_file:
-                for count in range(split_size):
-                    particle_line = full_starfile.readline()
-                    if not particle_line:
-                        break
-                    split_file.write(particle_line)
+                # Write particles to the split files by reading in lines from full file
+                with open(
+                    output_dir / f".particles_split{split+1}_tmp.star", "a"
+                ) as split_file:
+                    for count in range(split_size):
+                        particle_line = full_starfile.readline()
+                        if not particle_line:
+                            break
+                        split_file.write(particle_line)
 
-            (output_dir / f".particles_split{split+1}_tmp.star").rename(
-                output_dir / f"particles_split{split+1}.star"
-            )
+                (output_dir / f".particles_split{split+1}_tmp.star").rename(
+                    output_dir / f"particles_split{split+1}.star"
+                )
 
     print(
         f"Split {number_of_particles} particles into "
