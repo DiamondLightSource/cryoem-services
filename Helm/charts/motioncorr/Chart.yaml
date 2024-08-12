@@ -1,4 +1,4 @@
 apiVersion: v2
 name: motioncorr
 description: A Helm chart for MotionCorr service
-version: 0.3.2
+version: 0.3.3
