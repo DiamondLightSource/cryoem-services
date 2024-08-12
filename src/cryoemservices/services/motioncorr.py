@@ -15,6 +15,7 @@ from gemmi import cif
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 from workflows.services.common_service import CommonService
 
+from cryoemservices.util.models import MockRW
 from cryoemservices.util.relion_service_options import (
     RelionServiceOptions,
     update_relion_options,
@@ -255,10 +256,6 @@ class MotionCorr(CommonService):
         return result
 
     def motion_correction(self, rw, header: dict, message: dict):
-        class MockRW:
-            def dummy(self, *args, **kwargs):
-                pass
-
         if not rw:
             if (
                 not isinstance(message, dict)
@@ -271,12 +268,8 @@ class MotionCorr(CommonService):
 
             # Create a wrapper-like object that can be passed to functions
             # as if a recipe wrapper was present.
-            rw = MockRW()
-            rw.transport = self._transport
+            rw = MockRW(self._transport)
             rw.recipe_step = {"parameters": message["parameters"], "output": None}
-            rw.environment = {"has_recipe_wrapper": False}
-            rw.set_default_channel = rw.dummy
-            rw.send = rw.dummy
             message = message["content"]
 
         parameter_map = ChainMapWithReplacement(
