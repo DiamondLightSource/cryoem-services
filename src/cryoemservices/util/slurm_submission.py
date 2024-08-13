@@ -116,9 +116,9 @@ def slurm_submission(
         "current_working_directory": str(project_dir),
     }
     if api_version == "v0.0.38":
-        slurm_config["environment"] = {"USER": user, "HOME": user_home}
+        slurm_config["environment"] = {"USER": user, "HOME": user_home}  # type: ignore
     else:
-        slurm_config["environment"] = [f"USER: {user}", f"HOME: {user_home}"]
+        slurm_config["environment"] = [f"USER={user}", f"HOME={user_home}"]  # type: ignore
 
     # Add slurm partition and cluster preferences if given
     if slurm_rest.get("partition"):
@@ -138,7 +138,7 @@ def slurm_submission(
             slurm_json_job["memory_per_gpu"] = memory_request
         else:
             slurm_json_job["tres_per_task"] = "gres/gpu:1"
-            slurm_json_job["memory_per_node"]["number"] = memory_request
+            slurm_json_job["memory_per_node"]["number"] = memory_request  # type: ignore
     elif api_version == "v0.0.38":
         slurm_json_job["memory_per_cpu"] = 1000
 
