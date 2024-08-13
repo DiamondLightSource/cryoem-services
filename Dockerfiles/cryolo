@@ -1,3 +1,4 @@
+# This Dockerfile is used for cryolo
 FROM continuumio/miniconda
 
 ARG groupid

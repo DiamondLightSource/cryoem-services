@@ -1,4 +1,4 @@
-# This dockerfile is used for the services that need only cpu and no extra executables
+# This Dockerfile is used for the services that can run on CPU
 FROM python:3.10
 
 ENV VIRTUAL_ENV=/venv

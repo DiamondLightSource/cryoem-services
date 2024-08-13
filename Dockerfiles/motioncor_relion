@@ -1,0 +1,42 @@
+# This Dockerfile is used for Relion's own motion correction and Relion postprocessing
+# First stage builds relion
+FROM rockylinux:8 AS relion-build
+
+# Get required build packages and libraries
+RUN yum install gcc gcc-c++ cmake openmpi -y
+RUN yum install fftw-devel libtiff-devel libpng-devel libjpeg-devel zlib-devel -y
+
+# Build Relion - need to be on the ver4.0 tag
+RUN mkdir -p /install/relion4.0
+COPY packages/relion_fork /install/relion_src
+RUN mkdir /install/relion_src/build
+
+RUN cmake -DCMAKE_INSTALL_PREFIX=/install/relion4.0 -DCMAKE_C_COMPILER=/usr/bin/gcc -DCMAKE_CXX_COMPILER=/usr/bin/g++ -DMPI_C_COMPILER=/usr/lib64/openmpi/bin/mpicc -DMPI_CXX_COMPILER=/usr/lib64/openmpi/bin/mpicxx -DMPI_C_LIBRARIES=/usr/lib64/openmpi/lib/libmpi.so -DMPI_CXX_LIBRARIES=/usr/lib64/openmpi/lib/libmpi.so -DGUI=OFF -DALTCPU=ON -DDoublePrec_CPU=OFF -DFORCE_OWN_FFTW=ON -DAMDFFTW=ON -B/install/relion_src/build -S/install/relion_src
+RUN make --directory=/install/relion_src/build/ install
+
+
+# Second stage combines the Relion build with a python environment
+FROM rockylinux:9
+
+# Create EM user
+ARG groupid
+ARG userid
+ARG groupname
+RUN groupadd -r -g "${groupid}" "${groupname}" && useradd -r -M "${groupname}" -u "${userid}" -g "${groupname}"
+
+# Install libraries for Relion
+RUN yum install openmpi fftw-devel libtiff-devel libpng-devel libjpeg-devel python3.11 zlib-devel -y
+
+# Copy Relion
+RUN mkdir -p /install/relion4.0
+COPY --from=relion-build /install/relion4.0 /install/relion4.0
+ENV PATH="/install/relion4.0/bin:${PATH}"
+RUN chown -R "${userid}":"${groupid}" install
+
+# Make the python virtual environment and install cryoem-services
+ENV VIRTUAL_ENV=/venv
+RUN python3.11 -m venv $VIRTUAL_ENV
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+COPY --chown="${userid}":"${groupid}" packages/cryoem-services ./cryoem-services
+RUN python3.11 -m pip install --upgrade pip && python3.11 -m pip install ./cryoem-services
+

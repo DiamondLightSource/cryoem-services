@@ -1,4 +1,4 @@
-# This Dockerfile is used for GPU AreTomo2 processing
+# This Dockerfile is used for MotionCor2
 FROM nvidia/cuda:12.4.1-runtime-rockylinux8
 
 # Create EM user
@@ -21,12 +21,9 @@ RUN source "/conda/etc/profile.d/conda.sh" && conda activate /install/pythonenv 
 RUN chown -R "${userid}":"${groupid}" install
 ENV PATH=/install/pythonenv/bin:${PATH}
 
-# Install IMOD
-COPY --chown="${userid}":"${groupid}" packages/imod-4.11.1 /IMOD/4.11.1
-ENV PATH=/IMOD/4.11.1/IMOD/bin/realbin:${PATH}
-RUN chmod +x /IMOD/4.11.1
-
-# Install AreTomo
-COPY --chown="${userid}":"${groupid}" packages/AreTomo2 /AreTomo2
-ENV PATH=/AreTomo2:${PATH}
-RUN chmod +x /AreTomo2
+# Install MotionCor2 executable
+COPY --chown="${userid}":"${groupid}" packages/motioncor-1.4.0 /MotionCor2/1.4.0
+WORKDIR /MotionCor2/1.4.0
+RUN rm MotionCor2 && ln -s MotionCor2_1.4.0_Cuda102 MotionCor2
+ENV PATH=/MotionCor2/1.4.0:${PATH}
+RUN chmod +x /MotionCor2/1.4.0
