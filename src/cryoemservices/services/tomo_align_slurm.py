@@ -76,8 +76,8 @@ class TomoAlignSlurm(TomoAlign, CommonService):
                 self.alignment_quality = float(line.split()[5])
         tomo_file.close()
 
-    def aretomo(self, tomo_parameters: TomoParameters, aretomo_output_path: str):
-        """Submit AreTomo jobs to the slurm cluster via the RestAPI"""
+    def aretomo(self, tomo_parameters: TomoParameters, aretomo_output_path: Path):
+        """Submit AreTomo2 jobs to the slurm cluster via the RestAPI"""
         self.log.info(
             f"Input stack: {tomo_parameters.stack_file} \n"
             f"Output file: {aretomo_output_path}"
@@ -87,7 +87,7 @@ class TomoAlignSlurm(TomoAlign, CommonService):
         command = [
             os.environ["ARETOMO2_EXECUTABLE"],
             "-OutMrc",
-            aretomo_output_path,
+            str(aretomo_output_path),
             "-InMrc",
             str(Path(tomo_parameters.stack_file).name),
         ]
@@ -157,7 +157,7 @@ class TomoAlignSlurm(TomoAlign, CommonService):
             job_name="AreTomo2",
             command=command,
             project_dir=Path(self.alignment_output_dir),
-            output_file=Path(aretomo_output_path),
+            output_file=aretomo_output_path,
             cpus=1,
             use_gpu=True,
             use_singularity=False,
