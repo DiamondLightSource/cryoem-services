@@ -119,8 +119,8 @@ def slurm_submission(
         slurm_config["environment"] = {"USER": user, "HOME": user_home}  # type: ignore
     else:
         slurm_config["environment"] = [
-            f"USER: {user}",
-            f"HOME: {user_home}",
+            f"USER={user}",
+            f"HOME={user_home}",
         ]  # type: ignore
 
     # Add slurm partition and cluster preferences if given

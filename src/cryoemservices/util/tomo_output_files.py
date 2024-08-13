@@ -14,24 +14,32 @@ def _find_angle_index(split_name: List[str]) -> int:
     for i, part in enumerate(split_name):
         if "." in part:
             return i
-    return 0
+    return -1
 
 
 def _get_tilt_angle_v5_12(p: Path) -> str:
     split_name = p.name.split("_")
     angle_idx = _find_angle_index(split_name)
+    if angle_idx == -1:
+        return "0.0"
     return split_name[angle_idx]
 
 
 def _get_tilt_number_v5_12(p: Path) -> str:
     split_name = p.name.split("_")
     angle_idx = _find_angle_index(split_name)
+    try:
+        int(split_name[angle_idx - 1])
+    except ValueError:
+        return "0"
     return split_name[angle_idx - 1]
 
 
 def _get_tilt_name_v5_12(p: Path) -> str:
     split_name = p.name.split("_")
     angle_idx = _find_angle_index(split_name)
+    if angle_idx == -1:
+        return p.name
     return "_".join(split_name[: angle_idx - 1])
 
 
