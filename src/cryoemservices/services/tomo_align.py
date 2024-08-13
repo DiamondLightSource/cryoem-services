@@ -292,7 +292,7 @@ class TomoAlign(CommonService):
             "experiment_type": "tomography",
             "job_type": self.job_type,
             "input_file": tomo_params.input_file_list[0][0],
-            "output_file": aretomo_output_path,
+            "output_file": str(aretomo_output_path),
             "relion_options": dict(tomo_params.relion_options),
             "command": " ".join(aretomo_command),
             "stdout": "",
@@ -333,14 +333,14 @@ class TomoAlign(CommonService):
         imod_directory = self.alignment_output_dir / f"{stack_name}_aretomo_Imod"
         if tomo_params.out_imod:
             start_time = time.time()
-            while not Path(imod_directory).is_dir():
+            while not imod_directory.is_dir():
                 time.sleep(30)
                 elapsed = time.time() - start_time
                 if elapsed > 600:
                     self.log.warning("Timeout waiting for Imod directory")
                     break
             else:
-                _f = Path(imod_directory)
+                _f = imod_directory
                 _f.chmod(0o750)
                 for file in _f.iterdir():
                     file.chmod(0o740)
@@ -369,7 +369,7 @@ class TomoAlign(CommonService):
             {
                 "ispyb_command": "insert_tomogram",
                 "volume_file": str(
-                    Path(aretomo_output_path).relative_to(self.alignment_output_dir)
+                    aretomo_output_path.relative_to(self.alignment_output_dir)
                 ),
                 "stack_file": tomo_params.stack_file,
                 "size_x": None,  # volume image size, pix
@@ -395,8 +395,8 @@ class TomoAlign(CommonService):
         if dark_images_file.is_file():
             with open(dark_images_file) as f:
                 missing_indices = [int(i) for i in f.readlines()[2:]]
-        elif Path(imod_directory).is_dir():
-            dark_images_file = Path(imod_directory) / "tilt.com"
+        elif imod_directory.is_dir():
+            dark_images_file = imod_directory / "tilt.com"
             with open(dark_images_file) as f:
                 lines = f.readlines()
                 for line in lines:
@@ -512,14 +512,14 @@ class TomoAlign(CommonService):
                 destination="images",
                 message={
                     "image_command": "mrc_central_slice",
-                    "file": aretomo_output_path,
+                    "file": str(aretomo_output_path),
                 },
             )
             rw.transport.send(
                 destination="images",
                 message={
                     "image_command": "mrc_to_apng",
-                    "file": aretomo_output_path,
+                    "file": str(aretomo_output_path),
                 },
             )
         else:
@@ -527,14 +527,14 @@ class TomoAlign(CommonService):
                 "images",
                 {
                     "image_command": "mrc_central_slice",
-                    "file": aretomo_output_path,
+                    "file": str(aretomo_output_path),
                 },
             )
             rw.send_to(
                 "images",
                 {
                     "image_command": "mrc_to_apng",
-                    "file": aretomo_output_path,
+                    "file": str(aretomo_output_path),
                 },
             )
 
@@ -565,7 +565,7 @@ class TomoAlign(CommonService):
             rw.transport.send(
                 destination="denoise",
                 message={
-                    "volume": aretomo_output_path,
+                    "volume": str(aretomo_output_path),
                     "output_dir": str(
                         project_dir / f"Denoise/job{job_number+1:03}/tomograms"
                     ),
@@ -576,7 +576,7 @@ class TomoAlign(CommonService):
             rw.send_to(
                 "denoise",
                 {
-                    "volume": aretomo_output_path,
+                    "volume": str(aretomo_output_path),
                     "output_dir": str(
                         project_dir / f"Denoise/job{job_number+1:03}/tomograms"
                     ),
