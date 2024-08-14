@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Callable, Dict, List
 
@@ -406,6 +407,24 @@ def _align_tilt_output_files(
     if not (job_dir / "tilt_series").is_dir():
         (job_dir / "tilt_series").mkdir()
 
+    # Try and figure out where the CTF output files will be
+    mc_job_num_search = re.search("/job[0-9]+", str(input_file))
+    if input_file.is_relative_to("MotionCorr") and mc_job_num_search:
+        job_number = int(mc_job_num_search[0][4:])
+        relative_tilt = input_file.relative_to(f"MotionCorr/job{job_number:03}")
+        ctf_txt_file = Path(
+            f"CtfFind/job{job_number + 1:03}"
+        ) / relative_tilt.with_suffix(".txt")
+    else:
+        ctf_txt_file = input_file.with_suffix(".txt")
+
+    # Later extraction jobs require some ctf parameters for the tilts
+    if ctf_txt_file.is_file():
+        with open(ctf_txt_file, "r") as f:
+            ctf_results = f.readlines()[-1].split()
+    else:
+        ctf_results = ["error", "ctf", "not", "found"]
+
     added_line = [
         str(relion_options.frame_count),
         str(stage_tilt_angle),
@@ -417,6 +436,9 @@ def _align_tilt_output_files(
         ),
         str(relion_options.defocus),
         str(input_file),
+        ctf_results[1],
+        ctf_results[2],
+        ctf_results[3],
         results["TomoXTilt"],
         results["TomoYTilt"],
         results["TomoZRot"],
@@ -438,6 +460,9 @@ def _align_tilt_output_files(
                 "MicrographPreExposure",
                 "TomoNominalDefocus",
                 "MicrographName",
+                "DefocusU",
+                "DefocusV",
+                "DefocusAngle",
                 "TomoXTilt",
                 "TomoYTilt",
                 "TomoZRot",
