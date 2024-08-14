@@ -376,12 +376,12 @@ class NodeCreator(CommonService):
         relative_input_file = (
             Path(first_input_file).relative_to(project_dir)
             if Path(first_input_file).is_relative_to(project_dir)
-            else first_input_file
+            else Path(first_input_file)
         )
         relative_output_file = (
             Path(job_info.output_file).relative_to(project_dir)
             if Path(job_info.output_file).is_relative_to(project_dir)
-            else job_info.output_file
+            else Path(job_info.output_file)
         )
 
         # Load this job as a pipeliner job to create the nodes
@@ -455,7 +455,7 @@ class NodeCreator(CommonService):
             #         metadata_file.write(json.dumps(metadata_dict))
             # except FileNotFoundError as e:
             #     self.log.info(f"Cannot open expected metadata file: {e}")
-                (job_dir / "job_metadata.json").touch()
+            (job_dir / "job_metadata.json").touch()
 
             # Create the results display for the non-pipeliner job
             if job_info.job_type == "combine_star_files_job":
