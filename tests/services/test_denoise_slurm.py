@@ -85,6 +85,7 @@ def test_denoise_slurm_service(
             "patch_padding": 48,
             "device": "-2",
             "cleanup_output": False,
+            "tomogram_uuid": 0,
             "relion_options": {},
         },
         "content": "dummy",
@@ -204,7 +205,7 @@ def test_denoise_slurm_service(
     assert topaz_command == " ".join(denoise_command)
 
     # Check the images service request
-    assert offline_transport.send.call_count == 4
+    assert offline_transport.send.call_count == 5
     offline_transport.send.assert_any_call(
         destination="node_creator",
         message={
@@ -234,6 +235,16 @@ def test_denoise_slurm_service(
         message={
             "image_command": "mrc_to_apng",
             "file": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
+        },
+    )
+    offline_transport.send.assert_any_call(
+        destination="ispyb_connector",
+        message={
+            "ispyb_command": "buffer",
+            "buffer_command": {"ispyb_command": "insert_processed_tomogram"},
+            "buffer_lookup": {"tomogram_id": 0},
+            "filePath": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
+            "processingType": "Denoised",
         },
     )
     offline_transport.send.assert_any_call(

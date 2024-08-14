@@ -68,6 +68,7 @@ def test_membrain_seg_service(
             "connected_component_threshold": 2,
             "segmentation_threshold": 4,
             "cleanup_output": False,
+            "tomogram_uuid": 0,
         },
         "content": "dummy",
     }
@@ -128,6 +129,7 @@ def test_membrain_seg_service(
     assert mock_subprocess.call_count == 5
 
     # Check the images service request
+    assert offline_transport.send.call_count == 3
     offline_transport.send.assert_any_call(
         destination="images",
         message={
@@ -142,6 +144,16 @@ def test_membrain_seg_service(
             "image_command": "mrc_to_apng",
             "file": f"{tmp_path}/Segmentation/job008/test_stack_aretomo.denoised_segmented.mrc",
             "skip_rescaling": True,
+        },
+    )
+    offline_transport.send.assert_any_call(
+        destination="ispyb_connector",
+        message={
+            "ispyb_command": "buffer",
+            "buffer_command": {"ispyb_command": "insert_processed_tomogram"},
+            "buffer_lookup": {"tomogram_id": 0},
+            "filePath": f"{tmp_path}/Segmentation/job008/test_stack_aretomo.denoised_segmented.mrc",
+            "processingType": "Segmented",
         },
     )
 

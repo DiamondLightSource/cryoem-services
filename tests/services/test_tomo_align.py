@@ -79,6 +79,7 @@ def test_tomo_align_service(
             "out_imod_xf": None,
             "dark_tol": None,
             "manual_tilt_offset": None,
+            "tomogram_uuid": 0,
             "relion_options": {},
         },
         "content": "dummy",
@@ -217,7 +218,9 @@ def test_tomo_align_service(
                 "ispyb_command": "multipart_message",
                 "ispyb_command_list": [
                     {
-                        "ispyb_command": "insert_tomogram",
+                        "ispyb_command": "buffer",
+                        "buffer_command": {"ispyb_command": "insert_tomogram"},
+                        "buffer_store": 0,
                         "volume_file": "test_stack_aretomo.mrc",
                         "stack_file": tomo_align_test_message["parameters"][
                             "stack_file"

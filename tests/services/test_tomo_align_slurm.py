@@ -94,6 +94,7 @@ def test_tomo_align_slurm_service(
             "out_imod_xf": None,
             "dark_tol": None,
             "manual_tilt_offset": None,
+            "tomogram_uuid": 0,
             "relion_options": {},
         },
         "content": "dummy",
