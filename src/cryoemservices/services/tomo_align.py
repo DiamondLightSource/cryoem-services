@@ -262,10 +262,10 @@ class TomoAlign(CommonService):
         stack_name = str(Path(tomo_params.stack_file).stem)
 
         project_dir_search = re.search(".+/job[0-9]+/", tomo_params.stack_file)
-        job_dir_search = re.search("/job[0-9]+", tomo_params.stack_file)
-        if project_dir_search and job_dir_search:
+        job_num_search = re.search("/job[0-9]+", tomo_params.stack_file)
+        if project_dir_search and job_num_search:
             project_dir = Path(project_dir_search[0]).parent.parent
-            job_number = int(job_dir_search[0][4:])
+            job_number = int(job_num_search[0][4:])
         else:
             self.log.warning(f"Invalid project directory in {tomo_params.stack_file}")
             rw.transport.nack(header)
