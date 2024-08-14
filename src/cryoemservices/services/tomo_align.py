@@ -45,6 +45,7 @@ class TomoParameters(BaseModel):
     out_imod_xf: Optional[int] = None
     dark_tol: Optional[Union[int, str]] = None
     manual_tilt_offset: Optional[float] = None
+    tomogram_uuid: int
     relion_options: RelionServiceOptions
 
     @validator("input_file_list")
@@ -367,7 +368,9 @@ class TomoAlign(CommonService):
         # Tomogram (one per-tilt-series)
         ispyb_command_list = [
             {
-                "ispyb_command": "insert_tomogram",
+                "ispyb_command": "buffer",
+                "buffer_command": {"ispyb_command": "insert_tomogram"},
+                "buffer_store": tomo_params.tomogram_uuid,
                 "volume_file": str(
                     aretomo_output_path.relative_to(self.alignment_output_dir)
                 ),
