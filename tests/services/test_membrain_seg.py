@@ -149,11 +149,14 @@ def test_membrain_seg_service(
     offline_transport.send.assert_any_call(
         destination="ispyb_connector",
         message={
-            "ispyb_command": "buffer",
-            "buffer_command": {"ispyb_command": "insert_processed_tomogram"},
-            "buffer_lookup": {"tomogram_id": 0},
-            "filePath": f"{tmp_path}/Segmentation/job008/test_stack_aretomo.denoised_segmented.mrc",
-            "processingType": "Segmented",
+            "parameters": {
+                "ispyb_command": "buffer",
+                "buffer_command": {"ispyb_command": "insert_processed_tomogram"},
+                "buffer_lookup": {"tomogram_id": 0},
+                "filePath": f"{tmp_path}/Segmentation/job008/test_stack_aretomo.denoised_segmented.mrc",
+                "processingType": "Segmented",
+            },
+            "content": {"dummy": "dummy"},
         },
     )
 

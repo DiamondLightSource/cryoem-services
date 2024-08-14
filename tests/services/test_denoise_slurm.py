@@ -240,11 +240,14 @@ def test_denoise_slurm_service(
     offline_transport.send.assert_any_call(
         destination="ispyb_connector",
         message={
-            "ispyb_command": "buffer",
-            "buffer_command": {"ispyb_command": "insert_processed_tomogram"},
-            "buffer_lookup": {"tomogram_id": 0},
-            "filePath": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
-            "processingType": "Denoised",
+            "parameters": {
+                "ispyb_command": "buffer",
+                "buffer_command": {"ispyb_command": "insert_processed_tomogram"},
+                "buffer_lookup": {"tomogram_id": 0},
+                "filePath": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
+                "processingType": "Denoised",
+            },
+            "content": {"dummy": "dummy"},
         },
     )
     offline_transport.send.assert_any_call(
