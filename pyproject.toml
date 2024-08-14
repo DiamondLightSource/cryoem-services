@@ -17,6 +17,7 @@ license = { file = "LICENSE" }
 authors = [
     { name = "Diamond Light Source - Data Analysis et al.", email = "dataanalysis@diamond.ac.uk" },
 ]
+requires-python = ">=3.8"
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
@@ -156,7 +157,7 @@ ignore = [
 max-line-length = "88"
 
 [tool.pyproject-fmt]
-check = true
+check = false
 indent = 4
 keep_full_version = true
-max_supported_python = "3.11" # Doesn't appear to work for versions <2 at the moment
+max_supported_python = "3.11"
