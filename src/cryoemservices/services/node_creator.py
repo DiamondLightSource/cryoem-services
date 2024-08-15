@@ -178,7 +178,7 @@ class NodeCreatorParameters(BaseModel):
     stderr: str
     experiment_type: str = "spa"
     success: bool = True
-    results: Optional[dict] = None
+    results: dict = {}
     alias: Optional[str] = None
 
     @validator("experiment_type")
@@ -265,7 +265,15 @@ class NodeCreator(CommonService):
         start_time = datetime.datetime.now()
 
         # Find the job directory and make sure we are in the processing directory
-        job_dir = Path(re.search(".+/job[0-9]+", job_info.output_file)[0])
+        job_dir_search = re.search(".+/job[0-9]+", job_info.output_file)
+        job_num_search = re.search("/job[0-9]+", job_info.output_file)
+        if job_dir_search and job_num_search:
+            job_dir = Path(job_dir_search[0])
+            job_number = int(job_num_search[0][4:])
+        else:
+            self.log.warning(f"Cannot determine job dir for {job_info.output_file}")
+            rw.transport.nack(header)
+            return
         project_dir = job_dir.parent.parent
         os.chdir(project_dir)
 
@@ -522,7 +530,6 @@ class NodeCreator(CommonService):
                     if line.startswith("_rlnPipeLineJobCounter"):
                         job_count = int(line.split()[1])
                         break
-            job_number = int(re.search("/job[0-9]+", str(job_dir))[0][4:])
             if job_count <= job_number:
                 project.job_counter = job_number + 1
                 with open("default_pipeline.star", "r") as pipeline_file, open(
