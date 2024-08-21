@@ -266,8 +266,8 @@ class DenoiseSlurm(CommonService):
             "ispyb_command": "buffer",
             "buffer_command": {"ispyb_command": "insert_processed_tomogram"},
             "buffer_lookup": {"tomogram_id": denoise_params.tomogram_uuid},
-            "filePath": str(denoised_full_path),
-            "processingType": "Denoised",
+            "file_path": str(denoised_full_path),
+            "processing_type": "Denoised",
         }
         if isinstance(rw, MockRW):
             rw.transport.send(
