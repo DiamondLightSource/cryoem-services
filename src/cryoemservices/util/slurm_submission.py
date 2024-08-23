@@ -139,8 +139,11 @@ def slurm_submission(
         else:
             slurm_json_job["tres_per_task"] = "gres/gpu:1"
             slurm_json_job["memory_per_node"]["number"] = memory_request  # type: ignore
-    elif api_version == "v0.0.38":
-        slurm_json_job["memory_per_cpu"] = 1000
+    else:
+        if api_version == "v0.0.38":
+            slurm_json_job["memory_per_cpu"] = 1000
+        else:
+            slurm_json_job["memory_per_node"]["number"] = 1000 * cpus  # type: ignore
 
     # Construct the job command and save the job script
     if use_singularity:
