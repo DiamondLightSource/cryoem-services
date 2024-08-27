@@ -15,6 +15,7 @@ from gemmi import cif
 from pydantic import BaseModel, Field, ValidationError, validator
 from workflows.services.common_service import CommonService
 
+from cryoemservices.util.slurm_submission import slurm_submission
 from cryoemservices.util.spa_relion_service_options import (
     RelionServiceOptions,
     update_relion_options,
@@ -28,6 +29,7 @@ class MotionCorrParameters(BaseModel):
     pixel_size: float
     dose_per_frame: float
     use_motioncor2: bool = False
+    submit_to_slurm: bool = False
     patch_sizes: dict = {"x": 5, "y": 5}
     gpu: int = 0
     threads: int = 1
@@ -143,6 +145,31 @@ class MotionCorr(CommonService):
             if "x Shift" in line:
                 frames_line = True
 
+    def parse_mc2_slurm_output(self, mc_output_file):
+        """
+        Read the output files produced by MotionCor2 running via Slurm to determine
+        the movement of each frame
+        """
+        with open(mc_output_file, "r") as mc_file:
+            lines = mc_file.readlines()
+            frames_line = False
+            for line in lines:
+                # Frame reading in MotionCorr 1.4.0
+                if line.startswith("...... Frame"):
+                    line_split = line.split()
+                    self.x_shift_list.append(float(line_split[-2]))
+                    self.y_shift_list.append(float(line_split[-1]))
+
+                # Alternative frame reading for MotionCorr 1.6.3
+                if not line:
+                    frames_line = False
+                if frames_line:
+                    line_split = line.split()
+                    self.x_shift_list.append(float(line_split[1]))
+                    self.y_shift_list.append(float(line_split[2]))
+                if "x Shift" in line:
+                    frames_line = True
+
     def parse_relion_mc_output(self, stdout_file):
         """
         Read the output star file made by Relion to determine
@@ -162,8 +189,40 @@ class MotionCorr(CommonService):
         self.parse_mc2_stdout(result.stdout.decode("utf8", "replace"))
         return result
 
+    def motioncor2_slurm(self, command: List[str], mrc_out: Path):
+        """Submit MotionCor2 jobs to a slurm cluster via the RestAPI"""
+        slurm_outcome = slurm_submission(
+            log=self.log,
+            job_name="MotionCor2",
+            command=command,
+            project_dir=mrc_out.parent,
+            output_file=mrc_out,
+            cpus=1,
+            use_gpu=True,
+            use_singularity=True,
+            cif_name=os.environ["MOTIONCOR2_SIF"],
+        )
+
+        if not slurm_outcome.returncode:
+            # Read in the output logs
+            slurm_output_file = f"{mrc_out}.out"
+            slurm_error_file = f"{mrc_out}.err"
+            submission_file = f"{mrc_out}.json"
+            if Path(slurm_output_file).is_file():
+                self.parse_mc2_slurm_output(slurm_output_file)
+
+            # Clean up if everything succeeded
+            if self.x_shift_list and self.y_shift_list:
+                Path(slurm_output_file).unlink()
+                Path(slurm_error_file).unlink()
+                Path(submission_file).unlink()
+            else:
+                self.log.error(f"Reading shifts from {slurm_output_file} failed")
+                slurm_outcome.returncode = 1
+        return slurm_outcome
+
     def relion_motioncorr(self, command: List[str], mrc_out: Path):
-        """Run Relion's owm motion correction"""
+        """Run Relion's own motion correction"""
         result = subprocess.run(command, capture_output=True)
         if Path(mrc_out).with_suffix(".star").exists():
             self.parse_relion_mc_output(Path(mrc_out).with_suffix(".star"))
@@ -172,6 +231,27 @@ class MotionCorr(CommonService):
                 f"Relion output log {Path(mrc_out).with_suffix('.star')} not found"
             )
             result.returncode = 1
+        return result
+
+    def relion_motioncorr_slurm(self, command: List[str], mrc_out: Path):
+        """Submit Relion's own motion correction to a slurm cluster via the RestAPI"""
+        result = slurm_submission(
+            log=self.log,
+            job_name="RelionMotionCorr",
+            command=command,
+            project_dir=mrc_out.parent,
+            output_file=mrc_out,
+            cpus=4,
+            use_gpu=False,
+            use_singularity=False,
+            script_extras="module load EM/relion/motioncorr",
+        )
+        if Path(mrc_out).with_suffix(".star").exists():
+            self.parse_relion_mc_output(Path(mrc_out).with_suffix(".star"))
+        else:
+            self.log.error(
+                f"Relion output log {Path(mrc_out).with_suffix('.star')} not found"
+            )
         return result
 
     def motion_correction(self, rw, header: dict, message: dict):
@@ -326,7 +406,10 @@ class MotionCorr(CommonService):
                     else:
                         command.extend((mc2_flags[k], str(v)))
             # Run MotionCor2
-            result = self.motioncor2(command, Path(mc_params.mrc_out))
+            if mc_params.submit_to_slurm:
+                result = self.motioncor2_slurm(command, Path(mc_params.mrc_out))
+            else:
+                result = self.motioncor2(command, Path(mc_params.mrc_out))
 
             dose_weighted = Path(mc_params.mrc_out).parent / (
                 Path(mc_params.mrc_out).stem + "_DW.mrc"
@@ -374,7 +457,10 @@ class MotionCorr(CommonService):
             # Add some standard flags
             command.extend(("--dose_weighting", "--i", "dummy"))
             # Run Relion motion correction
-            result = self.relion_motioncorr(command, Path(mc_params.mrc_out))
+            if mc_params.submit_to_slurm:
+                result = self.relion_motioncorr_slurm(command, Path(mc_params.mrc_out))
+            else:
+                result = self.relion_motioncorr(command, Path(mc_params.mrc_out))
 
         # Adjust the pixel size based on the binning
         if mc_params.motion_corr_binning:

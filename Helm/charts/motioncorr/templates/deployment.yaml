@@ -38,8 +38,6 @@ spec:
           value: "/zocalo/config/{{ .Values.global.configFileName }}"
         - name: ISPYB_CREDENTIALS
           value: "/zocalo/secrets/{{ .Values.global.dbFileName }}"
-        - name: LD_LIBRARY_PATH
-          value: "/install/pythonenv/lib"
         volumeMounts:
         - name: config-file
           mountPath: /zocalo/config
