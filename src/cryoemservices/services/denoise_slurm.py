@@ -39,6 +39,7 @@ class DenoiseParameters(BaseModel):
     patch_padding: Optional[int] = None  # 48
     device: Optional[int] = None  # -2
     cleanup_output: bool = True
+    tomogram_uuid: int
     relion_options: RelionServiceOptions
 
     @validator("model")
@@ -203,11 +204,10 @@ class DenoiseSlurm(CommonService):
             "command": " ".join(command),
             "stdout": "",
             "stderr": "",
+            "success": True,
         }
         if slurm_outcome.returncode:
             node_creator_parameters["success"] = False
-        else:
-            node_creator_parameters["success"] = True
         if isinstance(rw, MockRW):
             rw.transport.send(
                 destination="node_creator",
@@ -261,17 +261,39 @@ class DenoiseSlurm(CommonService):
                 },
             )
 
-        if denoise_params.output_dir:
-            project_dir = Path(
-                re.search(".+/job[0-9]+/", denoise_params.output_dir)[0]
-            ).parent.parent
-            job_number = int(re.search("/job[0-9]+", denoise_params.output_dir)[0][4:])
-            segmentation_dir = project_dir / f"Segmentation/job{job_number+1:03}"
+        # Insert the denoised tomogram into ISPyB
+        ispyb_parameters = {
+            "ispyb_command": "buffer",
+            "buffer_command": {"ispyb_command": "insert_processed_tomogram"},
+            "buffer_lookup": {"tomogram_id": denoise_params.tomogram_uuid},
+            "file_path": str(denoised_full_path),
+            "processing_type": "Denoised",
+        }
+        if isinstance(rw, MockRW):
+            rw.transport.send(
+                destination="ispyb_connector",
+                message={
+                    "parameters": ispyb_parameters,
+                    "content": {"dummy": "dummy"},
+                },
+            )
         else:
-            segmentation_dir = Path(denoise_params.volume).parent
+            rw.send_to("ispyb_connector", ispyb_parameters)
 
         # Send to segmentation
         self.log.info(f"Sending {denoised_full_path} for segmentation")
+        if denoise_params.output_dir:
+            project_dir_search = re.search(".+/job[0-9]+/", denoise_params.output_dir)
+            job_num_search = re.search("/job[0-9]+", denoise_params.output_dir)
+            if project_dir_search and job_num_search:
+                project_dir = Path(project_dir_search[0]).parent.parent
+                job_number = int(job_num_search[0][4:])
+                segmentation_dir = project_dir / f"Segmentation/job{job_number + 1:03}"
+            else:
+                self.log.warning(f"No job number in {denoise_params.output_dir}")
+                segmentation_dir = Path(denoise_params.output_dir)
+        else:
+            segmentation_dir = Path(denoise_params.volume).parent
         if isinstance(rw, MockRW):
             rw.transport.send(
                 destination="segmentation",

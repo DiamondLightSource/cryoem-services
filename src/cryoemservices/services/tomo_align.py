@@ -45,6 +45,7 @@ class TomoParameters(BaseModel):
     out_imod_xf: Optional[int] = None
     dark_tol: Optional[Union[int, str]] = None
     manual_tilt_offset: Optional[float] = None
+    tomogram_uuid: int
     relion_options: RelionServiceOptions
 
     @validator("input_file_list")
@@ -262,10 +263,10 @@ class TomoAlign(CommonService):
         stack_name = str(Path(tomo_params.stack_file).stem)
 
         project_dir_search = re.search(".+/job[0-9]+/", tomo_params.stack_file)
-        job_dir_search = re.search("/job[0-9]+", tomo_params.stack_file)
-        if project_dir_search and job_dir_search:
+        job_num_search = re.search("/job[0-9]+", tomo_params.stack_file)
+        if project_dir_search and job_num_search:
             project_dir = Path(project_dir_search[0]).parent.parent
-            job_number = int(job_dir_search[0][4:])
+            job_number = int(job_num_search[0][4:])
         else:
             self.log.warning(f"Invalid project directory in {tomo_params.stack_file}")
             rw.transport.nack(header)
@@ -367,7 +368,9 @@ class TomoAlign(CommonService):
         # Tomogram (one per-tilt-series)
         ispyb_command_list = [
             {
-                "ispyb_command": "insert_tomogram",
+                "ispyb_command": "buffer",
+                "buffer_command": {"ispyb_command": "insert_tomogram"},
+                "buffer_store": tomo_params.tomogram_uuid,
                 "volume_file": str(
                     aretomo_output_path.relative_to(self.alignment_output_dir)
                 ),

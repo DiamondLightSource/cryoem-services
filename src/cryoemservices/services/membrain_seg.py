@@ -25,6 +25,7 @@ class MembrainSegParameters(BaseModel):
     connected_component_threshold: Optional[int] = None
     segmentation_threshold: Optional[float] = None
     cleanup_output: bool = True
+    tomogram_uuid: int
 
 
 class MembrainSeg(CommonService):
@@ -215,6 +216,25 @@ class MembrainSeg(CommonService):
                     "skip_rescaling": True,
                 },
             )
+
+        # Insert the segmented tomogram into ISPyB
+        ispyb_parameters = {
+            "ispyb_command": "buffer",
+            "buffer_command": {"ispyb_command": "insert_processed_tomogram"},
+            "buffer_lookup": {"tomogram_id": membrain_seg_params.tomogram_uuid},
+            "filePath": str(segmented_path),
+            "processingType": "Segmented",
+        }
+        if isinstance(rw, MockRW):
+            rw.transport.send(
+                destination="ispyb_connector",
+                message={
+                    "parameters": ispyb_parameters,
+                    "content": {"dummy": "dummy"},
+                },
+            )
+        else:
+            rw.send_to("ispyb_connector", ispyb_parameters)
 
         self.log.info(f"Done segmentation for {membrain_seg_params.tomogram}")
         rw.transport.ack(header)
