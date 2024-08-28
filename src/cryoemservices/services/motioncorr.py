@@ -256,6 +256,7 @@ class MotionCorr(CommonService):
         return result
 
     def motion_correction(self, rw, header: dict, message: dict):
+        """Main function which interprets and processes received messages"""
         if not rw:
             if (
                 not isinstance(message, dict)
@@ -269,7 +270,7 @@ class MotionCorr(CommonService):
             # Create a wrapper-like object that can be passed to functions
             # as if a recipe wrapper was present.
             rw = MockRW(self._transport)
-            rw.recipe_step = {"parameters": message["parameters"], "output": None}
+            rw.recipe_step = {"parameters": message["parameters"]}
             message = message["content"]
 
         parameter_map = ChainMapWithReplacement(
