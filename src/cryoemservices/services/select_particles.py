@@ -8,6 +8,7 @@ from gemmi import cif
 from pydantic import BaseModel, Field, ValidationError
 from workflows.services.common_service import CommonService
 
+from cryoemservices.util.models import MockRW
 from cryoemservices.util.relion_service_options import RelionServiceOptions
 from cryoemservices.util.spa_output_files import get_optics_table
 
@@ -47,10 +48,7 @@ class SelectParticles(CommonService):
         )
 
     def select_particles(self, rw, header: dict, message: dict):
-        class MockRW:
-            def dummy(self, *args, **kwargs):
-                pass
-
+        """Main function which interprets and processes received messages"""
         if not rw:
             print(
                 "Incoming message is not a recipe message. Simple messages can be valid"
@@ -67,12 +65,8 @@ class SelectParticles(CommonService):
 
             # Create a wrapper-like object that can be passed to functions
             # as if a recipe wrapper was present.
-            rw = MockRW()
-            rw.transport = self._transport
+            rw = MockRW(self._transport)
             rw.recipe_step = {"parameters": message["parameters"]}
-            rw.environment = {"has_recipe_wrapper": False}
-            rw.set_default_channel = rw.dummy
-            rw.send = rw.dummy
             message = message["content"]
 
         try:
@@ -96,10 +90,16 @@ class SelectParticles(CommonService):
         self.log.info(f"Inputs: {select_params.input_file}")
         select_params.relion_options.batch_size = select_params.batch_size
 
-        extract_job_dir = Path(re.search(".+/job[0-9]+/", select_params.input_file)[0])
+        job_dir_search = re.search(".+/job[0-9]+/", select_params.input_file)
+        job_num_search = re.search("/job[0-9]+/", select_params.input_file)
+        if job_dir_search and job_num_search:
+            extract_job_dir = Path(job_dir_search[0])
+            select_job_num = int(job_num_search[0][4:7]) + 1
+        else:
+            self.log.warning(f"Invalid job directory in {select_params.input_file}")
+            rw.transport.nack(header)
+            return
         project_dir = extract_job_dir.parent.parent
-
-        select_job_num = int(re.search("/job[0-9]+", str(extract_job_dir))[0][4:7]) + 1
         select_dir = project_dir / f"Select/job{select_job_num:03}"
         select_dir.mkdir(parents=True, exist_ok=True)
 
@@ -121,9 +121,11 @@ class SelectParticles(CommonService):
             # If this is a continuation, find the previous split files
             last_split = 1
             for split_file in current_splits:
-                split_number = int(re.search("split[0-9]+", str(split_file))[0][5:])
-                if split_number > last_split:
-                    last_split = split_number
+                split_number_search = re.search("split[0-9]+", str(split_file))
+                if split_number_search is not None:
+                    split_number = int(split_number_search[0][5:])
+                    if split_number > last_split:
+                        last_split = split_number
             select_output_file = f"{select_dir}/particles_split{last_split}.star"
 
             particles_cif = cif.read_file(select_output_file)
@@ -155,7 +157,11 @@ class SelectParticles(CommonService):
         new_finished_files = []
         # If we filled the last file we need a new one for the remaining particles
         while num_remaining_parts > 0:
-            new_split = int(re.search("split[0-9]+", select_output_file)[0][5:]) + 1
+            new_split_search = re.search("split[0-9]+", str(select_output_file))
+            if new_split_search is not None:
+                new_split = int(new_split_search[0][5:]) + 1
+            else:
+                new_split = 1
             if new_split != 1:
                 new_finished_files.append(new_split - 1)
             select_output_file = f"{select_dir}/particles_split{new_split}.star"
@@ -262,9 +268,9 @@ class SelectParticles(CommonService):
         if new_finished_files:
             for new_split in new_finished_files:
                 # Set up Class2D job parameters
-                class2d_params[
-                    "particles_file"
-                ] = f"{select_dir}/particles_split{new_split}.star"
+                class2d_params["particles_file"] = (
+                    f"{select_dir}/particles_split{new_split}.star"
+                )
 
                 # Send all newly completed files to murfey
                 self.log.info(

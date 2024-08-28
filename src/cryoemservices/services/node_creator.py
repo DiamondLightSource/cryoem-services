@@ -22,6 +22,7 @@ from pipeliner.utils import DirectoryBasedLock
 from pydantic import BaseModel, Field, ValidationError, validator
 from workflows.services.common_service import CommonService
 
+from cryoemservices.util.models import MockRW
 from cryoemservices.util.relion_service_options import (
     RelionServiceOptions,
     generate_service_options,
@@ -216,10 +217,7 @@ class NodeCreator(CommonService):
         )
 
     def node_creator(self, rw, header: dict, message: dict):
-        class MockRW:
-            def dummy(self, *args, **kwargs):
-                pass
-
+        """Main function which interprets and processes received messages"""
         if not rw:
             if (
                 not isinstance(message, dict)
@@ -232,12 +230,8 @@ class NodeCreator(CommonService):
 
             # Create a wrapper-like object that can be passed to functions
             # as if a recipe wrapper was present.
-            rw = MockRW()
-            rw.transport = self._transport
+            rw = MockRW(self._transport)
             rw.recipe_step = {"parameters": message["parameters"]}
-            rw.environment = {"has_recipe_wrapper": False}
-            rw.set_default_channel = rw.dummy
-            rw.send = rw.dummy
             message = message["content"]
 
         # Read in and validate the parameters
@@ -381,12 +375,12 @@ class NodeCreator(CommonService):
             else job_dir
         )
         first_input_file = job_info.input_file.split(":")[0]
-        relative_input_file = (
+        relative_input_file: Path = (
             Path(first_input_file).relative_to(project_dir)
             if Path(first_input_file).is_relative_to(project_dir)
             else Path(first_input_file)
         )
-        relative_output_file = (
+        relative_output_file: Path = (
             Path(job_info.output_file).relative_to(project_dir)
             if Path(job_info.output_file).is_relative_to(project_dir)
             else Path(job_info.output_file)

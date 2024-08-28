@@ -16,6 +16,7 @@ from pydantic import BaseModel, validate_arguments
 from workflows.services.common_service import CommonService
 
 import cryoemservices.services.ispyb_buffer as buffer
+from cryoemservices.util.models import MockRW
 
 
 class ChainMapWithReplacement(ChainMap):
@@ -109,16 +110,8 @@ class EMISPyB(CommonService):
 
             # Create a wrapper-like object that can be passed to functions
             # as if a recipe wrapper was present.
-            class MockRW:
-                def dummy(self, *args, **kwargs):
-                    pass
-
-            rw = MockRW()
-            rw.transport = self._transport
+            rw = MockRW(self._transport)
             rw.recipe_step = {"parameters": message["parameters"]}
-            rw.environment = {"has_recipe_wrapper": False}
-            rw.set_default_channel = rw.dummy
-            rw.send = rw.dummy
             message = message["content"]
 
         command = rw.recipe_step["parameters"].get("ispyb_command")

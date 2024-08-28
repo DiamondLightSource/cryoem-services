@@ -7,6 +7,7 @@ import shutil
 import subprocess
 from contextlib import redirect_stdout
 from pathlib import Path
+from typing import Any
 
 import mrcfile
 import numpy as np
@@ -19,6 +20,7 @@ from cryoemservices.pipeliner_plugins.combine_star_files import (
     combine_star_files,
     split_star_file,
 )
+from cryoemservices.util.models import MockRW
 from cryoemservices.util.relion_service_options import RelionServiceOptions
 
 
@@ -88,10 +90,7 @@ class SelectClasses(CommonService):
                 self.total_count = int(line_split[6])
 
     def select_classes(self, rw, header: dict, message: dict):
-        class MockRW:
-            def dummy(self, *args, **kwargs):
-                pass
-
+        """Main function which interprets and processes received messages"""
         if not rw:
             print(
                 "Incoming message is not a recipe message. Simple messages can be valid"
@@ -108,12 +107,8 @@ class SelectClasses(CommonService):
 
             # Create a wrapper-like object that can be passed to functions
             # as if a recipe wrapper was present.
-            rw = MockRW()
-            rw.transport = self._transport
+            rw = MockRW(self._transport)
             rw.recipe_step = {"parameters": message["parameters"]}
-            rw.environment = {"has_recipe_wrapper": False}
-            rw.set_default_channel = rw.dummy
-            rw.send = rw.dummy
             message = message["content"]
 
         try:
@@ -146,13 +141,16 @@ class SelectClasses(CommonService):
         )
 
         self.log.info(f"Inputs: {autoselect_params.input_file}")
-
-        class2d_job_dir = Path(
-            re.search(".+/job[0-9]+", autoselect_params.input_file)[0]
-        )
+        job_dir_search = re.search(".+/job[0-9]+", autoselect_params.input_file)
+        job_num_search = re.search("/job[0-9]+", autoselect_params.input_file)
+        if job_dir_search and job_num_search:
+            class2d_job_dir = Path(job_dir_search[0])
+            select_job_num = int(job_num_search[0][4:]) + 2
+        else:
+            self.log.warning(f"Invalid job directory in {autoselect_params.input_file}")
+            rw.transport.nack(header)
+            return
         project_dir = class2d_job_dir.parent.parent
-
-        select_job_num = int(re.search("/job[0-9]+", str(class2d_job_dir))[0][4:]) + 2
         select_dir = project_dir / f"Select/job{select_job_num:03}"
         select_dir.mkdir(parents=True, exist_ok=True)
 
@@ -228,7 +226,7 @@ class SelectClasses(CommonService):
 
         # Send class selection job to node creator
         self.log.info(f"Sending {self.job_type} to node creator")
-        autoselect_node_creator_params = {
+        autoselect_node_creator_params: dict[str, Any] = {
             "job_type": self.job_type,
             "input_file": autoselect_params.input_file,
             "output_file": str(select_dir / autoselect_params.particles_file),
@@ -324,7 +322,7 @@ class SelectClasses(CommonService):
             combine_star_dir / f".done_{autoselect_params.particles_file}"
         ).is_file():
             # Only run this if the particles file has not been added before
-            combine_node_creator_params = {
+            combine_node_creator_params: dict[str, Any] = {
                 "job_type": "combine_star_files_job",
                 "input_file": f"{select_dir}/{autoselect_params.particles_file}",
                 "output_file": f"{combine_star_dir}/particles_all.star",
@@ -442,7 +440,7 @@ class SelectClasses(CommonService):
                 ) * autoselect_params.class3d_batch_size
 
         # Run the combine star files job to split particles_all.star into batches
-        split_node_creator_params = {
+        split_node_creator_params: dict[str, Any] = {
             "job_type": "combine_star_files_job",
             "input_file": f"{select_dir}/{autoselect_params.particles_file}",
             "output_file": f"{combine_star_dir}/particles_all.star",
