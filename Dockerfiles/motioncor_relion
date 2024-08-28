@@ -16,7 +16,7 @@ RUN make --directory=/install/relion_src/build/ install
 
 
 # Second stage combines the Relion build with a python environment
-FROM rockylinux:9
+FROM rockylinux:8
 
 # Create EM user
 ARG groupid
@@ -28,10 +28,8 @@ RUN groupadd -r -g "${groupid}" "${groupname}" && useradd -r -M "${groupname}" -
 RUN yum install openmpi fftw-devel libtiff-devel libpng-devel libjpeg-devel python3.11 zlib-devel -y
 
 # Copy Relion
-RUN mkdir -p /install/relion4.0
-COPY --from=relion-build /install/relion4.0 /install/relion4.0
+COPY --from=relion-build --chown="${userid}":"${groupid}" /install/relion4.0 /install/relion4.0
 ENV PATH="/install/relion4.0/bin:${PATH}"
-RUN chown -R "${userid}":"${groupid}" install
 
 # Make the python virtual environment and install cryoem-services
 ENV VIRTUAL_ENV=/venv
@@ -39,4 +37,3 @@ RUN python3.11 -m venv $VIRTUAL_ENV
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 COPY --chown="${userid}":"${groupid}" packages/cryoem-services ./cryoem-services
 RUN python3.11 -m pip install --upgrade pip && python3.11 -m pip install ./cryoem-services
-

@@ -52,13 +52,9 @@ RUN groupadd -r -g "${groupid}" "${groupname}" && useradd -r -M "${groupname}" -
 RUN yum install openmpi fftw-devel libtiff-devel libpng-devel libjpeg-devel zlib-devel -y
 
 # Copy Relion
-RUN mkdir -p /install/relion4.0
-COPY --from=relion-build /install/relion4.0 /install/relion4.0
+COPY --from=relion-build --chown="${userid}":"${groupid}" /install/relion4.0 /install/relion4.0
 ENV PATH="/install/relion4.0/bin:${PATH}"
 
 # Copy python environment
-COPY --from=conda-build /install/venv /install/venv
+COPY --from=conda-build --chown="${userid}":"${groupid}" /install/venv /install/venv
 ENV PATH="/install/venv/bin:${PATH}"
-
-# Change permissions
-RUN chown -R "${userid}":"${groupid}" install
