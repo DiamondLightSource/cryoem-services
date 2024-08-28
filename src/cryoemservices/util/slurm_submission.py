@@ -117,7 +117,7 @@ def slurm_submission(
         "current_working_directory": str(project_dir),
     }
     if api_version == "v0.0.38":
-        slurm_config["environment"] = {"USER": user, "HOME": user_home}  # type: ignore
+        slurm_config["environment"] = {"USER": user, "HOME": user_home}
     else:
         slurm_config["environment"] = [f"USER={user}", f"HOME={user_home}"]
 
