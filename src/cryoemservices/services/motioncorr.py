@@ -15,11 +15,11 @@ from gemmi import cif
 from pydantic import BaseModel, Field, ValidationError, validator
 from workflows.services.common_service import CommonService
 
-from cryoemservices.util.slurm_submission import slurm_submission
 from cryoemservices.util.relion_service_options import (
     RelionServiceOptions,
     update_relion_options,
 )
+from cryoemservices.util.slurm_submission import slurm_submission
 
 
 class MotionCorrParameters(BaseModel):
@@ -33,32 +33,32 @@ class MotionCorrParameters(BaseModel):
     patch_sizes: dict = {"x": 5, "y": 5}
     gpu: int = 0
     threads: int = 1
-    gain_ref: str = None
-    rot_gain: int = None
-    flip_gain: int = None
-    dark: str = None
-    use_gpus: int = None
+    gain_ref: Optional[str] = None
+    rot_gain: Optional[int] = None
+    flip_gain: Optional[int] = None
+    dark: Optional[str] = None
+    use_gpus: Optional[int] = None
     sum_range: Optional[dict] = None
-    iter: int = None
-    tol: float = None
-    throw: int = None
-    trunc: int = None
+    iter: Optional[int] = None
+    tol: Optional[float] = None
+    throw: Optional[int] = None
+    trunc: Optional[int] = None
     fm_ref: int = 0
-    voltage: int = None
-    fm_int_file: str = None
-    init_dose: float = None
+    voltage: Optional[int] = None
+    fm_int_file: Optional[str] = None
+    init_dose: Optional[float] = None
     mag: Optional[dict] = None
-    motion_corr_binning: float = None
-    serial: int = None
-    in_suffix: str = None
-    eer_sampling: int = None
-    out_stack: int = None
+    motion_corr_binning: Optional[float] = None
+    serial: Optional[int] = None
+    in_suffix: Optional[str] = None
+    eer_sampling: Optional[int] = None
+    out_stack: Optional[int] = None
     bft: Optional[dict] = None
-    group: int = None
-    defect_file: str = None
-    arc_dir: str = None
-    in_fm_motion: int = None
-    split_sum: int = None
+    group: Optional[int] = None
+    defect_file: Optional[str] = None
+    arc_dir: Optional[str] = None
+    in_fm_motion: Optional[int] = None
+    split_sum: Optional[int] = None
     dose_motionstats_cutoff: float = 4.0
     do_icebreaker_jobs: bool = True
     movie_id: int
@@ -329,7 +329,7 @@ class MotionCorr(CommonService):
             with open(mc_params.fm_int_file, "r") as eer_file:
                 eer_values = eer_file.readline()
                 try:
-                    eer_grouping = eer_values.split()[1]
+                    eer_grouping = int(eer_values.split()[1])
                 except ValueError:
                     self.log.warning("Cannot read eer grouping")
 
@@ -500,9 +500,9 @@ class MotionCorr(CommonService):
             return
 
         # Extract results for ispyb
-        total_motion = 0
-        early_motion = 0
-        late_motion = 0
+        total_motion = 0.0
+        early_motion = 0.0
+        late_motion = 0.0
         cutoff_frame = round(
             mc_params.dose_motionstats_cutoff / mc_params.dose_per_frame
         )

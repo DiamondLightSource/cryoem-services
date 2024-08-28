@@ -1253,6 +1253,7 @@ def test_motioncor2_slurm_service_spa(
         destination="node_creator",
         message={
             "parameters": {
+                "experiment_type": "spa",
                 "job_type": "relion.motioncorr.motioncor2",
                 "input_file": f"{tmp_path}/Import/job001/Movies/sample.tiff",
                 "output_file": motioncorr_test_message["parameters"]["mrc_out"],
