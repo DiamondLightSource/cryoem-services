@@ -19,14 +19,15 @@ from pipeliner.data_structure import FAIL_FILE, SUCCESS_FILE
 from pipeliner.job_factory import read_job
 from pipeliner.project_graph import ProjectGraph
 from pipeliner.utils import DirectoryBasedLock
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, validator
 from workflows.services.common_service import CommonService
 
-from cryoemservices.util.spa_output_files import create_output_files
-from cryoemservices.util.spa_relion_service_options import (
+from cryoemservices.util.relion_service_options import (
     RelionServiceOptions,
     generate_service_options,
 )
+from cryoemservices.util.spa_output_files import create_spa_output_files
+from cryoemservices.util.tomo_output_files import create_tomo_output_files
 
 
 @lru_cache(maxsize=2)
@@ -44,99 +45,106 @@ class CachedProjectGraph(ProjectGraph):
 
 # A dictionary of all the available jobs,
 # the folder name they run in, and the names of their inputs in the job star
-pipeline_spa_jobs: dict[str, dict] = {
-    "relion.import.movies": {"folder": "Import", "input_stars": {}},
+pipeline_jobs: dict[str, dict] = {
+    "relion.import.movies": {"folder": "Import", "spa_input": {"fn_in_raw": "*.tiff"}},
+    "relion.import.tilt_series": {
+        "folder": "Import",
+        "tomography_input": {"movie_files": "*.tiff", "mdoc_files": "*.mdoc"},
+    },
     "relion.motioncorr.own": {
         "folder": "MotionCorr",
-        "input_stars": {"input_star_mics": "movies.star"},
+        "spa_input": {"input_star_mics": "movies.star"},
+        "tomography_input": {"input_star_mics": "tilt_series.star"},
     },
     "relion.motioncorr.motioncor2": {
         "folder": "MotionCorr",
-        "input_stars": {"input_star_mics": "movies.star"},
+        "spa_input": {"input_star_mics": "movies.star"},
+        "tomography_input": {"input_star_mics": "tilt_series.star"},
     },
     "icebreaker.micrograph_analysis.micrographs": {
         "folder": "IceBreaker",
-        "input_stars": {"in_mics": "corrected_micrographs.star"},
+        "spa_input": {"in_mics": "corrected_micrographs.star"},
     },
     "icebreaker.micrograph_analysis.enhancecontrast": {
         "folder": "IceBreaker",
-        "input_stars": {"in_mics": "corrected_micrographs.star"},
+        "spa_input": {"in_mics": "corrected_micrographs.star"},
     },
     "icebreaker.micrograph_analysis.summary": {
         "folder": "IceBreaker",
-        "input_stars": {"in_mics": "grouped_micrographs.star"},
+        "spa_input": {"in_mics": "grouped_micrographs.star"},
     },
     "relion.ctffind.ctffind4": {
         "folder": "CtfFind",
-        "input_stars": {"input_star_mics": "corrected_micrographs.star"},
+        "spa_input": {"input_star_mics": "corrected_micrographs.star"},
+        "tomography_input": {"input_star_mics": "corrected_tilt_series.star"},
     },
     "cryolo.autopick": {
         "folder": "AutoPick",
-        "input_stars": {"input_file": "corrected_micrographs.star"},
+        "spa_input": {"input_file": "corrected_micrographs.star"},
     },
     "relion.extract": {
         "folder": "Extract",
-        "input_stars": {
+        "spa_input": {
             "coords_suffix": "autopick.star",
             "star_mics": "micrographs_ctf.star",
         },
     },
     "relion.select.split": {
         "folder": "Select",
-        "input_stars": {"fn_data": "particles.star"},
+        "spa_input": {"fn_data": "particles.star"},
     },
     "icebreaker.micrograph_analysis.particles": {
         "folder": "IceBreaker",
-        "input_stars": {
+        "spa_input": {
             "in_mics": "grouped_micrographs.star",
             "in_parts": "particles_split1.star",
         },
     },
     "relion.class2d.em": {
         "folder": "Class2D",
-        "input_stars": {"fn_img": "particles_split1.star"},
+        "spa_input": {"fn_img": "particles_split1.star"},
     },
     "relion.class2d.vdam": {
         "folder": "Class2D",
-        "input_stars": {"fn_img": "particles_split1.star"},
+        "spa_input": {"fn_img": "particles_split1.star"},
     },
     "relion.select.class2dauto": {
         "folder": "Select",
-        "input_stars": {"fn_model": "run_it020_optimiser.star"},
+        "spa_input": {"fn_model": "run_it020_optimiser.star"},
     },
     "combine_star_files_job": {
         "folder": "Select",
-        "input_stars": {"files_to_process": "particles.star"},
+        "spa_input": {"files_to_process": "particles.star"},
     },
     "relion.initialmodel": {
         "folder": "InitialModel",
-        "input_stars": {"fn_img": "particles_split1.star"},
+        "spa_input": {"fn_img": "particles_split1.star"},
     },
     "relion.class3d": {
         "folder": "Class3D",
-        "input_stars": {
+        "spa_input": {
             "fn_img": "particles_split1.star",
             "fn_ref": "initial_model.mrc",
         },
     },
     "relion.select.onvalue": {
         "folder": "Select",
-        "input_stars": {"fn_data": "run_it025_data.star"},
+        "spa_input": {"fn_data": "run_it025_data.star"},
     },
     "relion.refine3d": {
         "folder": "Refine3D",
-        "input_stars": {
+        "spa_input": {
             "fn_img": "particles_split1.star",
             "fn_ref": "run_it025_class.mrc",
         },
     },
     "relion.maskcreate": {
         "folder": "MaskCreate",
-        "input_stars": {"fn_in": "run_class001.star"},
+        "spa_input": {"fn_in": "run_class001.star"},
     },
     "relion.postprocess": {
         "folder": "PostProcess",
-        "input_stars": {
+        "spa_input": {
             "fn_in": "run_half1_class001_unfil.mrc",
             "fn_mask": "mask.mrc",
         },
@@ -152,9 +160,16 @@ class NodeCreatorParameters(BaseModel):
     command: str
     stdout: str
     stderr: str
+    experiment_type: str = "spa"
     success: bool = True
     results: Optional[dict] = None
     alias: Optional[str] = None
+
+    @validator("experiment_type")
+    def is_spa_or_tomo(cls, experiment):
+        if experiment not in ["spa", "tomography"]:
+            raise ValueError("Specify an experiment type of spa or tomography.")
+        return experiment
 
 
 class NodeCreator(CommonService):
@@ -242,39 +257,47 @@ class NodeCreator(CommonService):
             self.log.info("No existing project found, so creating one")
             PipelinerProject(make_new_project=True)
 
-        if not pipeline_spa_jobs.get(job_info.job_type):
-            self.log.error(f"Unknown job type {job_info.job_type}")
+        if not pipeline_jobs.get(job_info.job_type) or not pipeline_jobs[
+            job_info.job_type
+        ].get(job_info.experiment_type + "_input"):
+            self.log.error(
+                f"Unknown node creator job type {job_info.job_type} "
+                f"in {job_info.experiment_type} collection"
+            )
             rw.transport.nack(header)
             return
 
-        try:
-            # Get the options for this job out of the RelionServiceOptions
-            pipeline_options = generate_service_options(
-                job_info.relion_options,
-                job_info.job_type,
-            )
-            # Work out the name of the input star file and add this to the job.star
-            if job_dir.parent.name != "Import":
-                ii = 0
-                for label, star in pipeline_spa_jobs[job_info.job_type][
-                    "input_stars"
-                ].items():
-                    input_job_dir = Path(
-                        re.search(".+/job[0-9]+", job_info.input_file.split(":")[ii])[0]
+        # Get the options for this job out of the RelionServiceOptions
+        pipeline_options = generate_service_options(
+            job_info.relion_options,
+            job_info.job_type,
+        )
+        # Work out the name of the input star file and add this to the job.star
+        if job_dir.parent.name != "Import":
+            ii = 0
+            for label, star in pipeline_jobs[job_info.job_type][
+                job_info.experiment_type + "_input"
+            ].items():
+                input_job_dir = Path(
+                    re.search(".+/job[0-9]+", job_info.input_file.split(":")[ii])[0]
+                )
+                try:
+                    pipeline_options[label] = (
+                        input_job_dir.relative_to(project_dir) / star
                     )
-                    try:
-                        pipeline_options[label] = (
-                            input_job_dir.relative_to(project_dir) / star
-                        )
-                    except ValueError:
-                        self.log.warning(
-                            f"WARNING: {input_job_dir} is not relative to {project_dir}"
-                        )
-                        pipeline_options[label] = input_job_dir / star
-                    ii += 1
-            else:
-                pipeline_options["fn_in_raw"] = job_info.input_file
+                except ValueError:
+                    self.log.warning(
+                        f"WARNING: {input_job_dir} is not relative to {project_dir}"
+                    )
+                    pipeline_options[label] = input_job_dir / star
+                ii += 1
+        elif job_info.job_type == "relion.import.movies":
+            pipeline_options["fn_in_raw"] = job_info.input_file
+        elif job_info.job_type == "relion.import.tilt_series":
+            pipeline_options["movie_files"] = job_info.input_file.split(":")[0]
+            pipeline_options["mdoc_files"] = job_info.input_file.split(":")[1]
 
+        try:
             # If this is a new job we need a job.star
             if not Path(f"{job_info.job_type.replace('.', '_')}_job.star").is_file():
                 self.log.info(f"Generating options for new job: {job_info.job_type}")
@@ -297,8 +320,8 @@ class NodeCreator(CommonService):
                     params,
                     f"{job_info.job_type.replace('.', '_')}_job.star",
                 )
-        except (IndexError, ValueError):
-            self.log.error(f"Unknown job type: {job_info.job_type}")
+        except (IndexError, ValueError) as e:
+            self.log.error(f"Pipeliner failed for {job_info.job_type}, error {e}")
             rw.transport.nack(header)
             return
 
@@ -324,10 +347,11 @@ class NodeCreator(CommonService):
             if job_dir.is_relative_to(project_dir)
             else job_dir
         )
+        first_input_file = job_info.input_file.split(":")[0]
         relative_input_file = (
-            Path(job_info.input_file).relative_to(project_dir)
-            if Path(job_info.input_file).is_relative_to(project_dir)
-            else job_info.input_file
+            Path(first_input_file).relative_to(project_dir)
+            if Path(first_input_file).is_relative_to(project_dir)
+            else first_input_file
         )
         relative_output_file = (
             Path(job_info.output_file).relative_to(project_dir)
@@ -351,6 +375,7 @@ class NodeCreator(CommonService):
                 self.log.info("Cannot copy Doppio input file that already exists")
             pipeliner_job.write_runjob(pipeliner_job.output_dir)
             pipeliner_job.write_jobstar(pipeliner_job.output_dir)
+            pipeliner_job.write_jobstar(".gui_" + job_info.job_type.replace(".", "_"))
             pipeliner_job.write_jobstar(
                 f"{pipeliner_job.output_dir}/continue_", is_continue=True
             )
@@ -367,14 +392,24 @@ class NodeCreator(CommonService):
         extra_output_nodes = None
         if job_info.success:
             # Write the output files which Relion produces
-            extra_output_nodes = create_output_files(
-                job_type=job_info.job_type,
-                job_dir=relative_job_dir,
-                input_file=relative_input_file,
-                output_file=relative_output_file,
-                relion_options=job_info.relion_options,
-                results=job_info.results,
-            )
+            if job_info.experiment_type == "spa":
+                extra_output_nodes = create_spa_output_files(
+                    job_type=job_info.job_type,
+                    job_dir=relative_job_dir,
+                    input_file=relative_input_file,
+                    output_file=relative_output_file,
+                    relion_options=job_info.relion_options,
+                    results=job_info.results,
+                )
+            else:
+                extra_output_nodes = create_tomo_output_files(
+                    job_type=job_info.job_type,
+                    job_dir=relative_job_dir,
+                    input_file=relative_input_file,
+                    output_file=relative_output_file,
+                    relion_options=job_info.relion_options,
+                    results=job_info.results,
+                )
             if extra_output_nodes:
                 # Add any extra nodes if they are not already present
                 existing_nodes = []
@@ -389,9 +424,12 @@ class NodeCreator(CommonService):
                         )
 
             # Save the metadata file
-            # metadata_dict = pipeliner_job.gather_metadata()
-            # with open(job_dir / "job_metadata.json", "w") as metadata_file:
-            #    metadata_file.write(json.dumps(metadata_dict))
+            # try:
+            #     metadata_dict = pipeliner_job.gather_metadata()
+            #     with open(job_dir / "job_metadata.json", "w") as metadata_file:
+            #         metadata_file.write(json.dumps(metadata_dict))
+            # except FileNotFoundError as e:
+            #     self.log.info(f"Cannot open expected metadata file: {e}")
 
             # Create the results display for the non-pipeliner job
             if job_info.job_type == "combine_star_files_job":

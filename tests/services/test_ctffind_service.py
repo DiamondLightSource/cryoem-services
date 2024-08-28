@@ -8,7 +8,7 @@ import zocalo.configuration
 from workflows.transport.offline_transport import OfflineTransport
 
 from cryoemservices.services import ctffind
-from cryoemservices.util.spa_relion_service_options import RelionServiceOptions
+from cryoemservices.util.relion_service_options import RelionServiceOptions
 
 
 @pytest.fixture
@@ -183,6 +183,7 @@ def test_ctffind_service(
         destination="node_creator",
         message={
             "parameters": {
+                "experiment_type": "spa",
                 "job_type": "relion.ctffind.ctffind4",
                 "input_file": f"{tmp_path}/MotionCorr/job002/sample.mrc",
                 "output_file": f"{tmp_path}/CtfFind/job006/sample.ctf",

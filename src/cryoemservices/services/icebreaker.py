@@ -13,8 +13,8 @@ from icebreaker.five_figures import single_mic_5fig
 from pydantic import BaseModel, Field, ValidationError
 from workflows.services.common_service import CommonService
 
+from cryoemservices.util.relion_service_options import RelionServiceOptions
 from cryoemservices.util.slurm_submission import slurm_submission
-from cryoemservices.util.spa_relion_service_options import RelionServiceOptions
 
 
 class IceBreakerParameters(BaseModel):

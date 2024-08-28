@@ -8,7 +8,7 @@ import workflows.recipe
 from pydantic import BaseModel, Field, ValidationError
 from workflows.services.common_service import CommonService
 
-from cryoemservices.util.spa_relion_service_options import (
+from cryoemservices.util.relion_service_options import (
     RelionServiceOptions,
     update_relion_options,
 )

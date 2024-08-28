@@ -10,7 +10,7 @@ import zocalo.configuration
 from gemmi import cif
 from workflows.transport.offline_transport import OfflineTransport
 
-from cryoemservices.util.spa_relion_service_options import RelionServiceOptions
+from cryoemservices.util.relion_service_options import RelionServiceOptions
 
 relion_options = RelionServiceOptions()
 
@@ -349,6 +349,10 @@ def test_node_creator_ctffind(mock_environment, offline_transport, tmp_path):
     output_file.parent.mkdir(parents=True)
     with open(output_file.with_suffix(".txt"), "w") as f:
         f.write("0.0 1.0 2.0 3.0 4.0 5.0 6.0")
+    with open(f"{output_file.with_suffix('')}_avrot.txt", "w") as f:
+        f.write(
+            "header\nheader\nheader\nheader\nheader\n0.24 0.26 0.27 0.29\n1 2 3 4\n"
+        )
 
     setup_and_run_node_creation(
         mock_environment,
@@ -397,6 +401,7 @@ def test_node_creator_ctffind(mock_environment, offline_transport, tmp_path):
     assert list(micrographs_data.find_loop("_rlnDefocusAngle")) == ["3.0"]
     assert list(micrographs_data.find_loop("_rlnCtfFigureOfMerit")) == ["5.0"]
     assert list(micrographs_data.find_loop("_rlnCtfMaxResolution")) == ["6.0"]
+    assert list(micrographs_data.find_loop("_rlnCtfIceRingDensity")) == ["5.0"]
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
