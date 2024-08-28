@@ -451,7 +451,7 @@ class MotionCorr(CommonService):
 
             # Add eer grouping if file is eer
             if eer_grouping:
-                command.extend(("--eer_grouping", eer_grouping))
+                command.extend(("--eer_grouping", str(eer_grouping)))
 
             # Add some standard flags
             command.extend(("--dose_weighting", "--i", "dummy"))
