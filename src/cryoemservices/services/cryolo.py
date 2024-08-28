@@ -152,7 +152,7 @@ class CrYOLO(CommonService):
             "cryolo_gpus": "--gpu",
         }
 
-        for k, v in cryolo_params.dict().items():
+        for k, v in cryolo_params.model_dump().items():
             if v and (k in cryolo_flags):
                 command.extend((cryolo_flags[k], str(v)))
 

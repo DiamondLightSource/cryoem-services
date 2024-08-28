@@ -166,7 +166,7 @@ class Class2DWrapper(BaseWrapper):
                 f"{class2d_params.relion_options.mask_diameter}",
             ]
         )
-        for k, v in class2d_params.dict().items():
+        for k, v in class2d_params.model_dump().items():
             if v and (k in class2d_flags):
                 if type(v) is bool:
                     class2d_command.append(class2d_flags[k])
@@ -254,9 +254,9 @@ class Class2DWrapper(BaseWrapper):
                 "particle_classification_group_id": class2d_params.class2d_grp_uuid,
             }
         else:
-            classification_grp_ispyb_parameters[
-                "buffer_store"
-            ] = class2d_params.class2d_grp_uuid
+            classification_grp_ispyb_parameters["buffer_store"] = (
+                class2d_params.class2d_grp_uuid
+            )
         ispyb_parameters.append(classification_grp_ispyb_parameters)
 
         # Send individual classes to ispyb
@@ -307,9 +307,9 @@ class Class2DWrapper(BaseWrapper):
                 class_ispyb_parameters["estimated_resolution"] = 0.0
             fourier_completeness = float(classes_loop[class_id, 5])
             if np.isfinite(fourier_completeness):
-                class_ispyb_parameters[
-                    "overall_fourier_completeness"
-                ] = fourier_completeness
+                class_ispyb_parameters["overall_fourier_completeness"] = (
+                    fourier_completeness
+                )
             else:
                 class_ispyb_parameters["overall_fourier_completeness"] = 0.0
 

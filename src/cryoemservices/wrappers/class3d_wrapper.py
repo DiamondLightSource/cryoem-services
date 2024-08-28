@@ -136,7 +136,7 @@ class Class3DWrapper(BaseWrapper):
             initial_model_command.extend(("--sym", "C1"))
         else:
             initial_model_command.extend(("--sym", initial_model_params.symmetry))
-        for k, v in initial_model_params.dict().items():
+        for k, v in initial_model_params.model_dump().items():
             if v and (k in initial_model_flags):
                 if type(v) is bool:
                     initial_model_command.append(initial_model_flags[k])
@@ -383,7 +383,7 @@ class Class3DWrapper(BaseWrapper):
                 f"{class3d_params.relion_options.mask_diameter}",
             ]
         )
-        for k, v in class3d_params.dict().items():
+        for k, v in class3d_params.model_dump().items():
             if v and (k in class3d_flags):
                 if type(v) is bool:
                     class3d_command.append(class3d_flags[k])
@@ -495,9 +495,9 @@ class Class3DWrapper(BaseWrapper):
                 "particle_classification_group_id": class3d_params.class3d_grp_uuid,
             }
         else:
-            classification_grp_ispyb_parameters[
-                "buffer_store"
-            ] = class3d_params.class3d_grp_uuid
+            classification_grp_ispyb_parameters["buffer_store"] = (
+                class3d_params.class3d_grp_uuid
+            )
         ispyb_parameters.append(classification_grp_ispyb_parameters)
 
         # Send individual classes to ispyb
@@ -553,9 +553,9 @@ class Class3DWrapper(BaseWrapper):
                 class_ispyb_parameters["estimated_resolution"] = 99.0
             fourier_completeness = float(classes_loop[class_id, 5])
             if np.isfinite(fourier_completeness):
-                class_ispyb_parameters[
-                    "overall_fourier_completeness"
-                ] = fourier_completeness
+                class_ispyb_parameters["overall_fourier_completeness"] = (
+                    fourier_completeness
+                )
             else:
                 class_ispyb_parameters["overall_fourier_completeness"] = 0.0
 
