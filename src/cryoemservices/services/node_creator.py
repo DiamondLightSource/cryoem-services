@@ -463,7 +463,6 @@ class NodeCreator(CommonService):
             #         metadata_file.write(json.dumps(metadata_dict))
             # except FileNotFoundError as e:
             #     self.log.info(f"Cannot open expected metadata file: {e}")
-            (job_dir / "job_metadata.json").touch()
 
             # Create the results display for the non-pipeliner job
             if job_info.job_type == "combine_star_files_job":
@@ -473,7 +472,7 @@ class NodeCreator(CommonService):
 
                 results_displays = pipeliner_job.create_results_display()
                 for results_obj in results_displays:
-                    results_obj.write_displayobj_file(outdir=str(job_dir))
+                    results_obj.write_displayobj_file(outdir=str(job_dir))  # type: ignore
 
         # If there are no new jobs or new nodes then stop here
         if job_is_continue and not extra_output_nodes:

@@ -5,6 +5,7 @@ import os
 import subprocess
 import time
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -110,7 +111,7 @@ def slurm_submission(
     slurm_output_file = f"{output_file}.out"
     slurm_error_file = f"{output_file}.err"
     submission_file = f"{output_file}.json"
-    slurm_config = {
+    slurm_config: dict[str, Any] = {
         "standard_output": slurm_output_file,
         "standard_error": slurm_error_file,
         "current_working_directory": str(project_dir),
@@ -118,10 +119,7 @@ def slurm_submission(
     if api_version == "v0.0.38":
         slurm_config["environment"] = {"USER": user, "HOME": user_home}  # type: ignore
     else:
-        slurm_config["environment"] = [
-            f"USER={user}",
-            f"HOME={user_home}",
-        ]  # type: ignore
+        slurm_config["environment"] = [f"USER={user}", f"HOME={user_home}"]
 
     # Add slurm partition and cluster preferences if given
     if slurm_rest.get("partition"):
@@ -132,7 +130,9 @@ def slurm_submission(
         slurm_config["cluster"] = slurm_rest["cluster"]
 
     # Combine this with the template for the given API version
-    slurm_json_job = dict(slurm_json_job_template[api_version], **slurm_config)
+    slurm_json_job: dict[str, Any] = dict(
+        slurm_json_job_template[api_version], **slurm_config
+    )
     slurm_json_job["name"] = job_name
     slurm_json_job["cpus_per_task"] = cpus
     if use_gpu:
@@ -141,9 +141,12 @@ def slurm_submission(
             slurm_json_job["memory_per_gpu"] = memory_request
         else:
             slurm_json_job["tres_per_task"] = "gres/gpu:1"
-            slurm_json_job["memory_per_node"]["number"] = memory_request  # type: ignore
-    elif api_version == "v0.0.38":
-        slurm_json_job["memory_per_cpu"] = 1000
+            slurm_json_job["memory_per_node"]["number"] = memory_request
+    else:
+        if api_version == "v0.0.38":
+            slurm_json_job["memory_per_cpu"] = 1000
+        else:
+            slurm_json_job["memory_per_node"]["number"] = 1000 * cpus
 
     # Construct the job command and save the job script
     if use_singularity:

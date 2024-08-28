@@ -1,3 +1,4 @@
+# This Dockerfile is used for CTFFind4
 FROM python:3.10
 
 ENV VIRTUAL_ENV=/venv

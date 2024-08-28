@@ -1,4 +1,5 @@
 # cryoem-services
+
 Services and configuration for cryo-EM pipelines.
 
 This package consists of a number of services to process cryo-EM micrographs,
@@ -15,10 +16,10 @@ and a database for storing processing outcomes,
 To run these services the software executables being called must be installed.
 These do not come with this package.
 
-
 # Tomography processing
 
 The tomography processing pipeline consists of:
+
 - Motion correction
 - CTF estimation
 - Tomogram alignment
@@ -36,10 +37,11 @@ that can be opened and continued using
 or [Relion](https://relion.readthedocs.io).
 
 The processing pipeline consists of:
+
 - Motion correction
 - CTF estimation
 - Particle picking
-- (Optionally) Ice thickness estimation 
+- (Optionally) Ice thickness estimation
 - Particle extraction and rebatching
 - 2D classification using Relion
 - Automated 2D class selection using Relion
@@ -47,50 +49,38 @@ The processing pipeline consists of:
 - 3D Refinement and post-processing
 - BFactor estimation by refinement with varying particle count
 
-
 # Services currently available
 
 The following services are provided for running the pipelines:
+
 - Utility services:
-    - **ClusterSubmission**: Submits zocalo wrappers to an HPC cluster
-    - **Dispatcher**: Converts recipes into messages suitable for processing services
-    - **Images**: Creates thumbnail images for viewing processing outcomes
-    - **ISPyB**: Inserts results into an ISPyB database
-    - **NodeCreator**: Creates Relion project files for the services run
+  - **ClusterSubmission**: Submits zocalo wrappers to an HPC cluster
+  - **Dispatcher**: Converts recipes into messages suitable for processing services
+  - **Images**: Creates thumbnail images for viewing processing outcomes
+  - **ISPyB**: Inserts results into an ISPyB database
+  - **NodeCreator**: Creates Relion project files for the services run
 - Processing services:
-    - **BFactor**: Performs the setup for 3D refinement with varying particle count
-    - **CrYOLO**: Particle picking on micrographs using 
-[crYOLO](https://cryolo.readthedocs.io)
-    - **CTFFind**: CTF estimation on micrographs using 
-[CTFFIND4](https://grigoriefflab.umassmed.edu/ctffind4)
-    - **DenoiseSlurm**: Tomogram denoising, submitted to a slurm HPC cluster, using
-[Topaz](http://topaz-em.readthedocs.io)
-    - **Extract**: Extracts picked particles from micrographs
-    - **ExtractClass**: Extracts particles from a given 3D class
-    - **IceBreaker**: Ice thickness estimation with 
-[IceBreaker](https://github.com/DiamondLightSource/python-icebreaker)
-    - **MembrainSeg**: Tomogram segmentation, submitted to a slurm HPC cluster, using 
-[membrain-seg](https://github.com/teamtomo/membrain-seg)
-    - **MotionCorr**: Motion correction of micrographs using 
-[MotionCor2](http://emcore.ucsf.edu/ucsf-software) 
-or [Relion](https://relion.readthedocs.io)
-    - **MotionCorrSlurm**: MotionCor2 processing submitted to a slurm HPC cluster
-    - **PostProcess**: Post-processing of 3D refinements using 
-[Relion](https://relion.readthedocs.io)
-    - **SelectClasses**: Runs automated 2D class selection using 
-[Relion](https://relion.readthedocs.io) and re-batches the particles from these classes
-    - **SelectParticles**: Creates files listing batches of extracted particles
-    - **TomoAlign**: Tomogram reconstruction from a list of micrographs using 
-[imod](https://bio3d.colorado.edu/imod) 
-and [AreTomo2](https://github.com/czimaginginstitute/AreTomo2)
-    - **TomoAlignSlurm**: Tomogram alignment processing submitted to a slurm HPC cluster
+  - **BFactor**: Performs the setup for 3D refinement with varying particle count
+  - **CrYOLO**: Particle picking on micrographs using [crYOLO](https://cryolo.readthedocs.io)
+  - **CTFFind**: CTF estimation on micrographs using [CTFFIND4](https://grigoriefflab.umassmed.edu/ctffind4)
+  - **DenoiseSlurm**: Tomogram denoising, submitted to a slurm HPC cluster, using [Topaz](http://topaz-em.readthedocs.io)
+  - **Extract**: Extracts picked particles from micrographs
+  - **ExtractClass**: Extracts particles from a given 3D class
+  - **IceBreaker**: Ice thickness estimation with [IceBreaker](https://github.com/DiamondLightSource/python-icebreaker)
+  - **MembrainSeg**: Tomogram segmentation, submitted to a slurm HPC cluster, using [membrain-seg](https://github.com/teamtomo/membrain-seg)
+  - **MotionCorr**: Motion correction of micrographs using [MotionCor2](http://emcore.ucsf.edu/ucsf-software) or [Relion](https://relion.readthedocs.io), optionally submitted to a slurm HPC cluster
+  - **PostProcess**: Post-processing of 3D refinements using [Relion](https://relion.readthedocs.io)
+  - **SelectClasses**: Runs automated 2D class selection using [Relion](https://relion.readthedocs.io) and re-batches the particles from these classes
+  - **SelectParticles**: Creates files listing batches of extracted particles
+  - **TomoAlign**: Tomogram reconstruction from a list of micrographs using [imod](https://bio3d.colorado.edu/imod) and [AreTomo2](https://github.com/czimaginginstitute/AreTomo2)
+  - **TomoAlignSlurm**: Tomogram alignment processing submitted to a slurm HPC cluster
 
 There are also three zocalo wrapper scripts that can be run on an HPC cluster.
-These perform 2D classification, 3D classification and 3D refinement 
+These perform 2D classification, 3D classification and 3D refinement
 using [Relion](https://relion.readthedocs.io).
 
-
 # Running services using zocalo
+
 The services in this package are run using
 [zocalo](https://github.com/DiamondLightSource/python-zocalo)
 and [python-workflows](https://github.com/DiamondLightSource/python-workflows).
@@ -133,4 +123,3 @@ transport = pt.PikaTransport()
 transport.connect()
 transport.send("processing_recipe", example_message)
 ```
-

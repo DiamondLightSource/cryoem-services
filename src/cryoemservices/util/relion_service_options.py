@@ -181,9 +181,9 @@ def generate_service_options(
 
     job_options["relion.motioncorr.own"] = {
         "dose_per_frame": relion_options.dose_per_frame,
-        "fn_gain_ref": relion_options.gain_ref
-        if Path(relion_options.gain_ref).exists()
-        else "",
+        "fn_gain_ref": (
+            relion_options.gain_ref if Path(relion_options.gain_ref).exists() else ""
+        ),
         "eer_grouping": relion_options.eer_grouping,
         "patch_x": relion_options.patch_sizes["x"],
         "patch_y": relion_options.patch_sizes["y"],

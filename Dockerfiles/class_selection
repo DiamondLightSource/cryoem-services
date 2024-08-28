@@ -1,4 +1,4 @@
-# This Dockerfile is used for class selection and Relion's own motion correction
+# This Dockerfile is used for Relion class selection
 # First stage builds relion
 FROM rockylinux:8 AS relion-build
 
@@ -23,7 +23,7 @@ RUN curl -L -O "https://github.com/conda-forge/miniforge/releases/latest/downloa
 RUN bash Mambaforge-$(uname)-$(uname -m).sh -b -p "conda"
 
 RUN source "/conda/etc/profile.d/conda.sh" && conda install -c conda-forge conda-pack
-RUN source "/conda/etc/profile.d/conda.sh" && source "/conda/etc/profile.d/mamba.sh" && mamba create -c conda-forge -p /install/pythonenv python=3.9 pip libtiff=4.4.0 htcondor pytorch-cpu=1.10.0 numpy=1.25.2 --override-channels -y
+RUN source "/conda/etc/profile.d/conda.sh" && source "/conda/etc/profile.d/mamba.sh" && mamba create -c conda-forge -p /install/pythonenv python=3.9 pip libtiff=4.4.0 pytorch-cpu=1.10.0 numpy=1.25.2 --override-channels -y
 
 # Install cryoem-services and pipeliner
 RUN mkdir /install/cryoem-services
@@ -60,11 +60,5 @@ ENV PATH="/install/relion4.0/bin:${PATH}"
 COPY --from=conda-build /install/venv /install/venv
 ENV PATH="/install/venv/bin:${PATH}"
 
-# Add cryolo files
-RUN mkdir -p /dls_sw/apps/EM/crYOLO/phosaurus_models
-COPY cryolo_models/* /dls_sw/apps/EM/crYOLO/phosaurus_models
-
 # Change permissions
 RUN chown -R "${userid}":"${groupid}" install
-RUN chown -R "${userid}":"${groupid}" /dls_sw
-

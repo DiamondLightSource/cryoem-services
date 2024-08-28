@@ -7,7 +7,7 @@ requires = [
 
 [project]
 name = "cryoemservices"
-version = "0.3.3"
+version = "0.3.4"
 description = "Services for CryoEM processing"
 readme = "README.md"
 keywords = [
@@ -17,6 +17,7 @@ license = { file = "LICENSE" }
 authors = [
     { name = "Diamond Light Source - Data Analysis et al.", email = "dataanalysis@diamond.ac.uk" },
 ]
+requires-python = ">=3.8"
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
@@ -86,7 +87,6 @@ dev = [
     Images = "cryoemservices.services.images:Images"
     MembrainSeg = "cryoemservices.services.membrain_seg:MembrainSeg"
     MotionCorr = "cryoemservices.services.motioncorr:MotionCorr"
-    MotionCorrSlurm = "cryoemservices.services.motioncorr_slurm:MotionCorrSlurm"
     NodeCreator = "cryoemservices.services.node_creator:NodeCreator"
     PostProcess = "cryoemservices.services.postprocess:PostProcess"
     SelectClasses = "cryoemservices.services.select_classes:SelectClasses"
@@ -156,7 +156,6 @@ ignore = [
 max-line-length = "88"
 
 [tool.pyproject-fmt]
-check = true
 indent = 4
 keep_full_version = true
-max_supported_python = "3.11" # Doesn't appear to work for versions <2 at the moment
+max_supported_python = "3.11"
