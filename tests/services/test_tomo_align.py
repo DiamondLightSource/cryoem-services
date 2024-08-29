@@ -35,8 +35,14 @@ def offline_transport(mocker):
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.tomo_align.subprocess.run")
 @mock.patch("cryoemservices.services.tomo_align.px.scatter")
+@mock.patch("cryoemservices.services.tomo_align.mrcfile")
 def test_tomo_align_service(
-    mock_plotly, mock_subprocess, mock_environment, offline_transport, tmp_path
+    mock_mrcfile,
+    mock_plotly,
+    mock_subprocess,
+    mock_environment,
+    offline_transport,
+    tmp_path,
 ):
     """
     Send a test message to TomoAlign
@@ -46,6 +52,8 @@ def test_tomo_align_service(
     mock_subprocess().returncode = 0
     mock_subprocess().stdout = "stdout".encode("ascii")
     mock_subprocess().stderr = "stderr".encode("ascii")
+
+    mock_mrcfile.open().__enter__().header = {"nx": 3000, "ny": 4000}
 
     header = {
         "message-id": mock.sentinel,
@@ -91,6 +99,8 @@ def test_tomo_align_service(
     output_relion_options["pixel_size_downscaled"] = (
         4 * tomo_align_test_message["parameters"]["pixel_size"]
     )
+    output_relion_options["tomo_size_x"] = 4000
+    output_relion_options["tomo_size_y"] = 3000
 
     # Set up the mock service
     service = tomo_align.TomoAlign(environment=mock_environment)

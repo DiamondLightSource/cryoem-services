@@ -38,11 +38,13 @@ def offline_transport(mocker):
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.tomo_align_slurm.subprocess.run")
 @mock.patch("cryoemservices.services.tomo_align.px.scatter")
+@mock.patch("cryoemservices.services.tomo_align.mrcfile")
 @mock.patch("cryoemservices.services.tomo_align_slurm.transfer_files")
 @mock.patch("cryoemservices.services.tomo_align_slurm.retrieve_files")
 def test_tomo_align_slurm_service(
     mock_retrieve,
     mock_transfer,
+    mock_mrcfile,
     mock_plotly,
     mock_subprocess,
     mock_environment,
@@ -59,6 +61,8 @@ def test_tomo_align_slurm_service(
         '{"job_id": "1", "jobs": [{"job_state": ["COMPLETED"]}]}'.encode("ascii")
     )
     mock_subprocess().stderr = "stderr".encode("ascii")
+
+    mock_mrcfile.open().__enter__().header = {"nx": 2000, "ny": 3000}
 
     mock_transfer.return_value = 0
 
