@@ -81,6 +81,9 @@ class RelionServiceOptions(BaseModel):
     defocus: float = -4
     # Invert the handedness of the tilts?
     invert_hand: int = -1
+    # Tomogram dimensions
+    tomo_size_x: int = 4096
+    tomo_size_y: int = 4096
     # AreTomo volume
     vol_z: int = 1200
     # Tilt offset

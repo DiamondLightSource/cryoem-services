@@ -8,6 +8,7 @@ import time
 from pathlib import Path
 from typing import List, Optional, Union
 
+import mrcfile
 import plotly.express as px
 import workflows.recipe
 import workflows.transport
@@ -256,6 +257,13 @@ class TomoAlign(CommonService):
                 index = tomo_params.input_file_list.index(tilt)
                 self.log.warning(f"Removing: {values_to_remove}")
                 tomo_params.input_file_list.remove(tomo_params.input_file_list[index])
+
+        # Find the input image dimensions
+        with mrcfile.open(tomo_params.input_file_list[0][0]) as mrc:
+            mrc_header = mrc.header
+        # x and y get flipped on tomogram creation
+        tomo_params.relion_options.tomo_size_x = int(mrc_header["ny"])
+        tomo_params.relion_options.tomo_size_y = int(mrc_header["nx"])
 
         # Get the names of the output files expected
         self.alignment_output_dir = Path(tomo_params.stack_file).parent
