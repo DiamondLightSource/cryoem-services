@@ -327,8 +327,8 @@ def generate_service_options(
         "binned_angpix": relion_options.pixel_size_downscaled,
         "tiltangle_offset": relion_options.manual_tilt_offset,
         "do_proj": False,
-        "xdim": 4096,
-        "ydim": 4096,
+        "xdim": relion_options.tomo_size_x,
+        "ydim": relion_options.tomo_size_y,
         "zdim": relion_options.vol_z,
     }
 
