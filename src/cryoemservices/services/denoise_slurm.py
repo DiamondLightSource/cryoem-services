@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Optional
 
@@ -7,13 +8,14 @@ import workflows.recipe
 from pydantic import BaseModel, Field, ValidationError, validator
 from workflows.services.common_service import CommonService
 
+from cryoemservices.util.relion_service_options import RelionServiceOptions
 from cryoemservices.util.slurm_submission import slurm_submission
 
 
 class DenoiseParameters(BaseModel):
     volume: str = Field(..., min_length=1)
-    output: Optional[str] = None  # volume directory
-    suffix: Optional[str] = None  # ".denoised"
+    output_dir: Optional[str] = None  # volume directory
+    suffix: str = ".denoised"
     model: Optional[str] = None  # "unet-3d"
     even_train_path: Optional[str] = None
     odd_train_path: Optional[str] = None
@@ -37,6 +39,8 @@ class DenoiseParameters(BaseModel):
     patch_padding: Optional[int] = None  # 48
     device: Optional[int] = None  # -2
     cleanup_output: bool = True
+    tomogram_uuid: int
+    relion_options: RelionServiceOptions
 
     @validator("model")
     def saved_models(cls, v):
@@ -68,6 +72,9 @@ class DenoiseSlurm(CommonService):
 
     # Logger name
     _logger_name = "cryoemservices.services.denoise_slurm"
+
+    # Job name
+    job_type = "relion.denoisetomo"
 
     def initializing(self):
         """Subscribe to a queue. Received messages must be acknowledged."""
@@ -127,11 +134,11 @@ class DenoiseSlurm(CommonService):
         command = [
             "topaz",
             "denoise3d",
-            str(Path(denoise_params.volume).name),
+            denoise_params.volume,
         ]
 
         denoise_flags = {
-            "output": "-o",
+            "output_dir": "-o",
             "suffix": "--suffix",
             "model": "-m",
             "even_train_path": "-a",
@@ -160,15 +167,20 @@ class DenoiseSlurm(CommonService):
             if v and (k in denoise_flags):
                 command.extend((denoise_flags[k], str(v)))
 
-        suffix = str(Path(denoise_params.volume).suffix)
-        alignment_output_dir = Path(denoise_params.volume).parent
-        denoised_file = str(Path(denoise_params.volume).stem) + ".denoised" + suffix
-        denoised_full_path = Path(denoise_params.volume).parent / denoised_file
+        if denoise_params.output_dir:
+            Path(denoise_params.output_dir).mkdir(parents=True, exist_ok=True)
+            alignment_output_dir = Path(denoise_params.output_dir)
+        else:
+            alignment_output_dir = Path(denoise_params.volume).parent
 
-        self.log.info(f"Input: {denoise_params.volume} Output: {denoised_full_path}")
-        self.log.info(f"Running Topaz {command}")
+        suffix = str(Path(denoise_params.volume).suffix)
+        denoised_file = (
+            str(Path(denoise_params.volume).stem) + denoise_params.suffix + suffix
+        )
+        denoised_full_path = alignment_output_dir / denoised_file
 
         # Submit the command to slurm
+        self.log.info(f"Input: {denoise_params.volume} Output: {denoised_full_path}")
         slurm_outcome = slurm_submission(
             log=self.log,
             job_name="Denoising",
@@ -180,6 +192,29 @@ class DenoiseSlurm(CommonService):
             use_singularity=False,
             script_extras="module load EM/topaz",
         )
+
+        # Send to node creator
+        self.log.info("Sending denoising to node creator")
+        node_creator_parameters = {
+            "experiment_type": "tomography",
+            "job_type": self.job_type,
+            "input_file": denoise_params.volume,
+            "output_file": str(denoised_full_path),
+            "relion_options": dict(denoise_params.relion_options),
+            "command": " ".join(command),
+            "stdout": "",
+            "stderr": "",
+            "success": True,
+        }
+        if slurm_outcome.returncode:
+            node_creator_parameters["success"] = False
+        if isinstance(rw, MockRW):
+            rw.transport.send(
+                destination="node_creator",
+                message={"parameters": node_creator_parameters, "content": "dummy"},
+            )
+        else:
+            rw.send_to("node_creator", node_creator_parameters)
 
         # Stop here if the job failed
         if slurm_outcome.returncode:
@@ -226,13 +261,45 @@ class DenoiseSlurm(CommonService):
                 },
             )
 
+        # Insert the denoised tomogram into ISPyB
+        ispyb_parameters = {
+            "ispyb_command": "buffer",
+            "buffer_command": {"ispyb_command": "insert_processed_tomogram"},
+            "buffer_lookup": {"tomogram_id": denoise_params.tomogram_uuid},
+            "file_path": str(denoised_full_path),
+            "processing_type": "Denoised",
+        }
+        if isinstance(rw, MockRW):
+            rw.transport.send(
+                destination="ispyb_connector",
+                message={
+                    "parameters": ispyb_parameters,
+                    "content": {"dummy": "dummy"},
+                },
+            )
+        else:
+            rw.send_to("ispyb_connector", ispyb_parameters)
+
         # Send to segmentation
         self.log.info(f"Sending {denoised_full_path} for segmentation")
+        if denoise_params.output_dir:
+            project_dir_search = re.search(".+/job[0-9]+/", denoise_params.output_dir)
+            job_num_search = re.search("/job[0-9]+", denoise_params.output_dir)
+            if project_dir_search and job_num_search:
+                project_dir = Path(project_dir_search[0]).parent.parent
+                job_number = int(job_num_search[0][4:])
+                segmentation_dir = project_dir / f"Segmentation/job{job_number + 1:03}"
+            else:
+                self.log.warning(f"No job number in {denoise_params.output_dir}")
+                segmentation_dir = Path(denoise_params.output_dir)
+        else:
+            segmentation_dir = Path(denoise_params.volume).parent
         if isinstance(rw, MockRW):
             rw.transport.send(
                 destination="segmentation",
                 message={
                     "tomogram": str(denoised_full_path),
+                    "output_dir": str(segmentation_dir),
                 },
             )
         else:
@@ -240,6 +307,7 @@ class DenoiseSlurm(CommonService):
                 "segmentation",
                 {
                     "tomogram": str(denoised_full_path),
+                    "output_dir": str(segmentation_dir),
                 },
             )
 

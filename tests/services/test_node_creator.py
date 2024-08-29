@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import Optional
 from unittest import mock
 
 import pytest
@@ -49,7 +48,7 @@ def setup_and_run_node_creation(
     job_type: str,
     input_file: Path,
     output_file: Path,
-    results: Optional[dict] = None,
+    results: dict = {},
 ):
     """
     Run the node creation for any job and check the pipeline files are produced

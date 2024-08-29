@@ -7,7 +7,7 @@ import subprocess
 from collections import ChainMap
 from math import hypot
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, List, Optional
 
 import plotly.express as px
 import workflows.recipe
@@ -421,7 +421,7 @@ class MotionCorr(CommonService):
             self.log.info("Using Relion's own motion correction")
             os.environ["FI_PROVIDER"] = "tcp"
             command = ["relion_motion_correction", "--use_own"]
-            relion_mc_flags = {
+            relion_mc_flags: dict[str, Any] = {
                 "threads": "--j",
                 "movie": "--in_movie",
                 "mrc_out": "--out_mic",

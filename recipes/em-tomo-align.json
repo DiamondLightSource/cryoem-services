@@ -14,7 +14,8 @@
       "input_file_list": "{input_file_list}",
       "manual_tilt_offset": "{manual_tilt_offset}",
       "path_pattern": "{path_pattern}",
-      "pixel_size": "{pix_size}",
+      "pixel_size": "{pixel_size}",
+      "relion_options": {},
       "stack_file": "{stack_file}"
     },
     "queue": "tomo_align",
@@ -71,10 +72,5 @@
     "queue": "segmentation",
     "service": "MembrainSeg"
   },
-  "start": [
-    [
-      1,
-      []
-    ]
-  ]
+  "start": [[1, []]]
 }

@@ -35,7 +35,7 @@ dependencies = [
     "healpy",
     "icebreaker-em",
     "importlib-metadata",
-    "ispyb",
+    "ispyb>=10.2.3",
     "marshmallow-sqlalchemy",
     "mrcfile",
     "numpy<2",

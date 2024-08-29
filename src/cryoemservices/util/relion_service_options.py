@@ -81,6 +81,13 @@ class RelionServiceOptions(BaseModel):
     defocus: float = -4
     # Invert the handedness of the tilts?
     invert_hand: int = -1
+    # Tomogram dimensions
+    tomo_size_x: int = 4096
+    tomo_size_y: int = 4096
+    # AreTomo volume
+    vol_z: int = 1200
+    # Tilt offset
+    manual_tilt_offset: float = 0
 
     """Parameters used in internal calculations"""
     pixel_size_downscaled: float = 0
@@ -177,9 +184,9 @@ def generate_service_options(
 
     job_options["relion.motioncorr.own"] = {
         "dose_per_frame": relion_options.dose_per_frame,
-        "fn_gain_ref": relion_options.gain_ref
-        if Path(relion_options.gain_ref).exists()
-        else "",
+        "fn_gain_ref": (
+            relion_options.gain_ref if Path(relion_options.gain_ref).exists() else ""
+        ),
         "eer_grouping": relion_options.eer_grouping,
         "patch_x": relion_options.patch_sizes["x"],
         "patch_y": relion_options.patch_sizes["y"],
@@ -307,6 +314,31 @@ def generate_service_options(
     }
 
     job_options["relion.postprocess"] = {"angpix": relion_options.pixel_size}
+
+    job_options["relion.excludetilts"] = {"cache_size": 5}
+
+    job_options["relion.aligntiltseries"] = {
+        "do_aretomo": True,
+        "aretomo_thickness": relion_options.vol_z * relion_options.pixel_size / 10,
+        "aretomo_tiltcorrect": True,
+    }
+
+    job_options["relion.reconstructtomograms"] = {
+        "binned_angpix": relion_options.pixel_size_downscaled,
+        "tiltangle_offset": relion_options.manual_tilt_offset,
+        "do_proj": False,
+        "xdim": relion_options.tomo_size_x,
+        "ydim": relion_options.tomo_size_y,
+        "zdim": relion_options.vol_z,
+    }
+
+    job_options["relion.denoisetomo"] = {
+        "cryocare_path": "topaz",
+        "care_denoising_model": "",
+    }
+
+    if not job_options.get(submission_type):
+        return {}
 
     if submission_type not in ["relion.import.movies", "combine_star_files_job"]:
         job_options[submission_type].update(queue_options)

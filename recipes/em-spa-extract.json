@@ -17,7 +17,7 @@
       "micrographs_file": "{micrographs_file}",
       "output_file": "{output_file}",
       "particle_diameter": "{particle_diameter}",
-      "pixel_size": "{pix_size}",
+      "pixel_size": "{pixel_size}",
       "relion_options": {},
       "voltage": "{kv}"
     },
@@ -44,10 +44,5 @@
     "queue": "{feedback_queue}",
     "service": "Murfey"
   },
-  "start": [
-    [
-      1,
-      []
-    ]
-  ]
+  "start": [[1, []]]
 }

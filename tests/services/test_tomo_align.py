@@ -8,6 +8,7 @@ import zocalo.configuration
 from workflows.transport.offline_transport import OfflineTransport
 
 from cryoemservices.services import tomo_align
+from cryoemservices.util.relion_service_options import RelionServiceOptions
 
 
 @pytest.fixture
@@ -34,8 +35,14 @@ def offline_transport(mocker):
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.tomo_align.subprocess.run")
 @mock.patch("cryoemservices.services.tomo_align.px.scatter")
+@mock.patch("cryoemservices.services.tomo_align.mrcfile")
 def test_tomo_align_service(
-    mock_plotly, mock_subprocess, mock_environment, offline_transport, tmp_path
+    mock_mrcfile,
+    mock_plotly,
+    mock_subprocess,
+    mock_environment,
+    offline_transport,
+    tmp_path,
 ):
     """
     Send a test message to TomoAlign
@@ -46,17 +53,19 @@ def test_tomo_align_service(
     mock_subprocess().stdout = "stdout".encode("ascii")
     mock_subprocess().stderr = "stderr".encode("ascii")
 
+    mock_mrcfile.open().__enter__().header = {"nx": 3000, "ny": 4000}
+
     header = {
         "message-id": mock.sentinel,
         "subscription": mock.sentinel,
     }
     tomo_align_test_message = {
         "parameters": {
-            "stack_file": f"{tmp_path}/test_stack.st",
+            "stack_file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack.st",
             "path_pattern": None,
-            "input_file_list": str([[f"{tmp_path}/input_file_1.mrc", "1.00"]]),
-            "position": None,
-            "aretomo_output_file": f"{tmp_path}/aretomo_output.mrc",
+            "input_file_list": str(
+                [[f"{tmp_path}/MotionCorr/job002/Movies/input_file_1.mrc", "1.00"]]
+            ),
             "vol_z": 1200,
             "align": None,
             "out_bin": 4,
@@ -78,9 +87,20 @@ def test_tomo_align_service(
             "out_imod_xf": None,
             "dark_tol": None,
             "manual_tilt_offset": None,
+            "tomogram_uuid": 0,
+            "relion_options": {},
         },
         "content": "dummy",
     }
+    output_relion_options = dict(RelionServiceOptions())
+    output_relion_options["pixel_size"] = tomo_align_test_message["parameters"][
+        "pixel_size"
+    ]
+    output_relion_options["pixel_size_downscaled"] = (
+        4 * tomo_align_test_message["parameters"]["pixel_size"]
+    )
+    output_relion_options["tomo_size_x"] = 4000
+    output_relion_options["tomo_size_y"] = 3000
 
     # Set up the mock service
     service = tomo_align.TomoAlign(environment=mock_environment)
@@ -90,54 +110,117 @@ def test_tomo_align_service(
     service.rot_centre_z_list = [1.1, 2.1]
     service.tilt_offset = 1.1
     service.alignment_quality = 0.5
-    service.mag = 1000
-    service.rot = 0
 
-    (tmp_path / "test_stack_aretomo_Imod").mkdir()
-    (tmp_path / "test_stack.aln").touch()
-    (tmp_path / "test_stack_aretomo_Imod/tilt.com").touch()
+    (tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo_Imod").mkdir(
+        parents=True
+    )
+    (tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo_Imod/tilt.com").touch()
+    with open(tmp_path / "Tomograms/job006/tomograms/test_stack.aln", "w") as aln_file:
+        aln_file.write("dummy 0 1000 1.2 2.3 5 6 7 8 4.5")
 
     # Send a message to the service
     service.tomo_align(None, header=header, message=tomo_align_test_message)
 
+    aretomo_command = [
+        "AreTomo2",
+        "-OutMrc",
+        f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
+        "-AngFile",
+        f"{tmp_path}/angles.file",
+        "-TiltCor",
+        "1",
+        "-InMrc",
+        tomo_align_test_message["parameters"]["stack_file"],
+        "-PixSize",
+        "1e-10",
+        "-VolZ",
+        str(tomo_align_test_message["parameters"]["vol_z"]),
+        "-OutBin",
+        str(tomo_align_test_message["parameters"]["out_bin"]),
+        "-FlipVol",
+        str(tomo_align_test_message["parameters"]["flip_vol"]),
+        "-OutImod",
+        str(tomo_align_test_message["parameters"]["out_imod"]),
+    ]
+
+    # Check the expected calls were made
     assert mock_plotly.call_count == 1
     assert mock_subprocess.call_count == 5
     mock_subprocess.assert_any_call(
         [
             "newstack",
             "-fileinlist",
-            f"{tmp_path}/test_stack_newstack.txt",
+            f"{tmp_path}/Tomograms/job006/tomograms/test_stack_newstack.txt",
             "-output",
-            f"{tmp_path}/test_stack.st",
+            tomo_align_test_message["parameters"]["stack_file"],
             "-quiet",
         ]
     )
     mock_subprocess.assert_any_call(
-        [
-            "AreTomo2",
-            "-OutMrc",
-            f"{tmp_path}/test_stack_aretomo.mrc",
-            "-AngFile",
-            f"{tmp_path}/angles.file",
-            "-TiltCor",
-            "1",
-            "-InMrc",
-            tomo_align_test_message["parameters"]["stack_file"],
-            "-VolZ",
-            str(tomo_align_test_message["parameters"]["vol_z"]),
-            "-OutBin",
-            str(tomo_align_test_message["parameters"]["out_bin"]),
-            "-FlipVol",
-            str(tomo_align_test_message["parameters"]["flip_vol"]),
-            "-PixSize",
-            "1e-10",
-            "-OutImod",
-            str(tomo_align_test_message["parameters"]["out_imod"]),
-        ],
+        aretomo_command,
         capture_output=True,
     )
 
     # Check that the correct messages were sent
+    assert offline_transport.send.call_count == 10
+    offline_transport.send.assert_any_call(
+        destination="node_creator",
+        message={
+            "parameters": {
+                "job_type": "relion.excludetilts",
+                "experiment_type": "tomography",
+                "input_file": f"{tmp_path}/MotionCorr/job002/Movies/input_file_1.mrc",
+                "output_file": f"{tmp_path}/ExcludeTiltImages/job004/tilts/input_file_1.mrc",
+                "relion_options": output_relion_options,
+                "command": "",
+                "stdout": "",
+                "stderr": "",
+                "success": True,
+            },
+            "content": "dummy",
+        },
+    )
+    offline_transport.send.assert_any_call(
+        destination="node_creator",
+        message={
+            "parameters": {
+                "job_type": "relion.aligntiltseries",
+                "experiment_type": "tomography",
+                "input_file": f"{tmp_path}/MotionCorr/job002/Movies/input_file_1.mrc",
+                "output_file": f"{tmp_path}/AlignTiltSeries/job005/tilts/input_file_1.mrc",
+                "relion_options": output_relion_options,
+                "command": "",
+                "stdout": "",
+                "stderr": "",
+                "results": {
+                    "TomoXTilt": "0.00",
+                    "TomoYTilt": "4.5",
+                    "TomoZRot": "0.0",
+                    "TomoXShiftAngst": "1.2",
+                    "TomoYShiftAngst": "2.3",
+                },
+                "success": True,
+            },
+            "content": "dummy",
+        },
+    )
+    offline_transport.send.assert_any_call(
+        destination="node_creator",
+        message={
+            "parameters": {
+                "experiment_type": "tomography",
+                "job_type": "relion.reconstructtomograms",
+                "input_file": f"{tmp_path}/MotionCorr/job002/Movies/input_file_1.mrc",
+                "output_file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
+                "relion_options": output_relion_options,
+                "command": " ".join(aretomo_command),
+                "stdout": "",
+                "stderr": "",
+                "success": True,
+            },
+            "content": "dummy",
+        },
+    )
     offline_transport.send.assert_any_call(
         destination="ispyb_connector",
         message={
@@ -145,16 +228,20 @@ def test_tomo_align_service(
                 "ispyb_command": "multipart_message",
                 "ispyb_command_list": [
                     {
-                        "ispyb_command": "insert_tomogram",
+                        "ispyb_command": "buffer",
+                        "buffer_command": {"ispyb_command": "insert_tomogram"},
+                        "buffer_store": 0,
                         "volume_file": "test_stack_aretomo.mrc",
-                        "stack_file": f"{tmp_path}/test_stack.st",
+                        "stack_file": tomo_align_test_message["parameters"][
+                            "stack_file"
+                        ],
                         "size_x": None,
                         "size_y": None,
                         "size_z": None,
                         "pixel_spacing": "4e-10",
                         "tilt_angle_offset": "1.1",
                         "z_shift": 2.1,
-                        "file_directory": f"{tmp_path}",
+                        "file_directory": f"{tmp_path}/Tomograms/job006/tomograms",
                         "central_slice_image": "test_stack_aretomo_thumbnail.jpeg",
                         "tomogram_movie": "test_stack_aretomo_movie.png",
                         "xy_shift_plot": "test_stack_xy_shift_plot.json",
@@ -166,10 +253,10 @@ def test_tomo_align_service(
                     {
                         "ispyb_command": "insert_tilt_image_alignment",
                         "psd_file": None,
-                        "refined_magnification": "1000",
-                        "refined_tilt_angle": None,
-                        "refined_tilt_axis": "0",
-                        "path": f"{tmp_path}/input_file_1.mrc",
+                        "refined_magnification": "1000.0",
+                        "refined_tilt_angle": "4.5",
+                        "refined_tilt_axis": "0.0",
+                        "path": f"{tmp_path}/MotionCorr/job002/Movies/input_file_1.mrc",
                     },
                 ],
             },
@@ -180,33 +267,37 @@ def test_tomo_align_service(
         destination="images",
         message={
             "image_command": "mrc_central_slice",
-            "file": f"{tmp_path}/test_stack_aretomo.mrc",
+            "file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
         },
     )
     offline_transport.send.assert_any_call(
-        destination="movie",
+        destination="images",
         message={
             "image_command": "mrc_to_apng",
-            "file": f"{tmp_path}/test_stack_aretomo.mrc",
+            "file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
         },
     )
     offline_transport.send.assert_any_call(
-        destination="projxy",
+        destination="images",
         message={
             "image_command": "mrc_to_jpeg",
-            "file": f"{tmp_path}/test_stack_aretomo_projXY.mrc",
+            "file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo_projXY.mrc",
         },
     )
     offline_transport.send.assert_any_call(
-        destination="projxz",
+        destination="images",
         message={
             "image_command": "mrc_to_jpeg",
-            "file": f"{tmp_path}/test_stack_aretomo_projXZ.mrc",
+            "file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo_projXZ.mrc",
         },
     )
     offline_transport.send.assert_any_call(
         destination="denoise",
-        message={"volume": f"{tmp_path}/test_stack_aretomo.mrc"},
+        message={
+            "volume": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
+            "output_dir": f"{tmp_path}/Denoise/job007/tomograms",
+            "relion_options": output_relion_options,
+        },
     )
     offline_transport.send.assert_any_call(destination="success", message="")
 

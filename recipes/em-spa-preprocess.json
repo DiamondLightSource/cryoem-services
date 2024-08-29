@@ -53,7 +53,7 @@
       "movie_id": "$ispyb_movie_id",
       "mrc_out": "{mrc_out}",
       "picker_uuid": "{picker_uuid}",
-      "pixel_size": "{pix_size}",
+      "pixel_size": "{pixel_size}",
       "relion_options": {},
       "threads": 4,
       "voltage": "{kv}"
@@ -115,10 +115,5 @@
     "queue": "ispyb_connector",
     "service": "EMISPyB"
   },
-  "start": [
-    [
-      1,
-      []
-    ]
-  ]
+  "start": [[1, []]]
 }

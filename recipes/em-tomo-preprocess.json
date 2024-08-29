@@ -32,7 +32,8 @@
       "movie_id": "$ispyb_movie_id",
       "mrc_out": "{mrc_out}",
       "picker_uuid": "-1",
-      "pixel_size": "{pix_size}",
+      "pixel_size": "{pixel_size}",
+      "relion_options": {},
       "voltage": "{kv}"
     },
     "queue": "motioncorr",
@@ -77,10 +78,5 @@
     "queue": "ispyb_connector",
     "service": "EMISPyB"
   },
-  "start": [
-    [
-      1,
-      []
-    ]
-  ]
+  "start": [[1, []]]
 }

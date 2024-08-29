@@ -149,6 +149,22 @@ pipeline_jobs: dict[str, dict] = {
             "fn_mask": "mask.mrc",
         },
     },
+    "relion.excludetilts": {
+        "folder": "ExcludeTiltImages",
+        "tomography_input": {"in_tiltseries": "tilt_series_ctf.star"},
+    },
+    "relion.aligntiltseries": {
+        "folder": "AlignTiltSeries",
+        "tomography_input": {"in_tiltseries": "selected_tilt_series.star"},
+    },
+    "relion.reconstructtomograms": {
+        "folder": "Tomograms",
+        "tomography_input": {"in_tiltseries": "aligned_tilt_series.star"},
+    },
+    "relion.denoisetomo": {
+        "folder": "Denoise",
+        "tomography_input": {"in_tomoset": "tomograms.star"},
+    },
 }
 
 
@@ -162,7 +178,7 @@ class NodeCreatorParameters(BaseModel):
     stderr: str
     experiment_type: str = "spa"
     success: bool = True
-    results: Optional[dict] = None
+    results: dict = {}
     alias: Optional[str] = None
 
     @validator("experiment_type")
@@ -249,7 +265,15 @@ class NodeCreator(CommonService):
         start_time = datetime.datetime.now()
 
         # Find the job directory and make sure we are in the processing directory
-        job_dir = Path(re.search(".+/job[0-9]+", job_info.output_file)[0])
+        job_dir_search = re.search(".+/job[0-9]+", job_info.output_file)
+        job_num_search = re.search("/job[0-9]+", job_info.output_file)
+        if job_dir_search and job_num_search:
+            job_dir = Path(job_dir_search[0])
+            job_number = int(job_num_search[0][4:])
+        else:
+            self.log.warning(f"Cannot determine job dir for {job_info.output_file}")
+            rw.transport.nack(header)
+            return
         project_dir = job_dir.parent.parent
         os.chdir(project_dir)
 
@@ -272,24 +296,33 @@ class NodeCreator(CommonService):
             job_info.relion_options,
             job_info.job_type,
         )
+        if not pipeline_options:
+            self.log.error(f"Cannot generate pipeline options for {job_info.job_type}")
+            rw.transport.nack(header)
+            return
+
         # Work out the name of the input star file and add this to the job.star
         if job_dir.parent.name != "Import":
             ii = 0
             for label, star in pipeline_jobs[job_info.job_type][
                 job_info.experiment_type + "_input"
             ].items():
-                input_job_dir = Path(
-                    re.search(".+/job[0-9]+", job_info.input_file.split(":")[ii])[0]
-                )
-                try:
-                    pipeline_options[label] = (
-                        input_job_dir.relative_to(project_dir) / star
-                    )
-                except ValueError:
-                    self.log.warning(
-                        f"WARNING: {input_job_dir} is not relative to {project_dir}"
-                    )
-                    pipeline_options[label] = input_job_dir / star
+                added_file = job_info.input_file.split(":")[ii]
+                input_job_in_project = re.search(".+/job[0-9]+", added_file)
+                if input_job_in_project:
+                    input_job_dir = Path(input_job_in_project[0])
+                    try:
+                        pipeline_options[label] = (
+                            input_job_dir.relative_to(project_dir) / star
+                        )
+                    except ValueError:
+                        self.log.warning(
+                            f"WARNING: {input_job_dir} is not relative to {project_dir}"
+                        )
+                        pipeline_options[label] = input_job_dir / star
+                else:
+                    self.log.warning(f"WARNING: {added_file} is not in a job")
+                    pipeline_options[label] = Path(added_file)
                 ii += 1
         elif job_info.job_type == "relion.import.movies":
             pipeline_options["fn_in_raw"] = job_info.input_file
@@ -351,12 +384,12 @@ class NodeCreator(CommonService):
         relative_input_file = (
             Path(first_input_file).relative_to(project_dir)
             if Path(first_input_file).is_relative_to(project_dir)
-            else first_input_file
+            else Path(first_input_file)
         )
         relative_output_file = (
             Path(job_info.output_file).relative_to(project_dir)
             if Path(job_info.output_file).is_relative_to(project_dir)
-            else job_info.output_file
+            else Path(job_info.output_file)
         )
 
         # Load this job as a pipeliner job to create the nodes
@@ -439,7 +472,7 @@ class NodeCreator(CommonService):
 
                 results_displays = pipeliner_job.create_results_display()
                 for results_obj in results_displays:
-                    results_obj.write_displayobj_file(outdir=str(job_dir))
+                    results_obj.write_displayobj_file(outdir=str(job_dir))  # type: ignore
 
         # If there are no new jobs or new nodes then stop here
         if job_is_continue and not extra_output_nodes:
@@ -496,7 +529,6 @@ class NodeCreator(CommonService):
                     if line.startswith("_rlnPipeLineJobCounter"):
                         job_count = int(line.split()[1])
                         break
-            job_number = int(re.search("/job[0-9]+", str(job_dir))[0][4:])
             if job_count <= job_number:
                 project.job_counter = job_number + 1
                 with open("default_pipeline.star", "r") as pipeline_file, open(

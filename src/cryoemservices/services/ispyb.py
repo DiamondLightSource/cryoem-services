@@ -5,6 +5,7 @@ import time
 from collections import ChainMap
 from datetime import datetime
 from pathlib import Path
+from typing import Optional
 
 import ispyb
 import ispyb.sqlalchemy as models
@@ -32,9 +33,9 @@ class ChainMapWithReplacement(ChainMap):
 
 class MovieParams(BaseModel):
     dcid: int
-    movie_number: int = None  # image number
-    movie_path: str = None  # micrograph full path
-    timestamp: float = None
+    movie_number: int  # image number
+    movie_path: str  # micrograph full path
+    timestamp: Optional[float] = None
 
 
 def lookup_command(command, refclass):
@@ -990,6 +991,32 @@ class EMISPyB(CommonService):
         except sqlalchemy.exc.SQLAlchemyError as e:
             self.log.error(
                 "Inserting Tomogram entry caused exception '%s'.",
+                e,
+                exc_info=True,
+            )
+            return False
+
+    def do_insert_processed_tomogram(self, parameters, session, message=None, **kwargs):
+        if message is None:
+            message = {}
+        dcid = parameters("dcid")
+        self.log.info(f"Inserting Processed Tomogram parameters. DCID: {dcid}")
+
+        def full_parameters(param):
+            return message.get(param) or parameters(param)
+
+        try:
+            values = models.ProcessedTomogram(
+                tomogramId=full_parameters("tomogram_id"),
+                filePath=full_parameters("file_path"),
+                processingType=full_parameters("processing_type"),
+            )
+            session.add(values)
+            session.commit()
+            return {"success": True, "return_value": values.processedTomogramId}
+        except sqlalchemy.exc.SQLAlchemyError as e:
+            self.log.error(
+                "Inserting Processed Tomogram entry caused exception '%s'.",
                 e,
                 exc_info=True,
             )
