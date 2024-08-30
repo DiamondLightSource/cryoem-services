@@ -14,7 +14,7 @@ from cryoemservices.util.slurm_submission import slurm_submission
 class MembrainSegParameters(BaseModel):
     tomogram: str = Field(..., min_length=1)
     output_dir: Optional[str] = None
-    model_checkpoint: str = (
+    pretrained_checkpoint: str = (
         "/dls_sw/apps/EM/membrain-seg/models/MemBrain_seg_v10_alpha.ckpt"
     )
     pixel_size: Optional[float] = None
@@ -134,7 +134,7 @@ class MembrainSeg(CommonService):
 
         membrain_file = (
             f"{Path(membrain_seg_params.tomogram).stem}"
-            f"_{Path(membrain_seg_params.model_checkpoint).name}_segmented.mrc"
+            f"_{Path(membrain_seg_params.pretrained_checkpoint).name}_segmented.mrc"
         )
         membrain_path = segmented_output_dir / membrain_file
 

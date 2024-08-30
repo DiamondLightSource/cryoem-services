@@ -58,7 +58,7 @@ def test_membrain_seg_service(
     segmentation_test_message = {
         "parameters": {
             "tomogram": f"{tmp_path}/Segmentation/job008/test_stack_aretomo.denoised.mrc",
-            "model_checkpoint": "checkpoint.ckpt",
+            "pretrained_checkpoint": "checkpoint.ckpt",
             "pixel_size": "1.0",
             "rescale_patches": True,
             "augmentation": True,
