@@ -290,9 +290,11 @@ class CTFFind(CommonService):
             # Forward results to particle picking
             self.log.info(f"Sending to autopicking: {ctf_params.input_image}")
             ctf_params.autopick["input_path"] = ctf_params.input_image
-            ctf_job_number = int(
-                re.search("/job[0-9]+/", ctf_params.output_image)[0][4:7]
-            )
+            job_number_search = re.search("/job[0-9]+/", ctf_params.output_image)
+            if job_number_search:
+                ctf_job_number = int(job_number_search[0][4:7])
+            else:
+                ctf_job_number = 6
             ctf_params.autopick["output_path"] = str(
                 Path(
                     re.sub(

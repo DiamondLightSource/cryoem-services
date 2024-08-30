@@ -110,10 +110,5 @@
     "queue": "images",
     "service": "Images"
   },
-  "start": [
-    [
-      1,
-      []
-    ]
-  ]
+  "start": [[1, []]]
 }

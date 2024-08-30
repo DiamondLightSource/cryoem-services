@@ -95,10 +95,5 @@
     "queue": "ispyb_connector",
     "service": "EMISPyB"
   },
-  "start": [
-    [
-      1,
-      []
-    ]
-  ]
+  "start": [[1, []]]
 }

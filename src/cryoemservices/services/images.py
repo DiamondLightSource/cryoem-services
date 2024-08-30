@@ -9,8 +9,7 @@ from workflows.services.common_service import CommonService
 
 
 class _CallableParameter(Protocol):
-    def __call__(self, key: str, default: Any = ...) -> Any:
-        ...
+    def __call__(self, key: str, default: Any = ...) -> Any: ...
 
 
 class PluginInterface(NamedTuple):

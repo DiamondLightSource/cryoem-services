@@ -677,9 +677,13 @@ class MotionCorr(CommonService):
         if not job_is_rerun:
             # As this is the entry point we need to import the file to the project
             self.log.info("Sending relion.import to node creator")
-            project_dir = Path(
-                re.search(".+/job[0-9]+/", mc_params.mrc_out)[0]
-            ).parent.parent
+            project_dir_search = re.search(".+/job[0-9]+/", mc_params.mrc_out)
+            if project_dir_search:
+                project_dir = Path(project_dir_search[0]).parent.parent
+            else:
+                self.log.error(f"Cannot find project dir for {mc_params.mrc_out}")
+                rw.transport.nack(header)
+                return
             import_movie = (
                 project_dir
                 / "Import/job001"
