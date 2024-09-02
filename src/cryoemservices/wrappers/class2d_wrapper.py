@@ -167,11 +167,11 @@ class Class2DWrapper(BaseWrapper):
             ]
         )
         for k, v in class2d_params.model_dump().items():
-            if v and (k in class2d_flags):
-                if type(v) is bool:
-                    class2d_command.append(class2d_flags[k])
-                else:
+            if k in class2d_flags:
+                if (type(v) is not bool) and (v not in [None, ""]):
                     class2d_command.extend((class2d_flags[k], str(v)))
+                elif v:
+                    class2d_command.append(class2d_flags[k])
         class2d_command.extend(
             ("--pipeline_control", f"{job_dir.relative_to(project_dir)}/")
         )

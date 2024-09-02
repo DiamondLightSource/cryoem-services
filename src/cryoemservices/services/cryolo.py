@@ -153,7 +153,7 @@ class CrYOLO(CommonService):
         }
 
         for k, v in cryolo_params.model_dump().items():
-            if v and (k in cryolo_flags):
+            if (v not in [None, ""]) and (k in cryolo_flags):
                 command.extend((cryolo_flags[k], str(v)))
 
         self.log.info(

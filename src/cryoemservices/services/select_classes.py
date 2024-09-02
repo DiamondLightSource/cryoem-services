@@ -173,7 +173,7 @@ class SelectClasses(CommonService):
             "--do_granularity_features",
         ]
         for k, v in autoselect_params.model_dump().items():
-            if v and (k in autoselect_flags):
+            if (v not in [None, ""]) and (k in autoselect_flags):
                 autoselect_command.extend((autoselect_flags[k], str(v)))
         autoselect_command.extend(
             ("--pipeline_control", f"{select_dir.relative_to(project_dir)}/")

@@ -105,7 +105,7 @@ class MembrainSeg(CommonService):
             "window_size": "--sliding-window-size",
         }
         for k, v in membrain_seg_params.model_dump().items():
-            if v and (k in membrain_seg_flags):
+            if (v not in [None, ""]) and (k in membrain_seg_flags):
                 command.extend((membrain_seg_flags[k], str(v)))
 
         if membrain_seg_params.rescale_patches:

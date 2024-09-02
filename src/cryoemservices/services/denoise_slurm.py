@@ -161,7 +161,7 @@ class DenoiseSlurm(CommonService):
             "device": "-d",
         }
         for k, v in denoise_params.model_dump().items():
-            if v and (k in denoise_flags):
+            if (v not in [None, ""]) and (k in denoise_flags):
                 command.extend((denoise_flags[k], str(v)))
 
         if denoise_params.output_dir:

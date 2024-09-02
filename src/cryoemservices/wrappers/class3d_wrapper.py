@@ -137,11 +137,11 @@ class Class3DWrapper(BaseWrapper):
         else:
             initial_model_command.extend(("--sym", initial_model_params.symmetry))
         for k, v in initial_model_params.model_dump().items():
-            if v and (k in initial_model_flags):
-                if type(v) is bool:
-                    initial_model_command.append(initial_model_flags[k])
-                else:
+            if k in initial_model_flags:
+                if (type(v) is not bool) and (v not in [None, ""]):
                     initial_model_command.extend((initial_model_flags[k], str(v)))
+                elif v:
+                    initial_model_command.append(initial_model_flags[k])
         initial_model_command.extend(
             ("--pipeline_control", f"{job_dir.relative_to(project_dir)}/")
         )
@@ -384,11 +384,11 @@ class Class3DWrapper(BaseWrapper):
             ]
         )
         for k, v in class3d_params.model_dump().items():
-            if v and (k in class3d_flags):
-                if type(v) is bool:
-                    class3d_command.append(class3d_flags[k])
-                else:
+            if k in class3d_flags:
+                if (type(v) is not bool) and (v not in [None, ""]):
                     class3d_command.extend((class3d_flags[k], str(v)))
+                elif v:
+                    class3d_command.append(class3d_flags[k])
         class3d_command.extend(
             ("--pipeline_control", f"{job_dir.relative_to(project_dir)}/")
         )

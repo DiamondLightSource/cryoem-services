@@ -182,11 +182,11 @@ class Refine3DWrapper(zocalo.wrapper.BaseWrapper):
             "gpus": "--gpu",
         }
         for k, v in refine_params.model_dump().items():
-            if v and (k in refine_flags):
-                if type(v) is bool:
-                    refine_command.append(refine_flags[k])
-                else:
+            if k in refine_flags:
+                if (type(v) is not bool) and (v not in [None, ""]):
                     refine_command.extend((refine_flags[k], str(v)))
+                elif v:
+                    refine_command.append(refine_flags[k])
         refine_command.extend(
             ("--pipeline_control", f"{refine_params.refine_job_dir}/")
         )
