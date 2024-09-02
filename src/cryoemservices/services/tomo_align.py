@@ -6,7 +6,7 @@ import re
 import subprocess
 import time
 from pathlib import Path
-from typing import Any, List, Optional, Union
+from typing import Any, List, Optional
 
 import mrcfile
 import plotly.express as px
@@ -35,7 +35,7 @@ class TomoParameters(BaseModel):
     flip_int: Optional[int] = None
     flip_vol: int = 1
     wbp: Optional[int] = None
-    roi_file: list = []
+    roi_file: Optional[list] = None
     patch: Optional[int] = None
     kv: Optional[int] = None
     align_file: Optional[str] = None
@@ -45,7 +45,7 @@ class TomoParameters(BaseModel):
     refine_flag: Optional[int] = None
     out_imod: int = 1
     out_imod_xf: Optional[int] = None
-    dark_tol: Optional[Union[int, str]] = None
+    dark_tol: Optional[float] = None
     manual_tilt_offset: Optional[float] = None
     tomogram_uuid: int
     relion_options: RelionServiceOptions
@@ -200,8 +200,8 @@ class TomoAlign(CommonService):
             rw.transport.nack(header)
             return
 
-        def _tilt(file_list):
-            return float(file_list[1])
+        def _tilt(file_list_for_tilts):
+            return float(file_list_for_tilts[1])
 
         # Update the relion options
         tomo_params.relion_options = update_relion_options(
@@ -697,7 +697,7 @@ class TomoAlign(CommonService):
         }
 
         for k, v in tomo_parameters.model_dump().items():
-            if v and (k in aretomo_flags):
+            if (v not in [None, ""]) and (k in aretomo_flags):
                 command.extend((aretomo_flags[k], str(v)))
 
         self.log.info(f"Running AreTomo2 {command}")

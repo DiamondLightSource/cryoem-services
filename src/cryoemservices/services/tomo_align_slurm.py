@@ -134,8 +134,8 @@ class TomoAlignSlurm(TomoAlign, CommonService):
             "out_imod_xf": "-OutXf",
             "dark_tol": "-DarkTol",
         }
-        for k, v in tomo_parameters.dict().items():
-            if v and (k in aretomo_flags):
+        for k, v in tomo_parameters.model_dump().items():
+            if (v not in [None, ""]) and (k in aretomo_flags):
                 command.extend((aretomo_flags[k], str(v)))
 
         # Transfer the required files
