@@ -19,7 +19,7 @@ from pipeliner.data_structure import FAIL_FILE, SUCCESS_FILE
 from pipeliner.job_factory import read_job
 from pipeliner.project_graph import ProjectGraph
 from pipeliner.utils import DirectoryBasedLock
-from pydantic import BaseModel, Field, ValidationError, validator
+from pydantic import BaseModel, Field, ValidationError, field_validator
 from workflows.services.common_service import CommonService
 
 from cryoemservices.util.models import MockRW
@@ -182,7 +182,8 @@ class NodeCreatorParameters(BaseModel):
     results: dict = {}
     alias: Optional[str] = None
 
-    @validator("experiment_type")
+    @field_validator("experiment_type")
+    @classmethod
     def is_spa_or_tomo(cls, experiment):
         if experiment not in ["spa", "tomography"]:
             raise ValueError("Specify an experiment type of spa or tomography.")
