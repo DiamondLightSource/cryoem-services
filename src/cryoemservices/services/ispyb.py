@@ -33,8 +33,8 @@ class ChainMapWithReplacement(ChainMap):
 
 class MovieParams(BaseModel):
     dcid: int
-    movie_number: int  # image number
-    movie_path: str  # micrograph full path
+    movie_number: Optional[int] = None  # image number
+    movie_path: Optional[str] = None  # micrograph full path
     timestamp: Optional[float] = None
 
 
