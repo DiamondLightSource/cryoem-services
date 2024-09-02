@@ -98,8 +98,8 @@ class TomoAlignSlurm(TomoAlign, CommonService):
             command.extend(
                 (
                     "-TiltRange",
-                    tomo_parameters.input_file_list[0][1],  # lowest tilt
-                    tomo_parameters.input_file_list[-1][1],
+                    self.input_file_list_of_lists[0][1],  # lowest tilt
+                    self.input_file_list_of_lists[-1][1],
                 )
             )  # highest tilt
 

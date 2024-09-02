@@ -6,7 +6,7 @@ import re
 import subprocess
 import time
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import Any, List, Optional, Union
 
 import mrcfile
 import plotly.express as px
@@ -66,8 +66,7 @@ class TomoParameters(BaseModel):
 
     @field_validator("input_file_list")
     @classmethod
-    def convert_to_list_of_lists(cls, v):
-        file_list = None
+    def check_list_of_lists_is_not_empty(cls, v):
         try:
             file_list = ast.literal_eval(
                 v
@@ -75,17 +74,12 @@ class TomoParameters(BaseModel):
         except Exception:
             return v
         if isinstance(file_list, list) and isinstance(file_list[0], list):
-            return file_list
+            for item in file_list:
+                if not len(item) == 2 or not item[0] or not item[1]:
+                    raise ValueError("Empty list found")
+            return v
         else:
             raise ValueError("input_file_list is not a list of lists")
-
-    @field_validator("input_file_list")
-    @classmethod
-    def check_lists_are_not_empty(cls, v):
-        for item in v:
-            if not item:
-                raise ValueError("Empty list found")
-        return v
 
 
 class TomoAlign(CommonService):
@@ -104,6 +98,7 @@ class TomoAlign(CommonService):
     job_type = "relion.reconstructtomograms"
 
     # Values to extract for ISPyB
+    input_file_list_of_lists: List[Any]
     refined_tilts: List[float]
     x_shift: List[float]
     y_shift: List[float]
@@ -226,14 +221,33 @@ class TomoAlign(CommonService):
                 for part in parts:
                     if "." in part:
                         input_file_list.append([str(item), part])
-            tomo_params.input_file_list = input_file_list
+            self.input_file_list_of_lists = input_file_list
+        elif tomo_params.input_file_list:
+            try:
+                file_list = ast.literal_eval(
+                    tomo_params.input_file_list
+                )  # if input_file_list is '' it will break here
+            except Exception as e:
+                self.log.warning(f"Input file list conversion failed with: {e}")
+                rw.transport.nack(header)
+                return
+            if isinstance(file_list, list) and isinstance(file_list[0], list):
+                self.input_file_list_of_lists = file_list
+            else:
+                self.log.warning("input_file_list is not a list of lists")
+                rw.transport.nack(header)
+                return
+        else:
+            self.log.error("Model validation failed")
+            rw.transport.nack(header)
+            return
 
-        self.log.info(f"Input list {tomo_params.input_file_list}")
-        tomo_params.input_file_list.sort(key=_tilt)
+        self.log.info(f"Input list {self.input_file_list_of_lists}")
+        self.input_file_list_of_lists.sort(key=_tilt)
 
         # Find all the tilt angles and remove duplicates
         tilt_dict: dict = {}
-        for tilt in tomo_params.input_file_list:
+        for tilt in self.input_file_list_of_lists:
             if not Path(tilt[0]).is_file():
                 self.log.warning(f"File not found {tilt[0]}")
                 rw.transport.nack(header)
@@ -249,14 +263,16 @@ class TomoAlign(CommonService):
                 values.sort(key=os.path.getctime)
                 values_to_remove.append(values[1:])
 
-        for tilt in tomo_params.input_file_list:
+        for tilt in self.input_file_list_of_lists:
             if tilt[0] in values_to_remove:
-                index = tomo_params.input_file_list.index(tilt)
+                index = self.input_file_list_of_lists.index(tilt)
                 self.log.warning(f"Removing: {values_to_remove}")
-                tomo_params.input_file_list.remove(tomo_params.input_file_list[index])
+                self.input_file_list_of_lists.remove(
+                    self.input_file_list_of_lists[index]
+                )
 
         # Find the input image dimensions
-        with mrcfile.open(tomo_params.input_file_list[0][0]) as mrc:
+        with mrcfile.open(self.input_file_list_of_lists[0][0]) as mrc:
             mrc_header = mrc.header
         # x and y get flipped on tomogram creation
         tomo_params.relion_options.tomo_size_x = int(mrc_header["ny"])
@@ -297,7 +313,7 @@ class TomoAlign(CommonService):
         node_creator_parameters = {
             "experiment_type": "tomography",
             "job_type": self.job_type,
-            "input_file": tomo_params.input_file_list[0][0],
+            "input_file": self.input_file_list_of_lists[0][0],
             "output_file": str(aretomo_output_path),
             "relion_options": dict(tomo_params.relion_options),
             "command": " ".join(aretomo_command),
@@ -423,7 +439,7 @@ class TomoAlign(CommonService):
         (project_dir / f"AlignTiltSeries/job{job_number - 1:03}").mkdir(
             parents=True, exist_ok=True
         )
-        for im, movie in enumerate(tomo_params.input_file_list):
+        for im, movie in enumerate(self.input_file_list_of_lists):
             if im in missing_indices:
                 im_diff += 1
             else:
@@ -614,8 +630,8 @@ class TomoAlign(CommonService):
 
         # Write a file with a list of .mrcs for input to Newstack
         with open(newstack_path, "w") as f:
-            f.write(f"{len(tomo_parameters.input_file_list)}\n")
-            f.write("\n0\n".join(i[0] for i in tomo_parameters.input_file_list))
+            f.write(f"{len(self.input_file_list_of_lists)}\n")
+            f.write("\n0\n".join(i[0] for i in self.input_file_list_of_lists))
             f.write("\n0\n")
 
         newstack_cmd = [
@@ -642,8 +658,8 @@ class TomoAlign(CommonService):
             command.extend(
                 (
                     "-TiltRange",
-                    str(tomo_parameters.input_file_list[0][1]),  # lowest tilt
-                    str(tomo_parameters.input_file_list[-1][1]),
+                    str(self.input_file_list_of_lists[0][1]),  # lowest tilt
+                    str(self.input_file_list_of_lists[-1][1]),
                 )
             )  # highest tilt
 
