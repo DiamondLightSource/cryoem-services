@@ -39,7 +39,7 @@ class DenoiseParameters(BaseModel):
     patch_padding: Optional[int] = None  # 48
     device: Optional[int] = None  # -2
     cleanup_output: bool = True
-    tomogram_uuid: int
+    tomogram_id: int
     relion_options: RelionServiceOptions
 
     @validator("model")
@@ -263,11 +263,10 @@ class DenoiseSlurm(CommonService):
 
         # Insert the denoised tomogram into ISPyB
         ispyb_parameters = {
-            "ispyb_command": "buffer",
-            "buffer_command": {"ispyb_command": "insert_processed_tomogram"},
-            "buffer_lookup": {"tomogram_id": denoise_params.tomogram_uuid},
+            "ispyb_command": "insert_processed_tomogram",
             "file_path": str(denoised_full_path),
             "processing_type": "Denoised",
+            "tomogram_id": denoise_params.tomogram_id,
         }
         if isinstance(rw, MockRW):
             rw.transport.send(
@@ -300,6 +299,7 @@ class DenoiseSlurm(CommonService):
                 message={
                     "tomogram": str(denoised_full_path),
                     "output_dir": str(segmentation_dir),
+                    "tomogram_id": denoise_params.tomogram_id,
                 },
             )
         else:
@@ -308,6 +308,7 @@ class DenoiseSlurm(CommonService):
                 {
                     "tomogram": str(denoised_full_path),
                     "output_dir": str(segmentation_dir),
+                    "tomogram_id": denoise_params.tomogram_id,
                 },
             )
 

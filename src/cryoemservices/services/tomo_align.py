@@ -46,7 +46,7 @@ class TomoParameters(BaseModel):
     out_imod_xf: Optional[int] = None
     dark_tol: Optional[Union[int, str]] = None
     manual_tilt_offset: Optional[float] = None
-    tomogram_uuid: int
+    tomogram_id: int
     relion_options: RelionServiceOptions
 
     @validator("input_file_list")
@@ -376,9 +376,7 @@ class TomoAlign(CommonService):
         # Tomogram (one per-tilt-series)
         ispyb_command_list = [
             {
-                "ispyb_command": "buffer",
-                "buffer_command": {"ispyb_command": "insert_tomogram"},
-                "buffer_store": tomo_params.tomogram_uuid,
+                "ispyb_command": "insert_tomogram",
                 "volume_file": str(
                     aretomo_output_path.relative_to(self.alignment_output_dir)
                 ),
@@ -396,7 +394,7 @@ class TomoAlign(CommonService):
                 "proj_xy": xy_proj_file,
                 "proj_xz": xz_proj_file,
                 "alignment_quality": str(self.alignment_quality),
-                "store_result": "ispyb_tomogram_id",
+                "tomogram_id": tomo_params.tomogram_id,
             }
         ]
 
@@ -443,6 +441,7 @@ class TomoAlign(CommonService):
                             ),
                             "refined_tilt_axis": str(self.rot),
                             "path": movie[0],
+                            "tomogram_id": tomo_params.tomogram_id,
                         }
                     )
                     node_creator_params_list.append(
@@ -581,6 +580,7 @@ class TomoAlign(CommonService):
                         project_dir / f"Denoise/job{job_number+1:03}/tomograms"
                     ),
                     "relion_options": dict(tomo_params.relion_options),
+                    "tomogram_id": tomo_params.tomogram_id,
                 },
             )
         else:
@@ -592,6 +592,7 @@ class TomoAlign(CommonService):
                         project_dir / f"Denoise/job{job_number+1:03}/tomograms"
                     ),
                     "relion_options": dict(tomo_params.relion_options),
+                    "tomogram_id": tomo_params.tomogram_id,
                 },
             )
 

@@ -1,14 +1,25 @@
 {
   "1": {
+    "output": 2,
+    "parameters": {
+      "dcid": "{dcid}",
+      "ispyb_command": "insert_tomogram",
+      "program_id": "{appid}",
+      "store_result": "ispyb_tomogram_id"
+    },
+    "queue": "ispyb_connector",
+    "service": "EMISPyB"
+  },
+  "2": {
     "output": {
-      "denoise": 4,
-      "failure": 2,
-      "images": 5,
-      "ispyb_connector": 3,
-      "movie": 5,
-      "projxy": 5,
-      "projxz": 5,
-      "success": 6
+      "denoise": 7,
+      "failure": 3,
+      "images": 6,
+      "ispyb_connector": 5,
+      "movie": 6,
+      "projxy": 6,
+      "projxz": 6,
+      "success": 4
     },
     "parameters": {
       "input_file_list": "{input_file_list}",
@@ -16,12 +27,13 @@
       "path_pattern": "{path_pattern}",
       "pixel_size": "{pixel_size}",
       "relion_options": {},
-      "stack_file": "{stack_file}"
+      "stack_file": "{stack_file}",
+      "tomogram_id": "$ispyb_tomogram_id"
     },
     "queue": "tomo_align",
     "service": "TomoAlign"
   },
-  "2": {
+  "3": {
     "parameters": {
       "ispyb_command": "update_processing_status",
       "message": "processing failure",
@@ -31,30 +43,7 @@
     "queue": "ispyb_connector",
     "service": "EMISPyB"
   },
-  "3": {
-    "parameters": {
-      "dcid": "{dcid}",
-      "ispyb_command": "multipart_message",
-      "program_id": "{appid}",
-      "tomogram_id": "$ispyb_tomogram_id"
-    },
-    "queue": "ispyb_connector",
-    "service": "EMISPyB"
-  },
   "4": {
-    "output": {
-      "images": 5,
-      "movie": 5,
-      "segmentation": 7
-    },
-    "queue": "denoise",
-    "service": "Denoise"
-  },
-  "5": {
-    "queue": "images",
-    "service": "Images"
-  },
-  "6": {
     "parameters": {
       "ispyb_command": "update_processing_status",
       "message": "processing successful",
@@ -64,13 +53,45 @@
     "queue": "ispyb_connector",
     "service": "EMISPyB"
   },
+  "5": {
+    "parameters": {
+      "dcid": "{dcid}",
+      "ispyb_command": "multipart_message",
+      "program_id": "{appid}",
+      "tomogram_id": "$ispyb_tomogram_id"
+    },
+    "queue": "ispyb_connector",
+    "service": "EMISPyB"
+  },
+  "6": {
+    "queue": "images",
+    "service": "Images"
+  },
   "7": {
     "output": {
-      "images": 5,
-      "movie": 5
+      "images": 6,
+      "ispyb_connector": 9,
+      "movie": 6,
+      "segmentation": 8
+    },
+    "queue": "denoise",
+    "service": "Denoise"
+  },
+  "8": {
+    "output": {
+      "images": 6,
+      "ispyb_connector": 9,
+      "movie": 6
     },
     "queue": "segmentation",
     "service": "MembrainSeg"
+  },
+  "9": {
+    "parameters": {
+      "tomogram_id": "$ispyb_tomogram_id"
+    },
+    "queue": "ispyb_connector",
+    "service": "EMISPyB"
   },
   "start": [[1, []]]
 }
