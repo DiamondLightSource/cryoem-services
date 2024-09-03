@@ -12,14 +12,14 @@
   },
   "2": {
     "output": {
-      "denoise": 7,
+      "denoise": 5,
       "failure": 3,
       "images": 6,
-      "ispyb_connector": 5,
+      "ispyb_connector": 4,
       "movie": 6,
       "projxy": 6,
       "projxz": 6,
-      "success": 4
+      "success": 7
     },
     "parameters": {
       "input_file_list": "{input_file_list}",
@@ -45,16 +45,6 @@
   },
   "4": {
     "parameters": {
-      "ispyb_command": "update_processing_status",
-      "message": "processing successful",
-      "program_id": "{appid}",
-      "status": "success"
-    },
-    "queue": "ispyb_connector",
-    "service": "EMISPyB"
-  },
-  "5": {
-    "parameters": {
       "dcid": "{dcid}",
       "ispyb_command": "multipart_message",
       "program_id": "{appid}",
@@ -63,11 +53,7 @@
     "queue": "ispyb_connector",
     "service": "EMISPyB"
   },
-  "6": {
-    "queue": "images",
-    "service": "Images"
-  },
-  "7": {
+  "5": {
     "output": {
       "images": 6,
       "ispyb_connector": 9,
@@ -76,6 +62,20 @@
     },
     "queue": "denoise",
     "service": "Denoise"
+  },
+  "6": {
+    "queue": "images",
+    "service": "Images"
+  },
+  "7": {
+    "parameters": {
+      "ispyb_command": "update_processing_status",
+      "message": "processing successful",
+      "program_id": "{appid}",
+      "status": "success"
+    },
+    "queue": "ispyb_connector",
+    "service": "EMISPyB"
   },
   "8": {
     "output": {
