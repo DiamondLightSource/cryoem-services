@@ -85,7 +85,7 @@ def test_denoise_slurm_service(
             "patch_padding": 48,
             "device": "-2",
             "cleanup_output": False,
-            "tomogram_uuid": 0,
+            "tomogram_id": 0,
             "relion_options": {},
         },
         "content": "dummy",
@@ -241,11 +241,10 @@ def test_denoise_slurm_service(
         destination="ispyb_connector",
         message={
             "parameters": {
-                "ispyb_command": "buffer",
-                "buffer_command": {"ispyb_command": "insert_processed_tomogram"},
-                "buffer_lookup": {"tomogram_id": 0},
+                "ispyb_command": "insert_processed_tomogram",
                 "file_path": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
                 "processing_type": "Denoised",
+                "tomogram_id": 0,
             },
             "content": {"dummy": "dummy"},
         },
@@ -255,5 +254,6 @@ def test_denoise_slurm_service(
         message={
             "tomogram": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
             "output_dir": f"{tmp_path}/Segmentation/job008",
+            "tomogram_id": 0,
         },
     )

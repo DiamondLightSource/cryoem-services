@@ -68,7 +68,7 @@ def test_membrain_seg_service(
             "connected_component_threshold": 2,
             "segmentation_threshold": 4,
             "cleanup_output": False,
-            "tomogram_uuid": 0,
+            "tomogram_id": 0,
         },
         "content": "dummy",
     }
@@ -150,11 +150,10 @@ def test_membrain_seg_service(
         destination="ispyb_connector",
         message={
             "parameters": {
-                "ispyb_command": "buffer",
-                "buffer_command": {"ispyb_command": "insert_processed_tomogram"},
-                "buffer_lookup": {"tomogram_id": 0},
+                "ispyb_command": "insert_processed_tomogram",
                 "filePath": f"{tmp_path}/Segmentation/job008/test_stack_aretomo.denoised_segmented.mrc",
                 "processingType": "Segmented",
+                "tomogram_id": 0,
             },
             "content": {"dummy": "dummy"},
         },
