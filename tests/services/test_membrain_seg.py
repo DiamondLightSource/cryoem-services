@@ -150,8 +150,8 @@ def test_membrain_seg_service(
         message={
             "parameters": {
                 "ispyb_command": "insert_processed_tomogram",
-                "filePath": f"{tmp_path}/Segmentation/job008/test_stack_aretomo.denoised_segmented.mrc",
-                "processingType": "Segmented",
+                "file_path": f"{tmp_path}/Segmentation/job008/test_stack_aretomo.denoised_segmented.mrc",
+                "processing_type": "Segmented",
             },
             "content": {"dummy": "dummy"},
         },
