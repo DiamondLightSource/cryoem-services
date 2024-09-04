@@ -363,3 +363,34 @@ def flatten_image(
         return array.max(axis=axis)
     if mode == "mean":
         return array.mean(axis=axis)
+
+
+def create_composite_image(
+    arrays: Union[np.ndarray, list[np.ndarray]],
+) -> np.ndarray:
+    """
+    Takes a list of arrays and returns a composite image averaged across every image in
+    the list.
+    """
+
+    if isinstance(arrays, np.ndarray):
+        arrays = [arrays]
+
+    # Validate that arrays have the same shape
+    if len(({arr.shape for arr in arrays})) > 1:
+        raise ValueError("Input arrays do not all have the same shape")
+
+    # Calculate average for each frame across all arrays
+    shape = arrays[0].shape
+    # num_arrays = len(arrays)
+    for i in range(shape[0]):
+        if i == 0:
+            arr_new: np.ndarray = np.array(
+                [np.mean([arr[i] for arr in arrays], axis=0)]
+            )
+        else:
+            arr_new = np.append(
+                arr_new, [np.mean([arr[i] for arr in arrays], axis=0)], axis=0
+            )
+
+    return arr_new
