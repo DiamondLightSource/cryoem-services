@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 from enum import Enum
 from pathlib import Path
-from typing import Optional, Union
+from typing import Literal, Optional, Union
 
 import numpy as np
 from tifffile import imwrite
@@ -339,3 +339,27 @@ def convert_to_rgb(
     arr_new = np.stack(arr_list, axis=-1)
 
     return arr_new
+
+
+def flatten_image(
+    array: np.ndarray,
+    mode: Literal["min", "max", "mean"] = "mean",
+) -> np.ndarray:
+
+    # Validate options
+    valid_modes = (
+        "min",
+        "max",
+        "mean",
+    )
+    if mode not in valid_modes:
+        raise ValueError(f"{mode} is not a valid image flattening mode")
+
+    # Flatten along first axis
+    axis = 0
+    if mode == "min":
+        return array.min(axis=axis)
+    if mode == "max":
+        return array.max(axis=axis)
+    if mode == "mean":
+        return array.mean(axis=axis)
