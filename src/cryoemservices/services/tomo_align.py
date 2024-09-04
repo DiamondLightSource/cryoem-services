@@ -338,17 +338,26 @@ class TomoAlign(CommonService):
             rw.transport.nack(header)
             return
 
-        imod_directory = self.alignment_output_dir / f"{stack_name}_aretomo_Imod"
+        imod_directory_option1 = (
+            self.alignment_output_dir / f"{stack_name}_aretomo_Imod"
+        )
+        imod_directory_option2 = self.alignment_output_dir / f"{stack_name}_Imod"
         if tomo_params.out_imod:
             start_time = time.time()
-            while not imod_directory.is_dir():
+            while (
+                not imod_directory_option1.is_dir()
+                and not imod_directory_option2.is_dir()
+            ):
                 time.sleep(30)
                 elapsed = time.time() - start_time
                 if elapsed > 600:
                     self.log.warning("Timeout waiting for Imod directory")
                     break
             else:
-                _f = imod_directory
+                if imod_directory_option1.is_dir():
+                    _f = imod_directory_option1
+                else:
+                    _f = imod_directory_option2
                 _f.chmod(0o750)
                 for file in _f.iterdir():
                     file.chmod(0o740)
@@ -402,8 +411,11 @@ class TomoAlign(CommonService):
         if dark_images_file.is_file():
             with open(dark_images_file) as f:
                 missing_indices = [int(i) for i in f.readlines()[2:]]
-        elif imod_directory.is_dir():
-            dark_images_file = imod_directory / "tilt.com"
+        elif imod_directory_option1.is_dir() or imod_directory_option2.is_dir():
+            if imod_directory_option1.is_dir():
+                dark_images_file = imod_directory_option1 / "tilt.com"
+            else:
+                dark_images_file = imod_directory_option2 / "tilt.com"
             with open(dark_images_file) as f:
                 lines = f.readlines()
                 for line in lines:
