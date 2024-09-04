@@ -19,9 +19,6 @@
       "node_creator": 8
     },
     "parameters": {
-      "ctf": {
-        "output_image": "{output_image}"
-      },
       "dose_per_frame": "{fm_dose}",
       "eer_sampling": 1,
       "experiment_type": "tomography",
@@ -35,7 +32,9 @@
       "picker_uuid": "-1",
       "pixel_size": "{pixel_size}",
       "relion_options": {},
+      "submit_to_slurm": "False",
       "threads": 4,
+      "use_motioncor2": "False",
       "voltage": "{kv}"
     },
     "queue": "motioncorr",
