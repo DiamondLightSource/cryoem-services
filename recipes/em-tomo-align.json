@@ -89,6 +89,7 @@
   },
   "9": {
     "parameters": {
+      "ispyb_command": "insert_processed_tomogram",
       "tomogram_id": "$ispyb_tomogram_id"
     },
     "queue": "ispyb_connector",

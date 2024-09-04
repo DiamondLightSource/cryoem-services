@@ -87,7 +87,6 @@ def test_tomo_align_service(
             "out_imod_xf": None,
             "dark_tol": None,
             "manual_tilt_offset": None,
-            "tomogram_id": 0,
             "relion_options": {},
         },
         "content": "dummy",
@@ -246,7 +245,6 @@ def test_tomo_align_service(
                         "proj_xy": "test_stack_aretomo_projXY.jpeg",
                         "proj_xz": "test_stack_aretomo_projXZ.jpeg",
                         "alignment_quality": "0.5",
-                        "tomogram_id": 0,
                     },
                     {
                         "ispyb_command": "insert_tilt_image_alignment",
@@ -255,7 +253,6 @@ def test_tomo_align_service(
                         "refined_tilt_angle": "4.5",
                         "refined_tilt_axis": "0.0",
                         "path": f"{tmp_path}/MotionCorr/job002/Movies/input_file_1.mrc",
-                        "tomogram_id": 0,
                     },
                 ],
             },
@@ -296,7 +293,6 @@ def test_tomo_align_service(
             "volume": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
             "output_dir": f"{tmp_path}/Denoise/job007/tomograms",
             "relion_options": output_relion_options,
-            "tomogram_id": 0,
         },
     )
     offline_transport.send.assert_any_call(destination="success", message="")
