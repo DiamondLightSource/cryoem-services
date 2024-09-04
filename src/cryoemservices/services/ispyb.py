@@ -964,6 +964,7 @@ class EMISPyB(CommonService):
 
         try:
             values = models.Tomogram(
+                tomogramId=full_parameters("tomogram_id"),
                 dataCollectionId=full_parameters("dcid"),
                 autoProcProgramId=full_parameters("program_id"),
                 volumeFile=full_parameters("volume_file"),
@@ -985,7 +986,26 @@ class EMISPyB(CommonService):
                 projXZ=full_parameters("proj_xz"),
                 globalAlignmentQuality=full_parameters("alignment_quality"),
             )
-            session.add(values)
+            tomogram_row = (
+                session.query(models.Tomogram)
+                .filter(
+                    models.Tomogram.tomogramId == values.tomogramId,
+                )
+                .first()
+            )
+            if tomogram_row:
+                session.query(models.Tomogram).filter(
+                    models.Tomogram.tomogramId == values.tomogramId,
+                ).update(
+                    {
+                        k: v
+                        for k, v in values.__dict__.items()
+                        if k not in ["_sa_instance_state", "tomogramId"]
+                        and v is not None
+                    }
+                )
+            else:
+                session.add(values)
             session.commit()
             return {"success": True, "return_value": values.tomogramId}
         except sqlalchemy.exc.SQLAlchemyError as e:
