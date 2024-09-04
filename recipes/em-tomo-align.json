@@ -17,6 +17,7 @@
       "images": 6,
       "ispyb_connector": 4,
       "movie": 6,
+      "node_creator": 10,
       "projxy": 6,
       "projxz": 6,
       "success": 7
@@ -27,8 +28,7 @@
       "path_pattern": "{path_pattern}",
       "pixel_size": "{pixel_size}",
       "relion_options": {},
-      "stack_file": "{stack_file}",
-      "tomogram_id": "$ispyb_tomogram_id"
+      "stack_file": "{stack_file}"
     },
     "queue": "tomo_align",
     "service": "TomoAlign"
@@ -58,6 +58,7 @@
       "images": 6,
       "ispyb_connector": 9,
       "movie": 6,
+      "node_creator": 10,
       "segmentation": 8
     },
     "queue": "denoise",
@@ -92,6 +93,10 @@
     },
     "queue": "ispyb_connector",
     "service": "EMISPyB"
+  },
+  "10": {
+    "queue": "node_creator",
+    "service": "NodeCreator"
   },
   "start": [[1, []]]
 }
