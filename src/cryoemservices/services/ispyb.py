@@ -1021,6 +1021,8 @@ class EMISPyB(CommonService):
             message = {}
         dcid = parameters("dcid")
         self.log.info(f"Inserting Processed Tomogram parameters. DCID: {dcid}")
+        if not message:
+            message = {}
 
         def full_parameters(param):
             return message.get(param) or parameters(param)
