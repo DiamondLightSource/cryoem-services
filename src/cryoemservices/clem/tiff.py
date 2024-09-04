@@ -14,7 +14,7 @@ import numpy as np
 from defusedxml.ElementTree import parse
 from PIL import Image
 
-from cryoemservices.clem.images import process_img_stk, write_to_tiff
+from cryoemservices.clem.images import process_img_stk, write_stack_to_tiff
 from cryoemservices.clem.xml import get_axis_resolution, get_image_elements
 
 # Create logger object to output messages with
@@ -151,7 +151,7 @@ def process_tiff_files(
         )
 
         # Save as a greyscale TIFF
-        arr = write_to_tiff(
+        arr = write_stack_to_tiff(
             array=arr,
             save_dir=save_dir,
             series_name=color,

@@ -6,6 +6,7 @@ light microscope.
 from __future__ import annotations
 
 import logging
+from enum import Enum
 from pathlib import Path
 from typing import Optional, Union
 
@@ -19,6 +20,11 @@ logger = logging.getLogger("cryoemservices.clem.images")
 # For use by various functions in the script
 valid_bit_depths = (8, 16, 32, 64)
 valid_dtypes = tuple(f"uint{n}" for n in valid_bit_depths)
+
+
+"""
+HELPER CLASSES AND FUNCTIONS
+"""
 
 
 class UnsignedIntegerError(Exception):
@@ -139,6 +145,28 @@ def convert_array_bit_depth(
     return arr_new
 
 
+class LUT(Enum):
+    """
+    3-channel color lookup tables to use when colorising image stacks. They are placed
+    on a continuous scale from 0 to 1, making them potentially compatible with images
+    of any bit depth.
+    """
+
+    # (R, G, B)
+    red = (1, 0, 0)
+    green = (0, 1, 0)
+    blue = (0, 0, 1)
+    cyan = (0, 1, 1)
+    magenta = (1, 0, 1)
+    yellow = (1, 1, 0)
+    gray = (1, 1, 1)
+
+
+"""
+FUNCTIONS TO PROCESS IMAGE STACKS
+"""
+
+
 def process_img_stk(
     array: np.ndarray,
     initial_bit_depth: int,
@@ -206,7 +234,7 @@ def process_img_stk(
     return arr
 
 
-def write_to_tiff(
+def write_stack_to_tiff(
     array: np.ndarray,
     save_dir: Path,
     series_name: str,
@@ -288,3 +316,26 @@ def write_to_tiff(
     )
 
     return arr
+
+
+def convert_to_rgb(
+    array: np.ndarray,
+    color: str,
+) -> np.ndarray:
+
+    # Set up variables
+    arr: np.ndarray = array
+    try:
+        lut = LUT[color.lower()].value
+    except KeyError:
+        raise KeyError(f"No lookup table found for the colour {color!r}")
+
+    # Calculate pixel values for each channel
+    arr_list: list[np.ndarray] = []
+    for c in lut:
+        arr_list.append(arr * c)
+
+    # Stack arrays along last axis
+    arr_new = np.stack(arr_list, axis=-1)
+
+    return arr_new
