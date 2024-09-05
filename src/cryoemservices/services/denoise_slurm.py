@@ -285,7 +285,9 @@ class DenoiseSlurm(CommonService):
             if project_dir_search and job_num_search:
                 project_dir = Path(project_dir_search[0]).parent.parent
                 job_number = int(job_num_search[0][4:])
-                segmentation_dir = project_dir / f"Segmentation/job{job_number + 1:03}"
+                segmentation_dir = (
+                    project_dir / f"Segmentation/job{job_number + 1:03}/tomograms"
+                )
             else:
                 self.log.warning(f"No job number in {denoise_params.output_dir}")
                 segmentation_dir = Path(denoise_params.output_dir)

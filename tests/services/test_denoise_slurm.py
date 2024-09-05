@@ -251,6 +251,6 @@ def test_denoise_slurm_service(
         destination="segmentation",
         message={
             "tomogram": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
-            "output_dir": f"{tmp_path}/Segmentation/job008",
+            "output_dir": f"{tmp_path}/Segmentation/job008/tomograms",
         },
     )
