@@ -34,8 +34,8 @@ class ChainMapWithReplacement(ChainMap):
 
 class MovieParams(BaseModel):
     dcid: int
-    movie_number: int  # image number
-    movie_path: str  # micrograph full path
+    movie_number: Optional[int] = None  # image number
+    movie_path: Optional[str] = None  # micrograph full path
     timestamp: Optional[float] = None
 
 
@@ -951,12 +951,15 @@ class EMISPyB(CommonService):
             message = {}
         dcid = parameters("dcid")
         self.log.info(f"Inserting Tomogram parameters. DCID: {dcid}")
+        if not message:
+            message = {}
 
         def full_parameters(param):
             return message.get(param) or parameters(param)
 
         try:
             values = models.Tomogram(
+                tomogramId=full_parameters("tomogram_id"),
                 dataCollectionId=full_parameters("dcid"),
                 autoProcProgramId=full_parameters("program_id"),
                 volumeFile=full_parameters("volume_file"),
@@ -978,7 +981,26 @@ class EMISPyB(CommonService):
                 projXZ=full_parameters("proj_xz"),
                 globalAlignmentQuality=full_parameters("alignment_quality"),
             )
-            session.add(values)
+            tomogram_row = (
+                session.query(models.Tomogram)
+                .filter(
+                    models.Tomogram.tomogramId == values.tomogramId,
+                )
+                .first()
+            )
+            if tomogram_row:
+                session.query(models.Tomogram).filter(
+                    models.Tomogram.tomogramId == values.tomogramId,
+                ).update(
+                    {
+                        k: v
+                        for k, v in values.__dict__.items()
+                        if k not in ["_sa_instance_state", "tomogramId"]
+                        and v is not None
+                    }
+                )
+            else:
+                session.add(values)
             session.commit()
             return {"success": True, "return_value": values.tomogramId}
         except sqlalchemy.exc.SQLAlchemyError as e:

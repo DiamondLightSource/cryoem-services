@@ -190,5 +190,6 @@ class TomoAlignSlurm(TomoAlign, CommonService):
             self.log.error(f"Output file {slurm_output_file} not found")
             slurm_outcome.stdout = ""
             slurm_outcome.stderr = f"Reading output file {slurm_output_file} failed"
-
+        slurm_outcome.stdout = slurm_outcome.stdout.encode("utf8")
+        slurm_outcome.stderr = slurm_outcome.stderr.encode("utf8")
         return slurm_outcome, command

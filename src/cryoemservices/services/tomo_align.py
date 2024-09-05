@@ -47,7 +47,6 @@ class TomoParameters(BaseModel):
     out_imod_xf: Optional[int] = None
     dark_tol: Optional[float] = None
     manual_tilt_offset: Optional[float] = None
-    tomogram_uuid: int
     relion_options: RelionServiceOptions
 
     @model_validator(mode="before")
@@ -317,8 +316,8 @@ class TomoAlign(CommonService):
             "output_file": str(aretomo_output_path),
             "relion_options": dict(tomo_params.relion_options),
             "command": " ".join(aretomo_command),
-            "stdout": "",
-            "stderr": "",
+            "stdout": aretomo_result.stdout.decode("utf8", "replace"),
+            "stderr": aretomo_result.stderr.decode("utf8", "replace"),
         }
         if aretomo_result.returncode:
             node_creator_parameters["success"] = False
@@ -352,17 +351,26 @@ class TomoAlign(CommonService):
             rw.transport.nack(header)
             return
 
-        imod_directory = self.alignment_output_dir / f"{stack_name}_aretomo_Imod"
+        imod_directory_option1 = (
+            self.alignment_output_dir / f"{stack_name}_aretomo_Imod"
+        )
+        imod_directory_option2 = self.alignment_output_dir / f"{stack_name}_Imod"
         if tomo_params.out_imod:
             start_time = time.time()
-            while not imod_directory.is_dir():
+            while (
+                not imod_directory_option1.is_dir()
+                and not imod_directory_option2.is_dir()
+            ):
                 time.sleep(30)
                 elapsed = time.time() - start_time
                 if elapsed > 600:
                     self.log.warning("Timeout waiting for Imod directory")
                     break
             else:
-                _f = imod_directory
+                if imod_directory_option1.is_dir():
+                    _f = imod_directory_option1
+                else:
+                    _f = imod_directory_option2
                 _f.chmod(0o750)
                 for file in _f.iterdir():
                     file.chmod(0o740)
@@ -389,9 +397,7 @@ class TomoAlign(CommonService):
         # Tomogram (one per-tilt-series)
         ispyb_command_list = [
             {
-                "ispyb_command": "buffer",
-                "buffer_command": {"ispyb_command": "insert_tomogram"},
-                "buffer_store": tomo_params.tomogram_uuid,
+                "ispyb_command": "insert_tomogram",
                 "volume_file": str(
                     aretomo_output_path.relative_to(self.alignment_output_dir)
                 ),
@@ -409,7 +415,6 @@ class TomoAlign(CommonService):
                 "proj_xy": xy_proj_file,
                 "proj_xz": xz_proj_file,
                 "alignment_quality": str(self.alignment_quality),
-                "store_result": "ispyb_tomogram_id",
             }
         ]
 
@@ -419,16 +424,18 @@ class TomoAlign(CommonService):
         if dark_images_file.is_file():
             with open(dark_images_file) as f:
                 missing_indices = [int(i) for i in f.readlines()[2:]]
-        elif imod_directory.is_dir():
-            dark_images_file = imod_directory / "tilt.com"
+        elif imod_directory_option1.is_dir() or imod_directory_option2.is_dir():
+            if imod_directory_option1.is_dir():
+                dark_images_file = imod_directory_option1 / "tilt.com"
+            else:
+                dark_images_file = imod_directory_option2 / "tilt.com"
             with open(dark_images_file) as f:
                 lines = f.readlines()
                 for line in lines:
                     if line.startswith("EXCLUDELIST"):
-                        numbers = line.split(" ")
-                        missing_indices = [
-                            int(item.replace(",", "").strip()) for item in numbers[1:]
-                        ]
+                        numbers = "".join(line.split(" ")[1:])
+                        numbers_list = numbers.split(",")
+                        missing_indices = [int(item.strip()) for item in numbers_list]
 
         im_diff = 0
         # TiltImageAlignment (one per movie)
@@ -440,7 +447,7 @@ class TomoAlign(CommonService):
             parents=True, exist_ok=True
         )
         for im, movie in enumerate(self.input_file_list_of_lists):
-            if im in missing_indices:
+            if im + 1 in missing_indices:
                 im_diff += 1
             else:
                 try:
