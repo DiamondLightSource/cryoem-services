@@ -66,7 +66,6 @@ def test_tomo_align_service_file_list(
             "input_file_list": str(
                 [
                     [f"{tmp_path}/MotionCorr/job002/Movies/input_file_1.mrc", "1.00"],
-                    [f"{tmp_path}/MotionCorr/job002/Movies/input_file_2.mrc", "2.00"],
                 ]
             ),
             "vol_z": 1200,
@@ -113,10 +112,12 @@ def test_tomo_align_service_file_list(
     service.tilt_offset = 1.1
     service.alignment_quality = 0.5
 
-    (tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo_Imod").mkdir(
-        parents=True
-    )
-    (tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo_Imod/tilt.com").touch()
+    # Set up outputs: stack_Imod file like AreTomo2, no exclusions but with space
+    (tmp_path / "Tomograms/job006/tomograms/test_stack_Imod").mkdir(parents=True)
+    with open(
+        tmp_path / "Tomograms/job006/tomograms/test_stack_Imod/tilt.com", "w"
+    ) as dark_file:
+        dark_file.write("EXCLUDELIST ")
     with open(tmp_path / "Tomograms/job006/tomograms/test_stack.aln", "w") as aln_file:
         aln_file.write("dummy 0 1000 1.2 2.3 5 6 7 8 4.5")
 
@@ -382,12 +383,16 @@ def test_tomo_align_service_path_pattern(
     service.tilt_offset = 1.1
     service.alignment_quality = 0.5
 
-    (tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo_Imod").mkdir(
-        parents=True
-    )
-    (tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo_Imod/tilt.com").touch()
+    # Set up outputs: stack_Imod file like AreTomo2, no exclusions without space
+    (tmp_path / "Tomograms/job006/tomograms/test_stack_Imod").mkdir(parents=True)
+    with open(
+        tmp_path / "Tomograms/job006/tomograms/test_stack_Imod/tilt.com", "w"
+    ) as dark_file:
+        dark_file.write("EXCLUDELIST")
     with open(tmp_path / "Tomograms/job006/tomograms/test_stack.aln", "w") as aln_file:
-        aln_file.write("dummy 0 1000 1.2 2.3 5 6 7 8 4.5")
+        aln_file.write(
+            "dummy 0 1000 1.2 2.3 5 6 7 8 4.5\ndummy 0 1000 1.2 2.3 5 6 7 8 4.5"
+        )
 
     # Send a message to the service
     service.tomo_align(None, header=header, message=tomo_align_test_message)
@@ -450,7 +455,7 @@ def test_tomo_align_service_path_pattern(
     )
 
     # No need to check all sent messages
-    assert offline_transport.send.call_count == 10
+    assert offline_transport.send.call_count == 12
     offline_transport.send.assert_any_call(
         destination="node_creator",
         message={
@@ -542,13 +547,14 @@ def test_tomo_align_service_dark_images(
     y_tilts = ["2.3", "2.5", "4.3", "4.5", "6.3"]
     tilt_angles = ["0.01", "2.01", "4.01", "6.01", "8.01"]
 
+    # Set up outputs: stack_aretomo_Imod file like AreTomo, with exclusions and spaces
     (tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo_Imod").mkdir(
         parents=True
     )
     with open(
         tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo_Imod/tilt.com", "w"
     ) as dark_file:
-        dark_file.write("EXCLUDELIST 2,5")
+        dark_file.write("EXCLUDELIST 2, 5")
     with open(tmp_path / "Tomograms/job006/tomograms/test_stack.aln", "w") as aln_file:
         for i in [0, 2, 3]:
             aln_file.write(

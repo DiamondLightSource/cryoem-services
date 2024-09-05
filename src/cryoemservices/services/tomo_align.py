@@ -434,8 +434,11 @@ class TomoAlign(CommonService):
                 for line in lines:
                     if line.startswith("EXCLUDELIST"):
                         numbers = "".join(line.split(" ")[1:])
-                        numbers_list = numbers.split(",")
-                        missing_indices = [int(item.strip()) for item in numbers_list]
+                        if numbers:
+                            numbers_list = numbers.split(",")
+                            missing_indices = [
+                                int(item.strip()) for item in numbers_list
+                            ]
 
         im_diff = 0
         # TiltImageAlignment (one per movie)
