@@ -303,8 +303,8 @@ class TomoAlign(CommonService):
             "output_file": str(aretomo_output_path),
             "relion_options": dict(tomo_params.relion_options),
             "command": " ".join(aretomo_command),
-            "stdout": "",
-            "stderr": "",
+            "stdout": aretomo_result.stdout.decode("utf8", "replace"),
+            "stderr": aretomo_result.stderr.decode("utf8", "replace"),
         }
         if aretomo_result.returncode:
             node_creator_parameters["success"] = False

@@ -201,8 +201,8 @@ class DenoiseSlurm(CommonService):
             "output_file": str(denoised_full_path),
             "relion_options": dict(denoise_params.relion_options),
             "command": " ".join(command),
-            "stdout": "",
-            "stderr": "",
+            "stdout": slurm_outcome.stdout.decode("utf8", "replace"),
+            "stderr": slurm_outcome.stderr.decode("utf8", "replace"),
             "success": True,
         }
         if slurm_outcome.returncode:
