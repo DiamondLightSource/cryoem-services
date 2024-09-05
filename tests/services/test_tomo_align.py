@@ -667,6 +667,113 @@ def test_tomo_align_service_dark_images(
     offline_transport.send.assert_any_call(destination="success", message="")
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+@mock.patch("cryoemservices.services.tomo_align.subprocess.run")
+@mock.patch("cryoemservices.services.tomo_align.px.scatter")
+@mock.patch("cryoemservices.services.tomo_align.mrcfile")
+def test_tomo_align_service_all_dark(
+    mock_mrcfile,
+    mock_plotly,
+    mock_subprocess,
+    mock_environment,
+    offline_transport,
+    tmp_path,
+):
+    """
+    Send a test message to TomoAlign for a case where all images are dark
+    """
+    mock_subprocess().returncode = 0
+    mock_subprocess().stdout = "stdout".encode("ascii")
+    mock_subprocess().stderr = "stderr".encode("ascii")
+
+    mock_mrcfile.open().__enter__().header = {"nx": 3000, "ny": 4000}
+
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+    tomo_align_test_message = {
+        "parameters": {
+            "stack_file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack.st",
+            "input_file_list": str(
+                [
+                    [f"{tmp_path}/MotionCorr/job002/Movies/input_file_1.mrc", "0.00"],
+                    [f"{tmp_path}/MotionCorr/job002/Movies/input_file_2.mrc", "2.00"],
+                    [f"{tmp_path}/MotionCorr/job002/Movies/input_file_3.mrc", "4.00"],
+                    [f"{tmp_path}/MotionCorr/job002/Movies/input_file_4.mrc", "6.00"],
+                    [f"{tmp_path}/MotionCorr/job002/Movies/input_file_5.mrc", "8.00"],
+                ]
+            ),
+            "vol_z": 1200,
+            "out_bin": 4,
+            "tilt_cor": 1,
+            "flip_vol": 1,
+            "angle_file": f"{tmp_path}/angles.file",
+            "pixel_size": 1e-10,
+            "out_imod": 1,
+            "relion_options": {},
+        },
+        "content": "dummy",
+    }
+
+    # Set up the mock service
+    service = tomo_align.TomoAlign(environment=mock_environment)
+    service.transport = offline_transport
+    service.start()
+
+    service.rot_centre_z_list = [1.1, 2.1]
+    service.tilt_offset = 1.1
+    service.alignment_quality = 0.5
+
+    # Set up outputs: stack_Imod file like AreTomo2, with exclusions and no spaces
+    (tmp_path / "Tomograms/job006/tomograms/test_stack_Imod").mkdir(parents=True)
+    with open(
+        tmp_path / "Tomograms/job006/tomograms/test_stack_Imod/tilt.com", "w"
+    ) as dark_file:
+        dark_file.write("EXCLUDELIST 1,2,3,4,5")
+    with open(tmp_path / "Tomograms/job006/tomograms/test_stack.aln", "w") as aln_file:
+        aln_file.write("")
+
+    # Send a message to the service
+    service.tomo_align(None, header=header, message=tomo_align_test_message)
+
+    # Check that the correct messages were sent
+    assert offline_transport.send.call_count == 8
+    # Expect to get messages for three tilts, and not the excluded ones
+    offline_transport.send.assert_any_call(
+        destination="ispyb_connector",
+        message={
+            "parameters": {
+                "ispyb_command": "multipart_message",
+                "ispyb_command_list": [
+                    {
+                        "ispyb_command": "insert_tomogram",
+                        "volume_file": "test_stack_aretomo.mrc",
+                        "stack_file": tomo_align_test_message["parameters"][
+                            "stack_file"
+                        ],
+                        "size_x": None,
+                        "size_y": None,
+                        "size_z": None,
+                        "pixel_spacing": "4e-10",
+                        "tilt_angle_offset": "1.1",
+                        "z_shift": 2.1,
+                        "file_directory": f"{tmp_path}/Tomograms/job006/tomograms",
+                        "central_slice_image": "test_stack_aretomo_thumbnail.jpeg",
+                        "tomogram_movie": "test_stack_aretomo_movie.png",
+                        "xy_shift_plot": "test_stack_xy_shift_plot.json",
+                        "proj_xy": "test_stack_aretomo_projXY.jpeg",
+                        "proj_xz": "test_stack_aretomo_projXZ.jpeg",
+                        "alignment_quality": "0.5",
+                    },
+                ],
+            },
+            "content": {"dummy": "dummy"},
+        },
+    )
+    offline_transport.send.assert_any_call(destination="success", message="")
+
+
 def test_parse_tomo_align_output(mock_environment, offline_transport):
     """
     Send test lines to the output parser
