@@ -510,6 +510,8 @@ class TomoAlign(CommonService):
                     self.log.error(
                         f"{e} - Dark images haven't been accounted for properly"
                     )
+                    rw.transport.nack(header)
+                    return
 
         for tilt_params in node_creator_params_list:
             if isinstance(rw, MockRW):
