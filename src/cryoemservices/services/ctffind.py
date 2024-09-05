@@ -104,9 +104,7 @@ class CTFFind(CommonService):
     def ctf_find(self, rw, header: dict, message: dict):
         """Main function which interprets and processes received messages"""
         if not rw:
-            print(
-                "Incoming message is not a recipe message. Simple messages can be valid"
-            )
+            self.log.info("Received a simple message")
             if (
                 not isinstance(message, dict)
                 or not message.get("parameters")
@@ -115,7 +113,6 @@ class CTFFind(CommonService):
                 self.log.error("Rejected invalid simple message")
                 self._transport.nack(header)
                 return
-            self.log.debug("Received a simple message")
 
             # Create a wrapper-like object that can be passed to functions
             # as if a recipe wrapper was present.

@@ -165,9 +165,7 @@ class TomoAlign(CommonService):
     def tomo_align(self, rw, header: dict, message: dict):
         """Main function which interprets and processes received messages"""
         if not rw:
-            print(
-                "Incoming message is not a recipe message. Simple messages can be valid"
-            )
+            self.log.info("Received a simple message")
             if (
                 not isinstance(message, dict)
                 or not message.get("parameters")

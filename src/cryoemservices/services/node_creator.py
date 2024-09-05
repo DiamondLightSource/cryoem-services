@@ -220,6 +220,7 @@ class NodeCreator(CommonService):
     def node_creator(self, rw, header: dict, message: dict):
         """Main function which interprets and processes received messages"""
         if not rw:
+            self.log.info("Received a simple message")
             if (
                 not isinstance(message, dict)
                 or not message.get("parameters")

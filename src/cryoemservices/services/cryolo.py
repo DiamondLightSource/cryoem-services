@@ -84,6 +84,7 @@ class CrYOLO(CommonService):
         and sends messages to the ispyb and image services
         """
         if not rw:
+            self.log.info("Received a simple message")
             if (
                 not isinstance(message, dict)
                 or not message.get("parameters")
