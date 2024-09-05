@@ -39,7 +39,6 @@ class DenoiseParameters(BaseModel):
     patch_padding: Optional[int] = None  # 48
     device: Optional[int] = None  # -2
     cleanup_output: bool = True
-    tomogram_uuid: int
     relion_options: RelionServiceOptions
 
     @validator("model")
@@ -202,8 +201,8 @@ class DenoiseSlurm(CommonService):
             "output_file": str(denoised_full_path),
             "relion_options": dict(denoise_params.relion_options),
             "command": " ".join(command),
-            "stdout": "",
-            "stderr": "",
+            "stdout": slurm_outcome.stdout.decode("utf8", "replace"),
+            "stderr": slurm_outcome.stderr.decode("utf8", "replace"),
             "success": True,
         }
         if slurm_outcome.returncode:
@@ -263,9 +262,7 @@ class DenoiseSlurm(CommonService):
 
         # Insert the denoised tomogram into ISPyB
         ispyb_parameters = {
-            "ispyb_command": "buffer",
-            "buffer_command": {"ispyb_command": "insert_processed_tomogram"},
-            "buffer_lookup": {"tomogram_id": denoise_params.tomogram_uuid},
+            "ispyb_command": "insert_processed_tomogram",
             "file_path": str(denoised_full_path),
             "processing_type": "Denoised",
         }
@@ -288,7 +285,9 @@ class DenoiseSlurm(CommonService):
             if project_dir_search and job_num_search:
                 project_dir = Path(project_dir_search[0]).parent.parent
                 job_number = int(job_num_search[0][4:])
-                segmentation_dir = project_dir / f"Segmentation/job{job_number + 1:03}"
+                segmentation_dir = (
+                    project_dir / f"Segmentation/job{job_number + 1:03}/tomograms"
+                )
             else:
                 self.log.warning(f"No job number in {denoise_params.output_dir}")
                 segmentation_dir = Path(denoise_params.output_dir)
