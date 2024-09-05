@@ -420,10 +420,9 @@ class TomoAlign(CommonService):
                 lines = f.readlines()
                 for line in lines:
                     if line.startswith("EXCLUDELIST"):
-                        numbers = line.split(" ")
-                        missing_indices = [
-                            int(item.replace(",", "").strip()) for item in numbers[1:]
-                        ]
+                        numbers = "".join(line.split(" ")[1:])
+                        numbers_list = numbers.split(",")
+                        missing_indices = [int(item.strip()) for item in numbers_list]
 
         im_diff = 0
         # TiltImageAlignment (one per movie)
@@ -435,7 +434,7 @@ class TomoAlign(CommonService):
             parents=True, exist_ok=True
         )
         for im, movie in enumerate(tomo_params.input_file_list):
-            if im in missing_indices:
+            if im + 1 in missing_indices:
                 im_diff += 1
             else:
                 try:
