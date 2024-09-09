@@ -15,12 +15,10 @@
       "ctffind": 6,
       "images": 4,
       "ispyb_connector": 3,
-      "murfey_feedback": 5
+      "murfey_feedback": 5,
+      "node_creator": 8
     },
     "parameters": {
-      "ctf": {
-        "output_image": "{output_image}"
-      },
       "dose_per_frame": "{fm_dose}",
       "eer_sampling": 1,
       "experiment_type": "tomography",
@@ -34,6 +32,9 @@
       "picker_uuid": "-1",
       "pixel_size": "{pixel_size}",
       "relion_options": {},
+      "submit_to_slurm": "False",
+      "threads": 4,
+      "use_motioncor2": "False",
       "voltage": "{kv}"
     },
     "queue": "motioncorr",
@@ -64,7 +65,8 @@
   "6": {
     "output": {
       "images": 4,
-      "ispyb_connector": 7
+      "ispyb_connector": 7,
+      "node_creator": 8
     },
     "queue": "ctffind",
     "service": "CTFFind"
@@ -77,6 +79,10 @@
     },
     "queue": "ispyb_connector",
     "service": "EMISPyB"
+  },
+  "8": {
+    "queue": "node_creator",
+    "service": "NodeCreator"
   },
   "start": [[1, []]]
 }

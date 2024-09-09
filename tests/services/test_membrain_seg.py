@@ -57,7 +57,8 @@ def test_membrain_seg_service(
     }
     segmentation_test_message = {
         "parameters": {
-            "tomogram": f"{tmp_path}/Segmentation/job008/test_stack_aretomo.denoised.mrc",
+            "tomogram": f"{tmp_path}/Denoise/job007/tomograms/test_stack_aretomo.denoised.mrc",
+            "output_dir": f"{tmp_path}/Segmentation/job008/tomograms",
             "model_checkpoint": "checkpoint.ckpt",
             "pixel_size": "1.0",
             "rescale_patches": True,
@@ -68,7 +69,6 @@ def test_membrain_seg_service(
             "connected_component_threshold": 2,
             "segmentation_threshold": 4,
             "cleanup_output": False,
-            "tomogram_uuid": 0,
         },
         "content": "dummy",
     }
@@ -97,12 +97,14 @@ def test_membrain_seg_service(
         token.write("token_key")
 
     # Touch the expected output files
-    (tmp_path / "Segmentation/job008/").mkdir(parents=True)
+    (tmp_path / "Segmentation/job008/tomograms").mkdir(parents=True)
     (
-        tmp_path / "Segmentation/job008/test_stack_aretomo.denoised_segmented.mrc.out"
+        tmp_path
+        / "Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented.mrc.out"
     ).touch()
     (
-        tmp_path / "Segmentation/job008/test_stack_aretomo.denoised_segmented.mrc.err"
+        tmp_path
+        / "Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented.mrc.err"
     ).touch()
 
     # Send a message to the service
@@ -113,7 +115,7 @@ def test_membrain_seg_service(
         f'curl -H "X-SLURM-USER-NAME:user" -H "X-SLURM-USER-TOKEN:token_key" '
         '-H "Content-Type: application/json" -X POST '
         "/url/of/slurm/restapi/slurm/v0.0.40/job/submit "
-        f"-d @{tmp_path}/Segmentation/job008/test_stack_aretomo.denoised_segmented.mrc.json"
+        f"-d @{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented.mrc.json"
     )
     slurm_status_command = (
         'curl -H "X-SLURM-USER-NAME:user" -H "X-SLURM-USER-TOKEN:token_key" '
@@ -134,7 +136,7 @@ def test_membrain_seg_service(
         destination="images",
         message={
             "image_command": "mrc_central_slice",
-            "file": f"{tmp_path}/Segmentation/job008/test_stack_aretomo.denoised_segmented.mrc",
+            "file": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented.mrc",
             "skip_rescaling": True,
         },
     )
@@ -142,7 +144,7 @@ def test_membrain_seg_service(
         destination="movie",
         message={
             "image_command": "mrc_to_apng",
-            "file": f"{tmp_path}/Segmentation/job008/test_stack_aretomo.denoised_segmented.mrc",
+            "file": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented.mrc",
             "skip_rescaling": True,
         },
     )
@@ -150,11 +152,9 @@ def test_membrain_seg_service(
         destination="ispyb_connector",
         message={
             "parameters": {
-                "ispyb_command": "buffer",
-                "buffer_command": {"ispyb_command": "insert_processed_tomogram"},
-                "buffer_lookup": {"tomogram_id": 0},
-                "filePath": f"{tmp_path}/Segmentation/job008/test_stack_aretomo.denoised_segmented.mrc",
-                "processingType": "Segmented",
+                "ispyb_command": "insert_processed_tomogram",
+                "file_path": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented.mrc",
+                "processing_type": "Segmented",
             },
             "content": {"dummy": "dummy"},
         },
@@ -162,7 +162,8 @@ def test_membrain_seg_service(
 
     # Check the segmentation command
     with open(
-        tmp_path / "Segmentation/job008/test_stack_aretomo.denoised_segmented.mrc.json",
+        tmp_path
+        / "Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented.mrc.json",
         "r",
     ) as script_file:
         script_json = json.load(script_file)
@@ -172,9 +173,9 @@ def test_membrain_seg_service(
         "membrain",
         "segment",
         "--out-folder",
-        f"{tmp_path}/Segmentation/job008",
+        f"{tmp_path}/Segmentation/job008/tomograms",
         "--tomogram-path",
-        f"{tmp_path}/Segmentation/job008/test_stack_aretomo.denoised.mrc",
+        f"{tmp_path}/Denoise/job007/tomograms/test_stack_aretomo.denoised.mrc",
         "--ckpt-path",
         "checkpoint.ckpt",
         "--in-pixel-size",
