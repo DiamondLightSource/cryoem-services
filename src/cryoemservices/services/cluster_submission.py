@@ -27,7 +27,7 @@ class JobSubmissionParameters(BaseModel):
     tasks: Optional[int] = None
     nodes: Optional[int]
     memory_per_node: Optional[int] = None
-    gpus_per_node: Optional[str] = None
+    gpus_per_node: Optional[int] = None
     min_memory_per_cpu: Optional[int] = Field(
         None, description="Minimum real memory per cpu (MB)"
     )
