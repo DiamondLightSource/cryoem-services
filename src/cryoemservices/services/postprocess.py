@@ -4,6 +4,7 @@ import os
 import shutil
 import subprocess
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import workflows.recipe
@@ -11,6 +12,7 @@ from gemmi import cif
 from pydantic import BaseModel, Field, ValidationError
 from workflows.services.common_service import CommonService
 
+from cryoemservices.util.models import MockRW
 from cryoemservices.util.relion_service_options import (
     RelionServiceOptions,
     update_relion_options,
@@ -62,14 +64,9 @@ class PostProcess(CommonService):
         )
 
     def postprocess(self, rw, header: dict, message: dict):
-        class MockRW:
-            def dummy(self, *args, **kwargs):
-                pass
-
+        """Main function which interprets and processes received messages"""
         if not rw:
-            print(
-                "Incoming message is not a recipe message. Simple messages can be valid"
-            )
+            self.log.info("Received a simple message")
             if (
                 not isinstance(message, dict)
                 or not message.get("parameters")
@@ -78,16 +75,11 @@ class PostProcess(CommonService):
                 self.log.error("Rejected invalid simple message")
                 self._transport.nack(header)
                 return
-            self.log.debug("Received a simple message")
 
             # Create a wrapper-like object that can be passed to functions
             # as if a recipe wrapper was present.
-            rw = MockRW()
-            rw.transport = self._transport
+            rw = MockRW(self._transport)
             rw.recipe_step = {"parameters": message["parameters"]}
-            rw.environment = {"has_recipe_wrapper": False}
-            rw.set_default_channel = rw.dummy
-            rw.send = rw.dummy
             message = message["content"]
 
         try:
@@ -152,7 +144,7 @@ class PostProcess(CommonService):
 
         # Register the post-processing job with the node creator
         self.log.info(f"Sending {self.job_type} to node creator")
-        node_creator_params = {
+        node_creator_params: dict[str, Any] = {
             "job_type": self.job_type,
             "input_file": f"{postprocess_params.half_map}:{postprocess_params.mask}",
             "output_file": f"{postprocess_params.job_dir}/postprocess.mrc",
@@ -238,9 +230,9 @@ class PostProcess(CommonService):
                     "particle_classification_group_id": postprocess_params.refined_grp_uuid,
                 }
             else:
-                refined_grp_ispyb_parameters[
-                    "buffer_store"
-                ] = postprocess_params.refined_grp_uuid
+                refined_grp_ispyb_parameters["buffer_store"] = (
+                    postprocess_params.refined_grp_uuid
+                )
             ispyb_parameters.append(refined_grp_ispyb_parameters)
 
             # Send individual classes to ispyb
@@ -280,9 +272,9 @@ class PostProcess(CommonService):
                     }
                 )
             else:
-                refined_ispyb_parameters[
-                    "buffer_store"
-                ] = postprocess_params.refined_class_uuid
+                refined_ispyb_parameters["buffer_store"] = (
+                    postprocess_params.refined_class_uuid
+                )
 
             # Add the resolution and fourier completeness if they are valid numbers
             estimated_resolution = float(classes_loop[0, 4])
@@ -292,9 +284,9 @@ class PostProcess(CommonService):
                 refined_ispyb_parameters["estimated_resolution"] = 0.0
             fourier_completeness = float(classes_loop[0, 5])
             if np.isfinite(fourier_completeness):
-                refined_ispyb_parameters[
-                    "overall_fourier_completeness"
-                ] = fourier_completeness
+                refined_ispyb_parameters["overall_fourier_completeness"] = (
+                    fourier_completeness
+                )
             else:
                 refined_ispyb_parameters["overall_fourier_completeness"] = 0.0
             ispyb_parameters.append(refined_ispyb_parameters)

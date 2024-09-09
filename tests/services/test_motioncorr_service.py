@@ -1490,7 +1490,6 @@ def test_parse_motioncor2_output(mock_environment, offline_transport):
     # MotionCor2 v1.6.3 case
     service.x_shift_list = []
     service.y_shift_list = []
-    print(service.x_shift_list, service.y_shift_list, type(service.x_shift_list))
     motioncorr.MotionCorr.parse_mc2_stdout(
         service, "Frame   x Shift   y Shift\n1    -3.0      4.0\n2    3.0      -4.0"
     )

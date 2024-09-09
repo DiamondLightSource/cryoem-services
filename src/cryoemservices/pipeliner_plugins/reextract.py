@@ -31,7 +31,7 @@ def reextract_single_micrograph(
     with mrcfile.open(motioncorr_name) as input_micrograph:
         input_micrograph_image = np.array(input_micrograph.data, dtype=np.float32)
     image_size = np.shape(input_micrograph_image)
-    output_mrc_stack = []
+    output_mrc_stack = np.array([])
 
     for particle in range(len(particles_x)):
         # Pixel locations are from bottom left, need to flip the image later

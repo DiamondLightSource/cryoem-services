@@ -8,6 +8,7 @@ import workflows.recipe
 from pydantic import BaseModel, Field, ValidationError
 from workflows.services.common_service import CommonService
 
+from cryoemservices.util.models import MockRW
 from cryoemservices.util.relion_service_options import (
     RelionServiceOptions,
     update_relion_options,
@@ -52,14 +53,9 @@ class BFactor(CommonService):
         )
 
     def bfactor_setup(self, rw, header: dict, message: dict):
-        class MockRW:
-            def dummy(self, *args, **kwargs):
-                pass
-
+        """Main function which interprets and processes received messages"""
         if not rw:
-            print(
-                "Incoming message is not a recipe message. Simple messages can be valid"
-            )
+            self.log.info("Received a simple message")
             if (
                 not isinstance(message, dict)
                 or not message.get("parameters")
@@ -68,16 +64,11 @@ class BFactor(CommonService):
                 self.log.error("Rejected invalid simple message")
                 self._transport.nack(header)
                 return
-            self.log.debug("Received a simple message")
 
             # Create a wrapper-like object that can be passed to functions
             # as if a recipe wrapper was present.
-            rw = MockRW()
-            rw.transport = self._transport
+            rw = MockRW(self._transport)
             rw.recipe_step = {"parameters": message["parameters"]}
-            rw.environment = {"has_recipe_wrapper": False}
-            rw.set_default_channel = rw.dummy
-            rw.send = rw.dummy
             message = message["content"]
 
         try:

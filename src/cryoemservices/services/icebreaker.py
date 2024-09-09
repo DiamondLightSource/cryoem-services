@@ -4,7 +4,7 @@ import os
 import re
 import shutil
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 import workflows.recipe
 from gemmi import cif
@@ -13,6 +13,7 @@ from icebreaker.five_figures import single_mic_5fig
 from pydantic import BaseModel, Field, ValidationError
 from workflows.services.common_service import CommonService
 
+from cryoemservices.util.models import MockRW
 from cryoemservices.util.relion_service_options import RelionServiceOptions
 from cryoemservices.util.slurm_submission import slurm_submission
 
@@ -64,12 +65,8 @@ class IceBreaker(CommonService):
         Main function which interprets received messages, runs icebreaker
         and sends messages to the ispyb and image services
         """
-
-        class MockRW:
-            def dummy(self, *args, **kwargs):
-                pass
-
         if not rw:
+            self.log.info("Received a simple message")
             if (
                 not isinstance(message, dict)
                 or not message.get("parameters")
@@ -81,12 +78,8 @@ class IceBreaker(CommonService):
 
             # Create a wrapper-like object that can be passed to functions
             # as if a recipe wrapper was present.
-            rw = MockRW()
-            rw.transport = self._transport
+            rw = MockRW(self._transport)
             rw.recipe_step = {"parameters": message["parameters"]}
-            rw.environment = {"has_recipe_wrapper": False}
-            rw.set_default_channel = rw.dummy
-            rw.send = rw.dummy
             message = message["content"]
 
         try:
@@ -268,7 +261,7 @@ class IceBreaker(CommonService):
 
         # Register the icebreaker job with the node creator
         self.log.info(f"Sending {this_job_type} to node creator")
-        node_creator_parameters = {
+        node_creator_parameters: dict[str, Any] = {
             "job_type": this_job_type,
             "input_file": icebreaker_params.input_micrographs,
             "output_file": icebreaker_params.output_path,
@@ -327,9 +320,14 @@ class IceBreaker(CommonService):
                 "relion_options": dict(icebreaker_params.relion_options),
                 "mc_uuid": icebreaker_params.mc_uuid,
             }
-            job_number = int(
-                re.search("/job[0-9]+", icebreaker_params.output_path)[0][4:]
-            )
+            job_num_search = re.search("/job[0-9]+", icebreaker_params.output_path)
+            if job_num_search:
+                job_number = int(job_num_search[0][4:7])
+            else:
+                self.log.warning(
+                    f"Invalid job number in {icebreaker_params.output_path}"
+                )
+                job_number = 4
             next_icebreaker_params["output_path"] = re.sub(
                 f"IceBreaker/job{job_number:03}/",
                 f"IceBreaker/job{job_number + 2:03}/",

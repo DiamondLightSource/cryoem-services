@@ -3,11 +3,13 @@ from __future__ import annotations
 import re
 import subprocess
 from pathlib import Path
+from typing import Any
 
 import workflows.recipe
-from pydantic import BaseModel, Field, ValidationError, validator
+from pydantic import BaseModel, Field, ValidationError, field_validator
 from workflows.services.common_service import CommonService
 
+from cryoemservices.util.models import MockRW
 from cryoemservices.util.relion_service_options import RelionServiceOptions
 
 
@@ -35,7 +37,8 @@ class CTFParameters(BaseModel):
     relion_options: RelionServiceOptions
     autopick: dict = {}
 
-    @validator("experiment_type")
+    @field_validator("experiment_type")
+    @classmethod
     def is_spa_or_tomo(cls, experiment):
         if experiment not in ["spa", "tomography"]:
             raise ValueError("Specify an experiment type of spa or tomography.")
@@ -99,14 +102,9 @@ class CTFFind(CommonService):
                 self.log.warning(f"{e}")
 
     def ctf_find(self, rw, header: dict, message: dict):
-        class MockRW:
-            def dummy(self, *args, **kwargs):
-                pass
-
+        """Main function which interprets and processes received messages"""
         if not rw:
-            print(
-                "Incoming message is not a recipe message. Simple messages can be valid"
-            )
+            self.log.info("Received a simple message")
             if (
                 not isinstance(message, dict)
                 or not message.get("parameters")
@@ -115,16 +113,11 @@ class CTFFind(CommonService):
                 self.log.error("Rejected invalid simple message")
                 self._transport.nack(header)
                 return
-            self.log.debug("Received a simple message")
 
             # Create a wrapper-like object that can be passed to functions
             # as if a recipe wrapper was present.
-            rw = MockRW()
-            rw.transport = self._transport
+            rw = MockRW(self._transport)
             rw.recipe_step = {"parameters": message["parameters"]}
-            rw.environment = {"has_recipe_wrapper": False}
-            rw.set_default_channel = rw.dummy
-            rw.send = rw.dummy
             message = message["content"]
 
         command = ["ctffind"]
@@ -191,7 +184,7 @@ class CTFFind(CommonService):
         if not job_is_rerun:
             # Register the ctf job with the node creator
             self.log.info(f"Sending {self.job_type} to node creator")
-            node_creator_parameters = {
+            node_creator_parameters: dict[str, Any] = {
                 "experiment_type": ctf_params.experiment_type,
                 "job_type": self.job_type,
                 "input_file": ctf_params.input_image,
@@ -294,9 +287,11 @@ class CTFFind(CommonService):
             # Forward results to particle picking
             self.log.info(f"Sending to autopicking: {ctf_params.input_image}")
             ctf_params.autopick["input_path"] = ctf_params.input_image
-            ctf_job_number = int(
-                re.search("/job[0-9]+/", ctf_params.output_image)[0][4:7]
-            )
+            job_number_search = re.search("/job[0-9]+/", ctf_params.output_image)
+            if job_number_search:
+                ctf_job_number = int(job_number_search[0][4:7])
+            else:
+                ctf_job_number = 6
             ctf_params.autopick["output_path"] = str(
                 Path(
                     re.sub(

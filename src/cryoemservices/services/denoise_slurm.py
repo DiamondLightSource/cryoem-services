@@ -5,9 +5,10 @@ from pathlib import Path
 from typing import Optional
 
 import workflows.recipe
-from pydantic import BaseModel, Field, ValidationError, validator
+from pydantic import BaseModel, Field, ValidationError, field_validator
 from workflows.services.common_service import CommonService
 
+from cryoemservices.util.models import MockRW
 from cryoemservices.util.relion_service_options import RelionServiceOptions
 from cryoemservices.util.slurm_submission import slurm_submission
 
@@ -41,19 +42,22 @@ class DenoiseParameters(BaseModel):
     cleanup_output: bool = True
     relion_options: RelionServiceOptions
 
-    @validator("model")
+    @field_validator("model")
+    @classmethod
     def saved_models(cls, v):
         if v not in ["unet-3d-10a", "unet-3d-20a", "unet-3d"]:
             raise ValueError("Model must be one of unet-3d-10a, unet-3d-20a, unet-3d")
         return v
 
-    @validator("optim")
+    @field_validator("optim")
+    @classmethod
     def optimizers(cls, v):
         if v not in ["adam", "adagrad", "sgd"]:
             raise ValueError("Optimizer must be one of adam, adagrad, sgd")
         return v
 
-    @validator("criteria")
+    @field_validator("criteria")
+    @classmethod
     def training_criteria(cls, v):
         if v not in ["L1", "L2"]:
             raise ValueError("Optimizer must be one of L1, L2")
@@ -88,11 +92,9 @@ class DenoiseSlurm(CommonService):
         )
 
     def denoise(self, rw, header: dict, message: dict):
-        class MockRW:
-            def dummy(self, *args, **kwargs):
-                pass
-
+        """Main function which interprets and processes received messages"""
         if not rw:
+            self.log.info("Received a simple message")
             if (
                 not isinstance(message, dict)
                 or not message.get("parameters")
@@ -104,12 +106,8 @@ class DenoiseSlurm(CommonService):
 
             # Create a wrapper-like object that can be passed to functions
             # as if a recipe wrapper was present.
-            rw = MockRW()
-            rw.transport = self._transport
-            rw.recipe_step = {"parameters": message["parameters"], "output": None}
-            rw.environment = {"has_recipe_wrapper": False}
-            rw.set_default_channel = rw.dummy
-            rw.send = rw.dummy
+            rw = MockRW(self._transport)
+            rw.recipe_step = {"parameters": message["parameters"]}
             message = message["content"]
 
         try:
@@ -162,8 +160,8 @@ class DenoiseSlurm(CommonService):
             "patch_padding": "-p",
             "device": "-d",
         }
-        for k, v in denoise_params.dict().items():
-            if v and (k in denoise_flags):
+        for k, v in denoise_params.model_dump().items():
+            if (v not in [None, ""]) and (k in denoise_flags):
                 command.extend((denoise_flags[k], str(v)))
 
         if denoise_params.output_dir:

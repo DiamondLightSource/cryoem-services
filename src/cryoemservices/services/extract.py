@@ -10,6 +10,7 @@ from gemmi import cif
 from pydantic import BaseModel, Field, ValidationError
 from workflows.services.common_service import CommonService
 
+from cryoemservices.util.models import MockRW
 from cryoemservices.util.relion_service_options import (
     RelionServiceOptions,
     update_relion_options,
@@ -67,14 +68,9 @@ class Extract(CommonService):
         )
 
     def extract(self, rw, header: dict, message: dict):
-        class MockRW:
-            def dummy(self, *args, **kwargs):
-                pass
-
+        """Main function which interprets and processes received messages"""
         if not rw:
-            print(
-                "Incoming message is not a recipe message. Simple messages can be valid"
-            )
+            self.log.info("Received a simple message")
             if (
                 not isinstance(message, dict)
                 or not message.get("parameters")
@@ -83,16 +79,11 @@ class Extract(CommonService):
                 self.log.error("Rejected invalid simple message")
                 self._transport.nack(header)
                 return
-            self.log.debug("Received a simple message")
 
             # Create a wrapper-like object that can be passed to functions
             # as if a recipe wrapper was present.
-            rw = MockRW()
-            rw.transport = self._transport
+            rw = MockRW(self._transport)
             rw.recipe_step = {"parameters": message["parameters"]}
-            rw.environment = {"has_recipe_wrapper": False}
-            rw.set_default_channel = rw.dummy
-            rw.send = rw.dummy
             message = message["content"]
 
         try:
@@ -126,7 +117,13 @@ class Extract(CommonService):
         )
 
         # Make sure the output directory exists
-        job_dir = Path(re.search(".+/job[0-9]+/", extract_params.output_file)[0])
+        job_dir_search = re.search(".+/job[0-9]+/", extract_params.output_file)
+        if job_dir_search:
+            job_dir = Path(job_dir_search[0])
+        else:
+            self.log.warning(f"Invalid job directory in {extract_params.output_file}")
+            rw.transport.nack(header)
+            return
         project_dir = job_dir.parent.parent
         if not Path(extract_params.output_file).parent.exists():
             Path(extract_params.output_file).parent.mkdir(parents=True)
@@ -229,7 +226,7 @@ class Extract(CommonService):
         with mrcfile.open(extract_params.micrographs_file) as input_micrograph:
             input_micrograph_image = np.array(input_micrograph.data, dtype=np.float32)
         image_size = np.shape(input_micrograph_image)
-        output_mrc_stack = []
+        output_mrc_stack = np.array([])
 
         for particle in range(len(particles_x)):
             # Pixel locations are from bottom left, need to flip the image later

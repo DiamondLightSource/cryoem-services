@@ -6,15 +6,16 @@ import re
 import subprocess
 import time
 from pathlib import Path
-from typing import List, Optional, Union
+from typing import Any, List, Optional
 
 import mrcfile
 import plotly.express as px
 import workflows.recipe
 import workflows.transport
-from pydantic import BaseModel, Field, ValidationError, validator
+from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 from workflows.services.common_service import CommonService
 
+from cryoemservices.util.models import MockRW
 from cryoemservices.util.relion_service_options import (
     RelionServiceOptions,
     update_relion_options,
@@ -34,7 +35,7 @@ class TomoParameters(BaseModel):
     flip_int: Optional[int] = None
     flip_vol: int = 1
     wbp: Optional[int] = None
-    roi_file: list = []
+    roi_file: Optional[list] = None
     patch: Optional[int] = None
     kv: Optional[int] = None
     align_file: Optional[str] = None
@@ -44,24 +45,27 @@ class TomoParameters(BaseModel):
     refine_flag: Optional[int] = None
     out_imod: int = 1
     out_imod_xf: Optional[int] = None
-    dark_tol: Optional[Union[int, str]] = None
+    dark_tol: Optional[float] = None
     manual_tilt_offset: Optional[float] = None
     relion_options: RelionServiceOptions
 
-    @validator("input_file_list")
-    def check_only_one_is_provided(cls, v, values):
-        if not v and not values.get("path_pattern"):
+    @model_validator(mode="before")
+    @classmethod
+    def check_only_one_is_provided(cls, values):
+        input_file_list = values.get("input_file_list")
+        path_pattern = values.get("path_pattern")
+        if not input_file_list and not path_pattern:
             raise ValueError("input_file_list or path_pattern must be provided")
-        if v and values.get("path_pattern"):
+        if input_file_list and path_pattern:
             raise ValueError(
                 "Message must only include one of 'path_pattern' and 'input_file_list'."
                 " Both are set or one has been set by the recipe."
             )
-        return v
+        return values
 
-    @validator("input_file_list")
-    def convert_to_list_of_lists(cls, v):
-        file_list = None
+    @field_validator("input_file_list")
+    @classmethod
+    def check_list_of_lists_is_not_empty(cls, v):
         try:
             file_list = ast.literal_eval(
                 v
@@ -69,16 +73,12 @@ class TomoParameters(BaseModel):
         except Exception:
             return v
         if isinstance(file_list, list) and isinstance(file_list[0], list):
-            return file_list
+            for item in file_list:
+                if not len(item) == 2 or not item[0] or not item[1]:
+                    raise ValueError("Empty list found")
+            return v
         else:
             raise ValueError("input_file_list is not a list of lists")
-
-    @validator("input_file_list")
-    def check_lists_are_not_empty(cls, v):
-        for item in v:
-            if not item:
-                raise ValueError("Empty list found")
-        return v
 
 
 class TomoAlign(CommonService):
@@ -97,6 +97,7 @@ class TomoAlign(CommonService):
     job_type = "relion.reconstructtomograms"
 
     # Values to extract for ISPyB
+    input_file_list_of_lists: List[Any]
     refined_tilts: List[float]
     x_shift: List[float]
     y_shift: List[float]
@@ -162,16 +163,9 @@ class TomoAlign(CommonService):
         return tomo_aln_file  # not needed anywhere atm
 
     def tomo_align(self, rw, header: dict, message: dict):
-        class MockRW:
-            transport: workflows.transport.common_transport.CommonTransport
-
-            def dummy(self, *args, **kwargs):
-                pass
-
+        """Main function which interprets and processes received messages"""
         if not rw:
-            print(
-                "Incoming message is not a recipe message. Simple messages can be valid"
-            )
+            self.log.info("Received a simple message")
             if (
                 not isinstance(message, dict)
                 or not message.get("parameters")
@@ -183,12 +177,8 @@ class TomoAlign(CommonService):
 
             # Create a wrapper-like object that can be passed to functions
             # as if a recipe wrapper was present.
-            rw = MockRW()
-            rw.transport = self._transport
+            rw = MockRW(self._transport)
             rw.recipe_step = {"parameters": message["parameters"]}
-            rw.environment = {"has_recipe_wrapper": False}
-            rw.set_default_channel = rw.dummy
-            rw.send = rw.dummy
             message = message["content"]
 
         try:
@@ -207,8 +197,8 @@ class TomoAlign(CommonService):
             rw.transport.nack(header)
             return
 
-        def _tilt(file_list):
-            return float(file_list[1])
+        def _tilt(file_list_for_tilts):
+            return float(file_list_for_tilts[1])
 
         # Update the relion options
         tomo_params.relion_options = update_relion_options(
@@ -228,14 +218,33 @@ class TomoAlign(CommonService):
                 for part in parts:
                     if "." in part:
                         input_file_list.append([str(item), part])
-            tomo_params.input_file_list = input_file_list
+            self.input_file_list_of_lists = input_file_list
+        elif tomo_params.input_file_list:
+            try:
+                file_list = ast.literal_eval(
+                    tomo_params.input_file_list
+                )  # if input_file_list is '' it will break here
+            except Exception as e:
+                self.log.warning(f"Input file list conversion failed with: {e}")
+                rw.transport.nack(header)
+                return
+            if isinstance(file_list, list) and isinstance(file_list[0], list):
+                self.input_file_list_of_lists = file_list
+            else:
+                self.log.warning("input_file_list is not a list of lists")
+                rw.transport.nack(header)
+                return
+        else:
+            self.log.error("Model validation failed")
+            rw.transport.nack(header)
+            return
 
-        self.log.info(f"Input list {tomo_params.input_file_list}")
-        tomo_params.input_file_list.sort(key=_tilt)
+        self.log.info(f"Input list {self.input_file_list_of_lists}")
+        self.input_file_list_of_lists.sort(key=_tilt)
 
         # Find all the tilt angles and remove duplicates
         tilt_dict: dict = {}
-        for tilt in tomo_params.input_file_list:
+        for tilt in self.input_file_list_of_lists:
             if not Path(tilt[0]).is_file():
                 self.log.warning(f"File not found {tilt[0]}")
                 rw.transport.nack(header)
@@ -251,14 +260,16 @@ class TomoAlign(CommonService):
                 values.sort(key=os.path.getctime)
                 values_to_remove.append(values[1:])
 
-        for tilt in tomo_params.input_file_list:
+        for tilt in self.input_file_list_of_lists:
             if tilt[0] in values_to_remove:
-                index = tomo_params.input_file_list.index(tilt)
+                index = self.input_file_list_of_lists.index(tilt)
                 self.log.warning(f"Removing: {values_to_remove}")
-                tomo_params.input_file_list.remove(tomo_params.input_file_list[index])
+                self.input_file_list_of_lists.remove(
+                    self.input_file_list_of_lists[index]
+                )
 
         # Find the input image dimensions
-        with mrcfile.open(tomo_params.input_file_list[0][0]) as mrc:
+        with mrcfile.open(self.input_file_list_of_lists[0][0]) as mrc:
             mrc_header = mrc.header
         # x and y get flipped on tomogram creation
         tomo_params.relion_options.tomo_size_x = int(mrc_header["ny"])
@@ -299,7 +310,7 @@ class TomoAlign(CommonService):
         node_creator_parameters = {
             "experiment_type": "tomography",
             "job_type": self.job_type,
-            "input_file": tomo_params.input_file_list[0][0],
+            "input_file": self.input_file_list_of_lists[0][0],
             "output_file": str(aretomo_output_path),
             "relion_options": dict(tomo_params.relion_options),
             "command": " ".join(aretomo_command),
@@ -421,8 +432,11 @@ class TomoAlign(CommonService):
                 for line in lines:
                     if line.startswith("EXCLUDELIST"):
                         numbers = "".join(line.split(" ")[1:])
-                        numbers_list = numbers.split(",")
-                        missing_indices = [int(item.strip()) for item in numbers_list]
+                        if numbers:
+                            numbers_list = numbers.split(",")
+                            missing_indices = [
+                                int(item.strip()) for item in numbers_list
+                            ]
 
         im_diff = 0
         # TiltImageAlignment (one per movie)
@@ -433,7 +447,7 @@ class TomoAlign(CommonService):
         (project_dir / f"AlignTiltSeries/job{job_number - 1:03}").mkdir(
             parents=True, exist_ok=True
         )
-        for im, movie in enumerate(tomo_params.input_file_list):
+        for im, movie in enumerate(self.input_file_list_of_lists):
             if im + 1 in missing_indices:
                 im_diff += 1
             else:
@@ -497,6 +511,8 @@ class TomoAlign(CommonService):
                     self.log.error(
                         f"{e} - Dark images haven't been accounted for properly"
                     )
+                    rw.transport.nack(header)
+                    return
 
         for tilt_params in node_creator_params_list:
             if isinstance(rw, MockRW):
@@ -624,8 +640,8 @@ class TomoAlign(CommonService):
 
         # Write a file with a list of .mrcs for input to Newstack
         with open(newstack_path, "w") as f:
-            f.write(f"{len(tomo_parameters.input_file_list)}\n")
-            f.write("\n0\n".join(i[0] for i in tomo_parameters.input_file_list))
+            f.write(f"{len(self.input_file_list_of_lists)}\n")
+            f.write("\n0\n".join(i[0] for i in self.input_file_list_of_lists))
             f.write("\n0\n")
 
         newstack_cmd = [
@@ -652,8 +668,8 @@ class TomoAlign(CommonService):
             command.extend(
                 (
                     "-TiltRange",
-                    str(tomo_parameters.input_file_list[0][1]),  # lowest tilt
-                    str(tomo_parameters.input_file_list[-1][1]),
+                    str(self.input_file_list_of_lists[0][1]),  # lowest tilt
+                    str(self.input_file_list_of_lists[-1][1]),
                 )
             )  # highest tilt
 
@@ -690,8 +706,8 @@ class TomoAlign(CommonService):
             "dark_tol": "-DarkTol",
         }
 
-        for k, v in tomo_parameters.dict().items():
-            if v and (k in aretomo_flags):
+        for k, v in tomo_parameters.model_dump().items():
+            if (v not in [None, ""]) and (k in aretomo_flags):
                 command.extend((aretomo_flags[k], str(v)))
 
         self.log.info(f"Running AreTomo2 {command}")
