@@ -9,14 +9,10 @@ import zocalo.configuration
 from gemmi import cif
 from workflows.transport.offline_transport import OfflineTransport
 
+from cryoemservices.services import node_creator
 from cryoemservices.util.relion_service_options import RelionServiceOptions
 
 relion_options = RelionServiceOptions()
-
-node_creator = pytest.importorskip(
-    "cryoemservices.services.node_creator",
-    reason="these tests require the ccpem pipeliner",
-)
 
 
 @pytest.fixture
@@ -101,6 +97,110 @@ def setup_and_run_node_creation(
     assert (project_dir / job_dir / ".CCPEM_pipeliner_jobinfo").exists()
 
 
+# General tests
+@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+def test_node_creator_failed_job(mock_environment, offline_transport, tmp_path):
+    """
+    Use motion correction to test that the node creator works for failed commands.
+    This should set up the general pipeliner parts, and add a failure file to the job.
+    """
+    job_dir = "MotionCorr/job002"
+    input_file = tmp_path / "Import/job001/Movies/sample.mrc"
+    output_file = tmp_path / job_dir / "Movies/sample.mrc"
+
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+    output_file.touch()
+    test_message = {
+        "parameters": {
+            "job_type": "relion.motioncorr.motioncor2",
+            "input_file": str(input_file),
+            "output_file": str(output_file),
+            "relion_options": relion_options,
+            "command": "command",
+            "stdout": "stdout",
+            "stderr": "stderr",
+            "success": False,
+        },
+        "content": "dummy",
+    }
+
+    # set up the mock service and send the message to it
+    service = node_creator.NodeCreator(environment=mock_environment)
+    service.transport = offline_transport
+    service.start()
+    service.node_creator(None, header=header, message=test_message)
+
+    # Check that the correct general pipeline files have been made
+    assert (tmp_path / "relion_motioncorr_motioncor2_job.star").exists()
+    assert (tmp_path / ".gui_projectdir").exists()
+    assert (tmp_path / job_dir / "job.star").exists()
+    assert (tmp_path / job_dir / "note.txt").exists()
+    assert (tmp_path / job_dir / "run.out").exists()
+    assert (tmp_path / job_dir / "run.err").exists()
+    assert (tmp_path / job_dir / "run.job").exists()
+    assert (tmp_path / job_dir / "continue_job.star").exists()
+    assert (tmp_path / job_dir / "PIPELINER_JOB_EXIT_FAILED").exists()
+    assert (tmp_path / job_dir / "default_pipeline.star").exists()
+    assert (tmp_path / job_dir / ".CCPEM_pipeliner_jobinfo").exists()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+def test_node_creator_rerun_job(mock_environment, offline_transport, tmp_path):
+    """
+    Use motion correction to test that the node creator works for failed commands.
+    This should set up the general pipeliner parts, and add a failure file to the job.
+    """
+    job_dir = "MotionCorr/job002"
+    input_file = tmp_path / "Import/job001/Movies/sample.mrc"
+    output_file = tmp_path / job_dir / "Movies/sample.mrc"
+
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+    output_file.touch()
+    (tmp_path / job_dir / "PIPELINER_JOB_EXIT_SUCCESS").touch()
+    test_message = {
+        "parameters": {
+            "job_type": "relion.motioncorr.motioncor2",
+            "input_file": str(input_file),
+            "output_file": str(output_file),
+            "relion_options": relion_options,
+            "command": "command",
+            "stdout": "stdout",
+            "stderr": "stderr",
+            "success": True,
+            "results": {"total_motion": "10", "early_motion": "4", "late_motion": "6"},
+        },
+        "content": "dummy",
+    }
+
+    # set up the mock service and send the message to it
+    service = node_creator.NodeCreator(environment=mock_environment)
+    service.transport = offline_transport
+    service.start()
+    service.node_creator(None, header=header, message=test_message)
+
+    # Check that the correct general pipeline files have been made
+    assert (tmp_path / "relion_motioncorr_motioncor2_job.star").exists()
+    assert (tmp_path / ".gui_projectdir").exists()
+    assert (tmp_path / job_dir / "job.star").exists()
+    assert (tmp_path / job_dir / "note.txt").exists()
+    assert (tmp_path / job_dir / "run.out").exists()
+    assert (tmp_path / job_dir / "run.err").exists()
+    assert not (tmp_path / job_dir / "run.job").exists()
+    assert not (tmp_path / job_dir / "continue_job.star").exists()
+    assert (tmp_path / job_dir / "PIPELINER_JOB_EXIT_SUCCESS").exists()
+    assert not (tmp_path / job_dir / "default_pipeline.star").exists()
+    assert not (tmp_path / job_dir / ".CCPEM_pipeliner_jobinfo").exists()
+
+
+# SPA tests
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 def test_node_creator_import(mock_environment, offline_transport, tmp_path):
     """
@@ -537,103 +637,27 @@ def test_node_creator_select_particles(mock_environment, offline_transport, tmp_
     ).exists()
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-def test_node_creator_failed_job(mock_environment, offline_transport, tmp_path):
-    """
-    Use motion correction to test that the node creator works for failed commands.
-    This should set up the general pipeliner parts, and add a failure file to the job.
-    """
-    job_dir = "MotionCorr/job002"
-    input_file = tmp_path / "Import/job001/Movies/sample.mrc"
-    output_file = tmp_path / job_dir / "Movies/sample.mrc"
-
-    header = {
-        "message-id": mock.sentinel,
-        "subscription": mock.sentinel,
-    }
-    output_file.parent.mkdir(parents=True, exist_ok=True)
-    output_file.touch()
-    test_message = {
-        "parameters": {
-            "job_type": "relion.motioncorr.motioncor2",
-            "input_file": str(input_file),
-            "output_file": str(output_file),
-            "relion_options": relion_options,
-            "command": "command",
-            "stdout": "stdout",
-            "stderr": "stderr",
-            "success": False,
-        },
-        "content": "dummy",
-    }
-
-    # set up the mock service and send the message to it
-    service = node_creator.NodeCreator(environment=mock_environment)
-    service.transport = offline_transport
-    service.start()
-    service.node_creator(None, header=header, message=test_message)
-
-    # Check that the correct general pipeline files have been made
-    assert (tmp_path / "relion_motioncorr_motioncor2_job.star").exists()
-    assert (tmp_path / ".gui_projectdir").exists()
-    assert (tmp_path / job_dir / "job.star").exists()
-    assert (tmp_path / job_dir / "note.txt").exists()
-    assert (tmp_path / job_dir / "run.out").exists()
-    assert (tmp_path / job_dir / "run.err").exists()
-    assert (tmp_path / job_dir / "run.job").exists()
-    assert (tmp_path / job_dir / "continue_job.star").exists()
-    assert (tmp_path / job_dir / "PIPELINER_JOB_EXIT_FAILED").exists()
-    assert (tmp_path / job_dir / "default_pipeline.star").exists()
-    assert (tmp_path / job_dir / ".CCPEM_pipeliner_jobinfo").exists()
+# Still to do:
+# "icebreaker.micrograph_analysis.particles"
+# "relion.class2d.em"
+# "relion.class2d.vdam"
+# "relion.select.class2dauto"
+# "combine_star_files_job"
+# "relion.initialmodel"
+# "relion.class3d"
+# "relion.select.onvalue"
+# "relion.refine3d"
+# "relion.maskcreate"
+# "relion.postprocess"
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-def test_node_creator_rerun_job(mock_environment, offline_transport, tmp_path):
-    """
-    Use motion correction to test that the node creator works for failed commands.
-    This should set up the general pipeliner parts, and add a failure file to the job.
-    """
-    job_dir = "MotionCorr/job002"
-    input_file = tmp_path / "Import/job001/Movies/sample.mrc"
-    output_file = tmp_path / job_dir / "Movies/sample.mrc"
+# Tomography tests
 
-    header = {
-        "message-id": mock.sentinel,
-        "subscription": mock.sentinel,
-    }
-    output_file.parent.mkdir(parents=True, exist_ok=True)
-    output_file.touch()
-    (tmp_path / job_dir / "PIPELINER_JOB_EXIT_SUCCESS").touch()
-    test_message = {
-        "parameters": {
-            "job_type": "relion.motioncorr.motioncor2",
-            "input_file": str(input_file),
-            "output_file": str(output_file),
-            "relion_options": relion_options,
-            "command": "command",
-            "stdout": "stdout",
-            "stderr": "stderr",
-            "success": True,
-            "results": {"total_motion": "10", "early_motion": "4", "late_motion": "6"},
-        },
-        "content": "dummy",
-    }
-
-    # set up the mock service and send the message to it
-    service = node_creator.NodeCreator(environment=mock_environment)
-    service.transport = offline_transport
-    service.start()
-    service.node_creator(None, header=header, message=test_message)
-
-    # Check that the correct general pipeline files have been made
-    assert (tmp_path / "relion_motioncorr_motioncor2_job.star").exists()
-    assert (tmp_path / ".gui_projectdir").exists()
-    assert (tmp_path / job_dir / "job.star").exists()
-    assert (tmp_path / job_dir / "note.txt").exists()
-    assert (tmp_path / job_dir / "run.out").exists()
-    assert (tmp_path / job_dir / "run.err").exists()
-    assert not (tmp_path / job_dir / "run.job").exists()
-    assert not (tmp_path / job_dir / "continue_job.star").exists()
-    assert (tmp_path / job_dir / "PIPELINER_JOB_EXIT_SUCCESS").exists()
-    assert not (tmp_path / job_dir / "default_pipeline.star").exists()
-    assert not (tmp_path / job_dir / ".CCPEM_pipeliner_jobinfo").exists()
+# Still to do:
+# "relion.importtomo"
+# "relion.motioncorr.own"
+# "relion.ctffind.ctffind4"
+# "relion.excludetilts"
+# "relion.aligntiltseries"
+# "relion.reconstructtomograms"
+# "relion.denoisetomo"
