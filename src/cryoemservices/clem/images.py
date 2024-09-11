@@ -378,7 +378,7 @@ def create_composite_image(
 
     # Validate that arrays have the same shape
     if len(({arr.shape for arr in arrays})) > 1:
-        raise ValueError("Input arrays do not all have the same shape")
+        raise ValueError("Input arrays do not have the same shape")
 
     # Calculate average for each frame across all arrays
     shape = arrays[0].shape
