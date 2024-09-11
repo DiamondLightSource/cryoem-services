@@ -55,6 +55,7 @@ dev = [
     "ipykernel",
     "pre-commit",
     "pytest",
+    "pytest-cov",
 ]
 [project.urls]
     Bug-Tracker = "https://github.com/DiamondLightSource/cryoem-services/issues"
