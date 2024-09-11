@@ -41,7 +41,7 @@ def setup_and_run_node_creation(
     project_dir: Path,
     job_dir: str,
     job_type: str,
-    input_file: Path,
+    input_file: str,
     output_file: Path,
     results: dict = {},
 ):
@@ -81,7 +81,7 @@ def setup_and_run_node_creation(
 
     # Check that the correct general pipeline files have been made
     assert (project_dir / f"{job_type.replace('.', '_')}_job.star").exists()
-    # assert (project_dir / f".gui_{job_type.replace('.', '_')}job.star").exists()
+    assert (project_dir / f".gui_{job_type.replace('.', '_')}job.star").exists()
     assert (project_dir / ".Nodes").is_dir()
 
     assert (project_dir / job_dir / "job.star").exists()
@@ -209,7 +209,7 @@ def test_node_creator_import(mock_environment, offline_transport, tmp_path):
     relion.import.movies
     """
     job_dir = "Import/job001"
-    input_file = tmp_path / "Movies/sample.mrc"
+    input_file = f"{tmp_path}/Movies/sample.mrc"
     output_file = tmp_path / job_dir / "Movies/sample.mrc"
     relion_options = RelionServiceOptions()
 
@@ -261,7 +261,7 @@ def test_node_creator_motioncorr(mock_environment, offline_transport, tmp_path):
     relion.motioncorr.motioncor2
     """
     job_dir = "MotionCorr/job002"
-    input_file = tmp_path / "Import/job001/Movies/sample.mrc"
+    input_file = f"{tmp_path}/Import/job001/Movies/sample.mrc"
     output_file = tmp_path / job_dir / "Movies/sample.mrc"
     relion_options = RelionServiceOptions()
 
@@ -324,7 +324,7 @@ def test_node_creator_icebreaker_micrographs(
     icebreaker.micrograph_analysis.micrographs
     """
     job_dir = "IceBreaker/job003"
-    input_file = tmp_path / "MotionCorr/job002/Movies/sample.mrc"
+    input_file = f"{tmp_path}/MotionCorr/job002/Movies/sample.mrc"
     output_file = tmp_path / job_dir
     output_file.mkdir(parents=True)
     relion_options = RelionServiceOptions()
@@ -374,7 +374,7 @@ def test_node_creator_icebreaker_enhancecontrast(
     icebreaker.micrograph_analysis.enhancecontrast
     """
     job_dir = "IceBreaker/job004"
-    input_file = tmp_path / "MotionCorr/job002/Movies/sample.mrc"
+    input_file = f"{tmp_path}/MotionCorr/job002/Movies/sample.mrc"
     output_file = tmp_path / job_dir
     output_file.mkdir(parents=True)
     relion_options = RelionServiceOptions()
@@ -422,7 +422,7 @@ def test_node_creator_icebreaker_summary(mock_environment, offline_transport, tm
     icebreaker.micrograph_analysis.summary
     """
     job_dir = "IceBreaker/job005"
-    input_file = tmp_path / "IceBreaker/job003/Movies/sample.mrc"
+    input_file = f"{tmp_path}/IceBreaker/job003/Movies/sample.mrc"
     output_file = tmp_path / job_dir
     output_file.mkdir(parents=True)
     relion_options = RelionServiceOptions()
@@ -453,7 +453,7 @@ def test_node_creator_ctffind(mock_environment, offline_transport, tmp_path):
     relion.ctffind.ctffind4
     """
     job_dir = "CtfFind/job006"
-    input_file = tmp_path / "MotionCorr/job002/Movies/sample.mrc"
+    input_file = f"{tmp_path}/MotionCorr/job002/Movies/sample.mrc"
     output_file = tmp_path / job_dir / "Movies/sample.ctf"
     relion_options = RelionServiceOptions()
 
@@ -523,7 +523,7 @@ def test_node_creator_cryolo(mock_environment, offline_transport, tmp_path):
     cryolo.autopick
     """
     job_dir = "AutoPick/job007"
-    input_file = tmp_path / "MotionCorr/job002/Movies/sample.mrc"
+    input_file = f"{tmp_path}/MotionCorr/job002/Movies/sample.mrc"
     output_file = tmp_path / job_dir / "STAR/sample.star"
     relion_options = RelionServiceOptions()
 
@@ -570,7 +570,7 @@ def test_node_creator_extract(mock_environment, offline_transport, tmp_path):
     relion.extract
     """
     job_dir = "Extract/job008"
-    input_file = Path(
+    input_file = (
         f"{tmp_path}/AutoPick/job007/STAR/sample.star"
         f":{tmp_path}/CtfFind/job006/Movies/sample.ctf"
     )
@@ -631,7 +631,7 @@ def test_node_creator_select_particles(mock_environment, offline_transport, tmp_
     relion.select.split
     """
     job_dir = "Select/job009"
-    input_file = tmp_path / "Extract/job007/Movies/sample.star"
+    input_file = f"{tmp_path}/Extract/job007/Movies/sample.star"
     output_file = tmp_path / job_dir / "particles_split2.star"
     relion_options = RelionServiceOptions()
 
@@ -659,14 +659,106 @@ def test_node_creator_select_particles(mock_environment, offline_transport, tmp_
     ).exists()
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+def test_node_creator_icebreaker_particles(
+    mock_environment, offline_transport, tmp_path
+):
+    """
+    Send a test message to the node creator for
+    icebreaker.micrograph_analysis.particles
+    """
+    job_dir = "IceBreaker/job011"
+    input_file = (
+        f"{tmp_path}/IceBreaker/job003/grouped_micrographs.star"
+        f":{tmp_path}/Select/job009/particles.star"
+    )
+    output_file = tmp_path / job_dir
+    output_file.mkdir(parents=True)
+    relion_options = RelionServiceOptions()
+
+    # .Nodes directory doesn't get made by this job
+    (tmp_path / ".Nodes").mkdir()
+
+    setup_and_run_node_creation(
+        mock_environment,
+        relion_options,
+        offline_transport,
+        tmp_path,
+        job_dir,
+        "icebreaker.micrograph_analysis.particles",
+        input_file,
+        output_file,
+        results={
+            "icebreaker_type": "particles",
+        },
+    )
+
+    # Check the output file structure
+    assert not (tmp_path / job_dir / "done_mics.txt").exists()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+def test_node_creator_class2d_em(mock_environment, offline_transport, tmp_path):
+    """
+    Send a test message to the node creator for
+    relion.class2d.em
+    """
+    job_dir = "Class2D/job010"
+    input_file = f"{tmp_path}/Select/job009/particles.star"
+    output_file = tmp_path / job_dir
+    output_file.mkdir(parents=True)
+    relion_options = RelionServiceOptions()
+
+    # .Nodes directory doesn't get made by this job
+    (tmp_path / ".Nodes").mkdir()
+
+    setup_and_run_node_creation(
+        mock_environment,
+        relion_options,
+        offline_transport,
+        tmp_path,
+        job_dir,
+        "relion.class2d.em",
+        input_file,
+        output_file,
+    )
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+def test_node_creator_class3d(mock_environment, offline_transport, tmp_path):
+    """
+    Send a test message to the node creator for
+    relion.class3d
+    """
+    job_dir = "Class3D/job015"
+    input_file = (
+        f"{tmp_path}/Select/job013/particles.star"
+        + f":{tmp_path}/InitialModel/job014/initial_model.star"
+    )
+    output_file = tmp_path / job_dir
+    output_file.mkdir(parents=True)
+    relion_options = RelionServiceOptions()
+
+    # .Nodes directory doesn't get made by this job
+    (tmp_path / ".Nodes").mkdir()
+
+    setup_and_run_node_creation(
+        mock_environment,
+        relion_options,
+        offline_transport,
+        tmp_path,
+        job_dir,
+        "relion.class3d",
+        input_file,
+        output_file,
+    )
+
+
 # Still to do:
-# "icebreaker.micrograph_analysis.particles"
-# "relion.class2d.em"
 # "relion.class2d.vdam"
 # "relion.select.class2dauto"
 # "combine_star_files_job"
 # "relion.initialmodel"
-# "relion.class3d"
 # "relion.select.onvalue"
 # "relion.refine3d"
 # "relion.maskcreate"
