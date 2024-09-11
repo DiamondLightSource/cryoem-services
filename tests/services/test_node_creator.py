@@ -12,8 +12,6 @@ from workflows.transport.offline_transport import OfflineTransport
 from cryoemservices.services import node_creator
 from cryoemservices.util.relion_service_options import RelionServiceOptions
 
-relion_options = RelionServiceOptions()
-
 
 @pytest.fixture
 def mock_zocalo_configuration(tmp_path):
@@ -38,6 +36,7 @@ def offline_transport(mocker):
 
 def setup_and_run_node_creation(
     environment: dict,
+    relion_options: RelionServiceOptions,
     transport: OfflineTransport,
     project_dir: Path,
     job_dir: str,
@@ -107,6 +106,7 @@ def test_node_creator_failed_job(mock_environment, offline_transport, tmp_path):
     job_dir = "MotionCorr/job002"
     input_file = tmp_path / "Import/job001/Movies/sample.mrc"
     output_file = tmp_path / job_dir / "Movies/sample.mrc"
+    relion_options = RelionServiceOptions()
 
     header = {
         "message-id": mock.sentinel,
@@ -157,6 +157,7 @@ def test_node_creator_rerun_job(mock_environment, offline_transport, tmp_path):
     job_dir = "MotionCorr/job002"
     input_file = tmp_path / "Import/job001/Movies/sample.mrc"
     output_file = tmp_path / job_dir / "Movies/sample.mrc"
+    relion_options = RelionServiceOptions()
 
     header = {
         "message-id": mock.sentinel,
@@ -210,9 +211,11 @@ def test_node_creator_import(mock_environment, offline_transport, tmp_path):
     job_dir = "Import/job001"
     input_file = tmp_path / "Movies/sample.mrc"
     output_file = tmp_path / job_dir / "Movies/sample.mrc"
+    relion_options = RelionServiceOptions()
 
     setup_and_run_node_creation(
         mock_environment,
+        relion_options,
         offline_transport,
         tmp_path,
         job_dir,
@@ -260,9 +263,11 @@ def test_node_creator_motioncorr(mock_environment, offline_transport, tmp_path):
     job_dir = "MotionCorr/job002"
     input_file = tmp_path / "Import/job001/Movies/sample.mrc"
     output_file = tmp_path / job_dir / "Movies/sample.mrc"
+    relion_options = RelionServiceOptions()
 
     setup_and_run_node_creation(
         mock_environment,
+        relion_options,
         offline_transport,
         tmp_path,
         job_dir,
@@ -322,9 +327,11 @@ def test_node_creator_icebreaker_micrographs(
     input_file = tmp_path / "MotionCorr/job002/Movies/sample.mrc"
     output_file = tmp_path / job_dir
     output_file.mkdir(parents=True)
+    relion_options = RelionServiceOptions()
 
     setup_and_run_node_creation(
         mock_environment,
+        relion_options,
         offline_transport,
         tmp_path,
         job_dir,
@@ -370,9 +377,11 @@ def test_node_creator_icebreaker_enhancecontrast(
     input_file = tmp_path / "MotionCorr/job002/Movies/sample.mrc"
     output_file = tmp_path / job_dir
     output_file.mkdir(parents=True)
+    relion_options = RelionServiceOptions()
 
     setup_and_run_node_creation(
         mock_environment,
+        relion_options,
         offline_transport,
         tmp_path,
         job_dir,
@@ -416,11 +425,13 @@ def test_node_creator_icebreaker_summary(mock_environment, offline_transport, tm
     input_file = tmp_path / "IceBreaker/job003/Movies/sample.mrc"
     output_file = tmp_path / job_dir
     output_file.mkdir(parents=True)
+    relion_options = RelionServiceOptions()
 
     (output_file / "five_figs_test.csv").touch()
 
     setup_and_run_node_creation(
         mock_environment,
+        relion_options,
         offline_transport,
         tmp_path,
         job_dir,
@@ -444,6 +455,7 @@ def test_node_creator_ctffind(mock_environment, offline_transport, tmp_path):
     job_dir = "CtfFind/job006"
     input_file = tmp_path / "MotionCorr/job002/Movies/sample.mrc"
     output_file = tmp_path / job_dir / "Movies/sample.ctf"
+    relion_options = RelionServiceOptions()
 
     output_file.parent.mkdir(parents=True)
     with open(output_file.with_suffix(".txt"), "w") as f:
@@ -455,6 +467,7 @@ def test_node_creator_ctffind(mock_environment, offline_transport, tmp_path):
 
     setup_and_run_node_creation(
         mock_environment,
+        relion_options,
         offline_transport,
         tmp_path,
         job_dir,
@@ -512,6 +525,10 @@ def test_node_creator_cryolo(mock_environment, offline_transport, tmp_path):
     job_dir = "AutoPick/job007"
     input_file = tmp_path / "MotionCorr/job002/Movies/sample.mrc"
     output_file = tmp_path / job_dir / "STAR/sample.star"
+    relion_options = RelionServiceOptions()
+
+    relion_options.cryolo_config_file = str(tmp_path / "cryolo_config.json")
+    (tmp_path / "cryolo_config.json").touch()
 
     (tmp_path / "MotionCorr/job002/").mkdir(parents=True)
     (tmp_path / "MotionCorr/job002/corrected_micrographs.star").touch()
@@ -524,6 +541,7 @@ def test_node_creator_cryolo(mock_environment, offline_transport, tmp_path):
 
     setup_and_run_node_creation(
         mock_environment,
+        relion_options,
         offline_transport,
         tmp_path,
         job_dir,
@@ -557,6 +575,7 @@ def test_node_creator_extract(mock_environment, offline_transport, tmp_path):
         f":{tmp_path}/CtfFind/job006/Movies/sample.ctf"
     )
     output_file = tmp_path / job_dir / "Movies/sample.star"
+    relion_options = RelionServiceOptions()
 
     output_file.parent.mkdir(parents=True)
     with open(output_file, "w") as f:
@@ -564,6 +583,7 @@ def test_node_creator_extract(mock_environment, offline_transport, tmp_path):
 
     setup_and_run_node_creation(
         mock_environment,
+        relion_options,
         offline_transport,
         tmp_path,
         job_dir,
@@ -613,6 +633,7 @@ def test_node_creator_select_particles(mock_environment, offline_transport, tmp_
     job_dir = "Select/job009"
     input_file = tmp_path / "Extract/job007/Movies/sample.star"
     output_file = tmp_path / job_dir / "particles_split2.star"
+    relion_options = RelionServiceOptions()
 
     (tmp_path / job_dir).mkdir(parents=True)
     (tmp_path / job_dir / "particles_split1.star").touch()
@@ -620,6 +641,7 @@ def test_node_creator_select_particles(mock_environment, offline_transport, tmp_
 
     setup_and_run_node_creation(
         mock_environment,
+        relion_options,
         offline_transport,
         tmp_path,
         job_dir,

@@ -26,7 +26,7 @@ jobs:
           pip install .
       - name: Install fork of CCP-EM pipeliner
         run: |
-          git clone -b diamond_tomo --single-branch http://gitlab.com/stephen-riggs/ccpem-pipeliner.git
+          git clone -b diamond_tomo --single-branch https://gitlab.com/stephen-riggs/ccpem-pipeliner.git
           pip install ./ccpem-pipeliner
       - name: Test with pytest
         run: |
