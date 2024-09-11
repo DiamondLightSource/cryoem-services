@@ -1,0 +1,153 @@
+name: Publish version
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  get-current-version:
+    name: Get version
+    runs-on: ubuntu-latest
+    outputs:
+      doTag: ${{ steps.checkTag.outputs.doTag }}
+      newVersion: ${{ steps.checkTag.outputs.newVersion }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: Check current tag
+        id: checkTag
+        run: |
+          pip install --disable-pip-version-check -e "."[dev]
+          VERSION=$(python -c "import cryoemservices; print(cryoemservices.__version__)")
+          echo "newVersion=v$VERSION" >> $GITHUB_OUTPUT
+
+          git fetch --tags
+          if [ $(git tag -l v$VERSION) ]; then
+            echo "Version is up to date at $VERSION"
+            echo "doTag=false" >> $GITHUB_OUTPUT
+          else
+            echo "Version needs to be updated to $VERSION"
+            echo "doTag=true" >> $GITHUB_OUTPUT
+          fi
+
+  make-tag:
+    name: Create a new tag
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    needs:
+      - get-current-version
+    if: ${{ needs.get-current-version.outputs.doTag == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Push the new tag
+        run: |
+          git config --global user.name "DiamondLightSource-build-server"
+          git config --global user.email "DiamondLightSource-build-server@users.noreply.github.com"
+          git config credential.helper "store --file=.git/credentials"
+          echo "https://${GITHUB_TOKEN}:@github.com" > .git/credentials
+
+          git tag ${{ needs.get-current-version.outputs.newVersion }}
+          git push origin ${{ needs.get-current-version.outputs.newVersion }}
+
+  build:
+    name: Build package
+    runs-on: ubuntu-latest
+    needs:
+      - get-current-version
+    if: ${{ needs.get-current-version.outputs.doTag == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: Install pypa/build
+        run: >-
+          python3 -m
+          pip install
+          build
+          --user
+      - name: Build python package
+        run: python3 -m build
+      - name: Store built package artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: package-distributions
+          path: dist/
+
+  publish-to-pypi:
+    name: >-
+      Publish Python distribution to PyPI
+    needs:
+      - get-current-version
+      - build
+      - make-tag
+    if: ${{ needs.get-current-version.outputs.doTag == 'true' }}
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/cryoemservices
+    permissions:
+      id-token: write # IMPORTANT: mandatory for trusted publishing
+
+    steps:
+      - name: Download all the dists
+        uses: actions/download-artifact@v4
+        with:
+          name: package-distributions
+          path: dist/
+      - name: Publish distribution to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+  github-release:
+    name: >-
+      Sign the Python distribution with Sigstore
+      and upload them to GitHub Release
+    needs:
+      - get-current-version
+      - publish-to-pypi
+    if: ${{ needs.get-current-version.outputs.doTag == 'true' }}
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write # IMPORTANT: mandatory for making GitHub Releases
+      id-token: write # IMPORTANT: mandatory for sigstore
+
+    steps:
+      - name: Download all the dists
+        uses: actions/download-artifact@v4
+        with:
+          name: package-distributions
+          path: dist/
+      - name: Sign the dists with Sigstore
+        uses: sigstore/gh-action-sigstore-python@v2.1.1
+        with:
+          inputs: >-
+            ./dist/*.tar.gz
+            ./dist/*.whl
+      - name: Create GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: >-
+          gh release create
+          '${{ needs.get-current-version.outputs.newVersion }}'
+          --repo '${{ github.repository }}'
+          --notes ""
+      - name: Upload artifact signatures to GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        # Upload to GitHub Release using the `gh` CLI.
+        # `dist/` contains the built packages, and the
+        # sigstore-produced signatures and certificates.
+        run: >-
+          gh release upload
+          '${{ needs.get-current-version.outputs.newVersion }}' dist/**
+          --repo '${{ github.repository }}'

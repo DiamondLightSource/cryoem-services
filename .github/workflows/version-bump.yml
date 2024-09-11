@@ -1,0 +1,57 @@
+name: Bump the version
+
+on:
+  workflow_dispatch:
+    inputs:
+      bumpLevel:
+        description: "Kind of version bump"
+        required: true
+        default: "patch"
+        type: choice
+        options:
+          - major
+          - minor
+          - patch
+
+permissions:
+  contents: read
+
+jobs:
+  bumpversion:
+    name: Bump the package version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: Install package
+        run: |
+          set -eux
+          pip install --disable-pip-version-check -e "."[cicd,client,server,developer]
+      - name: Run bumpversion and push tag
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git config --global user.name "DiamondLightSource-build-server"
+          git config --global user.email "DiamondLightSource-build-server@users.noreply.github.com"
+          git config credential.helper "store --file=.git/credentials"
+          echo "https://${GITHUB_TOKEN}:@github.com" > .git/credentials
+
+          echo "##[section]Creating commit on branch 'version-bump'"
+          git checkout -b version-bump
+          bump2version ${{ inputs.bumpLevel }}
+
+          echo "##[section]Creating pull request"
+          git push -f --set-upstream origin version-bump
+          gh pr create -B main -H version-bump -t "Version update (${{ inputs.bumpLevel }})" -b "
+          This is an automated pull request to update the version.
+
+          After merging this, the \`Publish version\` action will tag this release and publish to pypi.
+          "
+          echo
