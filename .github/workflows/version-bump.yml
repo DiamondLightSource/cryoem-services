@@ -45,7 +45,7 @@ jobs:
 
           echo "##[section]Creating commit on branch 'version-bump'"
           git checkout -b version-bump
-          bump-my-version ${{ inputs.bumpLevel }}
+          bump-my-version bump ${{ inputs.bumpLevel }}
 
           echo "##[section]Creating pull request"
           git push -f --set-upstream origin version-bump
