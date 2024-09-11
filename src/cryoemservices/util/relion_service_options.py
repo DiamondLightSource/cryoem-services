@@ -171,7 +171,7 @@ def generate_service_options(
         "kV": relion_options.voltage,
     }
 
-    job_options["relion.import.tilt_series"] = {
+    job_options["relion.importtomo"] = {
         "angpix": relion_options.pixel_size,
         "kV": relion_options.voltage,
         "Cs": relion_options.spher_aber,

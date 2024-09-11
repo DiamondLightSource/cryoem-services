@@ -608,7 +608,7 @@ def _denoising_output_files(
 
 
 _output_files: Dict[str, Callable] = {
-    "relion.import.tilt_series": _import_output_files,
+    "relion.importtomo": _import_output_files,
     "relion.motioncorr.own": _motioncorr_output_files,
     "relion.motioncorr.motioncor2": _motioncorr_output_files,
     "relion.ctffind.ctffind4": _ctffind_output_files,

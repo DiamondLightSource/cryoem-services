@@ -48,7 +48,7 @@ class CachedProjectGraph(ProjectGraph):
 # the folder name they run in, and the names of their inputs in the job star
 pipeline_jobs: dict[str, dict] = {
     "relion.import.movies": {"folder": "Import", "spa_input": {"fn_in_raw": "*.tiff"}},
-    "relion.import.tilt_series": {
+    "relion.importtomo": {
         "folder": "Import",
         "tomography_input": {"movie_files": "*.tiff", "mdoc_files": "*.mdoc"},
     },
@@ -322,7 +322,7 @@ class NodeCreator(CommonService):
                 ii += 1
         elif job_info.job_type == "relion.import.movies":
             pipeline_options["fn_in_raw"] = job_info.input_file
-        elif job_info.job_type == "relion.import.tilt_series":
+        elif job_info.job_type == "relion.importtomo":
             pipeline_options["movie_files"] = job_info.input_file.split(":")[0]
             pipeline_options["mdoc_files"] = job_info.input_file.split(":")[1]
 
