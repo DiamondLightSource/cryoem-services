@@ -153,7 +153,7 @@ def _import_output_files(
         with open(movies_file, "a") as output_cif:
             output_cif.write(" ".join(added_line) + "\n")
 
-    return {f"{job_dir}/tilt_series.star": ["TomogramGroupMetadata", "relion"]}
+    return {f"{job_dir}/tilt_series.star": ["TomogramGroupMetadata", ["relion"]]}
 
 
 def _motioncorr_output_files(
@@ -229,7 +229,7 @@ def _motioncorr_output_files(
             output_cif.write(" ".join(added_line) + "\n")
 
     return {
-        f"{job_dir}/corrected_tilt_series.star": ["TomogramGroupMetadata", "relion"]
+        f"{job_dir}/corrected_tilt_series.star": ["TomogramGroupMetadata", ["relion"]]
     }
 
 
@@ -316,7 +316,7 @@ def _ctffind_output_files(
         with open(movies_file, "a") as output_cif:
             output_cif.write(" ".join(added_line) + "\n")
 
-    return {f"{job_dir}/tilt_series_ctf.star": ["TomogramGroupMetadata", "relion"]}
+    return {f"{job_dir}/tilt_series_ctf.star": ["TomogramGroupMetadata", ["relion"]]}
 
 
 def _exclude_tilt_output_files(
@@ -379,7 +379,9 @@ def _exclude_tilt_output_files(
         with open(movies_file, "a") as output_cif:
             output_cif.write(" ".join(added_line) + "\n")
 
-    return {f"{job_dir}/selected_tilt_series.star": ["TomogramGroupMetadata", "relion"]}
+    return {
+        f"{job_dir}/selected_tilt_series.star": ["TomogramGroupMetadata", ["relion"]]
+    }
 
 
 def _align_tilt_output_files(
@@ -476,7 +478,9 @@ def _align_tilt_output_files(
         with open(movies_file, "a") as output_cif:
             output_cif.write(" ".join(added_line) + "\n")
 
-    return {f"{job_dir}/aligned_tilt_series.star": ["TomogramGroupMetadata", "relion"]}
+    return {
+        f"{job_dir}/aligned_tilt_series.star": ["TomogramGroupMetadata", ["relion"]]
+    }
 
 
 def _tomogram_output_files(
@@ -537,7 +541,7 @@ def _tomogram_output_files(
         with open(tomograms_file, "a") as output_cif:
             output_cif.write(" ".join(added_line) + "\n")
 
-    return {f"{job_dir}/tomograms.star": ["TomogramGroupMetadata", "relion"]}
+    return {f"{job_dir}/tomograms.star": ["TomogramGroupMetadata", ["relion"]]}
 
 
 def _denoising_output_files(
@@ -600,7 +604,7 @@ def _denoising_output_files(
         with open(tomograms_file, "a") as output_cif:
             output_cif.write(" ".join(added_line) + "\n")
 
-    return {f"{job_dir}/tomograms.star": ["TomogramGroupMetadata", "relion"]}
+    return {f"{job_dir}/tomograms.star": ["TomogramGroupMetadata", ["relion"]]}
 
 
 _output_files: Dict[str, Callable] = {
