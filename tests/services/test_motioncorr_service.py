@@ -839,7 +839,7 @@ def test_motioncor2_service_tomo(
         message={
             "parameters": {
                 "experiment_type": "tomography",
-                "job_type": "relion.import.tilt_series",
+                "job_type": "relion.importtomo",
                 "input_file": f"{movie}:{tmp_path}/Movies/*.mdoc",
                 "output_file": f"{tmp_path}/Import/job001/Movies/sample.tiff",
                 "relion_options": output_relion_options,
@@ -1088,7 +1088,7 @@ def test_motioncor_relion_service_tomo(
         message={
             "parameters": {
                 "experiment_type": "tomography",
-                "job_type": "relion.import.tilt_series",
+                "job_type": "relion.importtomo",
                 "input_file": f"{movie}:{tmp_path}/Movies/*.mdoc",
                 "output_file": f"{tmp_path}/Import/job001/Movies/sample.tiff",
                 "relion_options": output_relion_options,
