@@ -807,9 +807,6 @@ def test_node_creator_split_star(mock_environment, offline_transport, tmp_path):
             "000047@image1.mrcs\n000048@image1.mrcs\n"
         )
 
-    # .Nodes directory doesn't get made by this job
-    (tmp_path / ".Nodes").mkdir()
-
     setup_and_run_node_creation(
         mock_environment,
         relion_options,
@@ -820,6 +817,10 @@ def test_node_creator_split_star(mock_environment, offline_transport, tmp_path):
         input_file,
         output_file,
     )
+
+    # Check the output file structure
+    assert (tmp_path / job_dir / ".results_display000_pending.json").is_file()
+    assert (tmp_path / job_dir / ".results_display001_pending.json").is_file()
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
