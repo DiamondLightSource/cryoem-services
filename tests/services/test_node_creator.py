@@ -729,6 +729,33 @@ def test_node_creator_class2d_em(mock_environment, offline_transport, tmp_path):
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+def test_node_creator_class2d_vdam(mock_environment, offline_transport, tmp_path):
+    """
+    Send a test message to the node creator for
+    relion.class2d.vdam
+    """
+    job_dir = "Class2D/job010"
+    input_file = f"{tmp_path}/Select/job009/particles.star"
+    output_file = tmp_path / job_dir
+    output_file.mkdir(parents=True)
+    relion_options = RelionServiceOptions()
+
+    # .Nodes directory doesn't get made by this job
+    (tmp_path / ".Nodes").mkdir()
+
+    setup_and_run_node_creation(
+        mock_environment,
+        relion_options,
+        offline_transport,
+        tmp_path,
+        job_dir,
+        "relion.class2d.vdam",
+        input_file,
+        output_file,
+    )
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 def test_node_creator_initial_model(mock_environment, offline_transport, tmp_path):
     """
     Send a test message to the node creator for
@@ -873,7 +900,6 @@ def test_node_creator_postprocess(mock_environment, offline_transport, tmp_path)
 
 
 # Still to do:
-# "relion.class2d.vdam"
 # "relion.select.class2dauto"
 # "combine_star_files_job"
 # "relion.select.onvalue"
