@@ -9,8 +9,12 @@ import zocalo.configuration
 from gemmi import cif
 from workflows.transport.offline_transport import OfflineTransport
 
-from cryoemservices.services import node_creator
 from cryoemservices.util.relion_service_options import RelionServiceOptions
+
+node_creator = pytest.importorskip(
+    "cryoemservices.services.node_creator",
+    reason="these tests require the ccpem pipeliner",
+)
 
 
 @pytest.fixture
@@ -725,6 +729,33 @@ def test_node_creator_class2d_em(mock_environment, offline_transport, tmp_path):
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+def test_node_creator_initial_model(mock_environment, offline_transport, tmp_path):
+    """
+    Send a test message to the node creator for
+    relion.initialmodel
+    """
+    job_dir = "InitialModel/job014"
+    input_file = f"{tmp_path}/Select/job013/particles.star"
+    output_file = tmp_path / job_dir / "initial_model.star"
+    output_file.mkdir(parents=True)
+    relion_options = RelionServiceOptions()
+
+    # .Nodes directory doesn't get made by this job
+    (tmp_path / ".Nodes").mkdir()
+
+    setup_and_run_node_creation(
+        mock_environment,
+        relion_options,
+        offline_transport,
+        tmp_path,
+        job_dir,
+        "relion.initialmodel",
+        input_file,
+        output_file,
+    )
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 def test_node_creator_class3d(mock_environment, offline_transport, tmp_path):
     """
     Send a test message to the node creator for
@@ -754,15 +785,98 @@ def test_node_creator_class3d(mock_environment, offline_transport, tmp_path):
     )
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+def test_node_creator_refine3d(mock_environment, offline_transport, tmp_path):
+    """
+    Send a test message to the node creator for
+    relion.refine3d
+    """
+    job_dir = "Refine3D/job021"
+    input_file = (
+        f"{tmp_path}/Extract/job020/particles.star"
+        + f":{tmp_path}/Extract/job020/ref.mrc"
+    )
+    output_file = tmp_path / job_dir
+    output_file.mkdir(parents=True)
+    relion_options = RelionServiceOptions()
+
+    # .Nodes directory doesn't get made by this job
+    (tmp_path / ".Nodes").mkdir()
+
+    setup_and_run_node_creation(
+        mock_environment,
+        relion_options,
+        offline_transport,
+        tmp_path,
+        job_dir,
+        "relion.refine3d",
+        input_file,
+        output_file,
+    )
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+def test_node_creator_maskcreate(mock_environment, offline_transport, tmp_path):
+    """
+    Send a test message to the node creator for
+    relion.maskcreate
+    """
+    job_dir = "MaskCreate/job022"
+    input_file = f"{tmp_path}/Refine3D/job021/run_class001.mrc"
+    output_file = tmp_path / job_dir / "mask.mrc"
+    output_file.mkdir(parents=True)
+    relion_options = RelionServiceOptions()
+
+    # .Nodes directory doesn't get made by this job
+    (tmp_path / ".Nodes").mkdir()
+
+    setup_and_run_node_creation(
+        mock_environment,
+        relion_options,
+        offline_transport,
+        tmp_path,
+        job_dir,
+        "relion.maskcreate",
+        input_file,
+        output_file,
+    )
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+def test_node_creator_postprocess(mock_environment, offline_transport, tmp_path):
+    """
+    Send a test message to the node creator for
+    relion.postprocess
+    """
+    job_dir = "PostProcess/job023"
+    input_file = (
+        f"{tmp_path}/Refine3D/job021/half_map.mrc"
+        + f":{tmp_path}/MaskCreate/job022/mask.mrc"
+    )
+    output_file = tmp_path / job_dir
+    output_file.mkdir(parents=True)
+    relion_options = RelionServiceOptions()
+
+    # .Nodes directory doesn't get made by this job
+    (tmp_path / ".Nodes").mkdir()
+
+    setup_and_run_node_creation(
+        mock_environment,
+        relion_options,
+        offline_transport,
+        tmp_path,
+        job_dir,
+        "relion.postprocess",
+        input_file,
+        output_file,
+    )
+
+
 # Still to do:
 # "relion.class2d.vdam"
 # "relion.select.class2dauto"
 # "combine_star_files_job"
-# "relion.initialmodel"
 # "relion.select.onvalue"
-# "relion.refine3d"
-# "relion.maskcreate"
-# "relion.postprocess"
 
 
 # Tomography tests
