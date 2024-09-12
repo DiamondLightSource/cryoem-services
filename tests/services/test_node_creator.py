@@ -48,6 +48,7 @@ def setup_and_run_node_creation(
     input_file: str,
     output_file: Path,
     results: dict = {},
+    experiment_type: str = "spa",
 ):
     """
     Run the node creation for any job and check the pipeline files are produced
@@ -73,6 +74,7 @@ def setup_and_run_node_creation(
             "stdout": "stdout",
             "stderr": "stderr",
             "results": results,
+            "experiment_type": experiment_type,
         },
         "content": "dummy",
     }
@@ -995,9 +997,82 @@ def test_node_creator_postprocess(mock_environment, offline_transport, tmp_path)
 
 
 # Tomography tests
+@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+def test_node_creator_import_tomo(mock_environment, offline_transport, tmp_path):
+    """
+    Send a test message to the node creator for
+    relion.importtomo
+    """
+    job_dir = "Import/job001"
+    input_file = (
+        f"{tmp_path}/Movies/Position_1_2_001_0.00_fractions.tiff"
+        + f":{tmp_path}/Movies/*.mdoc"
+    )
+    output_file = tmp_path / job_dir / "Movies/Position_1_2_001_1.50_fractions.tiff"
+    relion_options = RelionServiceOptions()
+
+    setup_and_run_node_creation(
+        mock_environment,
+        relion_options,
+        offline_transport,
+        tmp_path,
+        job_dir,
+        "relion.importtomo",
+        input_file,
+        output_file,
+        experiment_type="tomography",
+    )
+
+    # Check the output file structure
+    assert (tmp_path / job_dir / "tilt_series.star").exists()
+    tilt_series_file = cif.read_file(str(tmp_path / job_dir / "tilt_series.star"))
+
+    global_block = tilt_series_file.find_block("global")
+    assert list(global_block.find_loop("_rlnTomoName")) == ["Position_1_2"]
+    assert list(global_block.find_loop("_rlnTomoTiltSeriesStarFile")) == [
+        f"{job_dir}/tilt_series/Position_1_2.star"
+    ]
+    assert list(global_block.find_loop("_rlnVoltage")) == [str(relion_options.voltage)]
+    assert list(global_block.find_loop("_rlnSphericalAberration")) == [
+        str(relion_options.spher_aber)
+    ]
+    assert list(global_block.find_loop("_rlnAmplitudeContrast")) == [
+        str(relion_options.ampl_contrast)
+    ]
+    assert list(global_block.find_loop("_rlnMicrographOriginalPixelSize")) == [
+        str(relion_options.pixel_size)
+    ]
+    assert list(global_block.find_loop("_rlnTomoHand")) == [
+        str(relion_options.invert_hand)
+    ]
+    assert list(global_block.find_loop("_rlnOpticsGroupName")) == ["optics1"]
+    assert list(global_block.find_loop("_rlnTomoTiltSeriesPixelSize")) == [
+        str(relion_options.pixel_size)
+    ]
+
+    assert (tmp_path / job_dir / "tilt_series/Position_1_2.star").exists()
+    tilts_file = cif.read_file(
+        str(tmp_path / job_dir / "tilt_series/Position_1_2.star")
+    )
+
+    tilts_block = tilts_file.sole_block()
+    assert list(tilts_block.find_loop("_rlnMicrographMovieName")) == [
+        f"{job_dir}/Movies/Position_1_2_001_1.50_fractions.tiff"
+    ]
+    assert list(tilts_block.find_loop("_rlnTomoTiltMovieFrameCount")) == [
+        str(relion_options.frame_count)
+    ]
+    assert list(tilts_block.find_loop("_rlnTomoNominalStageTiltAngle")) == ["1.50"]
+    assert list(tilts_block.find_loop("_rlnTomoNominalTiltAxisAngle")) == [
+        str(relion_options.tilt_axis_angle)
+    ]
+    assert list(tilts_block.find_loop("_rlnMicrographPreExposure")) == ["12.77"]
+    assert list(tilts_block.find_loop("_rlnTomoNominalDefocus")) == [
+        str(relion_options.defocus)
+    ]
+
 
 # Still to do:
-# "relion.importtomo"
 # "relion.motioncorr.own"
 # "relion.ctffind.ctffind4"
 # "relion.excludetilts"
