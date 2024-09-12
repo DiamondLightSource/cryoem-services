@@ -764,7 +764,7 @@ def test_node_creator_select_class(mock_environment, offline_transport, tmp_path
     job_dir = "Select/job012"
     input_file = f"{tmp_path}/Class2D/job010/optimiser.star"
     output_file = tmp_path / job_dir / "particles.star"
-    output_file.mkdir(parents=True)
+    output_file.parent.mkdir(parents=True)
     relion_options = RelionServiceOptions()
 
     # .Nodes directory doesn't get made by this job
@@ -791,8 +791,21 @@ def test_node_creator_split_star(mock_environment, offline_transport, tmp_path):
     job_dir = "Select/job013"
     input_file = f"{tmp_path}/Select/job012/particles.star"
     output_file = tmp_path / job_dir / "particles_all.star"
-    output_file.mkdir(parents=True)
+    output_file.parent.mkdir(parents=True)
     relion_options = RelionServiceOptions()
+
+    with open(tmp_path / job_dir / "class_averages.star", "w") as class_file:
+        class_file.write(
+            "data_\nloop_\nrlnReferenceImage\n"
+            "01@Class2D/job010/run_it025_classes.mrcs"
+            "06@Class2D/job010/run_it025_classes.mrcs"
+        )
+    with open(tmp_path / job_dir / "particles_all.star", "w") as particles_file:
+        particles_file.write(
+            "data_optics\nloop_\n_rlnOpticsGroupName\nopticsGroup1 1\n\n"
+            "data_particles\nloop_\n_rlnImageName\n"
+            "000047@image1.mrcs\n000048@image1.mrcs\n"
+        )
 
     # .Nodes directory doesn't get made by this job
     (tmp_path / ".Nodes").mkdir()
@@ -818,7 +831,7 @@ def test_node_creator_initial_model(mock_environment, offline_transport, tmp_pat
     job_dir = "InitialModel/job014"
     input_file = f"{tmp_path}/Select/job013/particles.star"
     output_file = tmp_path / job_dir / "initial_model.star"
-    output_file.mkdir(parents=True)
+    output_file.parent.mkdir(parents=True)
     relion_options = RelionServiceOptions()
 
     # .Nodes directory doesn't get made by this job
@@ -875,7 +888,7 @@ def test_node_creator_select_value(mock_environment, offline_transport, tmp_path
     job_dir = "Select/job019"
     input_file = f"{tmp_path}/Class3D/job015/optimiser.star"
     output_file = tmp_path / job_dir / "particles.star"
-    output_file.mkdir(parents=True)
+    output_file.parent.mkdir(parents=True)
     relion_options = RelionServiceOptions()
 
     # .Nodes directory doesn't get made by this job
@@ -932,7 +945,7 @@ def test_node_creator_maskcreate(mock_environment, offline_transport, tmp_path):
     job_dir = "MaskCreate/job022"
     input_file = f"{tmp_path}/Refine3D/job021/run_class001.mrc"
     output_file = tmp_path / job_dir / "mask.mrc"
-    output_file.mkdir(parents=True)
+    output_file.parent.mkdir(parents=True)
     relion_options = RelionServiceOptions()
 
     # .Nodes directory doesn't get made by this job
