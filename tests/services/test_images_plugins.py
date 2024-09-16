@@ -4,7 +4,8 @@ import pathlib
 from typing import Any, Dict, NamedTuple, Protocol
 
 import mrcfile
-import pytest
+import numpy as np
+import workflows
 
 from cryoemservices.services.images import PluginInterface
 from cryoemservices.services.images_plugins import (
@@ -14,13 +15,9 @@ from cryoemservices.services.images_plugins import (
     picked_particles,
 )
 
-np = pytest.importorskip("numpy")
-workflows = pytest.importorskip("workflows")
-
 
 class _CallableParameter(Protocol):
-    def __call__(self, key: str, default: Any = ...) -> Any:
-        ...
+    def __call__(self, key: str, default: Any = ...) -> Any: ...
 
 
 class FunctionParameter(NamedTuple):

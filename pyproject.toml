@@ -7,7 +7,7 @@ requires = [
 
 [project]
 name = "cryoemservices"
-version = "0.4.1"
+version = "0.5.0"
 description = "Services for CryoEM processing"
 readme = "README.md"
 keywords = [
@@ -41,13 +41,13 @@ dependencies = [
     "numpy<2",
     "pillow",
     "plotly",
-    "pydantic==1.10.7",
+    "pydantic>=2",
     "readlif", # CLEM workflow
     "starfile",
     "stomp-py==8.1.0",
     "tifffile", # CLEM workflow
     "workflows",
-    "zocalo==0.32.0",
+    "zocalo>=1",
 ]
 [project.optional-dependencies]
 dev = [

@@ -181,12 +181,12 @@ class Refine3DWrapper(zocalo.wrapper.BaseWrapper):
             "threads": "--j",
             "gpus": "--gpu",
         }
-        for k, v in refine_params.dict().items():
-            if v and (k in refine_flags):
-                if type(v) is bool:
-                    refine_command.append(refine_flags[k])
-                else:
+        for k, v in refine_params.model_dump().items():
+            if k in refine_flags:
+                if (type(v) is not bool) and (v not in [None, ""]):
                     refine_command.extend((refine_flags[k], str(v)))
+                elif v:
+                    refine_command.append(refine_flags[k])
         refine_command.extend(
             ("--pipeline_control", f"{refine_params.refine_job_dir}/")
         )
@@ -331,9 +331,11 @@ class Refine3DWrapper(zocalo.wrapper.BaseWrapper):
         self.log.info("Sending on to post-processing")
         postprocess_params = {
             "half_map": f"{refine_params.refine_job_dir}/run_half1_class001_unfil.mrc",
-            "mask": refine_params.mask
-            if refine_params.mask
-            else f"{project_dir}/{mask_job_dir}/mask.mrc",
+            "mask": (
+                refine_params.mask
+                if refine_params.mask
+                else f"{project_dir}/{mask_job_dir}/mask.mrc"
+            ),
             "rescaled_class_reference": refine_params.rescaled_class_reference,
             "job_dir": f"{project_dir}/PostProcess/job{job_num_postprocess:03}",
             "is_first_refinement": refine_params.is_first_refinement,

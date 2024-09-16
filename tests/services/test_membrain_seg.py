@@ -59,7 +59,7 @@ def test_membrain_seg_service(
         "parameters": {
             "tomogram": f"{tmp_path}/Denoise/job007/tomograms/test_stack_aretomo.denoised.mrc",
             "output_dir": f"{tmp_path}/Segmentation/job008/tomograms",
-            "model_checkpoint": "checkpoint.ckpt",
+            "pretrained_checkpoint": "checkpoint.ckpt",
             "pixel_size": "1.0",
             "rescale_patches": True,
             "augmentation": True,

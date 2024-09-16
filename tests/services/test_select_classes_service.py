@@ -97,11 +97,11 @@ def select_classes_common_setup(
             "0.015038 0.029918 1.500000 0.752250 9.628800"
         )
 
-    output_relion_options = RelionServiceOptions()
-    output_relion_options.class2d_fraction_of_classes_to_remove = 0.5
-    output_relion_options.autoselect_min_score = 0.0
-    output_relion_options.particle_diameter = 100
-    output_relion_options = dict(output_relion_options)
+    tmp_relion_options = RelionServiceOptions()
+    tmp_relion_options.class2d_fraction_of_classes_to_remove = 0.5
+    tmp_relion_options.autoselect_min_score = 0.0
+    tmp_relion_options.particle_diameter = 100
+    output_relion_options = dict(tmp_relion_options)
 
     select_test_message = {
         "parameters": {

@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 import subprocess
 from pathlib import Path
+from typing import Any, Optional
 
 import numpy as np
 import workflows.recipe
@@ -10,6 +11,7 @@ from gemmi import cif
 from pydantic import BaseModel, Field, ValidationError
 from workflows.services.common_service import CommonService
 
+from cryoemservices.util.models import MockRW
 from cryoemservices.util.relion_service_options import RelionServiceOptions
 
 
@@ -25,7 +27,7 @@ class CryoloParameters(BaseModel):
     retained_fraction: float = 1
     min_particles: int = 30
     cryolo_command: str = "cryolo_predict.py"
-    particle_diameter: float = None
+    particle_diameter: Optional[float] = None
     on_the_fly: bool = True
     mc_uuid: int
     picker_uuid: int
@@ -81,12 +83,8 @@ class CrYOLO(CommonService):
         Main function which interprets received messages, runs cryolo
         and sends messages to the ispyb and image services
         """
-
-        class MockRW:
-            def dummy(self, *args, **kwargs):
-                pass
-
         if not rw:
+            self.log.info("Received a simple message")
             if (
                 not isinstance(message, dict)
                 or not message.get("parameters")
@@ -98,12 +96,8 @@ class CrYOLO(CommonService):
 
             # Create a wrapper-like object that can be passed to functions
             # as if a recipe wrapper was present.
-            rw = MockRW()
-            rw.transport = self._transport
+            rw = MockRW(self._transport)
             rw.recipe_step = {"parameters": message["parameters"]}
-            rw.environment = {"has_recipe_wrapper": False}
-            rw.set_default_channel = rw.dummy
-            rw.send = rw.dummy
             message = message["content"]
 
         # Reset number of particles
@@ -134,7 +128,15 @@ class CrYOLO(CommonService):
             job_is_rerun = False
 
         # CrYOLO requires running in the project directory or job directory
-        job_dir = Path(re.search(".+/job[0-9]+/", cryolo_params.output_path)[0])
+        job_dir_search = re.search(".+/job[0-9]+/", cryolo_params.output_path)
+        job_num_search = re.search("/job[0-9]+/", cryolo_params.output_path)
+        if job_dir_search and job_num_search:
+            job_dir = Path(job_dir_search[0])
+            job_number = int(job_num_search[0][4:7])
+        else:
+            self.log.warning(f"Invalid job directory in {cryolo_params.output_path}")
+            rw.transport.nack(header)
+            return
         job_dir.mkdir(parents=True, exist_ok=True)
 
         # Construct a command to run cryolo with the given parameters
@@ -151,8 +153,8 @@ class CrYOLO(CommonService):
             "cryolo_gpus": "--gpu",
         }
 
-        for k, v in cryolo_params.dict().items():
-            if v and (k in cryolo_flags):
+        for k, v in cryolo_params.model_dump().items():
+            if (v not in [None, ""]) and (k in cryolo_flags):
                 command.extend((cryolo_flags[k], str(v)))
 
         self.log.info(
@@ -255,7 +257,7 @@ class CrYOLO(CommonService):
 
         # Register the cryolo job with the node creator
         self.log.info(f"Sending {self.job_type} to node creator")
-        node_creator_parameters = {
+        node_creator_parameters: dict[str, Any] = {
             "job_type": self.job_type,
             "input_file": cryolo_params.input_path,
             "output_file": cryolo_params.output_path,
@@ -373,7 +375,6 @@ class CrYOLO(CommonService):
             "micrographs_file": cryolo_params.input_path,
             "coord_list_file": cryolo_params.output_path,
         }
-        job_number = int(re.search("/job[0-9]+/", cryolo_params.output_path)[0][4:7])
         extraction_params["extract_file"] = str(
             Path(
                 re.sub(

@@ -98,8 +98,8 @@ class TomoAlignSlurm(TomoAlign, CommonService):
             command.extend(
                 (
                     "-TiltRange",
-                    tomo_parameters.input_file_list[0][1],  # lowest tilt
-                    tomo_parameters.input_file_list[-1][1],
+                    self.input_file_list_of_lists[0][1],  # lowest tilt
+                    self.input_file_list_of_lists[-1][1],
                 )
             )  # highest tilt
 
@@ -134,8 +134,8 @@ class TomoAlignSlurm(TomoAlign, CommonService):
             "out_imod_xf": "-OutXf",
             "dark_tol": "-DarkTol",
         }
-        for k, v in tomo_parameters.dict().items():
-            if v and (k in aretomo_flags):
+        for k, v in tomo_parameters.model_dump().items():
+            if (v not in [None, ""]) and (k in aretomo_flags):
                 command.extend((aretomo_flags[k], str(v)))
 
         # Transfer the required files

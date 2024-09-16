@@ -12,9 +12,10 @@ from typing import Any, List, Optional
 import plotly.express as px
 import workflows.recipe
 from gemmi import cif
-from pydantic import BaseModel, Field, ValidationError, validator
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 from workflows.services.common_service import CommonService
 
+from cryoemservices.util.models import MockRW
 from cryoemservices.util.relion_service_options import (
     RelionServiceOptions,
     update_relion_options,
@@ -67,14 +68,14 @@ class MotionCorrParameters(BaseModel):
     relion_options: RelionServiceOptions
     ctf: dict = {}
 
-    @validator("experiment_type")
+    @field_validator("experiment_type")
+    @classmethod
     def is_spa_or_tomo(cls, experiment):
         if experiment not in ["spa", "tomography"]:
             raise ValueError("Specify an experiment type of spa or tomography.")
         return experiment
 
-    class Config:
-        ignore_extra = True
+    model_config = ConfigDict(ignore_extra=True)
 
 
 class ChainMapWithReplacement(ChainMap):
@@ -255,11 +256,9 @@ class MotionCorr(CommonService):
         return result
 
     def motion_correction(self, rw, header: dict, message: dict):
-        class MockRW:
-            def dummy(self, *args, **kwargs):
-                pass
-
+        """Main function which interprets and processes received messages"""
         if not rw:
+            self.log.info("Received a simple message")
             if (
                 not isinstance(message, dict)
                 or not message.get("parameters")
@@ -271,12 +270,8 @@ class MotionCorr(CommonService):
 
             # Create a wrapper-like object that can be passed to functions
             # as if a recipe wrapper was present.
-            rw = MockRW()
-            rw.transport = self._transport
-            rw.recipe_step = {"parameters": message["parameters"], "output": None}
-            rw.environment = {"has_recipe_wrapper": False}
-            rw.set_default_channel = rw.dummy
-            rw.send = rw.dummy
+            rw = MockRW(self._transport)
+            rw.recipe_step = {"parameters": message["parameters"]}
             message = message["content"]
 
         parameter_map = ChainMapWithReplacement(
@@ -396,7 +391,7 @@ class MotionCorr(CommonService):
                 mc2_flags["fm_int_file"] = "-FmIntFile"
 
             # Add values from input parameters with flags
-            for k, v in mc_params.dict().items():
+            for k, v in mc_params.model_dump().items():
                 if (v not in [None, ""]) and (k in mc2_flags):
                     if type(v) is dict:
                         command.extend(
@@ -439,12 +434,12 @@ class MotionCorr(CommonService):
                 "bft": {"--bfactor": "local_motion"},
             }
             # Add values from input parameters with flags
-            for param_k, param_v in mc_params.dict().items():
+            for param_k, param_v in mc_params.model_dump().items():
                 if (param_v not in [None, ""]) and (param_k in relion_mc_flags):
                     if type(param_v) is dict:
                         for flag_k, flag_v in relion_mc_flags[param_k].items():
                             command.extend(
-                                (flag_k, str(mc_params.dict()[param_k][flag_v]))
+                                (flag_k, str(mc_params.model_dump()[param_k][flag_v]))
                             )
                     else:
                         command.extend((relion_mc_flags[param_k], str(param_v)))
@@ -683,9 +678,13 @@ class MotionCorr(CommonService):
         if not job_is_rerun:
             # As this is the entry point we need to import the file to the project
             self.log.info("Sending relion.import to node creator")
-            project_dir = Path(
-                re.search(".+/job[0-9]+/", mc_params.mrc_out)[0]
-            ).parent.parent
+            project_dir_search = re.search(".+/job[0-9]+/", mc_params.mrc_out)
+            if project_dir_search:
+                project_dir = Path(project_dir_search[0]).parent.parent
+            else:
+                self.log.error(f"Cannot find project dir for {mc_params.mrc_out}")
+                rw.transport.nack(header)
+                return
             import_movie = (
                 project_dir
                 / "Import/job001"
@@ -712,7 +711,7 @@ class MotionCorr(CommonService):
             else:
                 import_parameters = {
                     "experiment_type": mc_params.experiment_type,
-                    "job_type": "relion.import.tilt_series",
+                    "job_type": "relion.importtomo",
                     "input_file": f"{mc_params.movie}:{Path(mc_params.movie).parent}/*.mdoc",
                     "output_file": str(import_movie),
                     "relion_options": dict(mc_params.relion_options),

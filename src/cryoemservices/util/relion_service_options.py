@@ -4,7 +4,7 @@ import math
 from pathlib import Path
 from typing import Any, Dict
 
-from pydantic import BaseModel, root_validator
+from pydantic import BaseModel, ConfigDict, model_validator
 
 
 def calculate_box_size(particle_size_pixels):
@@ -141,10 +141,10 @@ class RelionServiceOptions(BaseModel):
     mask_threshold: float = 0.02
     refine_class_nr: int = 1
 
-    class Config:
-        validate_assignment = True
+    model_config = ConfigDict(validate_assignment=True)
 
-    @root_validator(skip_on_failure=True)
+    @model_validator(mode="before")
+    @classmethod
     def if_particle_diameter_compute_box_sizes(cls, values):
         if values.get("particle_diameter"):
             values["mask_diameter"] = 1.1 * values["particle_diameter"]
@@ -171,7 +171,7 @@ def generate_service_options(
         "kV": relion_options.voltage,
     }
 
-    job_options["relion.import.tilt_series"] = {
+    job_options["relion.importtomo"] = {
         "angpix": relion_options.pixel_size,
         "kV": relion_options.voltage,
         "Cs": relion_options.spher_aber,
@@ -360,4 +360,4 @@ def update_relion_options(relion_options: RelionServiceOptions, new_options: dic
     for k, v in new_options.items():
         if (v is not None) and (k in relion_options_dict.keys()):
             relion_options_dict[k] = v
-    return RelionServiceOptions.parse_obj(relion_options_dict)
+    return RelionServiceOptions.model_validate(relion_options_dict)

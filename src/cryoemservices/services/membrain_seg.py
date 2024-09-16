@@ -7,13 +7,14 @@ import workflows.recipe
 from pydantic import BaseModel, Field, ValidationError
 from workflows.services.common_service import CommonService
 
+from cryoemservices.util.models import MockRW
 from cryoemservices.util.slurm_submission import slurm_submission
 
 
 class MembrainSegParameters(BaseModel):
     tomogram: str = Field(..., min_length=1)
     output_dir: Optional[str] = None
-    model_checkpoint: str = (
+    pretrained_checkpoint: str = (
         "/dls_sw/apps/EM/membrain-seg/models/MemBrain_seg_v10_alpha.ckpt"
     )
     pixel_size: Optional[float] = None
@@ -51,11 +52,9 @@ class MembrainSeg(CommonService):
         )
 
     def membrain_seg(self, rw, header: dict, message: dict):
-        class MockRW:
-            def dummy(self, *args, **kwargs):
-                pass
-
+        """Main function which interprets and processes received messages"""
         if not rw:
+            self.log.info("Received a simple message")
             if (
                 not isinstance(message, dict)
                 or not message.get("parameters")
@@ -67,12 +66,8 @@ class MembrainSeg(CommonService):
 
             # Create a wrapper-like object that can be passed to functions
             # as if a recipe wrapper was present.
-            rw = MockRW()
-            rw.transport = self._transport
-            rw.recipe_step = {"parameters": message["parameters"], "output": None}
-            rw.environment = {"has_recipe_wrapper": False}
-            rw.set_default_channel = rw.dummy
-            rw.send = rw.dummy
+            rw = MockRW(self._transport)
+            rw.recipe_step = {"parameters": message["parameters"]}
             message = message["content"]
 
         try:
@@ -103,14 +98,14 @@ class MembrainSeg(CommonService):
 
         membrain_seg_flags = {
             "tomogram": "--tomogram-path",
-            "model_checkpoint": "--ckpt-path",
+            "pretrained_checkpoint": "--ckpt-path",
             "pixel_size": "--in-pixel-size",
             "connected_component_threshold": "--connected-component-thres",
             "segmentation_threshold": "--segmentation-threshold",
             "window_size": "--sliding-window-size",
         }
-        for k, v in membrain_seg_params.dict().items():
-            if v and (k in membrain_seg_flags):
+        for k, v in membrain_seg_params.model_dump().items():
+            if (v not in [None, ""]) and (k in membrain_seg_flags):
                 command.extend((membrain_seg_flags[k], str(v)))
 
         if membrain_seg_params.rescale_patches:
@@ -139,7 +134,7 @@ class MembrainSeg(CommonService):
 
         membrain_file = (
             f"{Path(membrain_seg_params.tomogram).stem}"
-            f"_{Path(membrain_seg_params.model_checkpoint).name}_segmented.mrc"
+            f"_{Path(membrain_seg_params.pretrained_checkpoint).name}_segmented.mrc"
         )
         membrain_path = segmented_output_dir / membrain_file
 

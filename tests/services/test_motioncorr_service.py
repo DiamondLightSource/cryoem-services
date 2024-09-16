@@ -839,7 +839,7 @@ def test_motioncor2_service_tomo(
         message={
             "parameters": {
                 "experiment_type": "tomography",
-                "job_type": "relion.import.tilt_series",
+                "job_type": "relion.importtomo",
                 "input_file": f"{movie}:{tmp_path}/Movies/*.mdoc",
                 "output_file": f"{tmp_path}/Import/job001/Movies/sample.tiff",
                 "relion_options": output_relion_options,
@@ -1088,7 +1088,7 @@ def test_motioncor_relion_service_tomo(
         message={
             "parameters": {
                 "experiment_type": "tomography",
-                "job_type": "relion.import.tilt_series",
+                "job_type": "relion.importtomo",
                 "input_file": f"{movie}:{tmp_path}/Movies/*.mdoc",
                 "output_file": f"{tmp_path}/Import/job001/Movies/sample.tiff",
                 "relion_options": output_relion_options,
@@ -1490,7 +1490,6 @@ def test_parse_motioncor2_output(mock_environment, offline_transport):
     # MotionCor2 v1.6.3 case
     service.x_shift_list = []
     service.y_shift_list = []
-    print(service.x_shift_list, service.y_shift_list, type(service.x_shift_list))
     motioncorr.MotionCorr.parse_mc2_stdout(
         service, "Frame   x Shift   y Shift\n1    -3.0      4.0\n2    3.0      -4.0"
     )
