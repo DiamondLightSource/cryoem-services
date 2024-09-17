@@ -16,12 +16,14 @@ from xml.etree import ElementTree as ET
 
 import numpy as np
 from defusedxml.ElementTree import parse
-from tifffile import TiffFile
+from tifffile import TiffFile, imwrite
 
 from cryoemservices.clem.images import (
+    convert_array_bit_depth,
     convert_to_rgb,
     create_composite_image,
     flatten_image,
+    stretch_image_contrast,
 )
 from cryoemservices.clem.xml import get_image_elements
 
@@ -56,13 +58,13 @@ def merge_image_stacks(
         raise ValueError("No image stack file paths have been provided")
 
     # Check that files have the same parent directories
-    if len({file.parents[1] for file in files}) > 1:
+    if len({file.parents[0] for file in files}) > 1:
         raise Exception(
             "The files provided come from different directories, and might not "
             "be part of the same series"
         )
     # Get parent directory
-    parent_dir = list({file.parents[1] for file in files})[0]
+    parent_dir = list({file.parents[0] for file in files})[0]
     # Validate parent directory
     ## TO DO
 
@@ -81,7 +83,12 @@ def merge_image_stacks(
         metadata_file = list((parent_dir / "metadata").glob("*.xml"))[0]
 
     # Load metadata for series from XML file
-    metadata: ET.Element = get_image_elements(parse(metadata_file).getroot())[0]
+    element_list = get_image_elements(
+        parse(metadata_file).getroot()
+    )  # Check if multiple elements are present in the XML file first
+    metadata: ET.ElementTree = (
+        element_list[0] if len(element_list) > 0 else parse(metadata_file).getroot()
+    )
 
     # Get order of colors as shown in metadata
     channels = metadata.findall(
@@ -119,6 +126,12 @@ def merge_image_stacks(
     if len({arr.shape for arr in arrays}) > 1:
         raise Exception("The image stacks provided do not have the same shape")
 
+    # Get the dtype of the image
+    if len({str(arr.dtype) for arr in arrays}) > 1:
+        raise Exception("The image stacks do not have the same dtype")
+    dtype_init = list({str(arr.dtype) for arr in arrays})[0]
+    bit_init = int("".join([char for char in dtype_init if char.isdigit()]))
+
     # Flatten images
     if flatten is not None:
         arrays = [flatten_image(arr, mode=flatten) for arr in arrays]
@@ -137,5 +150,60 @@ def merge_image_stacks(
 
     # Convert to a composite image
     composite_img = create_composite_image(arrays)
+    composite_img = convert_array_bit_depth(
+        composite_img,
+        target_bit_depth=bit_init,
+        initial_bit_depth=bit_init,
+    )
+    composite_img = stretch_image_contrast(
+        composite_img,
+        percentile_range=(0, 100),
+    )
+    # Debug information
+    # print(f"dtype: {composite_img.dtype}")
+    # print(f"Shape: {composite_img.shape}")
+    # print(f"Max: {composite_img.max()}")
+    # print(f"Min: {composite_img.min()}")
+
+    # Save the image to a TIFF file
+    # Set up metadata properties
+    final_shape = composite_img.shape
+    units = "micron"
+    extended_metadata = ""
+    # image_labels = None
+
+    if flatten is None:
+        axes = "ZYXS"
+        z_size = 1
+    else:
+        axes = "YXS"
+        z_size = None
+
+    save_name = parent_dir / "composite.tiff"
+    imwrite(
+        save_name,
+        composite_img,
+        # Array properties
+        shape=final_shape,
+        dtype=str(composite_img.dtype),
+        resolution=None,
+        resolutionunit=None,
+        # Colour properties
+        photometric="rgb",
+        colormap=None,
+        # ImageJ compatibility
+        imagej=True,
+        metadata={
+            "axes": axes,
+            "unit": units,
+            "spacing": z_size,
+            "loop": False,
+            "min": round(composite_img.min(), 1),
+            "max": round(composite_img.max(), 1),
+            "Info": extended_metadata,
+            # "Labels": image_labels,
+        },
+    )
+    print(f"Composite image saved as {save_name}")
 
     return composite_img

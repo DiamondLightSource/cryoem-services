@@ -97,5 +97,6 @@ def run():
         flatten=flatten,
         registration=registration,
     )
-    if composite_image:
+
+    if composite_image is not None:
         return True
