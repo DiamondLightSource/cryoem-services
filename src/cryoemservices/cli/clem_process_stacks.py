@@ -35,19 +35,26 @@ def run():
         type=str,
         help="Full file path to the metadata file associated with this dataset",
     )
+    # Align image stacks before flattening
+    parser.add_argument(
+        "--pre_align_stack",
+        default=None,
+        type=str,
+        help="Choose whether to align the image stacks before flattening, and how",
+    )
     # Determine how the image is flattened
     parser.add_argument(
         "--flatten",
         default="mean",
         type=str,
-        help="Choose if the image stacks should be flattened, and how to do so",
+        help="Choose whether to flatten the image stacks, and how",
     )
     # Determine what image registration protocol to implement
     parser.add_argument(
-        "--registration",
+        "--align_stacks",
         default=None,
         type=str,
-        help="Choose the type of image registration protocol to use",
+        help="Choose whether to align the image stacks before merging, and how",
     )
     # Parse the arguments
     args = parser.parse_args()
@@ -58,7 +65,6 @@ def run():
         raise TypeError(
             "One or more of the image files provided are of an invalid type"
         )
-
     image_files = [Path(file) for file in args.images if Path(file).exists()]
     if len(image_files) == 0:
         raise FileNotFoundError("No valid file paths provided")
@@ -69,8 +75,8 @@ def run():
             metadata_file = Path(args.metadata)
         else:
             print(
-                "The metadata file provided doesn't exist; searching for the metadata "
-                "file using the default settings"
+                "The metadata file provided doesn't exist; will use the metadata file "
+                "found using the default settings"
             )
             metadata_file = None
     elif args.metadata is None:
@@ -78,25 +84,38 @@ def run():
     else:
         raise TypeError("The metadata parameter is of an invalid type")
 
+    # Resolve pre-flattening alignment parameter
+    if isinstance(args.pre_align_stack, str) or args.pre_align_stack is None:
+        # Use "null" as a stand-in for None
+        pre_align_stack = (
+            None if args.pre_align_stack == "null" else args.pre_align_stack
+        )
+    else:
+        raise TypeError("Invalid type for pre-alignment parameter")
+
     # Resolve image flattening parameter
-    if isinstance(args.flatten, str):
+    if isinstance(args.flatten, str) or args.flatten is None:
+        # Use "null" as a stand-in for None
         flatten = None if args.flatten == "null" else args.flatten
     else:
-        raise TypeError("The flatten parameter is of an invalid type")
+        raise TypeError("Invalid type for flattening parameter")
 
     # Resolve image registration parameter
-    if isinstance(args.registration, str):
-        registration = None if args.registration == "null" else args.flatten
+    if isinstance(args.align_stacks, str) or args.align_stacks is None:
+        # Use "null" as a stand-in for None
+        align_stacks = None if args.align_stacks == "null" else args.align_stacks
     else:
-        raise TypeError("The registration parameter is of an invalid type")
+        raise TypeError("Invalid type for image alignment parameter")
 
     # Run function
     composite_image = merge_image_stacks(
         image_files=image_files,
         metadata_file=metadata_file,
+        pre_align_stack=pre_align_stack,
         flatten=flatten,
-        registration=registration,
+        align_stacks=align_stacks,
+        print_logs=True,  # Print messages when used as a CLI
     )
 
     if composite_image is not None:
-        return True
+        print("Done")
