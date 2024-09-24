@@ -331,9 +331,7 @@ def convert_to_rgb(
         raise KeyError(f"No lookup table found for the colour {color!r}")
 
     # Calculate pixel values for each channel
-    arr_list: list[np.ndarray] = []
-    for c in lut:
-        arr_list.append(arr * c)
+    arr_list: list[np.ndarray] = [arr * c for c in lut]
 
     # Stack arrays along last axis
     arr_new = np.stack(arr_list, axis=-1)
@@ -355,14 +353,20 @@ def flatten_image(
     if mode not in valid_modes:
         raise ValueError(f"{mode} is not a valid image flattening mode")
 
-    # Flatten along first axis
+    # Flatten along first (outermost) axis
     axis = 0
     if mode == "min":
         return array.min(axis=axis)
     if mode == "max":
         return array.max(axis=axis)
     if mode == "mean":
-        return array.mean(axis=axis)
+        dtype = array.dtype
+        arr_mean: np.ndarray = array.mean(axis=axis)
+        # Preserve dtype when returning array
+        if str(dtype).startswith("float"):
+            return arr_mean.astype(dtype)
+        if any(str(dtype).startswith(value) for value in ("int", "uint")):
+            return arr_mean.round(0).astype(dtype)
 
 
 def create_composite_image(
@@ -373,6 +377,7 @@ def create_composite_image(
     the list.
     """
 
+    # Standardise to a list of arrays
     if isinstance(arrays, np.ndarray):
         arrays = [arrays]
 
@@ -380,17 +385,18 @@ def create_composite_image(
     if len(({arr.shape for arr in arrays})) > 1:
         raise ValueError("Input arrays do not have the same shape")
 
-    # Calculate average for each frame across all arrays
-    shape = arrays[0].shape
-    # num_arrays = len(arrays)
-    for i in range(shape[0]):
-        if i == 0:
-            arr_new: np.ndarray = np.array(
-                [np.mean([arr[i] for arr in arrays], axis=0)]
-            )
-        else:
-            arr_new = np.append(
-                arr_new, [np.mean([arr[i] for arr in arrays], axis=0)], axis=0
-            )
+    # Get initial dtype of array
+    dtype = arrays[0].dtype
+
+    # Calculate average across all arrays
+    arr_new: np.ndarray = np.mean(arrays, axis=0)
+
+    # Preserve dtype of array
+    # This is an averaging operation, so we can safely switch the dtype back from
+    # float64 without encountering an overflow
+    if str(dtype).startswith("float"):
+        return arr_new.astype(dtype)
+    if any(str(dtype).startswith(value) for value in ("int", "uint")):
+        return arr_new.round(0).astype(dtype)
 
     return arr_new
