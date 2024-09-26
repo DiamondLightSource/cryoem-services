@@ -288,7 +288,7 @@ def convert_array_dtype(
         if f == 0:
             arr_new = np.array([frame])
         else:
-            np.append(arr_new, [frame], axis=0)
+            arr_new = np.append(arr_new, [frame], axis=0)
 
     return arr_new
 
