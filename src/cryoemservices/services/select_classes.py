@@ -499,14 +499,14 @@ class SelectClasses(CommonService):
                     # Second entry is particle files in the form 001@Extract/file.star
                     particle_x = line.split()[0]
                     particle_y = line.split()[1]
-                    extracted_file = line.split()[2].split("@")[1]
-                    motioncorr_file = line.split()[3]
+                    extracted_file = Path(line.split()[2].split("@")[1])
+                    motioncorr_file = Path(line.split()[3])
                     if [extracted_file, motioncorr_file] not in files_selected_from:
                         # Make a list of all files
                         files_selected_from.append([extracted_file, motioncorr_file])
                     # Append any newly selected particles to a file
                     with open(
-                        combine_star_dir / f"Movies/{Path(extracted_file).stem}.star",
+                        combine_star_dir / f"Movies/{extracted_file.stem}.star",
                         "a",
                     ) as selected_file:
                         selected_file.write(f"{particle_x} {particle_y}\n")
@@ -514,21 +514,23 @@ class SelectClasses(CommonService):
         original_pixel_size = None
         for extracted_file, motioncorr_file in files_selected_from:
             # Get the selected picks for each file
-            extract_job_number = int(extracted_file.split("job")[1][:3])
+            extract_job_number = int(str(extracted_file).split("job")[1][:3])
             try:
                 with open(
-                    combine_star_dir / f"Movies/{Path(extracted_file).stem}.star", "r"
+                    combine_star_dir / f"Movies/{extracted_file.stem}.star", "r"
                 ) as selected_file:
                     selected_coords = [line.split() for line in selected_file]
             except FileNotFoundError:
                 selected_coords = []
 
-            if not Path(motioncorr_file).is_relative_to(project_dir):
+            if not motioncorr_file.is_relative_to(project_dir):
                 motioncorr_file = project_dir / motioncorr_file
 
             if not original_pixel_size:
                 with mrcfile.open(motioncorr_file) as mrc:
-                    original_pixel_size = float(mrc.header.cella.z)
+                    original_pixel_size = float(mrc.header.cella.x) / float(
+                        mrc.header.mx
+                    )
 
             # Get the name of the  picking image file
             cryolo_output_path = (
@@ -539,7 +541,7 @@ class SelectClasses(CommonService):
                         str(motioncorr_file),
                     )
                 )
-                / Path(motioncorr_file).with_suffix(".star").name
+                / motioncorr_file.with_suffix(".star").name
             )
 
             # Get all the picks

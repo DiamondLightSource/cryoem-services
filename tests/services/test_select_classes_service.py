@@ -65,6 +65,11 @@ def select_classes_common_setup(
     Path(job_dir / "MotionCorr/job002/Movies").mkdir(parents=True, exist_ok=True)
     with mrcfile.new(job_dir / "MotionCorr/job002/Movies/movie.mrc") as mrc:
         mrc.set_data(np.array([[0.1, 0.2], [0.3, 0.4]], dtype=np.float32))
+        mrc.header.mx = 100
+        mrc.header.my = 50
+        mrc.header.mz = 1
+        mrc.header.cella.x = 50
+        mrc.header.cella.y = 50
         mrc.header.cella.z = 1
 
     autoselect_file = job_dir / "Select/job012/rank_model.star"
@@ -290,7 +295,7 @@ def test_select_classes_service_first_batch(
             "selected_coordinates": [
                 [str(i / 100), str(i / 100)] for i in range(60000)
             ],
-            "pixel_size": 1.0,
+            "pixel_size": 0.5,
             "diameter": 100.0,
             "outfile": f"{tmp_path}/AutoPick/job007/STAR/movie.jpeg",
         },
