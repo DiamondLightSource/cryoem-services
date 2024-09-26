@@ -5,7 +5,9 @@ light microscope.
 
 from __future__ import annotations
 
+import itertools
 import logging
+import re
 from enum import Enum
 from pathlib import Path
 from typing import Literal, Optional, Union
@@ -16,53 +18,178 @@ from tifffile import imwrite
 # Create logger object to output messages with
 logger = logging.getLogger("cryoemservices.clem.images")
 
-# Accepted bit depths and corresponding NumPy dtypes
-# For use by various functions in the script
-valid_bit_depths = (8, 16, 32, 64)
-valid_dtypes = tuple(f"uint{n}" for n in valid_bit_depths)
-
 
 """
 HELPER CLASSES AND FUNCTIONS
 """
 
 
-class UnsignedIntegerError(Exception):
+def get_valid_dtypes() -> tuple[str, ...]:
     """
-    Raised if the bit depth value provided is not one that NumPy can interpret as an
-    unsigned integer dtype.
+    Use NumPy's in-built dtype dictionary to get list of available, valid dtypes.
+    Major dtype groups are "int", "uint", "float", and "complex"
     """
-
-    def __init__(
-        self,
-        bit_depth: int,
-    ):
-        self.bit_depth = bit_depth
-        self.message = (
-            f"The bit depth provided ({bit_depth}) is not a NumPy-compatible unsigned integer dtype. "
-            "Only 8, 16, 32, and 64 bits are allowed. "
+    # Extract list of NumPy dtype classes
+    dtype_class_list = list(
+        itertools.chain.from_iterable(
+            (
+                (str(value) for value in np.sctypes[key])
+                for key in np.sctypes.keys()
+                if key not in ("others",)
+            )
         )
-        super().__init__(self.message)
+    )
+    # Use regex matching to get just the dtype portion of the class
+    valid_dtypes: list[str] = []
+    pattern = r"<[a-z]+ '[a-z]+\.([a-z0-9]+)'>"
+    for dtype_class in dtype_class_list:
+        match = re.fullmatch(pattern, dtype_class)
+        if match is not None:
+            dtype = str(np.dtype(match.group(1)))
+            valid_dtypes.append(dtype)
+    if len(valid_dtypes) == 0:
+        raise Exception("Unable to get list of NumPy dtypes from NumPy module")
+
+    return tuple(valid_dtypes)
 
 
-def estimate_bit_depth(array: np.ndarray) -> int:
+# Load valid dtypes for future use
+valid_dtypes = get_valid_dtypes()
+
+
+def get_dtype_info(dtype: str) -> np.finfo | np.iinfo:
     """
-    Returns the smallest bit depth that will enclose the range of values present in
-    an array.
+    Returns NumPy's built-int dtype info object, which contains useful information about
+    the dtype that can be called for use in other functions.
+
+    See the docs for:
+    numpy.finfo - https://numpy.org/doc/stable/reference/generated/numpy.finfo.html
+    numpy.iinfo = https://numpy.org/doc/stable/reference/generated/numpy.iinfo.html
     """
 
-    bit_depth = np.ceil(np.log2(array.max()))
-    # Raise error if value is too large
-    if bit_depth > 64:
-        raise UnsignedIntegerError(bit_depth)
+    if dtype not in valid_dtypes:
+        raise ValueError(f"{dtype} is not a valid or supported NumPy dtype")
 
-    # Return bit_depth if corresponding to one of the accepted values
-    if bit_depth in valid_bit_depths:
-        return bit_depth
-    # Return smallest value that is larger than the specified one
+    dtype_info = (
+        np.iinfo(dtype) if dtype.startswith(("int", "uint")) else np.finfo(dtype)
+    )
+
+    return dtype_info
+
+
+def estimate_dtype(array: np.ndarray, bit_depth: Optional[int] = None) -> str:
+    """
+    Finds the smallest NumPy dtype that can contain the range of values present in a particular image
+    """
+
+    # Define helper sub-functions
+    def _by_bit_depth(
+        array: np.ndarray,
+        dtype_group: str,
+        bit_depth: int,
+    ) -> Optional[str]:
+
+        # Set up variables
+        arr = array
+        dtype_subset = [
+            dtype for dtype in valid_dtypes if dtype.startswith(dtype_group)
+        ]
+
+        # Get dtypes with bit values greater than the provided one
+        bit_list: list[int] = []
+        for dtype in dtype_subset:
+            match = re.fullmatch("[a-z]+([0-9]+)", dtype)
+            if match is not None:
+                value = int(match.group(1))
+                if value >= bit_depth:
+                    bit_list.append(value)
+            else:
+                continue
+        if len(bit_list) == 0:
+            raise Exception("No suitable dtypes found based on provided bit depth")
+
+        # Use the minimum viable dtype
+        dtype_final = f"{dtype_group}{min(bit_list)}"
+
+        # Return None if dtype calculated cannot accommodate all values
+        if get_dtype_info(dtype_final).max < max(abs(arr.min()), abs(arr.max())):
+            logger.warning(
+                "Array contains values larger than the bit depth estimated can accommodate"
+            )
+            return None
+
+        return dtype_final
+
+    def _by_array_values(array: np.ndarray, dtype_group: str):
+
+        # Set up variables
+        arr = array
+
+        # Get the list of dtypes that can accommodate the array's contents
+        dtype_subset = [
+            dtype
+            for dtype in valid_dtypes
+            if dtype.startswith(dtype_group)
+            and get_dtype_info(dtype).max >= max(abs(arr.min()), abs(arr.max()))
+        ]
+        bit_list: list[int] = []
+        for dtype in dtype_subset:
+            match = re.fullmatch("[a-z]+([0-9]+)", dtype)
+            if match is not None:
+                value = int(match.group(1))
+                bit_list.append(value)
+            else:
+                continue
+        if len(bit_list) == 0:
+            raise Exception(
+                "No suitable dtypes found that can accommodate the array's values"
+            )
+        dtype_final = f"{dtype_group}{min(bit_list)}"
+
+        return dtype_final
+
+    # Set up variables
+    arr = array
+    dtype_init = str(arr.dtype)
+
+    # Validate initial dtype (this should never be triggered, in principle)
+    if dtype_init not in valid_dtypes:
+        raise ValueError(f"{dtype_init} is not a valid or supported NumPy dtype")
+
+    # Determine the dtype group to compare against
+    match = re.match("([a-z]+)[0-9]+", dtype_init)
+    if match is not None:
+        dtype_group = match.group(1)
     else:
-        new_bit_depth = min(n for n in valid_bit_depths if n > bit_depth)
-        return new_bit_depth
+        raise Exception("Error finding the dtype group")
+
+    # Switch from "int" to "uint" if no negative values are present in array
+    if dtype_group == "int" and arr.min() >= 0:
+        dtype_group = "uint"
+
+    # Make an estimate using the provided bit depth
+    bit_depth_estimate = (
+        _by_bit_depth(
+            array=arr,
+            dtype_group=dtype_group,
+            bit_depth=bit_depth,
+        )
+        if bit_depth is not None
+        else None
+    )
+
+    # Make an estimate based on the maximum value present in the array
+    array_estimate = (
+        _by_array_values(array=arr, dtype_group=dtype_group)
+        if bit_depth_estimate is None
+        else bit_depth_estimate
+    )
+
+    # There could be more checks here, if I think of more
+
+    dtype_final = array_estimate
+
+    return dtype_final
 
 
 def stretch_image_contrast(
@@ -76,10 +203,9 @@ def stretch_image_contrast(
 
     # Check that dtype is supported by NumPy
     dtype = str(array.dtype)
-    bit_depth = int("".join([char for char in dtype if char.isdigit()]))
     if dtype not in valid_dtypes:
-        raise UnsignedIntegerError(bit_depth)
-    max_int = 2**bit_depth - 1
+        raise ValueError(f"{dtype} is not a valid or supported NumPy dtype")
+    dtype_info = get_dtype_info(dtype)
 
     # Use shorter variable names
     arr: np.ndarray = array
@@ -91,8 +217,20 @@ def stretch_image_contrast(
         frame: np.ndarray = arr[f]
         frame[frame < b_lo] = b_lo
         frame[frame > b_up] = b_up
-        frame = np.array((frame - b_lo) / (b_up - b_lo) * max_int)  # Normalise
-        frame = frame.round(0).astype(dtype)  # Round and convert to dtype
+        # Normalise differently depending on whether dtype supports negative values
+        frame = (
+            np.array((frame - b_lo) / (b_up - b_lo) * dtype_info.max)
+            if dtype_info.min == 0
+            else np.array(frame / max(abs(b_lo), abs(b_up)) * dtype_info.max)
+        )
+        # Preserve dtype and round values if dtype is integer-based
+        frame = (
+            frame.round(0).astype(dtype)
+            if dtype.startswith(("int", "uint"))
+            else frame.astype(dtype)
+        )
+
+        # Append to array
         if f == 0:
             arr_new = np.array([frame])
         else:
@@ -101,46 +239,56 @@ def stretch_image_contrast(
     return arr_new
 
 
-def convert_array_bit_depth(
+def convert_array_dtype(
     array: np.ndarray,
-    target_bit_depth: int,
-    initial_bit_depth: Optional[int] = None,
+    target_dtype: str,
+    initial_dtype: Optional[str] = None,
 ) -> np.ndarray:
     """
     Rescales the pixel values of the array to fit within the desired array bit depth
-    WITHOUT modifying the contrast.
+    while preserving the existing contrast.
 
     If the array has a bit depth not compatible with NumPy, one can be provided
     """
 
     # Use shorter names for variables
     arr: np.ndarray = array
-    bit_final: int = target_bit_depth
-    dtype_final = f"uint{bit_final}"
+    dtype_final = target_dtype
+    dtype_init = initial_dtype
 
     # Validate the final dtype to convert to
-    if bit_final not in valid_bit_depths:
-        raise UnsignedIntegerError(bit_final)
+    if dtype_final not in valid_dtypes:
+        raise ValueError(f"{dtype_final} is not currently supported")
 
-    # Use initial bit depth if provided
-    if initial_bit_depth is not None:
-        bit_init = initial_bit_depth
-    # Otherwise, get it from the array
-    else:
+    # Validate initial dtype
+    if dtype_init not in valid_dtypes or dtype_init is None:
+        if dtype_init not in valid_dtypes:
+            logger.warning(
+                f"{dtype_init} is not a valid or supported NumPy dtype; estimating the dtype from the array"
+            )
+        # Estimate from the array
         dtype_init = str(arr.dtype)
-        bit_init = int("".join([char for char in dtype_init if char.isdigit()]))
 
-    # Get max pixel values of initial and final arrays
-    int_init = int(2**bit_init - 1)
-    int_final = int(2**bit_final - 1)
+    # Get max supported values of initial and final arrays
+    max_init = get_dtype_info(dtype_init).max
+    max_final = get_dtype_info(dtype_final).max
 
     # Rescale (DIVIDE BEFORE MULTIPLY)
     for f in range(arr.shape[0]):
-        frame_new = np.array(arr[f] / int_init * int_final).round(0).astype(dtype_final)
+        # Rescale
+        frame = np.array(arr[f] / max_init * max_final)
+        # Preserve dtype and round values if dtype is integer-based
+        frame = (
+            frame.round(0).astype(dtype_final)
+            if dtype_final.startswith(("int", "uint"))
+            else frame.astype(dtype_final)
+        )
+
+        # Append to array
         if f == 0:
-            arr_new = np.array([frame_new])
+            arr_new = np.array([frame])
         else:
-            arr_new = np.append(arr_new, [frame_new], axis=0)
+            np.append(arr_new, [frame], axis=0)
 
     return arr_new
 
@@ -162,43 +310,125 @@ class LUT(Enum):
     gray = (1, 1, 1)
 
 
+def convert_to_rgb(
+    array: np.ndarray,
+    color: str,
+) -> np.ndarray:
+
+    # Set up variables
+    arr: np.ndarray = array
+    dtype = str(arr.dtype)
+    try:
+        lut = LUT[color.lower()].value
+    except KeyError:
+        raise KeyError(f"No lookup table found for the colour {color!r}")
+
+    # Calculate pixel values for each channel
+    arr_list: list[np.ndarray] = [arr * c for c in lut]
+
+    # Stack arrays along last axis and preserve dtype
+    arr_new = np.stack(arr_list, axis=-1).astype(dtype)
+
+    return arr_new
+
+
+def flatten_image(
+    array: np.ndarray,
+    mode: Literal["min", "max", "mean"] = "mean",
+) -> np.ndarray:
+
+    # Flatten along first (outermost) axis
+    axis = 0
+    if mode == "min":
+        arr_new = np.array(array.min(axis=axis))
+    elif mode == "max":
+        arr_new = np.array(array.max(axis=axis))
+    elif mode == "mean":
+        dtype = str(array.dtype)
+        arr_new = np.array(array.mean(axis=axis))
+        arr_new = (
+            arr_new.round(0) if str(dtype).startswith(("int", "uint")) else arr_new
+        )
+        arr_new = arr_new.astype(dtype)
+    # Raise error if the mode provided is incorrect
+    else:
+        raise ValueError(f"{mode} is not a valid image flattening option")
+
+    return arr_new
+
+
+def create_composite_image(
+    arrays: Union[np.ndarray, list[np.ndarray]],
+) -> np.ndarray:
+    """
+    Takes a list of arrays and returns a composite image averaged across every image in
+    the list.
+    """
+
+    # Standardise to a list of arrays
+    if isinstance(arrays, np.ndarray):
+        arrays = [arrays]
+
+    # Validate that arrays have the same shape
+    if len({arr.shape for arr in arrays}) > 1:
+        raise ValueError("Input arrays do not have the same shape")
+
+    # Validate that arrays have the same dtype
+    if len({str(arr.dtype) for arr in arrays}) > 1:
+        raise ValueError("Input arrays do not have the same dtype")
+    dtype = str(arrays[0].dtype)
+
+    # Calculate average across all arrays
+    arr_new: np.ndarray = np.mean(arrays, axis=0)
+
+    # Preserve dtype of array
+    # This is an averaging operation, so we can safely switch the dtype back from
+    # float64 without encountering an overflow
+    arr_new = arr_new.round(0) if dtype.startswith(("int", "uint")) else arr_new
+    arr_new = arr_new.astype(dtype)
+
+    return arr_new
+
+
 """
-FUNCTIONS TO PROCESS IMAGE STACKS
+FUNCTIONS FOR PRE-PROCESSING OF IMAGE STACKS
 """
 
 
 def process_img_stk(
     array: np.ndarray,
-    initial_bit_depth: int,
-    target_bit_depth: int = 8,
+    initial_dtype: str,
+    target_dtype: str = "uint8",
     adjust_contrast: Optional[str] = None,
 ) -> np.ndarray:
     """
-    Processes the NumPy array, rescaling intensities and converting to the desired bit
-    depth as needed.
+    Processes the NumPy array, rescaling intensities and converting to the desired
+    dtype as needed.
     """
 
     # Use shorter aliases in function
     arr: np.ndarray = array
-    bdi = initial_bit_depth
-    bdt = target_bit_depth
+    dtype_init = initial_dtype
+    dtype_final = target_dtype
 
     # Validate that function inputs are correct
-    if bdt not in valid_bit_depths:
-        raise UnsignedIntegerError(bdt)
+    if dtype_final not in valid_dtypes:
+        raise ValueError(f"{dtype_final} is not a valid or supported NumPy dtype")
 
-    if bdi not in valid_bit_depths:
-        logger.info(f"{bdi}-bit is not supported by NumPy; converting to 16-bit")
+    if dtype_init not in valid_dtypes:
+        logger.info(
+            f"{dtype_init} is not a valid or supported NumPy dtype; converting to most appropriate dtype"
+        )
         arr = (
-            convert_array_bit_depth(
+            convert_array_dtype(
                 array=arr,
-                target_bit_depth=16,
-                initial_bit_depth=bdi,
+                target_dtype=dtype_final,
+                initial_dtype=dtype_init,
             )
             if np.max(arr) > 0
-            else arr.astype(f"uint{16}")
+            else arr.astype(dtype_final)
         )
-        bdi = 16  # Overwrite
+        dtype_init = dtype_final
 
     # Rescale intensity values
     # List of currently implemented methods (can add more as needed)
@@ -217,19 +447,19 @@ def process_img_stk(
             )
 
     # Convert to desired bit depth
-    if not bdi == bdt:
-        logger.info(f"Converting to {bdt}-bit image")
+    if dtype_init != dtype_final:
+        logger.info(f"Converting to {dtype_final} array")
         arr = (
-            convert_array_bit_depth(
+            convert_array_dtype(
                 array=arr,
-                target_bit_depth=bdt,
-                initial_bit_depth=bdi,
+                target_dtype=dtype_final,
+                initial_dtype=dtype_init,
             )
             if np.max(arr) > 0
-            else arr.astype(f"uint{bdt}")
+            else arr.astype(dtype_final)
         )
     else:
-        logger.info(f"Image is already {bdt}-bit")
+        logger.info(f"Image is already a {dtype_final} array")
 
     return arr
 
@@ -314,89 +544,3 @@ def write_stack_to_tiff(
             "Labels": image_labels,
         },
     )
-
-    return arr
-
-
-def convert_to_rgb(
-    array: np.ndarray,
-    color: str,
-) -> np.ndarray:
-
-    # Set up variables
-    arr: np.ndarray = array
-    try:
-        lut = LUT[color.lower()].value
-    except KeyError:
-        raise KeyError(f"No lookup table found for the colour {color!r}")
-
-    # Calculate pixel values for each channel
-    arr_list: list[np.ndarray] = [arr * c for c in lut]
-
-    # Stack arrays along last axis
-    arr_new = np.stack(arr_list, axis=-1)
-
-    return arr_new
-
-
-def flatten_image(
-    array: np.ndarray,
-    mode: Literal["min", "max", "mean"] = "mean",
-) -> np.ndarray:
-
-    # Validate options
-    valid_modes = (
-        "min",
-        "max",
-        "mean",
-    )
-    if mode not in valid_modes:
-        raise ValueError(f"{mode} is not a valid image flattening mode")
-
-    # Flatten along first (outermost) axis
-    axis = 0
-    if mode == "min":
-        return array.min(axis=axis)
-    if mode == "max":
-        return array.max(axis=axis)
-    if mode == "mean":
-        dtype = array.dtype
-        arr_mean: np.ndarray = array.mean(axis=axis)
-        # Preserve dtype when returning array
-        if str(dtype).startswith("float"):
-            return arr_mean.astype(dtype)
-        if any(str(dtype).startswith(value) for value in ("int", "uint")):
-            return arr_mean.round(0).astype(dtype)
-
-
-def create_composite_image(
-    arrays: Union[np.ndarray, list[np.ndarray]],
-) -> np.ndarray:
-    """
-    Takes a list of arrays and returns a composite image averaged across every image in
-    the list.
-    """
-
-    # Standardise to a list of arrays
-    if isinstance(arrays, np.ndarray):
-        arrays = [arrays]
-
-    # Validate that arrays have the same shape
-    if len(({arr.shape for arr in arrays})) > 1:
-        raise ValueError("Input arrays do not have the same shape")
-
-    # Get initial dtype of array
-    dtype = arrays[0].dtype
-
-    # Calculate average across all arrays
-    arr_new: np.ndarray = np.mean(arrays, axis=0)
-
-    # Preserve dtype of array
-    # This is an averaging operation, so we can safely switch the dtype back from
-    # float64 without encountering an overflow
-    if str(dtype).startswith("float"):
-        return arr_new.astype(dtype)
-    if any(str(dtype).startswith(value) for value in ("int", "uint")):
-        return arr_new.round(0).astype(dtype)
-
-    return arr_new
