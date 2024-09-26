@@ -14,7 +14,11 @@ import numpy as np
 from defusedxml.ElementTree import parse
 from PIL import Image
 
-from cryoemservices.clem.images import process_img_stk, write_stack_to_tiff
+from cryoemservices.clem.images import (
+    estimate_dtype,
+    process_img_stk,
+    write_stack_to_tiff,
+)
 from cryoemservices.clem.xml import get_axis_resolution, get_image_elements
 
 # Create logger object to output messages with
@@ -91,9 +95,6 @@ def process_tiff_files(
         color = colors[c]
         logger.info(f"Processing {color} channel")
 
-        # Get bit depth
-        bit_depth = int(channels[c].attrib["Resolution"])
-
         # Find TIFFs from relevant channel and series
         # Replace " " with "_" when comparing file name against series name as found in metadata
         tiff_sublist = [
@@ -121,11 +122,17 @@ def process_tiff_files(
                 arr = np.array([img])  # Store as 3D array
             else:
                 arr = np.append(arr, [img], axis=0)
-        logger.info(
-            f"{img_name} {color} array has the dimensions {np.shape(arr)} \n"
-            f"Min value: {np.min(arr)} \n"
-            f"Max value: {np.max(arr)} \n"
+        logger.debug(
+            f"{img_name} {color} array properties: \n"
+            f"Shape: {arr.shape} \n"
+            f"dtype: {arr.dtype} \n"
+            f"Min value: {arr.min()} \n"
+            f"Max value: {arr.max()} \n"
         )
+
+        # Estimate initial NumPy dtype
+        bit_depth = int(channels[c].attrib["Resolution"])
+        dtype_init = estimate_dtype(arr, bit_depth=bit_depth)
 
         # Rescale intensity values for fluorescent channels
         adjust_contrast = (
@@ -143,15 +150,24 @@ def process_tiff_files(
         )
 
         # Process the image stack
+        logger.info("Processing image stack")
         arr = process_img_stk(
             array=arr,
-            initial_bit_depth=bit_depth,
-            target_bit_depth=8,
+            initial_dtype=dtype_init,
+            target_dtype="uint8",
             adjust_contrast=adjust_contrast,
+        )
+        logger.debug(
+            f"{img_name} {color} array properties: \n"
+            f"Shape: {arr.shape} \n"
+            f"dtype: {arr.dtype} \n"
+            f"Min value: {arr.min()} \n"
+            f"Max value: {arr.max()} \n"
         )
 
         # Save as a greyscale TIFF
-        arr = write_stack_to_tiff(
+        logger.info("Processing image stack")
+        write_stack_to_tiff(
             array=arr,
             save_dir=save_dir,
             series_name=color,
