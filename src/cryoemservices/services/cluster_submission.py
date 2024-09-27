@@ -19,13 +19,13 @@ from zocalo.util import slurm
 
 class JobSubmissionParameters(BaseModel):
     scheduler: str = "slurm"
-    partition: Optional[str]
-    prefer: Optional[str]
-    job_name: Optional[str]
+    job_name: str
+    partition: str
+    prefer: Optional[str] = None
     environment: Optional[dict[str, str]] = None
     cpus_per_task: Optional[int] = None
     tasks: Optional[int] = None
-    nodes: Optional[int]
+    nodes: Optional[int] = None
     memory_per_node: Optional[int] = None
     gpus_per_node: Optional[int] = None
     min_memory_per_cpu: Optional[int] = Field(

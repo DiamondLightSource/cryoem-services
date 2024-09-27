@@ -1,0 +1,114 @@
+[tool.bumpversion]
+current_version = "0.5.0"
+commit = true
+tag = true
+
+[[tool.bumpversion.files]]
+filename = "pyproject.toml"
+search = 'version = "{current_version}"'
+replace = 'version = "{new_version}"'
+
+[[tool.bumpversion.files]]
+filename = "src/cryoemservices/__init__.py"
+search = '__version__ = "{current_version}"'
+replace = '__version__ = "{new_version}"'
+
+[[tool.bumpversion.files]]
+filename = "Helm/Chart.yaml"
+search = 'version: {current_version}'
+replace = 'version: {new_version}'
+
+[[tool.bumpversion.files]]
+filename = "Helm/charts/bfactor_setup/Chart.yaml"
+search = 'version: {current_version}'
+replace = 'version: {new_version}'
+
+[[tool.bumpversion.files]]
+filename = "Helm/charts/cluster_submission/Chart.yaml"
+search = 'version: {current_version}'
+replace = 'version: {new_version}'
+
+[[tool.bumpversion.files]]
+filename = "Helm/charts/cryolo/Chart.yaml"
+search = 'version: {current_version}'
+replace = 'version: {new_version}'
+
+[[tool.bumpversion.files]]
+filename = "Helm/charts/ctffind/Chart.yaml"
+search = 'version: {current_version}'
+replace = 'version: {new_version}'
+
+[[tool.bumpversion.files]]
+filename = "Helm/charts/denoise_slurm/Chart.yaml"
+search = 'version: {current_version}'
+replace = 'version: {new_version}'
+
+[[tool.bumpversion.files]]
+filename = "Helm/charts/dispatcher/Chart.yaml"
+search = 'version: {current_version}'
+replace = 'version: {new_version}'
+
+[[tool.bumpversion.files]]
+filename = "Helm/charts/extract/Chart.yaml"
+search = 'version: {current_version}'
+replace = 'version: {new_version}'
+
+[[tool.bumpversion.files]]
+filename = "Helm/charts/extract_class/Chart.yaml"
+search = 'version: {current_version}'
+replace = 'version: {new_version}'
+
+[[tool.bumpversion.files]]
+filename = "Helm/charts/icebreaker/Chart.yaml"
+search = 'version: {current_version}'
+replace = 'version: {new_version}'
+
+[[tool.bumpversion.files]]
+filename = "Helm/charts/images/Chart.yaml"
+search = 'version: {current_version}'
+replace = 'version: {new_version}'
+
+[[tool.bumpversion.files]]
+filename = "Helm/charts/ispyb/Chart.yaml"
+search = 'version: {current_version}'
+replace = 'version: {new_version}'
+
+[[tool.bumpversion.files]]
+filename = "Helm/charts/membrain_seg/Chart.yaml"
+search = 'version: {current_version}'
+replace = 'version: {new_version}'
+
+[[tool.bumpversion.files]]
+filename = "Helm/charts/motioncorr/Chart.yaml"
+search = 'version: {current_version}'
+replace = 'version: {new_version}'
+
+[[tool.bumpversion.files]]
+filename = "Helm/charts/node_creator/Chart.yaml"
+search = 'version: {current_version}'
+replace = 'version: {new_version}'
+
+[[tool.bumpversion.files]]
+filename = "Helm/charts/postprocess/Chart.yaml"
+search = 'version: {current_version}'
+replace = 'version: {new_version}'
+
+[[tool.bumpversion.files]]
+filename = "Helm/charts/select_classes/Chart.yaml"
+search = 'version: {current_version}'
+replace = 'version: {new_version}'
+
+[[tool.bumpversion.files]]
+filename = "Helm/charts/select_particles/Chart.yaml"
+search = 'version: {current_version}'
+replace = 'version: {new_version}'
+
+[[tool.bumpversion.files]]
+filename = "Helm/charts/tomo_align/Chart.yaml"
+search = 'version: {current_version}'
+replace = 'version: {new_version}'
+
+[[tool.bumpversion.files]]
+filename = "Helm/charts/tomo_align_slurm/Chart.yaml"
+search = 'version: {current_version}'
+replace = 'version: {new_version}'
