@@ -14,7 +14,11 @@ from xml.etree import ElementTree as ET
 import numpy as np
 from readlif.reader import LifFile
 
-from cryoemservices.clem.images import process_img_stk, write_to_tiff
+from cryoemservices.clem.images import (
+    estimate_int_dtype,
+    process_img_stk,
+    write_stack_to_tiff,
+)
 from cryoemservices.clem.xml import get_image_elements
 
 # Create logger object to output messages with
@@ -110,9 +114,6 @@ def process_lif_file(
         color = colors[c]
         logger.info(f"Processing {color} channel")
 
-        # Get bit depth
-        bit_depth = image.bit_depth[c]
-
         # Load image stack to array
         logger.info("Loading image stack")
         for z in range(num_frames):
@@ -121,11 +122,17 @@ def process_lif_file(
                 arr = np.array([frame])
             else:
                 arr = np.append(arr, [frame], axis=0)
-        logger.info(
-            f"{img_name} {color} array has the dimensions {np.shape(arr)} \n"
-            f"Min value: {np.min(arr)} \n"
-            f"Max value: {np.max(arr)} \n"
+        logger.debug(
+            f"{img_name} {color} array properties: \n"
+            f"Shape: {arr.shape} \n"
+            f"dtype: {arr.dtype} \n"
+            f"Min value: {arr.min()} \n"
+            f"Max value: {arr.max()} \n"
         )
+
+        # Estimate initial NumPy dtype
+        bit_depth = image.bit_depth[c]
+        dtype_init = estimate_int_dtype(arr, bit_depth=bit_depth)
 
         # Rescale intensity values for fluorescent channels
         adjust_contrast = (
@@ -143,15 +150,24 @@ def process_lif_file(
         )
 
         # Process the image stack
+        logger.info("Processing image stack")
         arr = process_img_stk(
             array=arr,
-            initial_bit_depth=bit_depth,
-            target_bit_depth=8,
+            initial_dtype=dtype_init,
+            target_dtype="uint8",
             adjust_contrast=adjust_contrast,
+        )
+        logger.debug(
+            f"{img_name} {color} array properties: \n"
+            f"Shape: {arr.shape} \n"
+            f"dtype: {arr.dtype} \n"
+            f"Min value: {arr.min()} \n"
+            f"Max value: {arr.max()} \n"
         )
 
         # Save as a greyscale TIFF
-        arr = write_to_tiff(
+        logger.info("Processing image stack")
+        write_stack_to_tiff(
             array=arr,
             save_dir=img_dir,
             series_name=color,
