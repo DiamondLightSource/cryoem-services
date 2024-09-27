@@ -112,6 +112,10 @@ class EMISPyB(CommonService):
             # as if a recipe wrapper was present.
             rw = MockRW(self._transport)
             rw.recipe_step = {"parameters": message["parameters"]}
+            if isinstance(message["content"], dict) and isinstance(
+                message["parameters"], dict
+            ):
+                message["content"].update(message["parameters"])
             message = message["content"]
 
         command = rw.recipe_step["parameters"].get("ispyb_command")
@@ -383,25 +387,21 @@ class EMISPyB(CommonService):
         which would also store the result under buffer reference UUID2.
         """
 
-        if not rw.environment.get("has_recipe_wrapper", True):
-            self.log.error("Buffer call can not be used with simple messages")
-            return False
-
         if not isinstance(message, dict):
-            self.log.error("Invalid buffer call: message must be a dictionary")
+            self.log.error(f"Invalid buffer call: {message} is not a dictionary")
             return False
 
         if not isinstance(message.get("buffer_command"), dict) or not message[
             "buffer_command"
         ].get("ispyb_command"):
-            self.log.error("Invalid buffer call: no buffer command specified")
+            self.log.error(f"Invalid buffer call: no buffer command in {message}")
             return False
 
         command_function = lookup_command(
             message["buffer_command"]["ispyb_command"], self
         )
         if not command_function:
-            self.log.error("Invalid buffer call: unknown command specified")
+            self.log.error(f"Invalid buffer call: unknown command in {message}")
             return False
 
         if ("buffer_expiry_time" not in message) or (
