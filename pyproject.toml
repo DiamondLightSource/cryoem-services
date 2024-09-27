@@ -51,10 +51,12 @@ dependencies = [
 ]
 [project.optional-dependencies]
 dev = [
-    "bump2version",
+    "bump-my-version",
     "ipykernel",
     "pre-commit",
     "pytest",
+    "pytest-datafiles",
+    "pytest-mock",
 ]
 [project.urls]
     Bug-Tracker = "https://github.com/DiamondLightSource/cryoem-services/issues"

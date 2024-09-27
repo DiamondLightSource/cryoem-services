@@ -15,7 +15,7 @@ import numpy as np
 from readlif.reader import LifFile
 
 from cryoemservices.clem.images import (
-    estimate_dtype,
+    estimate_int_dtype,
     process_img_stk,
     write_stack_to_tiff,
 )
@@ -132,7 +132,7 @@ def process_lif_file(
 
         # Estimate initial NumPy dtype
         bit_depth = image.bit_depth[c]
-        dtype_init = estimate_dtype(arr, bit_depth=bit_depth)
+        dtype_init = estimate_int_dtype(arr, bit_depth=bit_depth)
 
         # Rescale intensity values for fluorescent channels
         adjust_contrast = (

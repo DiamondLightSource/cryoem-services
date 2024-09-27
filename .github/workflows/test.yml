@@ -1,0 +1,61 @@
+name: Build and test
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: Install pypa/build
+        run: >-
+          python3 -m
+          pip install
+          build
+          --user
+      - name: Build python package
+        run: python3 -m build
+
+  test:
+    name: Build distribution and run tests
+    runs-on: ubuntu-latest
+    needs:
+      - build
+
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.10", "3.11"]
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          pip install pytest pytest-cov pytest-mock pytest-datafiles
+          pip install .
+
+      - name: Test with pytest
+        run: |
+          PYTHONDEVMODE=1 pytest -v -ra --cov=cryoemservices --cov-report=xml --cov-branch
+
+      - name: Upload to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          name: ${{ matrix.python-version }}
+          files: coverage.xml
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        continue-on-error: true
+        timeout-minutes: 2

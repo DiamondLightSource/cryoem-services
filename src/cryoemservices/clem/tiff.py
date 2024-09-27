@@ -15,7 +15,7 @@ from defusedxml.ElementTree import parse
 from PIL import Image
 
 from cryoemservices.clem.images import (
-    estimate_dtype,
+    estimate_int_dtype,
     process_img_stk,
     write_stack_to_tiff,
 )
@@ -132,7 +132,7 @@ def process_tiff_files(
 
         # Estimate initial NumPy dtype
         bit_depth = int(channels[c].attrib["Resolution"])
-        dtype_init = estimate_dtype(arr, bit_depth=bit_depth)
+        dtype_init = estimate_int_dtype(arr, bit_depth=bit_depth)
 
         # Rescale intensity values for fluorescent channels
         adjust_contrast = (
