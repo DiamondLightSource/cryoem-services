@@ -9,7 +9,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from cryoemservices.services.clem_processing import merge_image_stacks
+from cryoemservices.services.clem_align_and_merge import align_and_merge_stacks
 
 
 def run():
@@ -108,7 +108,7 @@ def run():
         raise TypeError("Invalid type for image alignment parameter")
 
     # Run function
-    composite_image = merge_image_stacks(
+    composite_image = align_and_merge_stacks(
         image_files=image_files,
         metadata_file=metadata_file,
         pre_align_stack=pre_align_stack,

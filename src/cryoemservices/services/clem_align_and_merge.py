@@ -27,7 +27,7 @@ from cryoemservices.util.clem_array_functions import (
 )
 
 
-def merge_image_stacks(
+def align_and_merge_stacks(
     image_files: Union[Path, list[Path]],
     metadata_file: Optional[Path] = None,
     pre_align_stack: Optional[str] = None,
