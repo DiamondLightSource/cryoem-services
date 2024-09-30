@@ -1370,6 +1370,142 @@ def test_node_creator_aligntiltseries(mock_environment, offline_transport, tmp_p
     assert list(tilts_block.find_loop("_rlnTomoYShiftAngst")) == ["4.2"]
 
 
-# Still to do:
-# "relion.reconstructtomograms"
-# "relion.denoisetomo"
+@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+def test_node_creator_tomograms(mock_environment, offline_transport, tmp_path):
+    """
+    Send a test message to the node creator for
+    relion.reconstructtomograms
+    """
+    job_dir = "Tomograms/job006"
+    input_file = (
+        f"{tmp_path}/MotionCorr/job002/Movies/Position_1_2_001_1.50_fractions.mrc"
+    )
+    output_file = tmp_path / job_dir / "tomograms/Position_1_2_stack_aretomo.mrc"
+    relion_options = RelionServiceOptions()
+
+    # .Nodes directory doesn't get made by this job
+    (tmp_path / ".Nodes").mkdir()
+
+    setup_and_run_node_creation(
+        mock_environment,
+        relion_options,
+        offline_transport,
+        tmp_path,
+        job_dir,
+        "relion.reconstructtomograms",
+        input_file,
+        output_file,
+        experiment_type="tomography",
+    )
+
+    # Check the output file structure
+    assert (tmp_path / job_dir / "tomograms.star").exists()
+    tilt_series_file = cif.read_file(str(tmp_path / job_dir / "tomograms.star"))
+
+    global_block = tilt_series_file.find_block("global")
+    assert list(global_block.find_loop("_rlnTomoName")) == ["Position_1_2"]
+    assert list(global_block.find_loop("_rlnVoltage")) == [str(relion_options.voltage)]
+    assert list(global_block.find_loop("_rlnSphericalAberration")) == [
+        str(relion_options.spher_aber)
+    ]
+    assert list(global_block.find_loop("_rlnAmplitudeContrast")) == [
+        str(relion_options.ampl_contrast)
+    ]
+    assert list(global_block.find_loop("_rlnMicrographOriginalPixelSize")) == [
+        str(relion_options.pixel_size)
+    ]
+    assert list(global_block.find_loop("_rlnTomoHand")) == [
+        str(relion_options.invert_hand)
+    ]
+    assert list(global_block.find_loop("_rlnOpticsGroupName")) == ["optics1"]
+    assert list(global_block.find_loop("_rlnTomoTiltSeriesPixelSize")) == [
+        str(relion_options.pixel_size_downscaled)
+    ]
+    assert list(global_block.find_loop("_rlnTomoTiltSeriesStarFile")) == [
+        "AlignTiltSeries/job005/tilt_series/Position_1_2.star"
+    ]
+    assert list(global_block.find_loop("_rlnTomoTomogramBinning")) == [
+        str(relion_options.pixel_size_downscaled / relion_options.pixel_size)
+    ]
+    assert list(global_block.find_loop("_rlnTomoSizeX")) == [
+        str(relion_options.tomo_size_x)
+    ]
+    assert list(global_block.find_loop("_rlnTomoSizeY")) == [
+        str(relion_options.tomo_size_y)
+    ]
+    assert list(global_block.find_loop("_rlnTomoSizeZ")) == [str(relion_options.vol_z)]
+    assert list(global_block.find_loop("_rlnTomoReconstructedTomogram")) == [
+        str(output_file.relative_to(tmp_path))
+    ]
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+def test_node_creator_denoisetomo(mock_environment, offline_transport, tmp_path):
+    """
+    Send a test message to the node creator for
+    relion.denoisetomo
+    """
+    job_dir = "Denoise/job007"
+    input_file = f"{tmp_path}/Denoise/job007/tomograms/Position_1_2_stack_aretomo.mrc"
+    output_file = (
+        tmp_path / job_dir / "tomograms/Position_1_2_stack_aretomo.denoised.mrc"
+    )
+    relion_options = RelionServiceOptions()
+
+    # .Nodes directory doesn't get made by this job
+    (tmp_path / ".Nodes").mkdir()
+
+    setup_and_run_node_creation(
+        mock_environment,
+        relion_options,
+        offline_transport,
+        tmp_path,
+        job_dir,
+        "relion.denoisetomo",
+        input_file,
+        output_file,
+        experiment_type="tomography",
+    )
+
+    # Check the output file structure
+    assert (tmp_path / job_dir / "tomograms.star").exists()
+    tilt_series_file = cif.read_file(str(tmp_path / job_dir / "tomograms.star"))
+
+    global_block = tilt_series_file.find_block("global")
+    assert list(global_block.find_loop("_rlnTomoName")) == ["Position_1_2"]
+    assert list(global_block.find_loop("_rlnVoltage")) == [str(relion_options.voltage)]
+    assert list(global_block.find_loop("_rlnSphericalAberration")) == [
+        str(relion_options.spher_aber)
+    ]
+    assert list(global_block.find_loop("_rlnAmplitudeContrast")) == [
+        str(relion_options.ampl_contrast)
+    ]
+    assert list(global_block.find_loop("_rlnMicrographOriginalPixelSize")) == [
+        str(relion_options.pixel_size)
+    ]
+    assert list(global_block.find_loop("_rlnTomoHand")) == [
+        str(relion_options.invert_hand)
+    ]
+    assert list(global_block.find_loop("_rlnOpticsGroupName")) == ["optics1"]
+    assert list(global_block.find_loop("_rlnTomoTiltSeriesPixelSize")) == [
+        str(relion_options.pixel_size_downscaled)
+    ]
+    assert list(global_block.find_loop("_rlnTomoTiltSeriesStarFile")) == [
+        "AlignTiltSeries/job005/tilt_series/Position_1_2.star"
+    ]
+    assert list(global_block.find_loop("_rlnTomoTomogramBinning")) == [
+        str(relion_options.pixel_size_downscaled / relion_options.pixel_size)
+    ]
+    assert list(global_block.find_loop("_rlnTomoSizeX")) == [
+        str(relion_options.tomo_size_x)
+    ]
+    assert list(global_block.find_loop("_rlnTomoSizeY")) == [
+        str(relion_options.tomo_size_y)
+    ]
+    assert list(global_block.find_loop("_rlnTomoSizeZ")) == [str(relion_options.vol_z)]
+    assert list(global_block.find_loop("_rlnTomoReconstructedTomogram")) == [
+        str(Path(input_file).relative_to(tmp_path))
+    ]
+    assert list(global_block.find_loop("_rlnTomoReconstructedTomogramDenoised")) == [
+        str(output_file.relative_to(tmp_path))
+    ]
