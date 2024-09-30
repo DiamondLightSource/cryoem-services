@@ -1,8 +1,9 @@
 """
-Contains functions needed in order to run a service to process the image stacks
+Contains functions needed in order to run a service to align the image stacks
 generated from CLEM data. This service will include:
-    1. Flattening of 3D image stacks into 2D images (optional)
-    2. Image alignment within and across stacks (optional)
+    1. Image alignment within individual stacks
+    2. Flattening of 3D image stacks into 2D images (optional)
+    3. Image alignment across stacks (optional)
     3. Colorisation of images according to their channels
     4. Merging of images to create a colored composite
 
@@ -18,13 +19,12 @@ import numpy as np
 from defusedxml.ElementTree import parse
 from tifffile import TiffFile, imwrite
 
-from cryoemservices.clem.images import (
+from cryoemservices.util.clem_array_functions import (
     convert_to_rgb,
     create_composite_image,
     flatten_image,
     stretch_image_contrast,
 )
-from cryoemservices.clem.xml import get_image_elements
 
 
 def merge_image_stacks(
@@ -46,8 +46,10 @@ def merge_image_stacks(
 
     The order of processing will be as follows:
     - Align the images within a stack
-    - Flatten (depends on whether a 2D or 3D composite image is needed)
-    - Align image stacks within series to one another
+    - Flatten the stack (depends on whether a 2D or 3D composite image is needed)
+    - Align image stacks for a given position to one another
+    - Colourise the image stacks
+    - Merge them together to create a composite image/stack
     """
 
     # Validate inputs before proceeding further
@@ -95,12 +97,7 @@ def merge_image_stacks(
             print(f"Using metadata from {metadata_file!r}")
 
     # Load metadata for series from XML file
-    element_list = get_image_elements(
-        parse(metadata_file).getroot()
-    )  # Check if multiple elements are present in the XML file first
-    metadata: ET.ElementTree = (
-        element_list[0] if len(element_list) > 0 else parse(metadata_file).getroot()
-    )
+    metadata: ET.ElementTree = parse(metadata_file).getroot()
 
     # Get order of colors as shown in metadata
     channels = metadata.findall(

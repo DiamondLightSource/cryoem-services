@@ -1,5 +1,5 @@
 """
-Array manipulation and image processing functions for the images acquired via the Leica
+Array manipulation functions to process and manipulate the images acquired via the Leica
 light microscope.
 """
 
@@ -16,7 +16,7 @@ import numpy as np
 from tifffile import imwrite
 
 # Create logger object to output messages with
-logger = logging.getLogger("cryoemservices.clem.images")
+logger = logging.getLogger("cryoemservices.util.clem_image_processing")
 
 
 """
@@ -464,20 +464,15 @@ def create_composite_image(
     return arr_new
 
 
-"""
-FUNCTIONS FOR PRE-PROCESSING OF IMAGE STACKS
-"""
-
-
-def process_img_stk(
+def preprocess_img_stk(
     array: np.ndarray,
     initial_dtype: str,
     target_dtype: str = "uint8",
     adjust_contrast: Optional[str] = None,
 ) -> np.ndarray:
     """
-    Processes the NumPy array, rescaling intensities and converting to the desired
-    dtype as needed.
+    Preprocessing routine for the image stacks extracted from raw data, rescaling
+    intensities and converting the arrays to the desired dtypes as needed.
     """
 
     # Use shorter aliases in function
@@ -541,7 +536,7 @@ def process_img_stk(
 def write_stack_to_tiff(
     array: np.ndarray,
     save_dir: Path,
-    series_name: str,
+    file_name: str,
     # Resolution information
     x_res: Optional[float] = None,
     y_res: Optional[float] = None,
@@ -592,8 +587,8 @@ def write_stack_to_tiff(
         extended_metadata = ""
 
     # Save as a greyscale TIFF
-    save_name = save_dir.joinpath(series_name + ".tiff")
-    logger.info(f"Saving {series_name} image as {save_name}")
+    save_name = save_dir.joinpath(file_name + ".tiff")
+    logger.info(f"Saving {file_name} image as {save_name}")
     imwrite(
         save_name,
         arr,
