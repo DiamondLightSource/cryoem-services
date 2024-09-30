@@ -26,7 +26,7 @@ from cryoemservices.util.clem_raw_metadata import (
 )
 
 # Create logger object to output messages with
-logger = logging.getLogger("cryoemservices.services.clem_preprocessing")
+logger = logging.getLogger("cryoemservices.services.clem_process_raw_tiffs")
 
 
 def process_tiff_files(

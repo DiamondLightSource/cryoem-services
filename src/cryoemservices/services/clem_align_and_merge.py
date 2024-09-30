@@ -11,6 +11,7 @@ generated from CLEM data. This service will include:
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 from typing import Literal, Optional, Union
 from xml.etree import ElementTree as ET
@@ -25,6 +26,9 @@ from cryoemservices.util.clem_array_functions import (
     flatten_image,
     stretch_image_contrast,
 )
+
+# Create logger object to output messages with
+logger = logging.getLogger("cryoemservices.services.clem_align_and_merge")
 
 
 def align_and_merge_stacks(
@@ -54,7 +58,8 @@ def align_and_merge_stacks(
 
     # Validate inputs before proceeding further
     if flatten is not None and flatten not in ("min", "max", "mean"):
-        raise ValueError("Incorrect value provided for 'flatten' parameter")
+        logger.error("Incorrect value provided for 'flatten' parameter")
+        raise ValueError
 
     # Use shorter inputs in function
     files = image_files
@@ -64,7 +69,8 @@ def align_and_merge_stacks(
         files = [files]
     # Check that a value has been provided
     if len(files) == 0:
-        raise ValueError("No image stack file paths have been provided")
+        logger.error("No image stack file paths have been provided")
+        raise ValueError
 
     # Check that files have the same parent directories
     if len({file.parents[0] for file in files}) > 1:
@@ -78,19 +84,20 @@ def align_and_merge_stacks(
     ## TO DO
     if print_logs is True:
         print(f"Setting {parent_dir!r} as the working directory")
+        logger.info(f"Setting {parent_dir!r} as the working directory")
 
     # Find metadata file if none was provided
     if metadata_file is None:
         # Raise error if no files found
         if len(list((parent_dir / "metadata").glob("*.xml"))) == 0:
-            raise FileNotFoundError(
-                "No metadata file was found at the default directory"
-            )
+            logger.error("No metadata file was found at the default directory")
+            raise FileNotFoundError
         # Raise error if too many files found
         if len(list((parent_dir / "metadata").glob("*.xml"))) > 1:
-            raise Exception(
+            logger.error(
                 "More than one metadata file was found at the default directory"
             )
+            raise Exception
         # Load metadata file
         metadata_file = list((parent_dir / "metadata").glob("*.xml"))[0]
         if print_logs is True:
@@ -107,6 +114,7 @@ def align_and_merge_stacks(
         channels[c].attrib["LUTName"].lower() for c in range(len(channels))
     ]
     if print_logs is True:
+        logger.info("Loaded metadata from file")
         print("Loaded metadata from file")
 
     # Load image stacks according to their order in the XML file
@@ -116,9 +124,11 @@ def align_and_merge_stacks(
         file_search = [file for file in files if color in file.stem]
         # Handle exceptions in search results
         if len(file_search) == 0:
-            raise FileNotFoundError("No files provided that match this colour")
+            logger.error("No files provided that match this colour")
+            raise FileNotFoundError
         if len(file_search) > 1:
-            raise Exception("More than one file provided that matches this colour")
+            logger.error("More than one file provided that matches this colour")
+            raise Exception
         file = file_search[0]
 
         with TiffFile(file) as tiff_file:
@@ -132,17 +142,26 @@ def align_and_merge_stacks(
             # Load array and apend it to stack
             arrays.append(tiff_file.series[0].pages.asarray())
             if print_logs is True:
+                logger.info(f"Loaded {file!r}")
                 print(f"Loaded {file!r}")
 
     # Validate that the stacks provided are of the same shape
     if len({arr.shape for arr in arrays}) > 1:
-        raise Exception("The image stacks provided do not have the same shape")
+        logger.error("The image stacks provided do not have the same shape")
+        raise Exception
 
     # Get the dtype of the image
     if len({str(arr.dtype) for arr in arrays}) > 1:
-        raise Exception("The image stacks do not have the same dtype")
+        logger.error("The image stacks do not have the same dtype")
+        raise Exception
 
-    # # Debug
+    # Debug
+    logger.debug(
+        f"Shape: {arrays[0].shape} \n"
+        f"dtype: {arrays[0].dtype} \n"
+        f"Min: {np.min(arrays)} \n"
+        f"Max: {np.max(arrays)} \n"
+    )
     # print(f"Shape: {arrays[0].shape}")
     # print(f"dtype: {arrays[0].dtype}")
     # print(f"Min: {np.min(arrays)}")
@@ -157,15 +176,24 @@ def align_and_merge_stacks(
     # Flatten images if the option is selected
     if flatten is not None:
         if print_logs is True:
+            logger.info("Flattening image stacks...")
             print("Flattening image stacks...")
         arrays = [flatten_image(arr, mode=flatten) for arr in arrays]
         # Validate that image flattening was done correctly
         if len({arr.shape for arr in arrays}) > 1:
-            raise Exception("The flattened arrays do not have the same shape")
+            logger.error("The flattened arrays do not have the same shape")
+            raise Exception
         if print_logs is True:
+            logger.info("Done")
             print("Done")
 
         # # Debug
+        logger.debug(
+            f"Shape: {arrays[0].shape} \n"
+            f"dtype: {arrays[0].dtype} \n"
+            f"Min: {np.min(arrays)} \n"
+            f"Max: {np.max(arrays)} \n"
+        )
         # print(f"Shape: {arrays[0].shape}")
         # print(f"dtype: {arrays[0].dtype}")
         # print(f"Min: {np.min(arrays)}")
@@ -180,12 +208,20 @@ def align_and_merge_stacks(
 
     # Colourise images
     if print_logs is True:
+        logger.info("Converting images from grayscale to RGB...")
         print("Converting images from grayscale to RGB...")
     arrays = [convert_to_rgb(arrays[c], colors[c]) for c in range(len(colors))]
     if print_logs is True:
+        logger.info("Done")
         print("Done")
 
     # # Debug
+    logger.debug(
+        f"Shape: {arrays[0].shape} \n"
+        f"dtype: {arrays[0].dtype} \n"
+        f"Min: {np.min(arrays)} \n"
+        f"Max: {np.max(arrays)} \n"
+    )
     # print(f"Shape: {arrays[0].shape}")
     # print(f"dtype: {arrays[0].dtype}")
     # print(f"Min: {np.min(arrays)}")
@@ -193,9 +229,11 @@ def align_and_merge_stacks(
 
     # Convert to a composite image
     if print_logs is True:
+        logger.info("Creating a composite image...")
         print("Creating a composite image...")
     composite_img = create_composite_image(arrays)
     if print_logs is True:
+        logger.info("Done")
         print("Done")
 
     # # Debug
@@ -206,12 +244,14 @@ def align_and_merge_stacks(
 
     # Adjust image contrast after merging images
     if print_logs is True:
+        logger.info("Applying contrast correction...")
         print("Applying contrast correction...")
     composite_img = stretch_image_contrast(
         composite_img,
         percentile_range=(0, 100),
     )
     if print_logs is True:
+        logger.info("Done")
         print("Done")
 
     # # Debug
@@ -222,6 +262,7 @@ def align_and_merge_stacks(
 
     # Save the image to a TIFF file
     if print_logs is True:
+        logger.info("Saving composite image...")
         print("Saving composite image...")
 
     # Set up metadata properties
@@ -263,6 +304,7 @@ def align_and_merge_stacks(
         },
     )
     if print_logs is True:
+        logger.info(f"Composite image saved as {save_name}")
         print(f"Composite image saved as {save_name}")
 
     return composite_img

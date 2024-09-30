@@ -16,7 +16,7 @@ import numpy as np
 from tifffile import imwrite
 
 # Create logger object to output messages with
-logger = logging.getLogger("cryoemservices.util.clem_image_processing")
+logger = logging.getLogger("cryoemservices.util.clem_array_functions")
 
 
 """
@@ -48,7 +48,8 @@ def get_valid_dtypes() -> tuple[str, ...]:
             dtype = str(np.dtype(match.group(1)))
             valid_dtypes.append(dtype)
     if len(valid_dtypes) == 0:
-        raise Exception("Unable to get list of NumPy dtypes from NumPy module")
+        logger.error("Unable to get list of NumPy dtypes from NumPy module")
+        raise Exception
 
     return tuple(valid_dtypes)
 
@@ -83,7 +84,8 @@ def get_dtype_info(dtype: str) -> np.finfo | np.iinfo:
         dtype == key
         for key in additional_dtype_keywords
     ):
-        raise ValueError(f"{dtype} is not a valid or supported NumPy dtype")
+        logger.error(f"{dtype} is not a valid or supported NumPy dtype")
+        raise ValueError
 
     # Load corresponding dictionary from NumPy
     dtype_info = (
@@ -130,9 +132,10 @@ def estimate_int_dtype(array: np.ndarray, bit_depth: Optional[int] = None) -> st
 
         # Return None if dtype calculated using provided bit depth can't accommodate array
         if get_dtype_info(dtype_final).max < max(abs(arr.min()), abs(arr.max())):
-            raise Exception(
+            logger.error(
                 "Array values still exceed those supported by the estimated dtype"
             )
+            raise Exception
 
         # Return estimated dtype otherwise
         return dtype_final
@@ -162,9 +165,10 @@ def estimate_int_dtype(array: np.ndarray, bit_depth: Optional[int] = None) -> st
             else:
                 continue
         if len(bit_list) == 0:
-            raise Exception(
+            logger.error(
                 "No suitable dtypes found that can accommodate the array's values"
             )
+            raise Exception
         # Use the smallest value
         dtype_final = f"{dtype_group}{min(bit_list)}"
 
@@ -176,11 +180,13 @@ def estimate_int_dtype(array: np.ndarray, bit_depth: Optional[int] = None) -> st
 
     # Validate initial dtype (this should never be triggered, in principle)
     if dtype_init not in valid_dtypes:
-        raise ValueError(f"{dtype_init} is not a valid or supported NumPy dtype")
+        logger.error(f"{dtype_init} is not a valid or supported NumPy dtype")
+        raise ValueError
 
     # Reject complex dtypes if imaginary components are present
     if dtype_init.startswith("complex") and np.any(arr.imag != 0):
-        raise NotImplementedError("Complex numbers not currently supported")
+        logger.error("Complex numbers not currently supported")
+        raise NotImplementedError
     else:
         arr = arr.real
 
@@ -229,13 +235,13 @@ def convert_array_dtype(
     if dtype_final not in valid_dtypes and not any(
         dtype_final == key for key in additional_dtype_keywords
     ):
-        raise ValueError(f"{dtype_final} is not a valid or supported NumPy dtype")
+        logger.error(f"{dtype_final} is not a valid or supported NumPy dtype")
+        raise ValueError
 
     # Support only conversion to "int" or "uint" dtypes for now
     if not dtype_final.startswith(("int", "uint")):
-        raise NotImplementedError(
-            f"Array conversion to {dtype_final} is not currently supported"
-        )
+        logger.error(f"Array conversion to {dtype_final} is not currently supported")
+        raise NotImplementedError
 
     # Parse initial dtype provided
     # Estimate dtype if None provided
@@ -257,7 +263,8 @@ def convert_array_dtype(
 
     # Accept complex dtypes if imaginary components are zero
     if dtype_init.startswith("complex") and np.any(arr.imag != 0):
-        raise NotImplementedError("Complex numbers not currently supported")
+        logger.error("Complex numbers not currently supported")
+        raise NotImplementedError
     else:
         arr = arr.real
         dtype_init = estimate_int_dtype(arr)
@@ -319,13 +326,15 @@ def stretch_image_contrast(
     # Check that dtype is supported by NumPy
     dtype = str(array.dtype)
     if dtype not in valid_dtypes:
-        raise ValueError(f"{dtype} is not a valid or supported NumPy dtype")
+        logger.error(f"{dtype} is not a valid or supported NumPy dtype")
+        raise ValueError
 
     # Reject "float" and "complex" dtype inputs
     if dtype.startswith(("complex", "float")):
-        raise NotImplementedError(
+        logger.error(
             f"Contrast stretching for {dtype} arrays is not currently supported"
         )
+        raise NotImplementedError
 
     dtype_info = get_dtype_info(dtype)
 
@@ -426,7 +435,8 @@ def flatten_image(
         arr_new = arr_new.astype(dtype)
     # Raise error if the mode provided is incorrect
     else:
-        raise ValueError(f"{mode} is not a valid image flattening option")
+        logger.error(f"{mode} is not a valid image flattening option")
+        raise ValueError
 
     return arr_new
 
@@ -445,11 +455,13 @@ def create_composite_image(
 
     # Validate that arrays have the same shape
     if len({arr.shape for arr in arrays}) > 1:
-        raise ValueError("Input arrays do not have the same shape")
+        logger.error("Input arrays do not have the same shape")
+        raise ValueError
 
     # Validate that arrays have the same dtype
     if len({str(arr.dtype) for arr in arrays}) > 1:
-        raise ValueError("Input arrays do not have the same dtype")
+        logger.error("Input arrays do not have the same dtype")
+        raise ValueError
     dtype = str(arrays[0].dtype)
 
     # Calculate average across all arrays
@@ -482,7 +494,8 @@ def preprocess_img_stk(
 
     # Validate that function inputs are correct
     if dtype_final not in valid_dtypes:
-        raise ValueError(f"{dtype_final} is not a valid or supported NumPy dtype")
+        logger.error(f"{dtype_final} is not a valid or supported NumPy dtype")
+        raise ValueError
 
     if dtype_init not in valid_dtypes:
         logger.info(
