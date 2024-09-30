@@ -32,7 +32,7 @@ jobs:
       - name: Install package
         run: |
           set -eux
-          pip install --disable-pip-version-check -e "."[cicd,client,server,developer]
+          pip install --disable-pip-version-check -e "."[dev]
       - name: Run bumpversion and push tag
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
