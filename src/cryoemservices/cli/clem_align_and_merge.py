@@ -7,13 +7,10 @@ use in the subsequent stage of the CLEM workflow.
 from __future__ import annotations
 
 import argparse
-import logging
 from ast import literal_eval
 from pathlib import Path
 
 from cryoemservices.services.clem_align_and_merge import align_and_merge_stacks
-
-logger = logging.getLogger("cryoemservices.cli.clem_align_and_merge")
 
 
 def run():
