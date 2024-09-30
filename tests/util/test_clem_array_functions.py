@@ -146,16 +146,52 @@ def test_convert_array_dtype(test_params: tuple[str, str, bool]):
     initial_dtype = estimate_int_dtype(arr_0) if estimate is True else None
     arr_1 = convert_array_dtype(arr_0, dtype_1, initial_dtype)
 
-    # Normalise both arrays to (0, 1)
+    # Normalise both arrays to (0, 1) for comparison
     arr_0 = normalize(arr_0)
     arr_1 = normalize(arr_1)
 
-    # Check that results are close
+    # Check that deviations are within a set threshold:
+    # arr_1 - arr_0 = atol + rtol * abs(arr_0)
     np.testing.assert_allclose(
         arr_1,
         arr_0,
-        # Checks that the difference is within
-        # arr_1 - arr_0 = atol + rtol * abs(arr_0)
         rtol=0,
-        atol=0.01,  # At most 1% deviation
+        atol=0.01,  # <= 1% deviation when going between 64- and 8-bit arrays
     )
+
+
+def test_stretch_image_contrast():
+    pass
+
+
+def test_convert_to_rgb():
+    pass
+
+
+image_flattening_test_matrix = (
+    # Dimensions | Values | Flattening mode | Is float? | Expected value
+    # Simulate grayscale images
+    (3, (i for i in range(3)), "mean", True, 1),
+    (3, (i for i in range(3)), "min", False, 0),
+    (3, (i for i in range(3)), "max", True, 2),
+    # Simulate coloured images
+    (4, (i for i in range(3)), "mean", True, (0, 1, 2)),
+    (4, (i for i in range(3)), "min", False, (0, 1, 2)),
+    (4, (i for i in range(3)), "max", True, (0, 1, 2)),
+)
+
+
+def test_flatten_image():
+    pass
+
+
+def test_merge_images():
+    pass
+
+
+def test_preprocess_img_stk():
+    pass
+
+
+def test_write_stack_to_tiff():
+    pass

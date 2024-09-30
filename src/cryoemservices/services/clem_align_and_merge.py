@@ -22,8 +22,8 @@ from tifffile import TiffFile, imwrite
 
 from cryoemservices.util.clem_array_functions import (
     convert_to_rgb,
-    create_composite_image,
     flatten_image,
+    merge_images,
     stretch_image_contrast,
 )
 
@@ -231,7 +231,7 @@ def align_and_merge_stacks(
     if print_logs is True:
         logger.info("Creating a composite image...")
         print("Creating a composite image...")
-    composite_img = create_composite_image(arrays)
+    composite_img = merge_images(arrays)
     if print_logs is True:
         logger.info("Done")
         print("Done")

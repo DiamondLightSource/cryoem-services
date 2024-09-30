@@ -441,7 +441,7 @@ def flatten_image(
     return arr_new
 
 
-def create_composite_image(
+def merge_images(
     arrays: np.ndarray | list[np.ndarray],
 ) -> np.ndarray:
     """
