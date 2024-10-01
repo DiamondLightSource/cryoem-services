@@ -214,6 +214,56 @@ def estimate_int_dtype(array: np.ndarray, bit_depth: Optional[int] = None) -> st
     return dtype_final
 
 
+def shrink_value(value: int) -> int:
+    """
+    When converting between floats and int dtypes in NumPy, there are cases where the
+    float value will be rounded inexactly to be larger than that of its corresponding
+    int, leading to issues when casting arrays with large values.
+
+    This function replaces the value of the integer with one that can be correctly
+    represented in both float and int without a further change in info.
+    """
+
+    # Validate input
+    if not isinstance(value, (int)):
+        raise TypeError(f"Input is not an integer: {str(type(value))}")
+
+    vfloat = float(value)
+
+    # Process number if float conversion increases its value
+    if abs(vfloat) > abs(value):
+        vstr = str(vfloat)
+        if "e" in vstr:
+            # Separate the numerical bit from the exponent
+            num, exp = vstr.split("e", 1)
+
+            # Remove negative sign for subsequent stage
+            if num.startswith("-"):
+                num = num.split("-", 1)[-1]
+                neg = "-"
+            else:
+                neg = ""
+
+            # Reduce precision and shrink value
+            #   NOTE: Python rounds values that are exactly halfway (i.e. 0.5) to the
+            #   nearest EVEN number, so 2 needs to be subtracted to ensure it doesn't
+            #   round up to above the maximum value allowed by the array dtype again.
+            num = str(round((float(num) * 10**15) - 2, 0) / 10**15)
+
+            # Rebuild new value as string
+            vstr = "e".join(["".join([neg, num]), exp])
+            vfloat = float(vstr)
+            value = int(vfloat)
+    # Skip if it can be represented exactly as a float
+    elif abs(vfloat) == abs(value):
+        pass
+    else:
+        raise Exception("Unexpected exception occurred")
+
+    # Returns value unchanged if it can be presented correctly as a float
+    return value
+
+
 def convert_array_dtype(
     array: np.ndarray,
     target_dtype: str,
@@ -337,6 +387,7 @@ def stretch_image_contrast(
         raise NotImplementedError
 
     dtype_info = get_dtype_info(dtype)
+    vmax = shrink_value(dtype_info.max)
 
     for f in range(arr.shape[0]):
         # Overwrite outliers and normalise to new range
@@ -348,14 +399,14 @@ def stretch_image_contrast(
             np.array(
                 # Scale between 0 and max positive value if no negative values are present
                 ((frame / (b_up - b_lo)) - (b_lo / (b_up - b_lo)))
-                * dtype_info.max
+                * vmax
             )
             if (dtype_info.min == 0 or b_lo >= 0)
             # Keep 0 as center; scale values by largest scalar present
-            else np.array(frame / max(abs(b_lo), abs(b_up)) * dtype_info.max)
+            else np.array(frame / max(abs(b_lo), abs(b_up)) * vmax)
         )
 
-        # Debug information
+        # DEBUG: Check array properties immediately after calculation
         # print(
         #     f"dtype: {frame.dtype} \n"
         #     f"Shape: {frame.shape} \n"
@@ -366,6 +417,16 @@ def stretch_image_contrast(
         # Preserve dtype and round values if dtype is integer-based
         frame = frame.round(0) if dtype.startswith(("int", "uint")) else frame
         frame = frame.astype(dtype)
+
+        # DEBUG: Check array properties after rounding
+        # print(
+        #     "Error when casting to the target dtype; printing debug log \n"
+        #     "Properties of the current frame: \n"
+        #     f"dtype: {frame.dtype} \n"
+        #     f"Shape: {frame.shape} \n"
+        #     f"Min: {frame.min()} \n"
+        #     f"Max: {frame.max()} \n"
+        # )
 
         # Append to array
         if f == 0:
