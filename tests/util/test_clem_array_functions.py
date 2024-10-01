@@ -8,8 +8,10 @@ import pytest
 from cryoemservices.util.clem_array_functions import (
     convert_array_dtype,
     estimate_int_dtype,
+    flatten_image,
     get_dtype_info,
     get_valid_dtypes,
+    merge_images,
 )
 
 known_dtypes = (
@@ -169,24 +171,134 @@ def test_convert_to_rgb():
 
 
 image_flattening_test_matrix = (
-    # Dimensions | Values | Flattening mode | Is float? | Expected value
-    # Simulate grayscale images
-    (3, (i for i in range(3)), "mean", True, 1),
-    (3, (i for i in range(3)), "min", False, 0),
-    (3, (i for i in range(3)), "max", True, 2),
-    # Simulate coloured images
-    (4, (i for i in range(3)), "mean", True, (0, 1, 2)),
-    (4, (i for i in range(3)), "min", False, (0, 1, 2)),
-    (4, (i for i in range(3)), "max", True, (0, 1, 2)),
+    # Type | Frames | Mode | Is float? | Expected pixel value
+    # Test grayscale images
+    ("gray", 5, "mean", True, 2),
+    ("gray", 5, "min", False, 0),
+    ("gray", 5, "max", True, 4),
+    # Test RGB images
+    ("rgb", 5, "mean", False, 2),
+    ("rgb", 5, "min", True, 0),
+    ("rgb", 5, "max", False, 4),
 )
 
 
-def test_flatten_image():
-    pass
+@pytest.mark.parametrize("test_params", image_flattening_test_matrix)
+def test_flatten_image(test_params: tuple[str, int, str, bool, int]):
+
+    # Helper function to create an array simulating an image stack
+    def create_test_array(shape: tuple, frames: int, dtype: str) -> np.ndarray:
+        for f in range(frames):
+            # Increment array values by 1 per frame
+            frame = np.ones(shape).astype(dtype) * f
+            if f == 0:
+                arr = np.array([frame])
+            else:
+                arr = np.append(arr, [frame], axis=0)
+        return arr
+
+    # Unpack test parameters
+    img_type, frames, mode, is_float, result = test_params
+
+    # Choose "int" and "float" dtypes
+    dtype = "float64" if is_float is True else "int64"
+
+    # Choose between grayscale or RGB image
+    if img_type == "gray":
+        shape: tuple[int, ...] = (32, 32)
+    elif img_type == "rgb":
+        shape = (32, 32, 3)
+    else:
+        raise ValueError("Unexpected value for image type")
+
+    # Create image stack and flatten it
+    arr = create_test_array(shape, frames, dtype)
+    arr_new = flatten_image(arr, mode)
+
+    # Create new flattened array with the expected pixel value
+    #   Because pixel values increase from 0 to (frame - 1) per frame, it's possible
+    #   to predict what the array values will be after flattening using "mean", "max",
+    #   or "min".
+    arr_ref = np.ones(shape).astype(dtype) * result
+    # DEBUG: Check that reference array has expected properties
+    assert np.all(arr_ref == result) and arr_ref.shape == shape
+
+    # Check that deviations are within a set threshold:
+    # arr_1 - arr_0 = atol + rtol * abs(arr_0)
+    np.testing.assert_allclose(
+        arr_new,
+        arr_ref,
+        rtol=0,
+        atol=1e-20,  # Really, there shouldn't be a difference
+    )
 
 
-def test_merge_images():
-    pass
+image_merging_test_matrix = (
+    # Type | No. images | Frames | Is float? | Expected pixel value*
+    #   * NOTE: np.round rounds to the nearest EVEN number for values
+    #   EXACTLY halfway between rounded decimal values (e.g. 0.5
+    #   rounds to 0, -1.5 rounds to -2, etc.).
+    # Test grayscale stacks
+    ("gray", 1, 5, False, 0),
+    ("gray", 2, 5, True, 0.5),
+    ("gray", 3, 5, True, 1),
+    ("gray", 4, 5, False, 2),
+    # Test RGB stacks
+    ("rgb", 1, 5, True, 0),
+    ("rgb", 2, 5, False, 0),
+    ("rgb", 3, 5, False, 1),
+    ("rgb", 4, 5, True, 1.5),
+    # Test on images
+    ("gray", 1, 1, False, 0),
+    ("gray", 2, 1, True, 0.5),
+    ("rgb", 3, 1, False, 1),
+    ("rgb", 4, 1, True, 1.5),
+)
+
+
+@pytest.mark.parametrize("test_params", image_merging_test_matrix)
+def test_merge_images(test_params: tuple[str, int, int, bool, int | float]):
+
+    # Unpack test parameters
+    img_type, num_imgs, frames, is_float, result = test_params
+
+    # Select dtype
+    dtype = "float64" if is_float is True else "int64"
+
+    # Set frame shape based on grayscale or RGB image
+    if img_type == "gray":
+        shape: tuple[int, ...] = (32, 32)
+    elif img_type == "rgb":
+        shape = (32, 32, 3)
+    else:
+        raise ValueError("Unexpected value for image type")
+
+    # Create list of images/stacks and merge them
+    arr_list = []
+    for n in range(num_imgs):
+        # Increment values by image/stack
+        arr = np.array([np.ones(shape) for f in range(frames)]).astype(dtype) * n
+        arr_list.append(arr)
+    # DEBUG: Check that arrays are generated correctly
+    assert all(str(type(arr)) == str(np.ndarray) for arr in arr_list)
+    composite = merge_images(arr_list)
+
+    # Create a reference stack to compare against
+    #   All values for a single image are the same and increment per image from
+    #   0 - (num_img -1), so the expected average value of the final product can be
+    #   quickly calculated
+    arr_ref = np.array([np.ones(shape) for f in range(frames)]).astype(dtype) * result
+    # DEBUG: Check that reference array has the expected shape
+    assert arr_ref.shape == (frames, *shape)
+
+    # Check that deviations are within a set threshold:
+    # arr_1 - arr_0 = atol + rtol * abs(arr_0)
+    np.testing.assert_allclose(
+        composite,
+        arr_ref,
+        rtol=0,
+        atol=1e-20,  # Really, there shouldn't be a difference
+    )
 
 
 def test_preprocess_img_stk():
