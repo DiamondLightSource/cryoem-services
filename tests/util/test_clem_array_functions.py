@@ -12,6 +12,8 @@ from cryoemservices.util.clem_array_functions import (
     get_dtype_info,
     get_valid_dtypes,
     merge_images,
+    shrink_value,
+    stretch_image_contrast,
 )
 
 known_dtypes = (
@@ -84,6 +86,35 @@ def test_estimate_int_dtype(test_params: tuple[int, int, Optional[int], bool, st
 
     estimate = estimate_int_dtype(arr, bits)
     assert estimate == target
+
+
+@pytest.mark.parametrize("dtype", known_dtypes)
+def test_shrink_value(dtype: str):
+
+    # Encase in a "try-except" block to test expected fail conditions too
+    try:
+
+        # Get limits for the current array type
+        vmin = get_dtype_info(dtype).min
+        vmax = get_dtype_info(dtype).max
+
+        # Find new limits after shrinking
+        vmin_new = shrink_value(vmin)
+        vmax_new = shrink_value(vmax)
+        # Check that new values are within range allowed by array
+        assert float(vmin_new) >= vmin and float(vmax_new) <= vmax
+
+        # Check that they can be cast to the array properly
+        np.ones(1).astype(dtype) * vmax_new
+        np.ones(1).astype(dtype) * vmin_new
+        assert True
+
+    # Floats and complexes should fail
+    except TypeError:
+        pytest.raises(TypeError)
+    # Genuine error in the function
+    except Exception:
+        raise Exception("An error occurred when running this test")
 
 
 array_conversion_test_matrix = (
@@ -162,8 +193,65 @@ def test_convert_array_dtype(test_params: tuple[str, str, bool]):
     )
 
 
-def test_stretch_image_contrast():
-    pass
+contrast_stretching_test_matrix = (
+    # Type | dtype | Frames | Range
+    # Test for grayscale images/stacks
+    ("gray", "uint8", 1, (0, 100)),
+    ("gray", "int16", 5, (0, 100)),
+    ("gray", "int32", 1, (5, 95)),
+    ("gray", "uint64", 5, (5, 95)),
+    # Test for RGB images/stacks
+    ("rgb", "int8", 1, (5, 95)),
+    ("rgb", "uint16", 5, (0, 100)),
+    ("rgb", "uint32", 1, (5, 95)),
+    ("rgb", "int64", 5, (0, 100)),
+)
+
+
+@pytest.mark.parametrize("test_params", contrast_stretching_test_matrix)
+def test_stretch_image_contrast(
+    test_params: tuple[str, str, int, tuple[int | float, int | float]]
+):
+
+    # Helper function to create arrays
+    def create_test_array(shape: tuple, frames: int, dtype: str) -> np.ndarray:
+        dtype_info = get_dtype_info(dtype)
+        # Avoid overflow errors due to uint64's max exceeding int64's
+        vmin = int(0.5 * dtype_info.min)
+        vmax = int(0.5 * dtype_info.max)
+        for f in range(frames):
+            frame = np.random.randint(vmin, vmax, shape)
+            if f == 0:
+                arr = np.array([frame])
+            else:
+                arr = np.append(arr, [frame], axis=0)
+        arr = arr.astype(dtype)
+        return arr
+
+    # Unpack test params
+    img_type, dtype, frames, percentile = test_params
+
+    # Determine shape of single frame
+    if img_type == "gray":
+        shape: tuple[int, ...] = (32, 32)
+    elif img_type == "rgb":
+        shape = (32, 32, 3)
+    else:
+        raise ValueError("Unxpected value for image type")
+
+    # Create test array
+    arr = create_test_array(shape, frames, dtype)
+    # DEBUG: Check that the test array has the expected properties
+    assert str(arr.dtype) == dtype and arr.shape == (frames, *shape)
+
+    # Stretch contrast
+    arr_new = stretch_image_contrast(arr, percentile)
+
+    # Evaluate results of the stretching function
+    assert arr.min() >= arr_new.min()
+    assert arr.max() <= arr_new.max()
+    assert str(arr.dtype) == str(arr_new.dtype)
+    assert arr.shape == arr_new.shape
 
 
 def test_convert_to_rgb():
