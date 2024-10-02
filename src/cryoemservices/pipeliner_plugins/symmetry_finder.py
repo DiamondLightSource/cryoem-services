@@ -54,10 +54,10 @@ def find_difference(aligned_file: Path, symmetrised_file: Path):
 def determine_symmetry(volume: Path):
     # List of the symmetries to test
     symmetry_list = np.array(["C2", "C3", "C4", "C5", "C6", "C7", "C8", "T", "O", "I"])
-    symmetry_list = np.array(["O", "O", "O", "O", "O", "T", "T", "T", "T", "T"])
 
     # Find the difference between aligned and symmetrised cases for each symmetry
     difference_scores = np.zeros(len(symmetry_list), dtype=float)
+    all_symmetrised_files = np.array([], dtype=str)
     for i, sym in enumerate(symmetry_list):
         align_result, aligned_file = align_symmetry(volume, sym)
         if align_result:
@@ -72,6 +72,7 @@ def determine_symmetry(volume: Path):
             continue
 
         difference_scores[i] = find_difference(aligned_file, symmetrised_file)
+        all_symmetrised_files = np.append(all_symmetrised_files, str(symmetrised_file))
 
         print(f"{sym}: {difference_scores[i]}")
 
@@ -88,7 +89,12 @@ def determine_symmetry(volume: Path):
     # Examine a few specific more challenging symmetries
     if difference_scores[-3] < difference_scores[-4]:
         # T better than C8
-        expected_sym = "T"
+        if difference_scores[-2] < difference_scores[-4]:
+            # O also better than C8
+            expected_sym = "O"
+        else:
+            # Otherwise T
+            expected_sym = "T"
     elif difference_scores[-2] < difference_scores[-3]:
         # O better than T
         expected_sym = "O"
@@ -97,7 +103,7 @@ def determine_symmetry(volume: Path):
         expected_sym = "I"
 
     print(f"{volume} is predicted to be {expected_sym}")
-    return expected_sym
+    return expected_sym, all_symmetrised_files[symmetry_list == expected_sym]
 
 
 def run():
