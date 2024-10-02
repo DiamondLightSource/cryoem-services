@@ -6,7 +6,9 @@ import numpy as np
 import pytest
 
 from cryoemservices.util.clem_array_functions import (
+    LUT,
     convert_array_dtype,
+    convert_to_rgb,
     estimate_int_dtype,
     flatten_image,
     get_dtype_info,
@@ -254,7 +256,74 @@ def test_stretch_image_contrast(
     assert arr.shape == arr_new.shape
 
 
-def test_convert_to_rgb():
+image_coloring_test_matrix = (
+    # Colour | dtype | frames
+    ("red", "uint8", 1),
+    ("green", "int16", 5),
+    ("blue", "uint32", 1),
+    ("cyan", "int64", 5),
+    ("magenta", "float16", 1),
+    ("yellow", "float32", 5),
+    ("gray", "float64", 1),
+    ("red", "float128", 5),
+    ("green", "complex64", 1),
+    ("blue", "complex128", 5),
+    ("cyan", "complex256", 1),
+    ("magenta", "complex64", 5),
+    ("yellow", "complex128", 1),
+    ("gray", "complex256", 5),
+    ("red", "float16", 1),
+    ("green", "float32", 5),
+    ("blue", "float64", 1),
+    ("cyan", "float128", 5),
+    ("magenta", "int8", 1),
+    ("yellow", "uint16", 5),
+    ("gray", "int32", 1),
+    # Junk values
+    ("black", "uint64", 5),
+    ("white", "float16", 1),
+    ("orange", "float32", 5),
+    ("indigo", "float64", 1),
+    ("violet", "complex64", 5),
+    ("pneumonoultramicroscopicsilicovolcanoconiosis", "complex128", 1),
+)
+
+
+@pytest.mark.parametrize("test_params", image_coloring_test_matrix)
+def test_convert_to_rgb(test_params: tuple[str, str, int]):
+
+    def create_test_array(shape: tuple, frames: int, dtype: str):
+        for f in range(frames):
+            frame = np.ones(shape).astype(dtype)
+            if f == 0:
+                arr = np.array([frame])
+            else:
+                arr = np.append(arr, [frame], axis=0)
+        return arr
+
+    # Unpack parameters
+    color, dtype, frames = test_params
+
+    # Create test grayscale array
+    shape = (32, 32)
+    shape_new = (frames, *shape, 3)
+    arr = create_test_array(shape, frames, dtype)
+
+    # Test both success and failure conditions
+    try:
+        arr_new = convert_to_rgb(arr, color)
+
+        # Check that array has expected properties
+        assert arr_new.shape == shape_new
+        assert str(arr_new.dtype) == dtype
+
+        # Check that RGB values have been applied correctly
+        pixel_values = np.array(LUT[color].value).astype(dtype)
+        assert np.all(arr_new[0][0][0] == pixel_values)
+
+    except KeyError:
+        pytest.raises(KeyError)
+
     pass
 
 
