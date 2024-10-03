@@ -90,12 +90,39 @@ def test_estimate_int_dtype(test_params: tuple[int, int, Optional[int], bool, st
     assert estimate == target
 
 
-@pytest.mark.parametrize("dtype", known_dtypes)
+# Separate the pass and fail cases in separate tests
+shrink_value_pass_cases = (
+    dtype for dtype in known_dtypes if dtype.startswith(("int", "uint"))
+)
+
+
+@pytest.mark.parametrize("dtype", shrink_value_pass_cases)
 def test_shrink_value(dtype: str):
 
-    # Encase in a "try-except" block to test expected fail conditions too
-    try:
+    # Get limits for the current array type
+    vmin = get_dtype_info(dtype).min
+    vmax = get_dtype_info(dtype).max
 
+    # Find new limits after shrinking
+    vmin_new = shrink_value(vmin)
+    vmax_new = shrink_value(vmax)
+    # Check that new values are within range allowed by array
+    assert float(vmin_new) >= vmin and float(vmax_new) <= vmax
+
+    # Check that they can be cast to the array properly
+    np.ones(1).astype(dtype) * vmax_new
+    np.ones(1).astype(dtype) * vmin_new
+    assert True
+
+
+shrink_value_fail_cases = (
+    dtype for dtype in known_dtypes if not dtype.startswith(("int", "uint"))
+)
+
+
+@pytest.mark.parametrize("dtype", shrink_value_fail_cases)
+def test_shrink_value_fails(dtype: str):
+    with pytest.raises(TypeError):
         # Get limits for the current array type
         vmin = get_dtype_info(dtype).min
         vmax = get_dtype_info(dtype).max
@@ -103,20 +130,8 @@ def test_shrink_value(dtype: str):
         # Find new limits after shrinking
         vmin_new = shrink_value(vmin)
         vmax_new = shrink_value(vmax)
-        # Check that new values are within range allowed by array
+
         assert float(vmin_new) >= vmin and float(vmax_new) <= vmax
-
-        # Check that they can be cast to the array properly
-        np.ones(1).astype(dtype) * vmax_new
-        np.ones(1).astype(dtype) * vmin_new
-        assert True
-
-    # Floats and complexes should fail
-    except TypeError:
-        pytest.raises(TypeError)
-    # Genuine error in the function
-    except Exception:
-        raise Exception("An error occurred when running this test")
 
 
 array_conversion_test_matrix = (
@@ -230,6 +245,15 @@ def test_stretch_image_contrast(
         arr = arr.astype(dtype)
         return arr
 
+    def normalize(arr: np.ndarray) -> np.ndarray:
+        vmin = float(arr.min())
+        vmax = float(arr.max())
+        diff = vmax - vmin
+
+        # Normalise to 0-1
+        arr_new = (arr - vmin) / diff
+        return arr_new
+
     # Unpack test params
     img_type, dtype, frames, percentile = test_params
 
@@ -241,19 +265,58 @@ def test_stretch_image_contrast(
     else:
         raise ValueError("Unxpected value for image type")
 
-    # Create test array
+    # Create test array and reference array
     arr = create_test_array(shape, frames, dtype)
-    # DEBUG: Check that the test array has the expected properties
-    assert str(arr.dtype) == dtype and arr.shape == (frames, *shape)
-
-    # Stretch contrast
+    arr_ref = arr.copy()  # Make a copy
     arr_new = stretch_image_contrast(arr, percentile)
 
-    # Evaluate results of the stretching function
-    assert arr.min() >= arr_new.min()
-    assert arr.max() <= arr_new.max()
-    assert str(arr.dtype) == str(arr_new.dtype)
-    assert arr.shape == arr_new.shape
+    # Manually stretch the reference array and compare it to the test array
+    p_lo, p_hi = percentile
+    b_lo, b_hi = np.percentile(arr_ref, p_lo), np.percentile(arr_ref, p_hi)
+    diff = b_hi - b_lo
+    vmax = shrink_value(get_dtype_info(dtype).max)
+    # Truncate
+    arr_ref[arr_ref <= b_lo] = b_lo
+    arr_ref[arr_ref >= b_hi] = b_hi
+
+    arr_ref = (
+        np.array(
+            # Scale between 0 and max positive value if no negative values are present
+            ((arr_ref / diff) - (b_lo / diff))
+            * vmax
+        )
+        if (get_dtype_info(dtype).min == 0 or b_lo >= 0)
+        # Keep 0 as center; scale values by largest scalar present
+        else np.array(arr_ref / max(abs(b_lo), abs(b_hi)) * vmax)
+    )
+    # NOTE: Not using np.round as in the function being tested causes the tests for
+    # the higher-bit arrays to fail. Some sort of overflow error appears to occur.
+    arr_ref = arr_ref.round(0).astype(dtype)
+
+    # Normalise both arrays and compare results
+    arr_new = normalize(arr_new)
+    arr_ref = normalize(arr_ref)
+
+    # Check that deviations are within a set threshold:
+    # arr_1 - arr_0 = atol + rtol * abs(arr_0)
+    np.testing.assert_allclose(arr_new, arr_ref, atol=0.005, rtol=0)
+
+
+LUT_fail_cases = (
+    "black",
+    "white",
+    "orange",
+    "indigo",
+    "violet",
+    "pneumonoultramicroscopicsilicovolcanoconiosis",
+)
+
+
+@pytest.mark.parametrize("color", LUT_fail_cases)
+def test_LUT_fails(color: str):
+    with pytest.raises(Exception):
+        lut = LUT[color].value
+        return lut
 
 
 image_coloring_test_matrix = (
@@ -279,13 +342,6 @@ image_coloring_test_matrix = (
     ("magenta", "int8", 1),
     ("yellow", "uint16", 5),
     ("gray", "int32", 1),
-    # Junk values
-    ("black", "uint64", 5),
-    ("white", "float16", 1),
-    ("orange", "float32", 5),
-    ("indigo", "float64", 1),
-    ("violet", "complex64", 5),
-    ("pneumonoultramicroscopicsilicovolcanoconiosis", "complex128", 1),
 )
 
 
@@ -310,21 +366,15 @@ def test_convert_to_rgb(test_params: tuple[str, str, int]):
     arr = create_test_array(shape, frames, dtype)
 
     # Test both success and failure conditions
-    try:
-        arr_new = convert_to_rgb(arr, color)
+    arr_new = convert_to_rgb(arr, color)
 
-        # Check that array has expected properties
-        assert arr_new.shape == shape_new
-        assert str(arr_new.dtype) == dtype
+    # Check that array has expected properties
+    assert arr_new.shape == shape_new
+    assert str(arr_new.dtype) == dtype
 
-        # Check that RGB values have been applied correctly
-        pixel_values = np.array(LUT[color].value).astype(dtype)
-        assert np.all(arr_new[0][0][0] == pixel_values)
-
-    except KeyError:
-        pytest.raises(KeyError)
-
-    pass
+    # Check that RGB values have been applied correctly
+    pixel_values = np.array(LUT[color].value).astype(dtype)
+    assert np.all(arr_new[0][0][0] == pixel_values)
 
 
 image_flattening_test_matrix = (
