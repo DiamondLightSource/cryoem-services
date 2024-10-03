@@ -87,10 +87,10 @@ def test_reextract_run(mock_pool, tmp_path):
     (tmp_path / "Select/job009").mkdir(parents=True)
     with open(f"{tmp_path}/Select/job009/particles.star", "w") as particles_file:
         particles_file.write(
-            "data_optics\nloop_\n"
+            "data_optics\n\nloop_\n"
             "_dummy1\n_dummy2\n_dummy3\n_dummy4\n_dummy5\n_dummy6\n"
             "_ImagePixelSize7\n_ImageSize8\nopticsGroup1 x x x x x 2.565 48\n\n"
-            "data_particles\nloop_\n_CoordinateX1\n_CoordinateY2\n"
+            "data_particles\n\nloop_\n_CoordinateX1\n_CoordinateY2\n"
             "_ImageName3\n_MicrographName4\n"
             "_dummy5\n_dummy6\n_dummy7\n_dummy8\n_dummy9\n_dummy10\n_dummy11\n"
             "_dummy12\n_dummy13\n_dummy14\n_dummy15\n_dummy16\n_dummy17\n"
