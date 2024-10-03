@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -12,6 +13,7 @@ from gemmi import cif
 from pydantic import BaseModel, Field, ValidationError
 from workflows.services.common_service import CommonService
 
+from cryoemservices.pipeliner_plugins.symmetry_finder import determine_symmetry
 from cryoemservices.util.models import MockRW
 from cryoemservices.util.relion_service_options import (
     RelionServiceOptions,
@@ -34,6 +36,7 @@ class PostProcessParameters(BaseModel):
     picker_id: int
     refined_grp_uuid: int
     refined_class_uuid: int
+    particles_file: str = ""
     relion_options: RelionServiceOptions
 
 
@@ -106,11 +109,48 @@ class PostProcess(CommonService):
         self.log.info(
             f"Input: {postprocess_params.half_map}, Output: {postprocess_params.job_dir}"
         )
+        job_num_search = re.search("/job[0-9]+", postprocess_params.job_dir)
+        if job_num_search:
+            postprocess_job_number = int(job_num_search[0][4:])
+        else:
+            self.log.error(
+                f"Can't determine job number from {postprocess_params.job_dir}"
+            )
+            rw.transport.nack(header)
+            return
 
         # Update the relion options
         postprocess_params.relion_options = update_relion_options(
             postprocess_params.relion_options, dict(postprocess_params)
         )
+
+        # Determine symmetry and request a symmetry rerun
+        if (
+            postprocess_params.is_first_refinement
+            and postprocess_params.symmetry == "C1"
+            and postprocess_params.particles_file
+        ):
+            estimated_symmetry = determine_symmetry(
+                Path(postprocess_params.half_map).parent / "run_class001.mrc"
+            )
+            refine_params = {
+                "refine_job_dir": f"{project_dir}/Refine3D/job{postprocess_job_number + 1:03}",
+                "particles_file": postprocess_params.particles_file,
+                "rescaled_class_reference": postprocess_params.rescaled_class_reference,
+                "is_first_refinement": True,
+                "number_of_particles": postprocess_params.number_of_particles,
+                "batch_size": postprocess_params.number_of_particles,
+                "pixel_size": str(postprocess_params.pixel_size),
+                "class_number": postprocess_params.class_number,
+                "symmetry": estimated_symmetry,
+            }
+            if isinstance(rw, MockRW):
+                rw.transport.send(
+                    destination="refine_wrapper",
+                    message={"parameters": refine_params, "content": "dummy"},
+                )
+            else:
+                rw.send_to("refine_wrapper", refine_params)
 
         # Use the Relion success file to determine if this is a rerun
         if (Path(postprocess_params.job_dir) / "RELION_JOB_EXIT_SUCCESS").exists():
@@ -336,6 +376,7 @@ class PostProcess(CommonService):
                 "class_number": postprocess_params.class_number,
                 "mask_file": postprocess_params.mask,
                 "pixel_size": postprocess_params.pixel_size,
+                "symmetry": postprocess_params.symmetry,
             }
         else:
             murfey_postprocess_params = {

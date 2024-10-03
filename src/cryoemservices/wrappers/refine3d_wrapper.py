@@ -344,6 +344,7 @@ class Refine3DWrapper(zocalo.wrapper.BaseWrapper):
             "batch_size": refine_params.batch_size,
             "class_number": refine_params.class_number,
             "symmetry": refine_params.symmetry,
+            "particles_file": refine_params.particles_file,
             "relion_options": dict(refine_params.relion_options),
         }
         self.recwrap.send_to("postprocess", postprocess_params)
