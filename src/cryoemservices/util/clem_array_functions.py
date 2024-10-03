@@ -245,18 +245,28 @@ def shrink_value(value: int) -> int:
                 neg = ""
 
             # Reduce precision and shrink value
+
+            #   NOTE: Python rounds floats in scientific notation mode to 15 decimal
+            #   places, so subtract 2 from that last decimal place.
+
             #   NOTE: Python rounds values that are exactly halfway (i.e. 0.5) to the
             #   nearest EVEN number, so 2 needs to be subtracted to ensure it doesn't
             #   round up to above the maximum value allowed by the array dtype again.
-            num = str(round((float(num) * 10**15) - 2, 0) / 10**15)
+            num = str(round((float(num) - (2 / 10**15)), 15))
 
             # Rebuild new value as string
             vstr = "e".join(["".join([neg, num]), exp])
             vfloat = float(vstr)
             value = int(vfloat)
+        else:
+            # Can't think of any cases where a number not in scientific notation might
+            # be bigger than its integer representation, so raising ValueError for now.
+            raise ValueError(f"{vfloat} is larger than {value}")
+
     # Skip if it can be represented exactly as a float
     elif abs(vfloat) == abs(value):
         pass
+
     else:
         raise Exception("Unexpected exception occurred")
 
@@ -360,6 +370,7 @@ def convert_array_dtype(
 def stretch_image_contrast(
     array: np.ndarray,
     percentile_range: tuple[float, float] = (0.5, 99.5),  # Lower and upper percentiles
+    debug: bool = False,
 ) -> np.ndarray:
     """
     Changes the range of pixel values occupied by the data, rescaling it across the
@@ -372,6 +383,7 @@ def stretch_image_contrast(
     arr: np.ndarray = array
     b_lo: float | int = np.percentile(arr, percentile_range[0])
     b_up: float | int = np.percentile(arr, percentile_range[1])
+    diff: float | int = b_up - b_lo
 
     # Check that dtype is supported by NumPy
     dtype = str(array.dtype)
@@ -392,13 +404,13 @@ def stretch_image_contrast(
     for f in range(arr.shape[0]):
         # Overwrite outliers and normalise to new range
         frame: np.ndarray = arr[f]
-        frame[frame < b_lo] = b_lo
-        frame[frame > b_up] = b_up
+        frame[frame <= b_lo] = b_lo
+        frame[frame >= b_up] = b_up
         # Normalise differently depending on whether dtype supports negative values
         frame = (
             np.array(
                 # Scale between 0 and max positive value if no negative values are present
-                ((frame / (b_up - b_lo)) - (b_lo / (b_up - b_lo)))
+                ((frame / diff) - (b_lo / diff))
                 * vmax
             )
             if (dtype_info.min == 0 or b_lo >= 0)
@@ -407,26 +419,27 @@ def stretch_image_contrast(
         )
 
         # DEBUG: Check array properties immediately after calculation
-        # print(
-        #     f"dtype: {frame.dtype} \n"
-        #     f"Shape: {frame.shape} \n"
-        #     f"Min: {frame.min()} \n"
-        #     f"Max: {frame.max()} \n"
-        # )
+        if debug:
+            logger.debug(
+                "Frame properties after contrast stretching: \n"
+                f"dtype: {frame.dtype} \n"
+                f"Shape: {frame.shape} \n"
+                f"Min: {frame.min()} \n"
+                f"Max: {frame.max()} \n"
+            )
 
         # Preserve dtype and round values if dtype is integer-based
+        #   NOTE: np.round() rounds values that are exactly halfway towards the nearest
+        #   even number (e.g. 0.5 -> 0)
         frame = frame.round(0) if dtype.startswith(("int", "uint")) else frame
         frame = frame.astype(dtype)
 
         # DEBUG: Check array properties after rounding
-        # print(
-        #     "Error when casting to the target dtype; printing debug log \n"
-        #     "Properties of the current frame: \n"
-        #     f"dtype: {frame.dtype} \n"
-        #     f"Shape: {frame.shape} \n"
-        #     f"Min: {frame.min()} \n"
-        #     f"Max: {frame.max()} \n"
-        # )
+        if debug:
+            if frame.min() <= dtype_info.min or frame.max() >= dtype_info.max:
+                logger.debug(
+                    "Values in the current frame exceed the bit range for this dtype"
+                )
 
         # Append to array
         if f == 0:
