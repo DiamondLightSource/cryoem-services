@@ -38,7 +38,8 @@ def align_and_merge_stacks(
     flatten: Optional[Literal["min", "max", "mean"]] = "mean",
     align_stacks: Optional[str] = None,
     # Print messages only if run as a CLI
-    print_logs: bool = False,
+    print_messages: bool = False,
+    debug: bool = False,
 ):
     """
     A cryoEM service (eventually) to create composite images from component image
@@ -82,7 +83,7 @@ def align_and_merge_stacks(
     parent_dir = list({file.parents[0] for file in files})[0]
     # Validate parent directory
     ## TO DO
-    if print_logs is True:
+    if print_messages is True:
         print(f"Setting {parent_dir!r} as the working directory")
 
     # Find metadata file if none was provided
@@ -99,7 +100,7 @@ def align_and_merge_stacks(
             raise Exception
         # Load metadata file
         metadata_file = list((parent_dir / "metadata").glob("*.xml"))[0]
-        if print_logs is True:
+        if print_messages is True:
             print(f"Using metadata from {metadata_file!r}")
 
     # Load metadata for series from XML file
@@ -112,7 +113,7 @@ def align_and_merge_stacks(
     colors: list[str] = [
         channels[c].attrib["LUTName"].lower() for c in range(len(channels))
     ]
-    if print_logs is True:
+    if print_messages is True:
         print("Loaded metadata from file")
 
     # Load image stacks according to their order in the XML file
@@ -139,7 +140,7 @@ def align_and_merge_stacks(
 
             # Load array and apend it to stack
             arrays.append(tiff_file.series[0].pages.asarray())
-            if print_logs is True:
+            if print_messages is True:
                 print(f"Loaded {file!r}")
 
     # Validate that the stacks provided are of the same shape
@@ -153,11 +154,20 @@ def align_and_merge_stacks(
         raise Exception
 
     # Debug
+    if debug and print_messages:
+        print(
+            "Initial properties of image stacks: \n",
+            f"Shape: {arrays[0].shape} \n",
+            f"dtype: {arrays[0].dtype} \n",
+            f"Min: {np.min(arrays)} \n",
+            f"Max: {np.max(arrays)} \n",
+        )
     logger.debug(
-        f"Shape: {arrays[0].shape} \n"
-        f"dtype: {arrays[0].dtype} \n"
-        f"Min: {np.min(arrays)} \n"
-        f"Max: {np.max(arrays)} \n"
+        "Initial properties of image stacks: \n",
+        f"Shape: {arrays[0].shape} \n",
+        f"dtype: {arrays[0].dtype} \n",
+        f"Min: {np.min(arrays)} \n",
+        f"Max: {np.max(arrays)} \n",
     )
 
     # Align frames within each image stack
@@ -168,22 +178,31 @@ def align_and_merge_stacks(
 
     # Flatten images if the option is selected
     if flatten is not None:
-        if print_logs is True:
+        if print_messages is True:
             print("Flattening image stacks...")
         arrays = [flatten_image(arr, mode=flatten) for arr in arrays]
         # Validate that image flattening was done correctly
         if len({arr.shape for arr in arrays}) > 1:
             logger.error("The flattened arrays do not have the same shape")
             raise Exception
-        if print_logs is True:
+        if print_messages is True:
             print("Done")
 
         # # Debug
+        if debug and print_messages:
+            print(
+                "Properties of array after flattening: \n",
+                f"Shape: {arrays[0].shape} \n",
+                f"dtype: {arrays[0].dtype} \n",
+                f"Min: {np.min(arrays)} \n",
+                f"Max: {np.max(arrays)} \n",
+            )
         logger.debug(
-            f"Shape: {arrays[0].shape} \n"
-            f"dtype: {arrays[0].dtype} \n"
-            f"Min: {np.min(arrays)} \n"
-            f"Max: {np.max(arrays)} \n"
+            "Properties of array after flattening: \n",
+            f"Shape: {arrays[0].shape} \n",
+            f"dtype: {arrays[0].dtype} \n",
+            f"Min: {np.min(arrays)} \n",
+            f"Max: {np.max(arrays)} \n",
         )
 
     # Align other stacks to reference stack
@@ -194,57 +213,81 @@ def align_and_merge_stacks(
     ## if only 2D images are required
 
     # Colourise images
-    if print_logs is True:
+    if print_messages is True:
         print("Converting images from grayscale to RGB...")
     arrays = [convert_to_rgb(arrays[c], colors[c]) for c in range(len(colors))]
-    if print_logs is True:
+    if print_messages is True:
         print("Done")
 
     # # Debug
+    if debug and print_messages:
+        print(
+            "Properties of array after colourising: \n",
+            f"Shape: {arrays[0].shape} \n",
+            f"dtype: {arrays[0].dtype} \n",
+            f"Min: {np.min(arrays)} \n",
+            f"Max: {np.max(arrays)} \n",
+        )
     logger.debug(
-        "Properties of array after colourising: \n"
-        f"Shape: {arrays[0].shape} \n"
-        f"dtype: {arrays[0].dtype} \n"
-        f"Min: {np.min(arrays)} \n"
-        f"Max: {np.max(arrays)} \n"
+        "Properties of array after colourising: \n",
+        f"Shape: {arrays[0].shape} \n",
+        f"dtype: {arrays[0].dtype} \n",
+        f"Min: {np.min(arrays)} \n",
+        f"Max: {np.max(arrays)} \n",
     )
 
     # Convert to a composite image
-    if print_logs is True:
+    if print_messages is True:
         print("Creating a composite image...")
     composite_img = merge_images(arrays)
-    if print_logs is True:
+    if print_messages is True:
         print("Done")
 
     # # Debug
+    if debug and print_messages:
+        print(
+            "Properties of array after merging: \n",
+            f"Shape: {arrays[0].shape} \n",
+            f"dtype: {arrays[0].dtype} \n",
+            f"Min: {np.min(arrays)} \n",
+            f"Max: {np.max(arrays)} \n",
+        )
     logger.debug(
-        "Properties of array after merging: \n"
-        f"Shape: {arrays[0].shape} \n"
-        f"dtype: {arrays[0].dtype} \n"
-        f"Min: {np.min(arrays)} \n"
-        f"Max: {np.max(arrays)} \n"
+        "Properties of array after merging: \n",
+        f"Shape: {arrays[0].shape} \n",
+        f"dtype: {arrays[0].dtype} \n",
+        f"Min: {np.min(arrays)} \n",
+        f"Max: {np.max(arrays)} \n",
     )
 
     # Adjust image contrast after merging images
-    if print_logs is True:
+    if print_messages is True:
         print("Applying contrast correction...")
     composite_img = stretch_image_contrast(
         composite_img,
         percentile_range=(0, 100),
     )
-    if print_logs is True:
+    if print_messages is True:
         print("Done")
 
     # Debug
+    if debug and print_messages:
+        print(
+            "Properties of array after stretching: \n",
+            f"Shape: {composite_img.shape} \n",
+            f"dtype: {composite_img.dtype} \n",
+            f"Min: {np.min(composite_img)} \n",
+            f"Max: {np.max(composite_img)} \n",
+        )
     logger.debug(
-        "Properties of array after stretching: \n"
-        f"Shape: {composite_img.shape}"
-        f"dtype: {composite_img.dtype}"
-        f"Min: {np.min(composite_img)}"
-        f"Max: {np.max(composite_img)}"
+        "Properties of array after stretching: \n",
+        f"Shape: {composite_img.shape} \n",
+        f"dtype: {composite_img.dtype} \n",
+        f"Min: {np.min(composite_img)} \n",
+        f"Max: {np.max(composite_img)} \n",
     )
     # Save the image to a TIFF file
-    if print_logs is True:
+    if print_messages is True:
         print("Saving composite image...")
 
     # Set up metadata properties
@@ -285,7 +328,7 @@ def align_and_merge_stacks(
             # "Labels": image_labels,
         },
     )
-    if print_logs is True:
+    if print_messages is True:
         print(f"Composite image saved as {save_name}")
 
     return composite_img

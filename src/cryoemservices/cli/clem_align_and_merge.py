@@ -78,6 +78,12 @@ def run():
             "DEFAULT: 'null'"
         ),
     )
+    # Add a debug statement
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help=("Print additional messages to check functions work as intended"),
+    )
     # Parse the arguments
     args = parser.parse_args()
 
@@ -113,8 +119,9 @@ def run():
         raise FileNotFoundError("No valid file paths provided")
 
     # File list debugging
-    # print("Detected files:")
-    # [print(file) for file in image_files]
+    print("Found all provided image files")
+    if args.debug:
+        [print(file) for file in image_files]
 
     # Resolve metadata parameter
     if isinstance(args.metadata, str):
@@ -166,7 +173,8 @@ def run():
         pre_align_stack=pre_align_stack,
         flatten=flatten,
         align_stacks=align_stacks,
-        print_logs=True,  # Print messages when used as a CLI
+        print_messages=True,  # Print messages when used as a CLI
+        debug=True,  # Print debug messages
     )
 
     if composite_image is not None:
