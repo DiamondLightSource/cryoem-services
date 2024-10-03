@@ -34,7 +34,7 @@ def offline_transport(mocker):
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.postprocess.subprocess.run")
-def test_postprocess_first_refine(
+def test_postprocess_first_refine_has_symmetry(
     mock_subprocess, mock_environment, offline_transport, tmp_path
 ):
     """
@@ -47,6 +47,9 @@ def test_postprocess_first_refine(
         "+ apply b-factor of: 50\n+ FINAL RESOLUTION: 4.5\n".encode("ascii")
     )
     mock_subprocess().stderr = "stderr".encode("ascii")
+
+    # Symmetry not C1
+    symmetry = "C3"
 
     # Create the expected input files
     (tmp_path / "Refine3D/job013").mkdir(parents=True)
@@ -73,7 +76,8 @@ def test_postprocess_first_refine(
             "batch_size": 5,
             "class_number": 1,
             "postprocess_lowres": 10,
-            "symmetry": "C1",
+            "symmetry": symmetry,
+            "particles_file": f"{tmp_path}/Extract/job012/particles.star",
             "picker_id": 1,
             "refined_grp_uuid": 2,
             "refined_class_uuid": 3,
@@ -84,6 +88,7 @@ def test_postprocess_first_refine(
     output_relion_options = dict(RelionServiceOptions())
     output_relion_options["batch_size"] = 5
     output_relion_options["pixel_size"] = 1.0
+    output_relion_options["symmetry"] = symmetry
     output_relion_options.update(
         postprocess_test_message["parameters"]["relion_options"]
     )
@@ -115,6 +120,7 @@ def test_postprocess_first_refine(
     mock_subprocess.assert_called_with(postprocess_command, capture_output=True)
 
     # Check that the correct messages were sent
+    assert offline_transport.send.call_count == 3
     offline_transport.send.assert_any_call(
         destination="murfey_feedback",
         message={
@@ -131,6 +137,7 @@ def test_postprocess_first_refine(
                 "class_number": 1,
                 "mask_file": postprocess_test_message["parameters"]["mask"],
                 "pixel_size": 1.0,
+                "symmetry": symmetry,
             },
             "content": "dummy",
         },
@@ -151,7 +158,7 @@ def test_postprocess_first_refine(
                         "number_of_classes_per_batch": "1",
                         "number_of_particles_per_batch": 5,
                         "particle_picker_id": 1,
-                        "symmetry": "C1",
+                        "symmetry": symmetry,
                         "type": "3D",
                     },
                     {
@@ -202,6 +209,122 @@ def test_postprocess_first_refine(
                 "success": True,
             },
             "content": "dummy",
+        },
+    )
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+@mock.patch("cryoemservices.services.postprocess.subprocess.run")
+@mock.patch("cryoemservices.services.postprocess.determine_symmetry")
+def test_postprocess_first_refine_without_symmetry(
+    mock_symmetry, mock_subprocess, mock_environment, offline_transport, tmp_path
+):
+    """
+    Send a test message to the PostProcess service for a first Refinement job
+    This should run particle selection and launch re-extraction jobs with slurm
+    then send messages on to Murfey, ispyb and the node_creator.
+    When the symmetry given is C1, a new symmetry should be predicted and refined
+    """
+    mock_subprocess().returncode = 0
+    mock_subprocess().stdout = (
+        "+ apply b-factor of: 50\n+ FINAL RESOLUTION: 4.5\n".encode("ascii")
+    )
+    mock_subprocess().stderr = "stderr".encode("ascii")
+
+    # Symmetry C1, as this will result in a symmetry search, mocked to get T
+    symmetry = "C1"
+    estimated_symmetry = "T"
+    mock_symmetry.return_value = estimated_symmetry
+
+    # Create the expected input files
+    (tmp_path / "Refine3D/job013").mkdir(parents=True)
+    with open(tmp_path / "Refine3D/job013/run_model.star", "w") as f:
+        f.write(
+            "data_model_classes\n\nloop_\n_rlnReferenceImage\n"
+            "_Angles\n_Rotation\n_Translation\n_Resolution\n_FourierCompleteness\n"
+            "image 0 10 20 4 90"
+        )
+
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+    postprocess_test_message = {
+        "parameters": {
+            "half_map": str(tmp_path / "Refine3D/job013/half_map1.mrc"),
+            "mask": str(tmp_path / "MaskCreate/job014/mask.mrc"),
+            "rescaled_class_reference": str(tmp_path / "class_ref.mrc"),
+            "job_dir": str(tmp_path / "PostProcess/job015"),
+            "is_first_refinement": True,
+            "pixel_size": 1.0,
+            "number_of_particles": 5,
+            "batch_size": 5,
+            "class_number": 1,
+            "postprocess_lowres": 10,
+            "symmetry": symmetry,
+            "particles_file": f"{tmp_path}/Extract/job012/particles.star",
+            "picker_id": 1,
+            "refined_grp_uuid": 2,
+            "refined_class_uuid": 3,
+            "relion_options": {},
+        },
+        "content": "dummy",
+    }
+    output_relion_options = dict(RelionServiceOptions())
+    output_relion_options["batch_size"] = 5
+    output_relion_options["pixel_size"] = 1.0
+    output_relion_options["symmetry"] = symmetry
+    output_relion_options.update(
+        postprocess_test_message["parameters"]["relion_options"]
+    )
+
+    # Set up the mock service and call it
+    service = postprocess.PostProcess(environment=mock_environment)
+    service.transport = offline_transport
+    service.start()
+    service.postprocess(None, header=header, message=postprocess_test_message)
+
+    postprocess_command = [
+        "relion_postprocess",
+        "--i",
+        postprocess_test_message["parameters"]["half_map"],
+        "--o",
+        str(tmp_path / "PostProcess/job015/postprocess"),
+        "--mask",
+        postprocess_test_message["parameters"]["mask"],
+        "--angpix",
+        "1.0",
+        "--auto_bfac",
+        "--autob_lowres",
+        "10.0",
+        "--pipeline_control",
+        f"{tmp_path}/PostProcess/job015/",
+    ]
+
+    assert mock_subprocess.call_count == 4
+    mock_subprocess.assert_called_with(postprocess_command, capture_output=True)
+
+    # Check the symmetry finding call was made
+    mock_symmetry.assert_called_with(tmp_path / "Refine3D/job013/run_class001.mrc")
+
+    # Check that the correct messages were sent
+    assert offline_transport.send.call_count == 4
+    # Don't retest the murfey, ispyb and node creator sends
+    offline_transport.send.assert_any_call(
+        destination="refine_wrapper",
+        message={
+            "content": "dummy",
+            "parameters": {
+                "refine_job_dir": f"{tmp_path}/Refine3D/job016",
+                "particles_file": f"{tmp_path}/Extract/job012/particles.star",
+                "rescaled_class_reference": str(tmp_path / "class_ref.mrc"),
+                "is_first_refinement": True,
+                "number_of_particles": 5,
+                "batch_size": 5,
+                "pixel_size": "1.0",
+                "class_number": 1,
+                "symmetry": estimated_symmetry,
+            },
         },
     )
 
