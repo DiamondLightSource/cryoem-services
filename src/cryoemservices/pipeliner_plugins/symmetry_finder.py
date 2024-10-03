@@ -52,6 +52,7 @@ def find_difference(aligned_file: Path, symmetrised_file: Path):
 
 
 def determine_symmetry(volume: Path):
+    """Run through a series of symmetries and compare their alignments to references"""
     # List of the symmetries to test
     symmetry_list = np.array(["C2", "C3", "C4", "C5", "C6", "C7", "C8", "T", "O", "I"])
 
