@@ -206,6 +206,7 @@ class Refine3DWrapper(zocalo.wrapper.BaseWrapper):
             "command": " ".join(refine_command),
             "stdout": refine_result.stdout.decode("utf8", "replace"),
             "stderr": refine_result.stderr.decode("utf8", "replace"),
+            "alias": f"{refine_params.symmetry}_symmetry",
         }
         if refine_result.returncode:
             node_creator_parameters["success"] = False
@@ -311,6 +312,7 @@ class Refine3DWrapper(zocalo.wrapper.BaseWrapper):
                 "command": " ".join(mask_command),
                 "stdout": mask_result.stdout.decode("utf8", "replace"),
                 "stderr": mask_result.stderr.decode("utf8", "replace"),
+                "alias": f"{refine_params.symmetry}_symmetry",
             }
             if mask_result.returncode:
                 node_creator_mask["success"] = False

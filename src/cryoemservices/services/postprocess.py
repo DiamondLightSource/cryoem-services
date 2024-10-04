@@ -192,6 +192,7 @@ class PostProcess(CommonService):
             "command": " ".join(postprocess_command),
             "stdout": postprocess_result.stdout.decode("utf8", "replace"),
             "stderr": postprocess_result.stderr.decode("utf8", "replace"),
+            "alias": f"{postprocess_params.symmetry}_symmetry",
         }
         if postprocess_result.returncode:
             node_creator_params["success"] = False

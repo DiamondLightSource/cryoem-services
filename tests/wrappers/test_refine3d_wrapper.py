@@ -227,6 +227,7 @@ def test_refine3d_wrapper_with_mask(
             "command": " ".join(refine3d_command),
             "stdout": "stdout",
             "stderr": "stderr",
+            "alias": "C3_symmetry",
             "success": True,
         },
     )
@@ -456,6 +457,7 @@ def test_refine3d_wrapper_no_mask(
             "command": " ".join(refine3d_command),
             "stdout": "stdout",
             "stderr": "stderr",
+            "alias": "C1_symmetry",
             "success": True,
         },
     )
@@ -470,6 +472,7 @@ def test_refine3d_wrapper_no_mask(
             "command": " ".join(mask_creation_command),
             "stdout": "stdout",
             "stderr": "stderr",
+            "alias": "C1_symmetry",
             "success": True,
         },
     )
