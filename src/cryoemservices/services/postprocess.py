@@ -143,7 +143,7 @@ class PostProcess(CommonService):
                 "pixel_size": str(postprocess_params.pixel_size),
                 "class_number": postprocess_params.class_number,
                 "symmetry": estimated_symmetry,
-                "relion_options": postprocess_params.relion_options,
+                "relion_options": dict(postprocess_params.relion_options),
             }
             if isinstance(rw, MockRW):
                 rw.transport.send(

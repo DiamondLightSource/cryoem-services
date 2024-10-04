@@ -325,6 +325,7 @@ def test_postprocess_first_refine_without_symmetry(
                 "pixel_size": "1.0",
                 "class_number": 1,
                 "symmetry": estimated_symmetry,
+                "relion_options": output_relion_options,
             },
         },
     )
