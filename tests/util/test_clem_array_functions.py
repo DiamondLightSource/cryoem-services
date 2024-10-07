@@ -501,15 +501,17 @@ image_flattening_test_matrix = (
     ("gray", 5, "mean", True, 2),
     ("gray", 5, "min", False, 0),
     ("gray", 5, "max", True, 4),
+    ("gray", 5, None, True, 2),
     # Test RGB images
     ("rgb", 5, "mean", False, 2),
     ("rgb", 5, "min", True, 0),
     ("rgb", 5, "max", False, 4),
+    ("rgb", 5, None, False, 2),
 )
 
 
 @pytest.mark.parametrize("test_params", image_flattening_test_matrix)
-def test_flatten_image(test_params: tuple[str, int, str, bool, int]):
+def test_flatten_image(test_params: tuple[str, int, Optional[str], bool, int]):
 
     # Helper function to create an array simulating an image stack
     def create_test_array(shape: tuple, frames: int, dtype: str) -> np.ndarray:
@@ -538,7 +540,7 @@ def test_flatten_image(test_params: tuple[str, int, str, bool, int]):
 
     # Create image stack and flatten it
     arr = create_test_array(shape, frames, dtype)
-    arr_new = flatten_image(arr, mode)
+    arr_new = flatten_image(arr, mode) if isinstance(mode, str) else flatten_image(arr)
 
     # Create new flattened array with the expected pixel value
     #   Because pixel values increase from 0 to (frame - 1) per frame, it's possible
@@ -556,6 +558,47 @@ def test_flatten_image(test_params: tuple[str, int, str, bool, int]):
         rtol=0,
         atol=1e-20,  # Really, there shouldn't be a difference
     )
+
+
+image_flattening_fail_cases: tuple[tuple, ...] = (
+    # Image type | Frames | Mode | Is float?
+    ("gray", 5, "uvuvwevwevwe", True),
+    ("gray", 5, "onyetenyevwe", False),
+    ("gray", 5, "ugwemubwem", True),
+    ("rgb", 5, "osas", False),
+    ("rgb", 5, 5, True),
+    ("rgb", 5, True, False),
+    ("rgb", 5, [], True),
+    ("rgb", 5, (), True),
+    ("rgb", 5, {}, True),
+    ("rgb", 5, set(), True),
+)
+
+
+@pytest.mark.parametrize("test_params", image_flattening_fail_cases)
+def test_flatten_image_fails(
+    test_params: tuple[str, int, str | int | bool | list | tuple | dict | set, bool]
+):
+
+    # Helper function to create an array simulating an image stack
+    def create_test_array(shape: tuple, frames: int, dtype: str) -> np.ndarray:
+        for f in range(frames):
+            # Increment array values by 1 per frame
+            frame = np.ones(shape).astype(dtype) * f
+            if f == 0:
+                arr = np.array([frame])
+            else:
+                arr = np.append(arr, [frame], axis=0)
+        return arr
+
+    with pytest.raises(ValueError):
+        # Unpack parameters
+        img_type, frames, mode, is_float = test_params
+        shape = (64, 64) if img_type == "gray" else (64, 64, 3)
+        dtype = "float64" if is_float is True else "int64"
+
+        arr = create_test_array(shape, frames, dtype)
+        flatten_image(arr, mode)
 
 
 image_merging_test_matrix = (
