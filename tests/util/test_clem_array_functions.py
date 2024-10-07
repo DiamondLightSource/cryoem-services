@@ -719,6 +719,7 @@ def test_merge_images_fails(test_params: tuple[str, int, bool, bool]):
         # Unpack test_params
         img_type, num_images, frames, size = test_params
 
+        # Create list of test arrays
         arr_list: list[np.ndarray] = []
         for i in range(num_images):
             shape: tuple[int, ...] = (64, 64) if size is True else (64 + i, 64 + i)
