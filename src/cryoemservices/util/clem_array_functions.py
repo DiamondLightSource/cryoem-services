@@ -10,7 +10,7 @@ import logging
 import re
 from enum import Enum
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Optional
 
 import numpy as np
 from tifffile import imwrite
@@ -401,11 +401,31 @@ def stretch_image_contrast(
     dtype_info = get_dtype_info(dtype)
     vmax = shrink_value(dtype_info.max)
 
+    if debug:
+        logger.debug(f"Using {vmax} as maximum array value")
+
     for f in range(arr.shape[0]):
         # Overwrite outliers and normalise to new range
         frame: np.ndarray = arr[f]
         frame[frame <= b_lo] = b_lo
         frame[frame >= b_up] = b_up
+
+        # DEBUG: Check array properties immediately after truncation
+        if debug:
+            # Calculate positions of mins and maxes in array
+            coords_max = np.unravel_index(np.argmax(frame), frame.shape)
+            coords_min = np.unravel_index(np.argmin(frame), frame.shape)
+
+            logger.debug(
+                "Frame properties after truncation: \n"
+                f"dtype: {frame.dtype} \n"
+                f"Shape: {frame.shape} \n"
+                f"Min: {frame.min()} \n"
+                f"Min coords: {coords_min} \n"
+                f"Max: {frame.max()} \n"
+                f"Max coords: {coords_max} \n"
+            )
+
         # Normalise differently depending on whether dtype supports negative values
         frame = (
             np.array(
@@ -420,26 +440,87 @@ def stretch_image_contrast(
 
         # DEBUG: Check array properties immediately after calculation
         if debug:
+            # Calculate positions of mins and maxes in array
+            coords_max = np.unravel_index(np.argmax(frame), frame.shape)
+            coords_min = np.unravel_index(np.argmin(frame), frame.shape)
+
             logger.debug(
                 "Frame properties after contrast stretching: \n"
                 f"dtype: {frame.dtype} \n"
                 f"Shape: {frame.shape} \n"
                 f"Min: {frame.min()} \n"
+                f"Min coords: {coords_min} \n"
                 f"Max: {frame.max()} \n"
+                f"Max coords: {coords_max} \n"
             )
 
-        # Preserve dtype and round values if dtype is integer-based
+        # Catch negative numbers after contrast stretching
+        #   NOTE: For some reason (maybe NumPy inaccuracies when rounding), it's still
+        #   possible for some pixel values to go negative
+        if dtype_info.min == 0 or b_lo >= 0:
+            frame[frame <= 0] = 0
+
+        if debug:
+            # Calculate positions of mins and maxes in array
+            coords_max = np.unravel_index(np.argmax(frame), frame.shape)
+            coords_min = np.unravel_index(np.argmin(frame), frame.shape)
+
+            logger.debug(
+                "Frame properties after catching negative numbers: \n"
+                f"dtype: {frame.dtype} \n"
+                f"Shape: {frame.shape} \n"
+                f"Min: {frame.min()} \n"
+                f"Min coords: {coords_min} \n"
+                f"Max: {frame.max()} \n"
+                f"Max coords: {coords_max} \n"
+            )
+
+        # Round values if dtype is integer-based
         #   NOTE: np.round() rounds values that are exactly halfway towards the nearest
         #   even number (e.g. 0.5 -> 0)
         frame = frame.round(0) if dtype.startswith(("int", "uint")) else frame
+
+        if debug:
+            # Calculate positions of mins and maxes in array
+            coords_max = np.unravel_index(np.argmax(frame), frame.shape)
+            coords_min = np.unravel_index(np.argmin(frame), frame.shape)
+
+            logger.debug(
+                "Frame properties after rounding: \n"
+                f"dtype: {frame.dtype} \n"
+                f"Shape: {frame.shape} \n"
+                f"Min: {frame.min()} \n"
+                f"Min coords: {coords_min} \n"
+                f"Max: {frame.max()} \n"
+                f"Max coords: {coords_max} \n"
+            )
+
+        # Restore original dtype
         frame = frame.astype(dtype)
+
+        if debug:
+            # Calculate positions of mins and maxes in array
+            coords_max = np.unravel_index(np.argmax(frame), frame.shape)
+            coords_min = np.unravel_index(np.argmin(frame), frame.shape)
+
+            logger.debug(
+                "Frame properties after resetting dtype: \n"
+                f"dtype: {frame.dtype} \n"
+                f"Shape: {frame.shape} \n"
+                f"Min: {frame.min()} \n"
+                f"Min coords: {coords_min} \n"
+                f"Max: {frame.max()} \n"
+                f"Max coords: {coords_max} \n"
+            )
 
         # DEBUG: Check array properties after rounding
         if debug:
-            if frame.min() <= dtype_info.min or frame.max() >= dtype_info.max:
+            if frame.min() <= dtype_info.min:
                 logger.debug(
-                    "Values in the current frame exceed the bit range for this dtype"
+                    "There are values below the minimum bit range for this dtype"
                 )
+            if frame.max() >= dtype_info.max:
+                logger.debug("There are values above the max bit range for this dtype")
 
         # Append to array
         if f == 0:
@@ -491,7 +572,7 @@ def convert_to_rgb(
 
 def flatten_image(
     array: np.ndarray,
-    mode: Literal["min", "max", "mean"] = "mean",
+    mode: str = "mean",
 ) -> np.ndarray:
 
     # Flatten along first (outermost) axis

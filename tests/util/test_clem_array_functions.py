@@ -211,7 +211,7 @@ def test_convert_array_dtype(test_params: tuple[str, str, bool]):
 
 
 contrast_stretching_test_matrix = (
-    # Type | dtype | Frames | Range
+    # Image type | dtype | Frames | Range
     # Test for grayscale images/stacks
     ("gray", "uint8", 1, (0, 100)),
     ("gray", "int16", 5, (0, 100)),
@@ -289,6 +289,13 @@ def test_stretch_image_contrast(
         # Keep 0 as center; scale values by largest scalar present
         else np.array(arr_ref / max(abs(b_lo), abs(b_hi)) * vmax)
     )
+
+    # Catch any unprecedented negative values when working with 'uint' dtypes
+    #   NOTE: For some reason, the normalisation function still returns mildly
+    #   negative values (i.e. -0.xxxx or -1.xxxx), even though everything should
+    if b_lo >= 0:
+        arr_ref[arr_ref <= 0] = 0
+
     # NOTE: Not using np.round as in the function being tested causes the tests for
     # the higher-bit arrays to fail. Some sort of overflow error appears to occur.
     arr_ref = arr_ref.round(0).astype(dtype)
