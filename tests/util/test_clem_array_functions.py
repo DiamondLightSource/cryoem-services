@@ -197,8 +197,7 @@ shrink_value_fail_cases = tuple(
 @pytest.mark.parametrize("value", shrink_value_fail_cases)
 def test_shrink_value_fails(value: float):
     with pytest.raises(TypeError):
-        v_new = shrink_value(value)
-        assert abs(float(v_new)) <= abs(value)
+        shrink_value(value)
 
 
 array_conversion_test_matrix = (
@@ -687,7 +686,3 @@ def test_preprocess_img_stk():
 
 def test_write_stack_to_tiff():
     pass
-
-
-if __name__ == "__main__":
-    print(shrink_value_fail_cases)
