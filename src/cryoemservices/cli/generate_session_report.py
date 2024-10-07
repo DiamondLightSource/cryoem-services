@@ -208,9 +208,10 @@ class SessionResults:
             doc.append(
                 pylatex.NoEscape(
                     "Classification was run using a binned pixel size of X that gives "
-                    r"a Nyquist frequency of around 8.5 $\AA$.\n\n"
+                    r"a Nyquist frequency of around 8.5 $\AA$."
                 )
             )
+            doc.append(pylatex.NoEscape("\n\n"))
             doc.append("X batches of 2D classification were run")
 
             with doc.create(pylatex.Figure(position="h")) as micrograph_image:
@@ -251,13 +252,15 @@ class SessionResults:
                 table.add_hline()
 
             if self.refined_batch:
+                doc.append(pylatex.NoEscape("\n\n"))
                 doc.append(
                     pylatex.NoEscape(
-                        "\n\nRefinement of the 3D structure was run using "
+                        r"Refinement of the 3D structure was run using "
                         rf"a pixel size of {self.pixel_size * 20} $\AA$ "
-                        f"and {self.refined_batch} particles. \n"
+                        f"and {self.refined_batch} particles."
                     )
                 )
+                doc.append(pylatex.NoEscape("\n"))
                 if len(self.refined_symmetry) == 1:
                     refine_round1 = 0
                 else:
@@ -266,9 +269,10 @@ class SessionResults:
                 doc.append(
                     pylatex.NoEscape(
                         rf"A final resolution of {self.refined_resolution[refine_round1]} $\AA$ "
-                        f"was obtained with completeness {self.refined_completeness[refine_round1]}.\n"
+                        f"was obtained with completeness {self.refined_completeness[refine_round1]}."
                     )
                 )
+                doc.append(pylatex.NoEscape("\n"))
                 doc.append(
                     f"An estimated B-factor is {self.bfactor[refine_round1]}, "
                     f"but we caution that masks are not optimised and "
@@ -285,9 +289,10 @@ class SessionResults:
                             f"of the sample is {self.refined_symmetry[symm_refine]}. "
                             "Using this symmetry refinement gives a final resolution "
                             rf"of {self.refined_resolution[refine_round1]} $\AA$ "
-                            f"and completeness {self.refined_completeness[refine_round1]}.\n"
+                            f"and completeness {self.refined_completeness[refine_round1]}."
                         )
                     )
+                    doc.append(pylatex.NoEscape("\n"))
 
         doc.generate_pdf("report")
 
