@@ -195,25 +195,23 @@ def estimate_int_dtype(array: np.ndarray, bit_depth: Optional[int] = None) -> st
     dtype_group = "uint" if arr.min() >= 0 else "int"
 
     result: Optional[str] = None
-    if bit_depth is not None:
-        try:
-            # Make an estimate using the provided bit depth
-            result = _by_bit_depth(
-                array=arr,
-                dtype_group=dtype_group,
-                bit_depth=bit_depth,
-            )
-        except Exception:
-            pass
-
-    try:
-        result = (
-            _by_array_values(array=arr, dtype_group=dtype_group)
-            if result is None
-            else result
+    # Make an estimate using the provided bit depth if set
+    result = (
+        _by_bit_depth(
+            array=arr,
+            dtype_group=dtype_group,
+            bit_depth=bit_depth,
         )
-    except Exception:
-        pass
+        if bit_depth is not None
+        else None
+    )
+
+    # Estimate using array depth instead
+    result = (
+        _by_array_values(array=arr, dtype_group=dtype_group)
+        if result is None
+        else result
+    )
 
     if result is None:
         raise ValueError("Unable to find an appropriate dtype for the array")
