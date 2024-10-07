@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import itertools
 from typing import Optional
 
 import numpy as np
@@ -46,17 +47,17 @@ def test_get_valid_dtypes():
 def test_get_dtype_info(dtype: str):
 
     # Load dtype info from NumPy
-    dtype_info = (
+    dtype_ref = (
         np.iinfo(dtype) if dtype.startswith(("int", "uint")) else np.finfo(dtype)
     )
     # Load dtype info via function
-    dtype_func = get_dtype_info(dtype)
+    dtype_info = get_dtype_info(dtype)
 
     # Compare the contents of the two objects
     assert (
         len(
             {dtype_info.min, dtype_info.max, str(dtype_info.dtype)}
-            - {dtype_func.min, dtype_func.max, str(dtype_func.dtype)}
+            - {dtype_ref.min, dtype_ref.max, str(dtype_ref.dtype)}
         )
         == 0
     )
@@ -145,48 +146,59 @@ def test_estimate_int_dtype_fails(
         estimate_int_dtype(arr, bits)
 
 
-# Separate the pass and fail cases in separate tests
-shrink_value_pass_cases = (
-    dtype for dtype in known_dtypes if dtype.startswith(("int", "uint"))
+shrink_value_pass_cases = tuple(
+    sorted(
+        set(
+            itertools.chain.from_iterable(
+                [
+                    itertools.chain.from_iterable(
+                        [-value, value]
+                        for value in (
+                            get_dtype_info(dtype).min,
+                            get_dtype_info(dtype).max,
+                        )
+                    )
+                    for dtype in known_dtypes
+                    if dtype.startswith(("int", "uint"))
+                ]
+            )
+        )
+    )
 )
 
 
-@pytest.mark.parametrize("dtype", shrink_value_pass_cases)
-def test_shrink_value(dtype: str):
-
-    # Get limits for the current array type
-    vmin = get_dtype_info(dtype).min
-    vmax = get_dtype_info(dtype).max
-
-    # Find new limits after shrinking
-    vmin_new = shrink_value(vmin)
-    vmax_new = shrink_value(vmax)
-    # Check that new values are within range allowed by array
-    assert float(vmin_new) >= vmin and float(vmax_new) <= vmax
-
-    # Check that they can be cast to the array properly
-    np.ones(1).astype(dtype) * vmax_new
-    np.ones(1).astype(dtype) * vmin_new
-    assert True
+@pytest.mark.parametrize("value", shrink_value_pass_cases)
+def test_shrink_value(value: int):
+    v_new = shrink_value(value)
+    assert abs(float(v_new)) <= abs(value)
 
 
-shrink_value_fail_cases = (
-    dtype for dtype in known_dtypes if not dtype.startswith(("int", "uint"))
+shrink_value_fail_cases = tuple(
+    sorted(
+        set(
+            itertools.chain.from_iterable(
+                [
+                    itertools.chain.from_iterable(
+                        [-value, value]
+                        for value in (
+                            get_dtype_info(dtype).min,
+                            get_dtype_info(dtype).max,
+                        )
+                    )
+                    for dtype in known_dtypes
+                    if not dtype.startswith(("int", "uint"))
+                ]
+            )
+        )
+    )
 )
 
 
-@pytest.mark.parametrize("dtype", shrink_value_fail_cases)
-def test_shrink_value_fails(dtype: str):
+@pytest.mark.parametrize("value", shrink_value_fail_cases)
+def test_shrink_value_fails(value: float):
     with pytest.raises(TypeError):
-        # Get limits for the current array type
-        vmin = get_dtype_info(dtype).min
-        vmax = get_dtype_info(dtype).max
-
-        # Find new limits after shrinking
-        vmin_new = shrink_value(vmin)
-        vmax_new = shrink_value(vmax)
-
-        assert float(vmin_new) >= vmin and float(vmax_new) <= vmax
+        v_new = shrink_value(value)
+        assert abs(float(v_new)) <= abs(value)
 
 
 array_conversion_test_matrix = (
@@ -675,3 +687,7 @@ def test_preprocess_img_stk():
 
 def test_write_stack_to_tiff():
     pass
+
+
+if __name__ == "__main__":
+    print(shrink_value_fail_cases)
