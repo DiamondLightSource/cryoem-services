@@ -293,7 +293,6 @@ array_conversion_fail_cases = (
     ("gray", 5, "int16", "float64"),
     ("gray", 1, "uint8", "complex128"),
     ("gray", 5, "Tweebuffelsmeteenskootmorsdoodgeskietfontein", "complex128"),
-    ("rgb", 5, "Azpilicuetagaraycosaroyarenberecolarrea", "complex128"),
     ("rgb", 1, "complex128", "float64"),
     ("rgb", 5, "float64", "complex128"),
     (
@@ -303,6 +302,7 @@ array_conversion_fail_cases = (
         "TaumatawhakatangihangakoauauoTamateaturipukakapikimaungahoronukupokaiwhenuakitanatahu",
     ),
     ("rgb", 5, "float64", "Chargoggagoggmanchauggagoggchaubunagungamaugg"),
+    ("rgb", 1, "complex128", "uint8"),
 )
 
 
@@ -627,7 +627,7 @@ def test_flatten_image_fails(
 
 
 image_merging_test_matrix = (
-    # Type | No. images | Frames | Is float? | Expected pixel value*
+    # Type | Num images | Frames | Is float? | Expected pixel value*
     #   * NOTE: np.round rounds to the nearest EVEN number for values
     #   EXACTLY halfway between rounded decimal values (e.g. 0.5
     #   rounds to 0, -1.5 rounds to -2, etc.).
@@ -692,6 +692,42 @@ def test_merge_images(test_params: tuple[str, int, int, bool, int | float]):
         rtol=0,
         atol=1e-20,  # Really, there shouldn't be a difference
     )
+
+
+image_merging_fail_cases = (
+    # Image type | Num images | Same frames? | Same size?
+    ("gray", 2, True, False),
+    ("gray", 3, False, True),
+    ("rgb", 4, True, False),
+    ("rgb", 5, False, True),
+)
+
+
+@pytest.mark.parametrize("test_params", image_merging_fail_cases)
+def test_merge_images_fails(test_params: tuple[str, int, bool, bool]):
+
+    def create_test_array(shape, frames, dtype):
+        for f in range(frames):
+            frame = np.ones(shape).astype(dtype)
+            if f == 0:
+                arr = np.array([frame])
+            else:
+                arr = np.append(arr, [frame], axis=0)
+        return arr
+
+    with pytest.raises(ValueError):
+        # Unpack test_params
+        img_type, num_images, frames, size = test_params
+
+        arr_list: list[np.ndarray] = []
+        for i in range(num_images):
+            shape: tuple[int, ...] = (64, 64) if size is True else (64 + i, 64 + i)
+            shape = (*shape, 3) if img_type == "rgb" else shape
+            num_frames = 5 if frames is True else 1 + i
+            arr = create_test_array(shape, num_frames, "float64")
+            arr_list.append(arr)
+
+        merge_images(arr_list)
 
 
 def test_preprocess_img_stk():
