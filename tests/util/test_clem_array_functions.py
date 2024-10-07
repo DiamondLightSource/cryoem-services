@@ -292,8 +292,17 @@ array_conversion_fail_cases = (
     ("gray", 1, "uint32", "complex128"),
     ("gray", 5, "int16", "float64"),
     ("gray", 1, "uint8", "complex128"),
-    ("rgb", 5, "float64", "complex128"),
+    ("gray", 5, "Tweebuffelsmeteenskootmorsdoodgeskietfontein", "complex128"),
+    ("rgb", 5, "Azpilicuetagaraycosaroyarenberecolarrea", "complex128"),
     ("rgb", 1, "complex128", "float64"),
+    ("rgb", 5, "float64", "complex128"),
+    (
+        "rgb",
+        1,
+        "complex128",
+        "TaumatawhakatangihangakoauauoTamateaturipukakapikimaungahoronukupokaiwhenuakitanatahu",
+    ),
+    ("rgb", 5, "float64", "Chargoggagoggmanchauggagoggchaubunagungamaugg"),
 )
 
 
@@ -314,7 +323,12 @@ def test_convert_array_dtype_wrong_dtype(test_params: tuple[str, int, str, str])
 
         # Create a test array
         shape = (64, 64) if img_type == "gray" else (64, 64, 3)
-        arr = create_test_array(shape, frames, dtype_init)
+
+        # Replace illogical dtypes with valid ones when creating the test array
+        dtype = dtype_init if dtype_init in get_valid_dtypes() else "float64"
+        arr = create_test_array(shape, frames, dtype)
+        if str(arr.dtype).startswith("complex"):
+            arr.imag = create_test_array(shape, frames, "float64")
 
         convert_array_dtype(
             array=arr,
