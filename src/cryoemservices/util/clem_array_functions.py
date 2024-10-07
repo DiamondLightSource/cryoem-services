@@ -106,7 +106,7 @@ def estimate_int_dtype(array: np.ndarray, bit_depth: Optional[int] = None) -> st
         array: np.ndarray,
         dtype_group: str,
         bit_depth: int,
-    ) -> str:
+    ) -> Optional[str]:
 
         # Set up variables
         arr = array
@@ -125,22 +125,23 @@ def estimate_int_dtype(array: np.ndarray, bit_depth: Optional[int] = None) -> st
             else:
                 continue
         if len(bit_list) == 0:
-            raise Exception("No suitable dtypes found based on provided bit depth")
+            logger.error("No suitable dtypes found based on provided bit depth")
+            return None
 
         # Use the minimum viable dtype
         dtype_final = f"{dtype_group}{min(bit_list)}"
 
-        # Return None if dtype calculated using provided bit depth can't accommodate array
+        # Raise error if dtype calculated using provided bit depth can't accommodate array
         if get_dtype_info(dtype_final).max < max(abs(arr.min()), abs(arr.max())):
-            logger.error(
+            logger.warning(
                 "Array values still exceed those supported by the estimated dtype"
             )
-            raise Exception
+            return None
 
         # Return estimated dtype otherwise
         return dtype_final
 
-    def _by_array_values(array: np.ndarray, dtype_group: str) -> str:
+    def _by_array_values(array: np.ndarray, dtype_group: str) -> Optional[str]:
 
         # Set up variables
         arr = array
@@ -168,7 +169,7 @@ def estimate_int_dtype(array: np.ndarray, bit_depth: Optional[int] = None) -> st
             logger.error(
                 "No suitable dtypes found that can accommodate the array's values"
             )
-            raise Exception
+            return None
         # Use the smallest value
         dtype_final = f"{dtype_group}{min(bit_list)}"
 
@@ -193,7 +194,7 @@ def estimate_int_dtype(array: np.ndarray, bit_depth: Optional[int] = None) -> st
     # Use "int" if negative values are present, and "uint" if not
     dtype_group = "uint" if arr.min() >= 0 else "int"
 
-    result = None
+    result: Optional[str] = None
     if bit_depth is not None:
         try:
             # Make an estimate using the provided bit depth
@@ -205,13 +206,19 @@ def estimate_int_dtype(array: np.ndarray, bit_depth: Optional[int] = None) -> st
         except Exception:
             pass
 
-    dtype_final = (
-        _by_array_values(array=arr, dtype_group=dtype_group)
-        if result is None
-        else result
-    )
+    try:
+        result = (
+            _by_array_values(array=arr, dtype_group=dtype_group)
+            if result is None
+            else result
+        )
+    except Exception:
+        pass
 
-    return dtype_final
+    if result is None:
+        raise ValueError("Unable to find an appropriate dtype for the array")
+    else:
+        return result
 
 
 def shrink_value(value: int) -> int:

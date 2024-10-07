@@ -65,15 +65,15 @@ def test_get_dtype_info(dtype: str):
 dtype_estimation_test_matrix = (
     # Min value | Max value | Bit depth (optional) | As float? (bool) | Expected estimate
     # Test bit depth parameter
-    (-128, 127, 8, True, "int8"),
-    (0, 127, 16, False, "uint16"),
-    (0, 127, 32, True, "uint32"),
-    (-128, 127, 64, False, "int64"),
+    (-(2**7), 2**7, 8, True, "int8"),
+    (0, 2**7, 16, False, "uint16"),
+    (0, 2**8, 32, True, "uint32"),
+    (-(2**7), 2**7, 64, False, "int64"),
     # Test auto-find ability
-    (0, 127, None, False, "uint8"),
-    (-32768, 32767, None, True, "int16"),
-    (-2147483648, 2147483647, None, False, "int32"),
-    (0, 9223372036854775807, None, True, "uint64"),
+    (0, 2**7, None, False, "uint8"),
+    (-(2**15), 2**15, None, True, "int16"),
+    (-(2**31), 2**31, None, False, "int32"),
+    (0, 2**63, None, True, "uint64"),
 )
 
 
@@ -82,12 +82,51 @@ def test_estimate_int_dtype(test_params: tuple[int, int, Optional[int], bool, st
     vmin, vmax, bits, is_float, target = test_params
 
     # Create test array
-    shape = (32, 32)
+    shape = (64, 64)
     dtype = "float64" if is_float is True else "int64"
     arr = np.random.randint(vmin, vmax, shape).astype(dtype)
 
     estimate = estimate_int_dtype(arr, bits)
     assert estimate == target
+
+
+dtype_estimation_fail_cases = (
+    # Min value | Max value | Multiplier | dtype | Bit depth (optional)
+    (
+        -(2**63),
+        2**63,
+        2**64,
+        "float64",
+        256,
+    ),  # Fails due to being too big for int dtype
+    (
+        -(2**63),
+        2**63,
+        1,
+        "complex128",
+        None,
+    ),  # Fails due to having an imaginary component
+)
+
+
+@pytest.mark.parametrize("test_params", dtype_estimation_fail_cases)
+def test_estimate_int_dtype_fails(
+    test_params: tuple[int, int, int, str, Optional[int]]
+):
+    with pytest.raises((ValueError, NotImplementedError)):
+        # Unpack parameters
+        vmin, vmax, mult, dtype, bits = test_params
+
+        shape = (64, 64)
+        # Create array with values that exceed that of the initial 'int64' limits
+        arr = (np.random.randint(vmin, vmax, shape).astype("float64") * mult).astype(
+            dtype
+        )
+        if dtype.startswith("complex"):
+            # Add an imaginary bit to test
+            arr.imag = np.random.randint(vmin, vmax, shape).astype("float64") * mult
+
+        estimate_int_dtype(arr, bits)
 
 
 # Separate the pass and fail cases in separate tests
@@ -214,14 +253,22 @@ contrast_stretching_test_matrix = (
     # Image type | dtype | Frames | Range
     # Test for grayscale images/stacks
     ("gray", "uint8", 1, (0, 100)),
+    ("gray", "uint16", 5, (0, 100)),
+    ("gray", "uint32", 1, (5, 95)),
+    ("gray", "uint64", 5, (5, 95)),
+    ("gray", "int8", 1, (0, 100)),
     ("gray", "int16", 5, (0, 100)),
     ("gray", "int32", 1, (5, 95)),
-    ("gray", "uint64", 5, (5, 95)),
+    ("gray", "int64", 5, (5, 95)),
     # Test for RGB images/stacks
-    ("rgb", "int8", 1, (5, 95)),
-    ("rgb", "uint16", 5, (0, 100)),
-    ("rgb", "uint32", 1, (5, 95)),
-    ("rgb", "int64", 5, (0, 100)),
+    ("rgb", "uint8", 5, (5, 95)),
+    ("rgb", "uint16", 1, (0, 100)),
+    ("rgb", "uint32", 5, (5, 95)),
+    ("rgb", "uint64", 1, (0, 100)),
+    ("rgb", "int8", 5, (5, 95)),
+    ("rgb", "int16", 1, (0, 100)),
+    ("rgb", "int32", 5, (5, 95)),
+    ("rgb", "int64", 1, (0, 100)),
 )
 
 
@@ -259,46 +306,27 @@ def test_stretch_image_contrast(
 
     # Determine shape of single frame
     if img_type == "gray":
-        shape: tuple[int, ...] = (32, 32)
+        shape: tuple[int, ...] = (64, 64)
     elif img_type == "rgb":
-        shape = (32, 32, 3)
+        shape = (64, 64, 3)
     else:
         raise ValueError("Unxpected value for image type")
 
     # Create test array and reference array
     arr = create_test_array(shape, frames, dtype)
     arr_ref = arr.copy()  # Make a copy
-    arr_new = stretch_image_contrast(arr, percentile)
-
-    # Manually stretch the reference array and compare it to the test array
-    p_lo, p_hi = percentile
-    b_lo, b_hi = np.percentile(arr_ref, p_lo), np.percentile(arr_ref, p_hi)
-    diff = b_hi - b_lo
-    vmax = shrink_value(get_dtype_info(dtype).max)
-    # Truncate
-    arr_ref[arr_ref <= b_lo] = b_lo
-    arr_ref[arr_ref >= b_hi] = b_hi
-
-    arr_ref = (
-        np.array(
-            # Scale between 0 and max positive value if no negative values are present
-            ((arr_ref / diff) - (b_lo / diff))
-            * vmax
-        )
-        if (get_dtype_info(dtype).min == 0 or b_lo >= 0)
-        # Keep 0 as center; scale values by largest scalar present
-        else np.array(arr_ref / max(abs(b_lo), abs(b_hi)) * vmax)
+    arr_new = stretch_image_contrast(
+        arr,
+        percentile,
+        debug=True,  # Test the debug flag along the way
     )
 
-    # Catch any unprecedented negative values when working with 'uint' dtypes
-    #   NOTE: For some reason, the normalisation function still returns mildly
-    #   negative values (i.e. -0.xxxx or -1.xxxx), even though everything should
-    if b_lo >= 0:
-        arr_ref[arr_ref <= 0] = 0
+    # Truncate the reference array and compare it to the test array
+    p_lo, p_hi = percentile
+    b_lo, b_hi = np.percentile(arr_ref, p_lo), np.percentile(arr_ref, p_hi)
 
-    # NOTE: Not using np.round as in the function being tested causes the tests for
-    # the higher-bit arrays to fail. Some sort of overflow error appears to occur.
-    arr_ref = arr_ref.round(0).astype(dtype)
+    arr_ref[arr_ref <= b_lo] = b_lo
+    arr_ref[arr_ref >= b_hi] = b_hi
 
     # Normalise both arrays and compare results
     arr_new = normalize(arr_new)
@@ -306,7 +334,12 @@ def test_stretch_image_contrast(
 
     # Check that deviations are within a set threshold:
     # arr_1 - arr_0 = atol + rtol * abs(arr_0)
-    np.testing.assert_allclose(arr_new, arr_ref, atol=0.005, rtol=0)
+    np.testing.assert_allclose(
+        arr_new,
+        arr_ref,
+        atol=0.005,  # Pixel values should be within 0.5% of each other, given the different normalisation routes used
+        rtol=0,
+    )
 
 
 LUT_fail_cases = (
@@ -368,7 +401,7 @@ def test_convert_to_rgb(test_params: tuple[str, str, int]):
     color, dtype, frames = test_params
 
     # Create test grayscale array
-    shape = (32, 32)
+    shape = (64, 64)
     shape_new = (frames, *shape, 3)
     arr = create_test_array(shape, frames, dtype)
 
@@ -419,9 +452,9 @@ def test_flatten_image(test_params: tuple[str, int, str, bool, int]):
 
     # Choose between grayscale or RGB image
     if img_type == "gray":
-        shape: tuple[int, ...] = (32, 32)
+        shape: tuple[int, ...] = (64, 64)
     elif img_type == "rgb":
-        shape = (32, 32, 3)
+        shape = (64, 64, 3)
     else:
         raise ValueError("Unexpected value for image type")
 
@@ -481,9 +514,9 @@ def test_merge_images(test_params: tuple[str, int, int, bool, int | float]):
 
     # Set frame shape based on grayscale or RGB image
     if img_type == "gray":
-        shape: tuple[int, ...] = (32, 32)
+        shape: tuple[int, ...] = (64, 64)
     elif img_type == "rgb":
-        shape = (32, 32, 3)
+        shape = (64, 64, 3)
     else:
         raise ValueError("Unexpected value for image type")
 
