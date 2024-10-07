@@ -406,21 +406,35 @@ def test_stretch_image_contrast(
     )
 
 
-LUT_fail_cases = (
-    "black",
-    "white",
-    "orange",
-    "indigo",
-    "violet",
-    "pneumonoultramicroscopicsilicovolcanoconiosis",
+image_coloring_fail_cases = (
+    ("black", "uint8", 1),
+    ("white", "int16", 5),
+    ("orange", "uint32", 1),
+    ("indigo", "int64", 5),
+    ("violet", "float64", 1),
+    ("pneumonoultramicroscopicsilicovolcanoconiosis", "complex128", 5),
 )
 
 
-@pytest.mark.parametrize("color", LUT_fail_cases)
-def test_LUT_fails(color: str):
-    with pytest.raises(Exception):
-        lut = LUT[color].value
-        return lut
+@pytest.mark.parametrize("test_params", image_coloring_fail_cases)
+def test_convert_to_rgb_fails(test_params: tuple[str, str, int]):
+    def create_test_array(shape: tuple, frames: int, dtype: str) -> np.ndarray:
+        for f in range(frames):
+            frame = np.ones(shape).astype(dtype)
+            if f == 0:
+                arr = np.array([frame])
+            else:
+                arr = np.append(arr, [frame], axis=0)
+        return arr
+
+    # The colours should throw up an error
+    with pytest.raises(KeyError):
+        # Unpack parameters
+        color, dtype, frames = test_params
+        shape = (64, 64)
+        arr = create_test_array(shape, frames, dtype)
+
+        convert_to_rgb(arr, color)
 
 
 image_coloring_test_matrix = (
