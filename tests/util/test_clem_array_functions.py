@@ -62,6 +62,22 @@ def test_get_dtype_info(dtype: str):
     )
 
 
+invalid_dtypes = (
+    "pneumonoultramicroscopicsilicovolcanoconiosis",
+    "supercalifragilisticexpiallidocious",
+    "Llanfairpwllgwyngyllgogerychwyrndrobwllllantysiliogogogoch",
+    "bool",
+    "None",
+    "void",
+)
+
+
+@pytest.mark.parametrize("dtype", invalid_dtypes)
+def test_get_dtype_info_fails(dtype: str):
+    with pytest.raises(ValueError):
+        get_dtype_info(dtype)
+
+
 dtype_estimation_test_matrix = (
     # Min value | Max value | Bit depth (optional) | As float? (bool) | Expected estimate
     # Test bit depth parameter
@@ -202,6 +218,15 @@ array_conversion_test_matrix = (
     ("uint32", "uint16", True),
     ("uint16", "uint32", False),
     ("uint8", "uint64", True),
+    # Wrong initial dtypes
+    ("float32", "int8", True),
+    ("float64", "int16", False),
+    ("complex64", "int32", True),
+    ("complex128", "int64", False),
+    ("float64", "uint8", False),
+    ("float32", "uint16", True),
+    ("complex128", "uint32", False),
+    ("complex64", "uint64", True),
 )
 
 
@@ -247,6 +272,45 @@ def test_convert_array_dtype(test_params: tuple[str, str, bool]):
         rtol=0,
         atol=0.01,  # <= 1% deviation when going between 64- and 8-bit arrays
     )
+
+
+array_conversion_fail_cases = (
+    # Image type | Frames | Initial dtype | Target dtype
+    # Wrong final dyptes
+    ("gray", 5, "int64", "complex128"),
+    ("gray", 1, "uint32", "complex128"),
+    ("gray", 5, "int16", "float64"),
+    ("gray", 1, "uint8", "complex128"),
+    ("rgb", 5, "float64", "complex128"),
+    ("rgb", 1, "complex128", "float64"),
+)
+
+
+@pytest.mark.parametrize("test_params", array_conversion_fail_cases)
+def test_convert_array_dtype_wrong_dtype(test_params: tuple[str, int, str, str]):
+    def create_test_array(shape: tuple, frames: int, dtype: str) -> np.ndarray:
+        for f in range(frames):
+            frame = np.ones(shape).astype(dtype)
+            if f == 0:
+                arr = np.array([frame])
+            else:
+                arr = np.append(arr, [frame], axis=0)
+        return arr
+
+    with pytest.raises((ValueError, NotImplementedError)):
+        # Unpack parameters
+        img_type, frames, dtype_init, dtype_final = test_params
+
+        # Create a test array
+        shape = (64, 64) if img_type == "gray" else (64, 64, 3)
+        arr = create_test_array(shape, frames, dtype_init)
+
+        convert_array_dtype(
+            array=arr,
+            target_dtype=dtype_final,
+            initial_dtype=dtype_init,
+        )
+        pass
 
 
 contrast_stretching_test_matrix = (
