@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
 from typing import List
 
 import ispyb
@@ -8,6 +9,7 @@ import ispyb.sqlalchemy as models
 import numpy as np
 import pylatex
 import sqlalchemy.orm
+from gemmi import cif
 from sqlalchemy.sql import func
 
 
@@ -36,14 +38,18 @@ class SessionResults:
             )
         )
         with self.ispyb_sessionmaker() as session:
-            image_directory = (
+            self.image_directory = (
                 session.query(models.DataCollection)
                 .filter(models.DataCollection.dataCollectionId == dc_id)
                 .one()
                 .imageDirectory
             )
-        self.visit_name = image_directory.split("/")[5]
-        self.raw_name = image_directory.split("/")[6]
+        self.visit_name = self.image_directory.split("/")[5]
+        self.raw_name = self.image_directory.split("/")[6]
+
+        self.number_of_grid_squares = len(
+            list(Path(self.image_directory).glob("GridSquare*"))
+        )
 
         # Get all processing jobs
         self.autoproc_ids = []
@@ -86,6 +92,8 @@ class SessionResults:
         self.particle_diameter: float = 0
 
         # Classification results
+        self.class2d_batches: int = 0
+        self.binned_pixel_size: float = 0
         self.example_class2d: List[str] = []
         self.class3d_batch: int = 0
         self.provided_symmetry: str = "C1"
@@ -97,34 +105,6 @@ class SessionResults:
         self.refined_resolution: List[float] = []
         self.refined_completeness: List[float] = []
         self.bfactor: List[float] = []
-
-        # Still to do
-        self.number_of_grid_squares: int = 0
-        self.class2d_batches: int = 0
-        self.binned_pixel_size: float = 0
-
-    def print_report(self):
-        print(self.visit_name, self.raw_name)
-        print(self.pixel_size, self.image_size, self.total_dose, self.exposure_time)
-        print(self.dose_per_frame, self.micrograph_count, self.frame_count)
-        print(self.example_micrographs[0], self.example_picks[0])
-        print(self.mean_picks, self.median_ctf_resolution, self.particle_diameter)
-        print()
-        print(self.example_class2d[0])
-        print(self.class3d_batch, self.provided_symmetry)
-        for i in range(len(self.class3d_particles)):
-            print(
-                self.class3d_particles[i],
-                self.class3d_completeness[i],
-                self.class3d_resolution[i],
-            )
-        print(self.refined_batch)
-        print(
-            self.refined_symmetry,
-            self.refined_completeness,
-            self.refined_resolution,
-            self.bfactor,
-        )
 
     def write_report(self):
         doc = pylatex.Document(
@@ -178,14 +158,16 @@ class SessionResults:
         with doc.create(pylatex.Section("Pre-processing")):
             doc.append(
                 f"A total of {self.micrograph_count} micrographs were then collected "
-                f"across X grid squares.\n"
+                f"across {self.number_of_grid_squares} grid squares.\n"
             )
             doc.append(
-                f"These had a median CTF max resolution of {self.median_ctf_resolution}"
+                pylatex.NoEscape(
+                    rf"These had a median CTF max resolution of {self.median_ctf_resolution} $\AA$"
+                )
             )
             doc.append(
                 f"\nParticle picking gave a mean of {self.mean_picks} per micrograph, "
-                f"and an esimated particle diameter of {self.particle_diameter}."
+                f"and an esimated particle diameter of {self.particle_diameter} (?units?)."
             )
 
             with doc.create(pylatex.Figure(position="h")) as micrograph_image:
@@ -207,12 +189,17 @@ class SessionResults:
         with doc.create(pylatex.Section("Particle classification")):
             doc.append(
                 pylatex.NoEscape(
-                    "Classification was run using a binned pixel size of X that gives "
-                    r"a Nyquist frequency of around 8.5 $\AA$."
+                    "Before classification the particles are binned to a pixel size"
+                    r"that gives a Nyquist frequency of around 8.5 $\AA$. "
+                    "The binned pixel size for this collection was "
+                    rf"{self.binned_pixel_size} $\AA$."
                 )
             )
             doc.append(pylatex.NoEscape("\n\n"))
-            doc.append("X batches of 2D classification were run")
+            doc.append(
+                f"{self.class2d_batches} batches of 2D classification were run, "
+                "with 50,000 particles in each batch.\n"
+            )
 
             with doc.create(pylatex.Figure(position="h")) as micrograph_image:
                 micrograph_image.add_image(self.example_class2d[0], width="100px")
@@ -420,6 +407,17 @@ class SessionResults:
             else:
                 print("Cannot find Class2D job")
 
+            if self.example_class2d:
+                # Find the classification pixel size
+                class2d_job = Path(self.example_class2d[0]).parent
+                class2d_doc = cif.read_file(f"{class2d_job}/run_it025_data.star")
+                self.binned_pixel_size = float(
+                    list(
+                        class2d_doc.find_block("optics").find_loop("_rlnImagePixelSize")
+                    )[0]
+                )
+                self.class2d_batches = len(list(class2d_job.parent.glob("job*")))
+
             # 3D classification information
             class3d_loc = np.where(
                 np.array(self.processing_stages) == "em-spa-class3d"
@@ -517,7 +515,6 @@ def run():
     results = SessionResults(args.dc_id)
     results.gather_preprocessing_ispyb_results()
     results.gather_classification_ispyb_results()
-    results.print_report()
     results.write_report()
 
 
