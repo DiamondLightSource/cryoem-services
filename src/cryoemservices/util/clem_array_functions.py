@@ -639,8 +639,8 @@ def merge_images(
 
 def preprocess_img_stk(
     array: np.ndarray,
-    initial_dtype: str,
     target_dtype: str = "uint8",
+    initial_dtype: Optional[str] = None,
     adjust_contrast: Optional[str] = None,
 ) -> np.ndarray:
     """
@@ -658,17 +658,26 @@ def preprocess_img_stk(
         logger.error(f"{dtype_final} is not a valid or supported NumPy dtype")
         raise ValueError
 
-    if dtype_init not in valid_dtypes:
-        logger.info(
-            f"{dtype_init} is not a valid or supported NumPy dtype; converting to most appropriate dtype"
-        )
+    # Estimate initial dtype if none provided
+    if dtype_init is None or not dtype_init.startswith(("int", "uint")):
+        if dtype_init is None:
+            pass  # No warning needed for None
+        elif dtype_init not in valid_dtypes:
+            logger.warning(
+                f"{dtype_init} is not a valid or supported NumPy dtype; converting to most appropriate dtype"
+            )
+        elif not dtype_init.startswith(("int", "uint")):
+            logger.warning(
+                f"{dtype_init} is not supported by this workflow; converting to most appropriate dtype"
+            )
+        dtype_init = estimate_int_dtype(arr)
         arr = (
             convert_array_dtype(
                 array=arr,
                 target_dtype=dtype_final,
                 initial_dtype=dtype_init,
             )
-            if np.max(arr) > 0
+            if np.all(arr == 0)
             else arr.astype(dtype_final)
         )
         dtype_init = dtype_final
@@ -685,9 +694,11 @@ def preprocess_img_stk(
                     array=arr,
                     percentile_range=(0.5, 99.5),
                 )
-                if np.max(arr) > 0
+                if np.all(arr == 0)
                 else arr
             )
+        else:
+            logger.warning("Invalid contrast adjustment method provided; skipping step")
 
     # Convert to desired bit depth
     if dtype_init != dtype_final:
@@ -698,7 +709,7 @@ def preprocess_img_stk(
                 target_dtype=dtype_final,
                 initial_dtype=dtype_init,
             )
-            if np.max(arr) > 0
+            if np.all(arr == 0)
             else arr.astype(dtype_final)
         )
     else:

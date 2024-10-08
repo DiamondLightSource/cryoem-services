@@ -15,6 +15,7 @@ from cryoemservices.util.clem_array_functions import (
     get_dtype_info,
     get_valid_dtypes,
     merge_images,
+    preprocess_img_stk,
     shrink_value,
     stretch_image_contrast,
 )
@@ -750,9 +751,57 @@ def test_merge_images_fails(test_params: tuple[str, int, bool, bool]):
         merge_images(arr_list)
 
 
-def test_preprocess_img_stk():
+preprocess_img_test_matrix = (
+    # Image type | Initial dtype | Target dtype | Num frames | Contrast adjustment
+    ("gray", "float64", "uint8", 1, "stretch"),
+    ("gray", "float64", "uint16", 5, None),
+    ("gray", "float64", "uint32", 1, "harambe"),
+    ("gray", None, "uint64", 5, "stretch"),
+)
+
+
+@pytest.mark.parametrize("test_params", preprocess_img_test_matrix)
+def test_preprocess_img_stk(
+    test_params: tuple[Optional[str], Optional[str], str, int, Optional[str]]
+):
+    def create_test_array(shape, frames, dtype):
+        for f in range(frames):
+            frame = np.random.randint(0, 2**7, shape).astype(dtype)
+            if f == 0:
+                if frames > 1:
+                    arr = np.array([frame])
+                else:
+                    arr = frame
+            else:
+                arr = np.append(arr, [frame])
+        return arr
+
+    # Unpack parameters
+    img_type, dtype_0, dtype_1, frames, method = test_params
+    shape = (64, 64) if img_type == "gray" else (64, 64, 3)
+
+    # Create test array and run it
+    dtype_test = dtype_0 if dtype_0 is not None else "uint8"
+    arr_ref = create_test_array(shape, frames, dtype_test)
+    arr_new = preprocess_img_stk(
+        array=arr_ref,
+        target_dtype=dtype_1,
+        initial_dtype=dtype_0,
+        adjust_contrast=method,
+    )
+
+    # Check that array properties are as expected
+    assert arr_ref.shape == arr_new.shape
+    assert str(arr_new.dtype) == dtype_1
+
+
+def test_preprocess_img_stk_fails():
     pass
 
 
 def test_write_stack_to_tiff():
+    pass
+
+
+def test_write_stack_to_tiff_fails():
     pass
