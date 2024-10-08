@@ -386,12 +386,9 @@ def stretch_image_contrast(
 
     # Use shorter variable names
     arr: np.ndarray = array
-    b_lo: float | int = np.percentile(arr, percentile_range[0])
-    b_up: float | int = np.percentile(arr, percentile_range[1])
-    diff: float | int = b_up - b_lo
 
     # Check that dtype is supported by NumPy
-    dtype = str(array.dtype)
+    dtype = str(arr.dtype)
     if dtype not in valid_dtypes:
         logger.error(f"{dtype} is not a valid or supported NumPy dtype")
         raise ValueError
@@ -403,6 +400,10 @@ def stretch_image_contrast(
         )
         raise NotImplementedError
 
+    # Get key values
+    b_lo: float | int = np.percentile(arr, percentile_range[0])
+    b_up: float | int = np.percentile(arr, percentile_range[1])
+    diff: float | int = b_up - b_lo
     dtype_info = get_dtype_info(dtype)
     vmax = shrink_value(dtype_info.max)
 

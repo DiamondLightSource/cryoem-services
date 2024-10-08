@@ -195,7 +195,7 @@ shrink_value_fail_cases = tuple(
 
 
 @pytest.mark.parametrize("value", shrink_value_fail_cases)
-def test_shrink_value_fails(value: float):
+def test_shrink_value_fails(value):
     with pytest.raises(TypeError):
         shrink_value(value)
 
@@ -435,6 +435,21 @@ def test_stretch_image_contrast(
     )
 
 
+contrast_stretching_fail_cases = (
+    "float64",
+    "complex128",
+)
+
+
+@pytest.mark.parametrize("dtype", contrast_stretching_fail_cases)
+def test_stretch_image_contrast_fails(dtype: str):
+
+    with pytest.raises(NotImplementedError):
+        # Create test array
+        arr = np.random.randint(0, 255, (64, 64)).astype(dtype)
+        stretch_image_contrast(arr)
+
+
 image_coloring_fail_cases = (
     ("black", "uint8", 1),
     ("white", "int16", 5),
@@ -605,9 +620,7 @@ image_flattening_fail_cases: tuple[tuple, ...] = (
 
 
 @pytest.mark.parametrize("test_params", image_flattening_fail_cases)
-def test_flatten_image_fails(
-    test_params: tuple[str, int, str | int | bool | list | tuple | dict | set, bool]
-):
+def test_flatten_image_fails(test_params: tuple):
 
     # Helper function to create an array simulating an image stack
     def create_test_array(shape: tuple, frames: int, dtype: str) -> np.ndarray:
