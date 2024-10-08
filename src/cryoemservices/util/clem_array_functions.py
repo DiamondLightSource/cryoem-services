@@ -335,12 +335,12 @@ def convert_array_dtype(
         dtype_init = estimate_int_dtype(arr)
 
     # Get max supported values of initial and final arrays
-    min_init = get_dtype_info(dtype_init).min
-    max_init = get_dtype_info(dtype_init).max
+    min_init = shrink_value(get_dtype_info(dtype_init).min)
+    max_init = shrink_value(get_dtype_info(dtype_init).max)
     range_init = max_init - min_init
 
-    min_final = get_dtype_info(dtype_final).min
-    max_final = get_dtype_info(dtype_final).max
+    min_final = shrink_value(get_dtype_info(dtype_final).min)
+    max_final = shrink_value(get_dtype_info(dtype_final).max)
     range_final = max_final - min_final
 
     # Rescale
@@ -352,6 +352,18 @@ def convert_array_dtype(
                 + min_final
             )
         )
+
+        # Catch numbers exceeding thresholds when going between dtypes
+        if frame.min() < min_final:
+            logger.warning(
+                f"Encountered {np.sum(frame < min_final)} values below allowed target minimum value"
+            )
+            frame[frame < min_final] = min_final
+        if frame.max() > max_final:
+            logger.warning(
+                f"Encountered {np.sum(frame > max_final)} values above allowed target maximum value"
+            )
+            frame[frame > max_final] = max_final
 
         # Preserve dtype and round values if dtype is integer-based
         frame = frame.round(0) if dtype_final.startswith(("int", "uint")) else frame
@@ -452,7 +464,7 @@ def stretch_image_contrast(
 
     for f in range(arr.shape[0]):
         # Overwrite outliers and normalise to new range
-        frame: np.ndarray = arr[f]
+        frame = np.array(arr[f])
         frame[frame <= b_lo] = b_lo
         frame[frame >= b_up] = b_up
 
@@ -728,7 +740,7 @@ def preprocess_img_stk(
                 target_dtype=dtype_final,
                 initial_dtype=dtype_init,
             )
-            if np.all(arr == 0)
+            if not np.all(arr == 0)
             else arr.astype(dtype_final)
         )
         dtype_init = dtype_final
@@ -745,11 +757,9 @@ def preprocess_img_stk(
                     array=arr,
                     percentile_range=(0.5, 99.5),
                 )
-                if np.all(arr == 0)
+                if not np.all(arr == 0)
                 else arr
             )
-        else:
-            logger.warning("Invalid contrast adjustment method provided; skipping step")
 
     # Convert to desired bit depth
     if dtype_init != dtype_final:
@@ -760,7 +770,7 @@ def preprocess_img_stk(
                 target_dtype=dtype_final,
                 initial_dtype=dtype_init,
             )
-            if np.all(arr == 0)
+            if not np.all(arr == 0)
             else arr.astype(dtype_final)
         )
 

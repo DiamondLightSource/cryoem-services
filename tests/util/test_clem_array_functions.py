@@ -777,22 +777,22 @@ preprocess_img_test_matrix = (
     # Image type | Initial dtype | Target dtype | Num frames | Contrast adjustment
     ("gray", "float64", "uint8", 1, "stretch"),
     ("gray", "float64", "uint16", 5, None),
-    ("gray", "float64", "uint32", 1, "harambe"),
-    ("gray", None, "uint64", 5, "stretch"),
+    ("gray", None, "uint32", 1, "harambe"),
+    ("gray", "float64", "uint64", 5, "stretch"),  #
     ("gray", "uint8", "int8", 1, "stretch"),
-    ("gray", "uint16", "int16", 5, None),
+    ("gray", None, "int16", 5, None),
     ("gray", "uint32", "int32", 1, "harambe"),
-    ("gray", None, "uint64", 5, "stretch"),
-    ("gray", "paracelsus", "uint64", 5, "stretch"),
+    ("gray", "paracelsus", "uint64", 5, "stretch"),  #
+    ("gray", None, "uint64", 5, "stretch"),  #
     ("rgb", "complex128", "uint8", 1, "stretch"),
     ("rgb", "complex128", "uint16", 5, None),
-    ("rgb", "complex128", "uint32", 1, "harambe"),
-    ("rgb", None, "uint64", 5, "stretch"),
+    ("rgb", None, "uint32", 1, "harambe"),
+    ("rgb", "complex128", "uint64", 5, "stretch"),  #
     ("rgb", "int8", "uint8", 1, "stretch"),
     ("rgb", "int16", "uint16", 5, None),
     ("rgb", "int32", "uint32", 1, "harambe"),
-    ("rgb", None, "uint64", 5, "stretch"),
-    ("rgb", "theseus", "uint64", 5, "stretch"),
+    ("rgb", None, "uint64", 5, "stretch"),  #
+    ("rgb", "theseus", "uint64", 5, "stretch"),  #
 )
 
 
@@ -802,33 +802,30 @@ def test_preprocess_img_stk(
 ):
     def create_test_array(shape, frames, dtype):
         for f in range(frames):
-            frame = np.random.randint(0, 2**7, shape).astype(dtype)
+            frame = np.random.randint(0, 2**8, shape).astype(dtype)
             if f == 0:
-                if frames > 1:
-                    arr = np.array([frame])
-                else:
-                    arr = frame
+                arr = np.array([frame])
             else:
-                arr = np.append(arr, [frame])
+                arr = np.append(arr, [frame], axis=0)
         return arr
 
     # Unpack parameters
-    img_type, dtype_0, dtype_1, frames, method = test_params
+    img_type, dtype_init, dtype_final, frames, method = test_params
     shape = (64, 64) if img_type == "gray" else (64, 64, 3)
 
     # Create test array and run it
-    dtype_test = dtype_0 if dtype_0 in known_dtypes else "uint8"
-    arr_ref = create_test_array(shape, frames, dtype_test)
+    dtype_test_arr = dtype_init if dtype_init in known_dtypes else "uint8"
+    arr_ref = create_test_array(shape, frames, dtype_test_arr)
     arr_new = preprocess_img_stk(
         array=arr_ref,
-        target_dtype=dtype_1,
-        initial_dtype=dtype_0,
+        target_dtype=dtype_final,
+        initial_dtype=dtype_init,
         adjust_contrast=method,
     )
 
     # Check that array properties are as expected
     assert arr_ref.shape == arr_new.shape
-    assert str(arr_new.dtype) == dtype_1
+    assert str(arr_new.dtype) == dtype_final
 
 
 preprocess_img_fail_cases = (
@@ -851,7 +848,7 @@ def test_preprocess_img_stk_fails(test_params: tuple):
                 else:
                     arr = frame
             else:
-                arr = np.append(arr, [frame])
+                arr = np.append(arr, [frame], axis=0)
         return arr
 
     with pytest.raises((ValueError)):
