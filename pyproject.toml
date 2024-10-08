@@ -39,10 +39,10 @@ dependencies = [
     "marshmallow-sqlalchemy",
     "mrcfile",
     "numpy<2",
-    "pdflatex",
     "pillow",
     "plotly",
     "pydantic>=2",
+    "pylatex",
     "readlif", # CLEM workflow
     "starfile",
     "stomp-py==8.1.0",
