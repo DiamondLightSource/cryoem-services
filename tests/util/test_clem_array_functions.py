@@ -346,31 +346,36 @@ def test_convert_array_dtype_wrong_dtype(test_params: tuple[str, int, str, str])
 
 
 contrast_stretching_test_matrix = (
-    # Image type | dtype | Frames | Range
+    # Image type | dtype | Target dtype | Frames | Range
     # Test for grayscale images/stacks
-    ("gray", "uint8", 1, (0, 100)),
-    ("gray", "uint16", 5, (0, 100)),
-    ("gray", "uint32", 1, (5, 95)),
-    ("gray", "uint64", 5, (5, 95)),
-    ("gray", "int8", 1, (0, 100)),
-    ("gray", "int16", 5, (0, 100)),
-    ("gray", "int32", 1, (5, 95)),
-    ("gray", "int64", 5, (5, 95)),
+    ("gray", "uint8", "uint8", 1, (0, 100)),
+    ("gray", "uint16", "uint32", 5, (0, 100)),
+    ("gray", "uint32", None, 1, (5, 95)),
+    ("gray", "uint64", "uint64", 5, (5, 95)),
+    ("gray", "int8", "int8", 1, (0, 100)),
+    ("gray", "int16", None, 5, (0, 100)),
+    ("gray", "int32", "int32", 1, (5, 95)),
+    ("gray", "int64", "int64", 5, (5, 95)),
     # Test for RGB images/stacks
-    ("rgb", "uint8", 5, (5, 95)),
-    ("rgb", "uint16", 1, (0, 100)),
-    ("rgb", "uint32", 5, (5, 95)),
-    ("rgb", "uint64", 1, (0, 100)),
-    ("rgb", "int8", 5, (5, 95)),
-    ("rgb", "int16", 1, (0, 100)),
-    ("rgb", "int32", 5, (5, 95)),
-    ("rgb", "int64", 1, (0, 100)),
+    ("rgb", "uint8", None, 5, (5, 95)),
+    ("rgb", "uint16", "uint8", 1, (0, 100)),
+    ("rgb", "uint32", "uint32", 5, (5, 95)),
+    ("rgb", "uint64", None, 1, (0, 100)),
+    ("rgb", "int8", "int8", 5, (5, 95)),
+    ("rgb", "int16", "int32", 1, (0, 100)),
+    ("rgb", "int32", None, 5, (5, 95)),
+    ("rgb", "int64", "int64", 1, (0, 100)),
+    # Test for float and complex starting arrays
+    ("gray", "float64", "uint8", 1, (0, 100)),
+    ("gray", "complex128", "uint16", 5, (0, 100)),
+    ("rgb", "float64", "uint32", 1, (5, 95)),
+    ("rgb", "complex128", "uint64", 5, (5, 95)),
 )
 
 
 @pytest.mark.parametrize("test_params", contrast_stretching_test_matrix)
 def test_stretch_image_contrast(
-    test_params: tuple[str, str, int, tuple[int | float, int | float]]
+    test_params: tuple[str, str, Optional[str], int, tuple[int | float, int | float]]
 ):
 
     # Helper function to create arrays
@@ -398,7 +403,7 @@ def test_stretch_image_contrast(
         return arr_new
 
     # Unpack test params
-    img_type, dtype, frames, percentile = test_params
+    img_type, dtype, target_dtype, frames, percentile = test_params
 
     # Determine shape of single frame
     if img_type == "gray":
@@ -409,14 +414,30 @@ def test_stretch_image_contrast(
         raise ValueError("Unxpected value for image type")
 
     # Create test array and reference array
-    arr = create_test_array(shape, frames, dtype)
+    arr = (
+        create_test_array(shape, frames, target_dtype).astype(dtype)
+        if target_dtype is not None
+        else create_test_array(shape, frames, dtype)
+    )
     arr_ref = arr.copy()  # Make a copy
-    arr_new = stretch_image_contrast(
-        arr,
-        percentile,
-        debug=True,  # Test the debug flag along the way
+    arr_new = (
+        stretch_image_contrast(
+            arr,
+            percentile,
+            target_dtype=target_dtype,
+            debug=True,
+        )
+        if target_dtype is not None
+        else stretch_image_contrast(
+            arr,
+            percentile,
+            debug=True,  # Test the debug flag along the way
+        )
     )
 
+    # Keep real parts of the complex array
+    if str(arr_ref.dtype).startswith("complex"):
+        arr_ref = arr_ref.real
     # Truncate the reference array and compare it to the test array
     p_lo, p_hi = percentile
     b_lo, b_hi = np.percentile(arr_ref, p_lo), np.percentile(arr_ref, p_hi)
@@ -446,10 +467,11 @@ contrast_stretching_fail_cases = (
 
 @pytest.mark.parametrize("dtype", contrast_stretching_fail_cases)
 def test_stretch_image_contrast_fails(dtype: str):
-
-    with pytest.raises(NotImplementedError):
+    with pytest.raises((NotImplementedError, ValueError)):
         # Create test array
         arr = np.random.randint(0, 255, (64, 64)).astype(dtype)
+        if dtype.startswith("complex"):
+            arr.imag = np.random.randint(0, 255, (64, 64)).astype("float64")
         stretch_image_contrast(arr)
 
 
@@ -757,6 +779,10 @@ preprocess_img_test_matrix = (
     ("gray", "float64", "uint16", 5, None),
     ("gray", "float64", "uint32", 1, "harambe"),
     ("gray", None, "uint64", 5, "stretch"),
+    ("rgb", "complex128", "uint8", 1, "stretch"),
+    ("rgb", "complex128", "uint16", 5, None),
+    ("rgb", "complex128", "uint32", 1, "harambe"),
+    ("rgb", None, "uint64", 5, "stretch"),
 )
 
 

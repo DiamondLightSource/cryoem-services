@@ -375,6 +375,7 @@ def convert_array_dtype(
 def stretch_image_contrast(
     array: np.ndarray,
     percentile_range: tuple[float, float] = (0.5, 99.5),  # Lower and upper percentiles
+    target_dtype: Optional[str] = None,
     debug: bool = False,
 ) -> np.ndarray:
     """
@@ -393,18 +394,57 @@ def stretch_image_contrast(
         logger.error(f"{dtype} is not a valid or supported NumPy dtype")
         raise ValueError
 
-    # Reject "float" and "complex" dtype inputs
-    if dtype.startswith(("complex", "float")):
-        logger.error(
-            f"Contrast stretching for {dtype} arrays is not currently supported"
-        )
-        raise NotImplementedError
+    # Handle "complex" dtypes
+    if dtype.startswith("complex"):
+        # Accept "complex" dtypes with no imaginary component
+        if np.all(arr.imag == 0):
+            dtype = "float64"  # Overwrite initial dtype
+            arr = arr.real.astype(dtype)
+        # Reject "complex" dtypes
+        else:
+            logger.error(
+                f"Contrast stretching for {dtype} arrays is not currently supported"
+            )
+            raise NotImplementedError
+        # By this point, "complex" dtypes should be eliminated
+        # Only "float", "int", and "uint" should be left
+
+    # Reject "float" dtypes if no "int"/"uint" target dtype is provided
+    if dtype.startswith("float"):
+        if target_dtype is None:
+            logger.error(f"No target integer dtype provided for initial {dtype} array")
+            raise ValueError
+        if not target_dtype.startswith(("int", "uint")):
+            logger.error(
+                f"No valid target integer dtype provided for initial {dtype} array"
+            )
+            raise ValueError
+        # By this point, target dtype should be "int" or "uint"
+
+    # Handle input parameters when dtype is valid to begin with
+    if dtype.startswith(("int", "uint")):
+        # Raise warning if the target dtype differs from the initial array dtype and both are valid options
+        if (
+            target_dtype is not None
+            and target_dtype.startswith(("int", "uint"))
+            and target_dtype != dtype
+        ):
+            logger.warning(
+                "Target integer dtype different from initial array dtype; using array dtype"
+            )
+        target_dtype = dtype
+        # By this point, the target dtype should be "int" or "uint"
+
+    # Raise exception if the target dtype is still not set by this point
+    if target_dtype is None:
+        logger.error("Unable to determine dtype to stretch image contrast to")
+        raise Exception
 
     # Get key values
     b_lo: float | int = np.percentile(arr, percentile_range[0])
     b_up: float | int = np.percentile(arr, percentile_range[1])
     diff: float | int = b_up - b_lo
-    dtype_info = get_dtype_info(dtype)
+    dtype_info = get_dtype_info(target_dtype)
     vmax = shrink_value(dtype_info.max)
 
     if debug:
@@ -658,6 +698,16 @@ def preprocess_img_stk(
         logger.error(f"{dtype_final} is not a valid or supported NumPy dtype")
         raise ValueError
 
+    # Handle complex arrays differently
+    if str(arr.dtype).startswith("complex"):
+        # Reject "complex" arrays with imaginary values
+        if not np.all(arr.imag == 0):
+            logger.error(f"{str(arr.dtype)} not supported by this workflow")
+            raise ValueError
+        # Keep only the real component
+        else:
+            arr = arr.real
+
     # Estimate initial dtype if none provided
     if dtype_init is None or not dtype_init.startswith(("int", "uint")):
         if dtype_init is None:
@@ -670,6 +720,7 @@ def preprocess_img_stk(
             logger.warning(
                 f"{dtype_init} is not supported by this workflow; converting to most appropriate dtype"
             )
+
         dtype_init = estimate_int_dtype(arr)
         arr = (
             convert_array_dtype(
