@@ -763,8 +763,6 @@ def preprocess_img_stk(
             if np.all(arr == 0)
             else arr.astype(dtype_final)
         )
-    else:
-        logger.info(f"Image is already a {dtype_final} array")
 
     return arr
 
