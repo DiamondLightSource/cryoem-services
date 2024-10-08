@@ -1,5 +1,5 @@
 """
-Array manipulation and image processing functions for the images acquired via the Leica
+Array manipulation functions to process and manipulate the images acquired via the Leica
 light microscope.
 """
 
@@ -10,13 +10,13 @@ import logging
 import re
 from enum import Enum
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Optional
 
 import numpy as np
 from tifffile import imwrite
 
 # Create logger object to output messages with
-logger = logging.getLogger("cryoemservices.clem.images")
+logger = logging.getLogger("cryoemservices.util.clem_array_functions")
 
 
 """
@@ -48,7 +48,8 @@ def get_valid_dtypes() -> tuple[str, ...]:
             dtype = str(np.dtype(match.group(1)))
             valid_dtypes.append(dtype)
     if len(valid_dtypes) == 0:
-        raise Exception("Unable to get list of NumPy dtypes from NumPy module")
+        logger.error("Unable to get list of NumPy dtypes from NumPy module")
+        raise Exception
 
     return tuple(valid_dtypes)
 
@@ -83,7 +84,8 @@ def get_dtype_info(dtype: str) -> np.finfo | np.iinfo:
         dtype == key
         for key in additional_dtype_keywords
     ):
-        raise ValueError(f"{dtype} is not a valid or supported NumPy dtype")
+        logger.error(f"{dtype} is not a valid or supported NumPy dtype")
+        raise ValueError
 
     # Load corresponding dictionary from NumPy
     dtype_info = (
@@ -104,7 +106,7 @@ def estimate_int_dtype(array: np.ndarray, bit_depth: Optional[int] = None) -> st
         array: np.ndarray,
         dtype_group: str,
         bit_depth: int,
-    ) -> str:
+    ) -> Optional[str]:
 
         # Set up variables
         arr = array
@@ -123,21 +125,23 @@ def estimate_int_dtype(array: np.ndarray, bit_depth: Optional[int] = None) -> st
             else:
                 continue
         if len(bit_list) == 0:
-            raise Exception("No suitable dtypes found based on provided bit depth")
+            logger.error("No suitable dtypes found based on provided bit depth")
+            return None
 
         # Use the minimum viable dtype
         dtype_final = f"{dtype_group}{min(bit_list)}"
 
-        # Return None if dtype calculated using provided bit depth can't accommodate array
+        # Raise error if dtype calculated using provided bit depth can't accommodate array
         if get_dtype_info(dtype_final).max < max(abs(arr.min()), abs(arr.max())):
-            raise Exception(
+            logger.warning(
                 "Array values still exceed those supported by the estimated dtype"
             )
+            return None
 
         # Return estimated dtype otherwise
         return dtype_final
 
-    def _by_array_values(array: np.ndarray, dtype_group: str) -> str:
+    def _by_array_values(array: np.ndarray, dtype_group: str) -> Optional[str]:
 
         # Set up variables
         arr = array
@@ -162,9 +166,10 @@ def estimate_int_dtype(array: np.ndarray, bit_depth: Optional[int] = None) -> st
             else:
                 continue
         if len(bit_list) == 0:
-            raise Exception(
+            logger.error(
                 "No suitable dtypes found that can accommodate the array's values"
             )
+            return None
         # Use the smallest value
         dtype_final = f"{dtype_group}{min(bit_list)}"
 
@@ -176,36 +181,102 @@ def estimate_int_dtype(array: np.ndarray, bit_depth: Optional[int] = None) -> st
 
     # Validate initial dtype (this should never be triggered, in principle)
     if dtype_init not in valid_dtypes:
-        raise ValueError(f"{dtype_init} is not a valid or supported NumPy dtype")
+        logger.error(f"{dtype_init} is not a valid or supported NumPy dtype")
+        raise ValueError
 
     # Reject complex dtypes if imaginary components are present
     if dtype_init.startswith("complex") and np.any(arr.imag != 0):
-        raise NotImplementedError("Complex numbers not currently supported")
+        logger.error("Complex numbers not currently supported")
+        raise NotImplementedError
     else:
         arr = arr.real
 
     # Use "int" if negative values are present, and "uint" if not
     dtype_group = "uint" if arr.min() >= 0 else "int"
 
-    result = None
-    if bit_depth is not None:
-        try:
-            # Make an estimate using the provided bit depth
-            result = _by_bit_depth(
-                array=arr,
-                dtype_group=dtype_group,
-                bit_depth=bit_depth,
-            )
-        except Exception:
-            pass
+    result: Optional[str] = None
+    # Make an estimate using the provided bit depth if set
+    result = (
+        _by_bit_depth(
+            array=arr,
+            dtype_group=dtype_group,
+            bit_depth=bit_depth,
+        )
+        if bit_depth is not None
+        else None
+    )
 
-    dtype_final = (
+    # Estimate using array depth instead
+    result = (
         _by_array_values(array=arr, dtype_group=dtype_group)
         if result is None
         else result
     )
 
-    return dtype_final
+    if result is None:
+        raise ValueError("Unable to find an appropriate dtype for the array")
+    else:
+        return result
+
+
+def shrink_value(value: int) -> int:
+    """
+    When converting between floats and int dtypes in NumPy, there are cases where the
+    float value will be rounded inexactly to be larger than that of its corresponding
+    int, leading to issues when casting arrays with large values.
+
+    This function replaces the value of the integer with one that can be correctly
+    represented in both float and int without a further change in info.
+    """
+
+    # Validate input
+    if not isinstance(value, (int)):
+        raise TypeError(f"Input is not an integer: {str(type(value))}")
+
+    vfloat = float(value)
+
+    # Process number if float conversion increases its value
+    if abs(vfloat) > abs(value):
+        vstr = str(vfloat)
+        if "e" in vstr:
+            # Separate the numerical bit from the exponent
+            num, exp = vstr.split("e", 1)
+
+            # Remove negative sign for subsequent stage
+            if num.startswith("-"):
+                num = num.split("-", 1)[-1]
+                neg = "-"
+            else:
+                neg = ""
+
+            # Reduce precision and shrink value
+
+            #   NOTE: Python rounds floats in scientific notation mode to 15 decimal
+            #   places, so subtract 2 from that last decimal place.
+
+            #   NOTE: Python rounds values that are exactly halfway (i.e. 0.5) to the
+            #   nearest EVEN number, so 2 needs to be subtracted to ensure it doesn't
+            #   round up to above the maximum value allowed by the array dtype again.
+            num = str(round((float(num) - (2 / 10**15)), 15))
+
+            # Rebuild new value as string
+            vstr = "e".join(["".join([neg, num]), exp])
+            vfloat = float(vstr)
+            value = int(vfloat)
+        else:
+            # Can't think of any cases where a number not in scientific notation might
+            # be bigger than its integer representation, so raising ValueError for now.
+            raise ValueError(f"{vfloat} is larger than {value}")
+
+    # Skip if it can be represented exactly as a float
+    elif abs(vfloat) == abs(value):
+        pass
+
+    else:
+        raise Exception("Unexpected exception occurred")
+
+    # Returns value unchanged if it can be presented correctly as a float
+    return value
 
 
 def convert_array_dtype(
@@ -229,13 +300,13 @@ def convert_array_dtype(
     if dtype_final not in valid_dtypes and not any(
         dtype_final == key for key in additional_dtype_keywords
     ):
-        raise ValueError(f"{dtype_final} is not a valid or supported NumPy dtype")
+        logger.error(f"{dtype_final} is not a valid or supported NumPy dtype")
+        raise ValueError
 
     # Support only conversion to "int" or "uint" dtypes for now
     if not dtype_final.startswith(("int", "uint")):
-        raise NotImplementedError(
-            f"Array conversion to {dtype_final} is not currently supported"
-        )
+        logger.error(f"Array conversion to {dtype_final} is not currently supported")
+        raise NotImplementedError
 
     # Parse initial dtype provided
     # Estimate dtype if None provided
@@ -257,29 +328,39 @@ def convert_array_dtype(
 
     # Accept complex dtypes if imaginary components are zero
     if dtype_init.startswith("complex") and np.any(arr.imag != 0):
-        raise NotImplementedError("Complex numbers not currently supported")
+        logger.error("Complex numbers not currently supported")
+        raise NotImplementedError
     else:
         arr = arr.real
         dtype_init = estimate_int_dtype(arr)
 
     # Get max supported values of initial and final arrays
-    min_init = get_dtype_info(dtype_init).min
-    max_init = get_dtype_info(dtype_init).max
+    min_init = shrink_value(get_dtype_info(dtype_init).min)
+    max_init = shrink_value(get_dtype_info(dtype_init).max)
     range_init = max_init - min_init
 
-    min_final = get_dtype_info(dtype_final).min
-    max_final = get_dtype_info(dtype_final).max
+    min_final = shrink_value(get_dtype_info(dtype_final).min)
+    max_final = shrink_value(get_dtype_info(dtype_final).max)
     range_final = max_final - min_final
 
     # Rescale
     for f in range(arr.shape[0]):
         # Map from old range to new range without exceeding maximum bit depth
-        frame = np.array(
-            (
-                (((arr[f] / range_init) - (min_init / range_init)) * range_final)
-                + min_final
+        frame: np.ndarray = (
+            ((arr[f] / range_init) - (min_init / range_init)) * range_final
+        ) + min_final
+
+        # Catch numbers exceeding thresholds when going between dtypes
+        if frame.min() < min_final:
+            logger.warning(
+                f"Encountered {np.sum(frame < min_final)} values below allowed target minimum value"
             )
-        )
+            frame[frame < min_final] = min_final
+        if frame.max() > max_final:
+            logger.warning(
+                f"Encountered {np.sum(frame > max_final)} values above allowed target maximum value"
+            )
+            frame[frame > max_final] = max_final
 
         # Preserve dtype and round values if dtype is integer-based
         frame = frame.round(0) if dtype_final.startswith(("int", "uint")) else frame
@@ -303,6 +384,8 @@ def convert_array_dtype(
 def stretch_image_contrast(
     array: np.ndarray,
     percentile_range: tuple[float, float] = (0.5, 99.5),  # Lower and upper percentiles
+    target_dtype: Optional[str] = None,
+    debug: bool = False,
 ) -> np.ndarray:
     """
     Changes the range of pixel values occupied by the data, rescaling it across the
@@ -313,50 +396,184 @@ def stretch_image_contrast(
 
     # Use shorter variable names
     arr: np.ndarray = array
-    b_lo: float | int = np.percentile(arr, percentile_range[0])
-    b_up: float | int = np.percentile(arr, percentile_range[1])
 
     # Check that dtype is supported by NumPy
-    dtype = str(array.dtype)
+    dtype = str(arr.dtype)
     if dtype not in valid_dtypes:
-        raise ValueError(f"{dtype} is not a valid or supported NumPy dtype")
+        logger.error(f"{dtype} is not a valid or supported NumPy dtype")
+        raise ValueError
 
-    # Reject "float" and "complex" dtype inputs
-    if dtype.startswith(("complex", "float")):
-        raise NotImplementedError(
-            f"Contrast stretching for {dtype} arrays is not currently supported"
-        )
+    # Handle "complex" dtypes
+    if dtype.startswith("complex"):
+        # Accept "complex" dtypes with no imaginary component
+        if np.all(arr.imag == 0):
+            dtype = "float64"  # Overwrite initial dtype
+            arr = arr.real.astype(dtype)
+        # Reject "complex" dtypes
+        else:
+            logger.error(
+                f"Contrast stretching for {dtype} arrays is not currently supported"
+            )
+            raise NotImplementedError
+        # By this point, "complex" dtypes should be eliminated
+        # Only "float", "int", and "uint" should be left
 
-    dtype_info = get_dtype_info(dtype)
+    # Reject "float" dtypes if no "int"/"uint" target dtype is provided
+    if dtype.startswith("float"):
+        if target_dtype is None:
+            logger.error(f"No target integer dtype provided for initial {dtype} array")
+            raise ValueError
+        if not target_dtype.startswith(("int", "uint")):
+            logger.error(
+                f"No valid target integer dtype provided for initial {dtype} array"
+            )
+            raise ValueError
+        # By this point, target dtype should be "int" or "uint"
+
+    # Handle input parameters when dtype is valid to begin with
+    if dtype.startswith(("int", "uint")):
+        # Raise warning if the target dtype differs from the initial array dtype and both are valid options
+        if (
+            target_dtype is not None
+            and target_dtype.startswith(("int", "uint"))
+            and target_dtype != dtype
+        ):
+            logger.warning(
+                "Target integer dtype different from initial array dtype; using array dtype"
+            )
+        target_dtype = dtype
+        # By this point, the target dtype should be "int" or "uint"
+
+    # Raise exception if the target dtype is still not set by this point
+    # This shouldn't ever be triggered, but is there for MyPy type checking
+    if target_dtype is None:
+        logger.error("Unable to determine dtype to stretch image contrast to")
+        raise ValueError
+
+    # Get key values
+    b_lo: float | int = np.percentile(arr, percentile_range[0])
+    b_up: float | int = np.percentile(arr, percentile_range[1])
+    diff: float | int = b_up - b_lo
+    dtype_info = get_dtype_info(target_dtype)
+    vmax = shrink_value(dtype_info.max)
+
+    if debug:
+        logger.debug(f"Using {vmax} as maximum array value")
 
     for f in range(arr.shape[0]):
         # Overwrite outliers and normalise to new range
         frame: np.ndarray = arr[f]
-        frame[frame < b_lo] = b_lo
-        frame[frame > b_up] = b_up
+        frame[frame <= b_lo] = b_lo
+        frame[frame >= b_up] = b_up
+
+        # DEBUG: Check array properties immediately after truncation
+        if debug:
+            # Calculate positions of mins and maxes in array
+            coords_max = np.unravel_index(np.argmax(frame), frame.shape)
+            coords_min = np.unravel_index(np.argmin(frame), frame.shape)
+
+            logger.debug(
+                "Frame properties after truncation: \n"
+                f"dtype: {frame.dtype} \n"
+                f"Shape: {frame.shape} \n"
+                f"Min: {frame.min()} \n"
+                f"Min coords: {coords_min} \n"
+                f"Max: {frame.max()} \n"
+                f"Max coords: {coords_max} \n"
+            )
+
         # Normalise differently depending on whether dtype supports negative values
         frame = (
-            np.array(
-                # Scale between 0 and max positive value if no negative values are present
-                ((frame / (b_up - b_lo)) - (b_lo / (b_up - b_lo)))
-                * dtype_info.max
-            )
+            # Scale between 0 and max positive value if no negative values are present
+            (((frame / diff) - (b_lo / diff)) * vmax)
             if (dtype_info.min == 0 or b_lo >= 0)
             # Keep 0 as center; scale values by largest scalar present
-            else np.array(frame / max(abs(b_lo), abs(b_up)) * dtype_info.max)
+            else (frame / max(abs(b_lo), abs(b_up)) * vmax)
         )
 
-        # Debug information
-        # print(
-        #     f"dtype: {frame.dtype} \n"
-        #     f"Shape: {frame.shape} \n"
-        #     f"Min: {frame.min()} \n"
-        #     f"Max: {frame.max()} \n"
-        # )
+        # DEBUG: Check array properties immediately after calculation
+        if debug:
+            # Calculate positions of mins and maxes in array
+            coords_max = np.unravel_index(np.argmax(frame), frame.shape)
+            coords_min = np.unravel_index(np.argmin(frame), frame.shape)
 
-        # Preserve dtype and round values if dtype is integer-based
+            logger.debug(
+                "Frame properties after contrast stretching: \n"
+                f"dtype: {frame.dtype} \n"
+                f"Shape: {frame.shape} \n"
+                f"Min: {frame.min()} \n"
+                f"Min coords: {coords_min} \n"
+                f"Max: {frame.max()} \n"
+                f"Max coords: {coords_max} \n"
+            )
+
+        # Catch negative numbers after contrast stretching
+        #   NOTE: For some reason (maybe NumPy inaccuracies when rounding), it's still
+        #   possible for some pixel values to go negative
+        if dtype_info.min == 0 or b_lo >= 0:
+            frame[frame <= 0] = 0
+
+        if debug:
+            # Calculate positions of mins and maxes in array
+            coords_max = np.unravel_index(np.argmax(frame), frame.shape)
+            coords_min = np.unravel_index(np.argmin(frame), frame.shape)
+
+            logger.debug(
+                "Frame properties after catching negative numbers: \n"
+                f"dtype: {frame.dtype} \n"
+                f"Shape: {frame.shape} \n"
+                f"Min: {frame.min()} \n"
+                f"Min coords: {coords_min} \n"
+                f"Max: {frame.max()} \n"
+                f"Max coords: {coords_max} \n"
+            )
+
+        # Round values if dtype is integer-based
+        #   NOTE: np.round() rounds values that are exactly halfway towards the nearest
+        #   even number (e.g. 0.5 -> 0)
         frame = frame.round(0) if dtype.startswith(("int", "uint")) else frame
+
+        if debug:
+            # Calculate positions of mins and maxes in array
+            coords_max = np.unravel_index(np.argmax(frame), frame.shape)
+            coords_min = np.unravel_index(np.argmin(frame), frame.shape)
+
+            logger.debug(
+                "Frame properties after rounding: \n"
+                f"dtype: {frame.dtype} \n"
+                f"Shape: {frame.shape} \n"
+                f"Min: {frame.min()} \n"
+                f"Min coords: {coords_min} \n"
+                f"Max: {frame.max()} \n"
+                f"Max coords: {coords_max} \n"
+            )
+
+        # Restore original dtype
         frame = frame.astype(dtype)
+
+        if debug:
+            # Calculate positions of mins and maxes in array
+            coords_max = np.unravel_index(np.argmax(frame), frame.shape)
+            coords_min = np.unravel_index(np.argmin(frame), frame.shape)
+
+            logger.debug(
+                "Frame properties after resetting dtype: \n"
+                f"dtype: {frame.dtype} \n"
+                f"Shape: {frame.shape} \n"
+                f"Min: {frame.min()} \n"
+                f"Min coords: {coords_min} \n"
+                f"Max: {frame.max()} \n"
+                f"Max coords: {coords_max} \n"
+            )
+
+        # DEBUG: Check array properties after rounding
+        if debug:
+            if frame.min() <= dtype_info.min:
+                logger.debug(
+                    "There are values below the minimum bit range for this dtype"
+                )
+            if frame.max() >= dtype_info.max:
+                logger.debug("There are values above the max bit range for this dtype")
 
         # Append to array
         if f == 0:
@@ -408,30 +625,31 @@ def convert_to_rgb(
 
 def flatten_image(
     array: np.ndarray,
-    mode: Literal["min", "max", "mean"] = "mean",
+    mode: str = "mean",
 ) -> np.ndarray:
 
     # Flatten along first (outermost) axis
     axis = 0
     if mode == "min":
-        arr_new = np.array(array.min(axis=axis))
+        arr_new: np.ndarray = array.min(axis=axis)
     elif mode == "max":
-        arr_new = np.array(array.max(axis=axis))
+        arr_new = array.max(axis=axis)
     elif mode == "mean":
         dtype = str(array.dtype)
-        arr_new = np.array(array.mean(axis=axis))
+        arr_new = array.mean(axis=axis)
         arr_new = (
             arr_new.round(0) if str(dtype).startswith(("int", "uint")) else arr_new
         )
         arr_new = arr_new.astype(dtype)
     # Raise error if the mode provided is incorrect
     else:
-        raise ValueError(f"{mode} is not a valid image flattening option")
+        logger.error(f"{mode} is not a valid image flattening option")
+        raise ValueError
 
     return arr_new
 
 
-def create_composite_image(
+def merge_images(
     arrays: np.ndarray | list[np.ndarray],
 ) -> np.ndarray:
     """
@@ -445,11 +663,13 @@ def create_composite_image(
 
     # Validate that arrays have the same shape
     if len({arr.shape for arr in arrays}) > 1:
-        raise ValueError("Input arrays do not have the same shape")
+        logger.error("Input arrays do not have the same shape")
+        raise ValueError
 
     # Validate that arrays have the same dtype
     if len({str(arr.dtype) for arr in arrays}) > 1:
-        raise ValueError("Input arrays do not have the same dtype")
+        logger.error("Input arrays do not have the same dtype")
+        raise ValueError
     dtype = str(arrays[0].dtype)
 
     # Calculate average across all arrays
@@ -464,20 +684,15 @@ def create_composite_image(
     return arr_new
 
 
-"""
-FUNCTIONS FOR PRE-PROCESSING OF IMAGE STACKS
-"""
-
-
-def process_img_stk(
+def preprocess_img_stk(
     array: np.ndarray,
-    initial_dtype: str,
     target_dtype: str = "uint8",
+    initial_dtype: Optional[str] = None,
     adjust_contrast: Optional[str] = None,
 ) -> np.ndarray:
     """
-    Processes the NumPy array, rescaling intensities and converting to the desired
-    dtype as needed.
+    Preprocessing routine for the image stacks extracted from raw data, rescaling
+    intensities and converting the arrays to the desired dtypes as needed.
     """
 
     # Use shorter aliases in function
@@ -487,19 +702,40 @@ def process_img_stk(
 
     # Validate that function inputs are correct
     if dtype_final not in valid_dtypes:
-        raise ValueError(f"{dtype_final} is not a valid or supported NumPy dtype")
+        logger.error(f"{dtype_final} is not a valid or supported NumPy dtype")
+        raise ValueError
 
-    if dtype_init not in valid_dtypes:
-        logger.info(
-            f"{dtype_init} is not a valid or supported NumPy dtype; converting to most appropriate dtype"
-        )
+    # Handle complex arrays differently
+    if str(arr.dtype).startswith("complex"):
+        # Reject "complex" arrays with imaginary values
+        if not np.all(arr.imag == 0):
+            logger.error(f"{str(arr.dtype)} not supported by this workflow")
+            raise ValueError
+        # Keep only the real component
+        else:
+            arr = arr.real
+
+    # Estimate initial dtype if none provided
+    if dtype_init is None or not dtype_init.startswith(("int", "uint")):
+        if dtype_init is None:
+            pass  # No warning needed for None
+        elif dtype_init not in valid_dtypes:
+            logger.warning(
+                f"{dtype_init} is not a valid or supported NumPy dtype; converting to most appropriate dtype"
+            )
+        elif not dtype_init.startswith(("int", "uint")):
+            logger.warning(
+                f"{dtype_init} is not supported by this workflow; converting to most appropriate dtype"
+            )
+
+        dtype_init = estimate_int_dtype(arr)
         arr = (
             convert_array_dtype(
                 array=arr,
                 target_dtype=dtype_final,
                 initial_dtype=dtype_init,
             )
-            if np.max(arr) > 0
+            if not np.all(arr == 0)
             else arr.astype(dtype_final)
         )
         dtype_init = dtype_final
@@ -516,7 +752,7 @@ def process_img_stk(
                     array=arr,
                     percentile_range=(0.5, 99.5),
                 )
-                if np.max(arr) > 0
+                if not np.all(arr == 0)
                 else arr
             )
 
@@ -529,11 +765,9 @@ def process_img_stk(
                 target_dtype=dtype_final,
                 initial_dtype=dtype_init,
             )
-            if np.max(arr) > 0
+            if not np.all(arr == 0)
             else arr.astype(dtype_final)
         )
-    else:
-        logger.info(f"Image is already a {dtype_final} array")
 
     return arr
 
@@ -541,7 +775,7 @@ def process_img_stk(
 def write_stack_to_tiff(
     array: np.ndarray,
     save_dir: Path,
-    series_name: str,
+    file_name: str,
     # Resolution information
     x_res: Optional[float] = None,
     y_res: Optional[float] = None,
@@ -592,8 +826,8 @@ def write_stack_to_tiff(
         extended_metadata = ""
 
     # Save as a greyscale TIFF
-    save_name = save_dir.joinpath(series_name + ".tiff")
-    logger.info(f"Saving {series_name} image as {save_name}")
+    save_name = save_dir.joinpath(file_name + ".tiff")
+    logger.info(f"Saving {file_name} image as {save_name}")
     imwrite(
         save_name,
         arr,

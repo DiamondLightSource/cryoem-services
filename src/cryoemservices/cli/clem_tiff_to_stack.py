@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from cryoemservices.clem.tiff import convert_tiff_to_stack
+from cryoemservices.services.clem_process_raw_tiffs import convert_tiff_to_stack
 
 
 def run():
