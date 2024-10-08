@@ -236,8 +236,8 @@ array_conversion_test_matrix = (
     ("complex128", "int64", False),
     ("float64", "uint8", False),
     ("float32", "uint16", True),
-    ("complex128", "uint32", False),
-    ("complex64", "uint64", True),
+    ("aristotle", "uint32", False),
+    ("theophrastus", "uint64", True),
 )
 
 
@@ -250,25 +250,30 @@ def test_convert_array_dtype(test_params: tuple[str, str, bool]):
 
     # Get dtype parameters
     dtype_0, dtype_1, estimate = test_params
-    info_0 = get_dtype_info(dtype_0)
+
+    # Set dtype to use when creating the test array
+    dtype_test = dtype_0 if dtype_0 in known_dtypes else "int64"
+
+    info_0 = get_dtype_info(dtype_test)
     info_1 = get_dtype_info(dtype_1)
     shape = (16, 16)
 
-    if dtype_0.startswith(("int", "uint")):
+    # Create test arrays with ranges within allowed values
+    if dtype_test.startswith(("int", "uint")):
         # Use half range of starting array
         # (np.random.randint uses "int64" by default, so "uint64"'s max value will
         # exceed it)
         vmin = int(0.5 * info_0.min)
         vmax = int(0.5 * info_0.max)
-        arr_0 = np.random.randint(vmin, vmax, size=shape).astype(dtype_0)
+        arr_0 = np.random.randint(vmin, vmax, size=shape).astype(dtype_test)
     else:
         # Use half the integer range of target dtype if starting with float
         vmin = int(0.5 * info_1.min)
         vmax = int(0.5 * info_1.max)
-        arr_0 = np.random.randint(vmin, vmax, size=shape).astype(dtype_0)
+        arr_0 = np.random.randint(vmin, vmax, size=shape).astype(dtype_test)
 
     # Convert the array using the function
-    initial_dtype = estimate_int_dtype(arr_0) if estimate is True else None
+    initial_dtype = dtype_0 if estimate is True else None
     arr_1 = convert_array_dtype(arr_0, dtype_1, initial_dtype)
 
     # Normalise both arrays to (0, 1) for comparison
@@ -335,7 +340,6 @@ def test_convert_array_dtype_wrong_dtype(test_params: tuple[str, int, str, str])
             target_dtype=dtype_final,
             initial_dtype=dtype_init,
         )
-        pass
 
 
 contrast_stretching_test_matrix = (
