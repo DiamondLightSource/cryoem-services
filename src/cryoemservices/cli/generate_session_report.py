@@ -125,35 +125,41 @@ class SessionResults:
 
         with doc.create(pylatex.Section("Data collection parameters")):
             doc.append("The following parameters were set during data collection:\n")
-            with doc.create(pylatex.Tabular("|c|c|")) as table:
-                table.add_hline()
-                table.add_row(("Parameter", "Value"))
-                table.add_hline()
-                table.add_row(("Voltage", f"{self.voltage} keV"))
-                table.add_row(("Magnification", self.magnification))
-                table.add_row(
-                    (
-                        "Pixel size",
-                        pylatex.NoEscape(str(self.pixel_size * 10) + r" $\AA$"),
+            with doc.create(pylatex.Table(position="h!")) as table_environment:
+                table_environment.append(pylatex.NoEscape(r"\centering"))
+                table_environment.append(pylatex.NoEscape(r"\label{collection_params}"))
+                table_environment.add_caption("Parameters set during collection")
+                with doc.create(pylatex.Tabular("|c|c|")) as table:
+                    table.add_hline()
+                    table.add_row(("Parameter", "Value"))
+                    table.add_hline()
+                    table.add_row(("Voltage", f"{self.voltage} keV"))
+                    table.add_row(("Magnification", self.magnification))
+                    table.add_row(
+                        (
+                            "Pixel size",
+                            pylatex.NoEscape(str(self.pixel_size * 10) + r" $\AA$"),
+                        )
                     )
-                )
-                table.add_row(("Image size", self.image_size))
-                table.add_row(("Exposure time", f"{self.exposure_time} s"))
-                table.add_row(("Number of frames", self.frame_count))
-                table.add_row(
-                    (
-                        "Dose per frame",
-                        pylatex.NoEscape(str(self.dose_per_frame) + r" $e^- / \AA ^2$"),
+                    table.add_row(("Image size", self.image_size))
+                    table.add_row(("Exposure time", f"{self.exposure_time} s"))
+                    table.add_row(("Number of frames", self.frame_count))
+                    table.add_row(
+                        (
+                            "Dose per frame",
+                            pylatex.NoEscape(
+                                str(self.dose_per_frame) + r" $e^- / \AA ^2$"
+                            ),
+                        )
                     )
-                )
-                table.add_row(
-                    (
-                        "C2 aperture size",
-                        pylatex.NoEscape(str(self.c2_aperture) + r" ${\mu}$m"),
+                    table.add_row(
+                        (
+                            "C2 aperture size",
+                            pylatex.NoEscape(str(self.c2_aperture) + r" ${\mu}$m"),
+                        )
                     )
-                )
-                table.add_row(("Slit width", f"{self.slit_width} eV"))
-                table.add_hline()
+                    table.add_row(("Slit width", f"{self.slit_width} eV"))
+                    table.add_hline()
 
         with doc.create(pylatex.Section("Pre-processing")):
             doc.append(
@@ -178,11 +184,11 @@ class SessionResults:
                     "The first and last motion corrected micrographs"
                 )
 
-            with doc.create(pylatex.Figure(position="h")) as micrograph_image:
-                micrograph_image.add_image(self.example_picks[0], width="200px")
-                micrograph_image.append(pylatex.NoEscape(r"\hspace{20px}"))
-                micrograph_image.add_image(self.example_picks[1], width="200px")
-                micrograph_image.add_caption(
+            with doc.create(pylatex.Figure(position="h")) as pick_image:
+                pick_image.add_image(self.example_picks[0], width="200px")
+                pick_image.append(pylatex.NoEscape(r"\hspace{20px}"))
+                pick_image.add_image(self.example_picks[1], width="200px")
+                pick_image.add_caption(
                     "The first and last motion micrographs, with particle picks overlaid"
                 )
 
@@ -201,42 +207,49 @@ class SessionResults:
                 "with 50,000 particles in each batch.\n"
             )
 
-            with doc.create(pylatex.Figure(position="h")) as micrograph_image:
-                micrograph_image.add_image(self.example_class2d[0], width="100px")
-                micrograph_image.append(pylatex.NoEscape(r"\hspace{10px}"))
-                micrograph_image.add_image(self.example_class2d[1], width="100px")
-                micrograph_image.add_caption(
+            with doc.create(pylatex.Figure(position="h")) as class2d_image:
+                class2d_image.add_image(self.example_class2d[0], width="100px")
+                class2d_image.append(pylatex.NoEscape(r"\hspace{10px}"))
+                class2d_image.add_image(self.example_class2d[1], width="100px")
+                class2d_image.add_caption(
                     "The most populous classes from the first 2D classification batch"
                 )
 
             doc.append(
-                f"3D classification was run up to {self.class3d_batch} particles "
-                f"using a symmetry of {self.provided_symmetry}. "
-                f"The following classes were produced:\n"
-            )
-            with doc.create(pylatex.Tabular("|c|c|c|c|")) as table:
-                table.add_hline()
-                table.add_row(
-                    (
-                        "Class number",
-                        "Number of particles",
-                        "Resolution",
-                        "Fourier completeness",
-                    )
+                pylatex.NoEscape(
+                    f"3D classification was run up to {self.class3d_batch} particles "
+                    f"using a symmetry of {self.provided_symmetry}. "
+                    r"The classes produced are given in table \ref{class3d_table}"
                 )
-                table.add_hline()
-                for class3d in range(len(self.class3d_particles)):
+            )
+            doc.append(pylatex.NoEscape("\n"))
+            with doc.create(pylatex.Table(position="h!")) as table_environment:
+                table_environment.append(pylatex.NoEscape(r"\centering"))
+                table_environment.append(pylatex.NoEscape(r"\label{class3d_table}"))
+                table_environment.add_caption("3D classification results")
+                with doc.create(pylatex.Tabular("|c|c|c|c|")) as table:
+                    table.add_hline()
                     table.add_row(
                         (
-                            class3d + 1,
-                            self.class3d_particles[class3d],
-                            pylatex.NoEscape(
-                                rf"{self.class3d_resolution[class3d]} $\AA$"
-                            ),
-                            self.class3d_completeness[class3d],
+                            "Class number",
+                            "Number of particles",
+                            "Resolution",
+                            "Fourier completeness",
                         )
                     )
-                table.add_hline()
+                    table.add_hline()
+                    for class3d in range(len(self.class3d_particles)):
+                        table.add_row(
+                            (
+                                class3d + 1,
+                                self.class3d_particles[class3d],
+                                pylatex.NoEscape(
+                                    rf"{self.class3d_resolution[class3d]} $\AA$"
+                                ),
+                                self.class3d_completeness[class3d],
+                            )
+                        )
+                    table.add_hline()
 
             if self.refined_batch:
                 doc.append(pylatex.NoEscape("\n\n"))
