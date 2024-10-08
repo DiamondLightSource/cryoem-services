@@ -6,6 +6,8 @@ from typing import List
 
 import ispyb
 import ispyb.sqlalchemy as models
+import matplotlib.pyplot as plt
+import mrcfile
 import numpy as np
 import pylatex
 import sqlalchemy.orm
@@ -97,9 +99,14 @@ class SessionResults:
         self.example_class2d: List[str] = []
         self.class3d_batch: int = 0
         self.provided_symmetry: str = "C1"
+        self.class3d_images: List[str] = []
         self.class3d_particles: List[int] = []
         self.class3d_resolution: List[float] = []
         self.class3d_completeness: List[float] = []
+        self.class3d_flat_x: np.array = np.array([])
+        self.class3d_flat_y: np.array = np.array([])
+        self.class3d_flat_z: np.array = np.array([])
+        self.class3d_angdist: str = ""
         self.refined_batch: int = 0
         self.refined_symmetry: List[str] = []
         self.refined_resolution: List[float] = []
@@ -172,8 +179,11 @@ class SessionResults:
                 )
             )
             doc.append(
-                f"\nParticle picking gave a mean of {self.mean_picks} per micrograph, "
-                f"and an esimated particle diameter of {self.particle_diameter} (?units?)."
+                pylatex.NoEscape(
+                    f"\nParticle picking gave a mean of {self.mean_picks} particles "
+                    "per micrograph, and an estimated particle diameter of "
+                    rf"{self.particle_diameter} $\AA$."
+                )
             )
 
             with doc.create(pylatex.Figure(position="h")) as micrograph_image:
@@ -251,6 +261,21 @@ class SessionResults:
                         )
                     table.add_hline()
 
+            with doc.create(pylatex.Figure(position="h")) as projections_3d:
+                plt.imshow(self.class3d_flat_x)
+                projections_3d.add_plot(width="75px")
+                plt.imshow(self.class3d_flat_y)
+                projections_3d.add_plot(width="75px")
+                plt.imshow(self.class3d_flat_z)
+                projections_3d.add_plot(width="75px")
+                projections_3d.add_caption("Projections of the best 3D class")
+
+            with doc.create(pylatex.Figure(position="h")) as angdist_image:
+                angdist_image.add_image(self.class3d_angdist, width="200px")
+                angdist_image.add_caption(
+                    "The distribution of particle angles for the best 3D class"
+                )
+
             if self.refined_batch:
                 doc.append(pylatex.NoEscape("\n\n"))
                 doc.append(
@@ -262,19 +287,19 @@ class SessionResults:
                 )
                 doc.append(pylatex.NoEscape("\n"))
                 if len(self.refined_symmetry) == 1:
-                    refine_round1 = 0
+                    refine1 = 0
                 else:
-                    refine_round1 = np.where(self.refined_symmetry == "C1")[0][0]
+                    refine1 = np.where(self.refined_symmetry == "C1")[0][0]
 
                 doc.append(
                     pylatex.NoEscape(
-                        rf"A final resolution of {self.refined_resolution[refine_round1]} $\AA$ "
-                        f"was obtained with completeness {self.refined_completeness[refine_round1]}."
+                        rf"A final resolution of {self.refined_resolution[refine1]} $\AA$ "
+                        f"was obtained with completeness {self.refined_completeness[refine1]}."
                     )
                 )
                 doc.append(pylatex.NoEscape("\n"))
                 doc.append(
-                    f"An estimated B-factor is {self.bfactor[refine_round1]}, "
+                    f"An estimated B-factor is {self.bfactor[refine1]}, "
                     f"but we caution that masks are not optimised and "
                     f"the performance of earlier automated processing steps "
                     f"will affect the results, "
@@ -282,14 +307,14 @@ class SessionResults:
                 )
 
                 if len(self.refined_symmetry) == 2:
-                    symm_refine = 1 - refine_round1
+                    symm_refine = 1 - refine1
                     doc.append(
                         pylatex.NoEscape(
                             "Following refinement, we estimate that the symmetry "
                             f"of the sample is {self.refined_symmetry[symm_refine]}. "
                             "Using this symmetry refinement gives a final resolution "
-                            rf"of {self.refined_resolution[refine_round1]} $\AA$ "
-                            f"and completeness {self.refined_completeness[refine_round1]}."
+                            rf"of {self.refined_resolution[refine1]} $\AA$ "
+                            f"and completeness {self.refined_completeness[refine1]}."
                         )
                     )
                     doc.append(pylatex.NoEscape("\n"))
@@ -466,6 +491,21 @@ class SessionResults:
                             self.class3d_completeness.append(
                                 class3d.overallFourierCompleteness
                             )
+                            self.class3d_images.append(class3d.classImageFullPath)
+
+                        if len(self.class3d_resolution) > 0:
+                            best_image = self.class3d_images[
+                                self.class3d_resolution == min(self.class3d_resolution)
+                            ]
+                            self.class3d_angdist = (
+                                str(Path(best_image).parent / Path(best_image).stem)
+                                + "_angdist.jpeg"
+                            )
+                            with mrcfile.open(best_image) as mrc:
+                                image3d = mrc.data
+                            self.class3d_flat_x = np.sum(image3d, axis=0)
+                            self.class3d_flat_y = np.sum(image3d, axis=1)
+                            self.class3d_flat_z = np.sum(image3d, axis=2)
             else:
                 print("Cannot find Class3D job")
 
