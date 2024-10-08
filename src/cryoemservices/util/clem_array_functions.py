@@ -346,12 +346,9 @@ def convert_array_dtype(
     # Rescale
     for f in range(arr.shape[0]):
         # Map from old range to new range without exceeding maximum bit depth
-        frame = np.array(
-            (
-                (((arr[f] / range_init) - (min_init / range_init)) * range_final)
-                + min_final
-            )
-        )
+        frame: np.ndarray = (
+            ((arr[f] / range_init) - (min_init / range_init)) * range_final
+        ) + min_final
 
         # Catch numbers exceeding thresholds when going between dtypes
         if frame.min() < min_final:
@@ -464,7 +461,7 @@ def stretch_image_contrast(
 
     for f in range(arr.shape[0]):
         # Overwrite outliers and normalise to new range
-        frame = np.array(arr[f])
+        frame: np.ndarray = arr[f]
         frame[frame <= b_lo] = b_lo
         frame[frame >= b_up] = b_up
 
@@ -485,15 +482,13 @@ def stretch_image_contrast(
             )
 
         # Normalise differently depending on whether dtype supports negative values
+
         frame = (
-            np.array(
-                # Scale between 0 and max positive value if no negative values are present
-                ((frame / diff) - (b_lo / diff))
-                * vmax
-            )
+            # Scale between 0 and max positive value if no negative values are present
+            (((frame / diff) - (b_lo / diff)) * vmax)
             if (dtype_info.min == 0 or b_lo >= 0)
             # Keep 0 as center; scale values by largest scalar present
-            else np.array(frame / max(abs(b_lo), abs(b_up)) * vmax)
+            else (frame / max(abs(b_lo), abs(b_up)) * vmax)
         )
 
         # DEBUG: Check array properties immediately after calculation
@@ -636,12 +631,12 @@ def flatten_image(
     # Flatten along first (outermost) axis
     axis = 0
     if mode == "min":
-        arr_new = np.array(array.min(axis=axis))
+        arr_new: np.ndarray = array.min(axis=axis)
     elif mode == "max":
-        arr_new = np.array(array.max(axis=axis))
+        arr_new = array.max(axis=axis)
     elif mode == "mean":
         dtype = str(array.dtype)
-        arr_new = np.array(array.mean(axis=axis))
+        arr_new = array.mean(axis=axis)
         arr_new = (
             arr_new.round(0) if str(dtype).startswith(("int", "uint")) else arr_new
         )
