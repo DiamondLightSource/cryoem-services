@@ -460,19 +460,30 @@ def test_stretch_image_contrast(
 
 
 contrast_stretching_fail_cases = (
-    "float64",
-    "complex128",
+    # Array dtype | Target dtype
+    ("float64", None),
+    ("float64", "float64"),
+    ("complex128", None),
+    ("complex128", "complex128"),
 )
 
 
-@pytest.mark.parametrize("dtype", contrast_stretching_fail_cases)
-def test_stretch_image_contrast_fails(dtype: str):
+@pytest.mark.parametrize("test_params", contrast_stretching_fail_cases)
+def test_stretch_image_contrast_fails(test_params: tuple[str, Optional[str]]):
     with pytest.raises((NotImplementedError, ValueError)):
+        # Unpack parameters
+        dtype, target_dtype = test_params
+
         # Create test array
         arr = np.random.randint(0, 255, (64, 64)).astype(dtype)
         if dtype.startswith("complex"):
             arr.imag = np.random.randint(0, 255, (64, 64)).astype("float64")
-        stretch_image_contrast(arr)
+
+        # Test function
+        if target_dtype is None:
+            stretch_image_contrast(arr)
+        else:
+            stretch_image_contrast(arr, target_dtype=target_dtype)
 
 
 image_coloring_fail_cases = (
@@ -709,11 +720,14 @@ def test_merge_images(test_params: tuple[str, int, int, bool, int | float]):
         raise ValueError("Unexpected value for image type")
 
     # Create list of images/stacks and merge them
-    arr_list = []
+    arr_list: np.ndarray | list[np.ndarray] = []
     for n in range(num_imgs):
         # Increment values by image/stack
         arr = np.array([np.ones(shape) for f in range(frames)]).astype(dtype) * n
-        arr_list.append(arr)
+        if num_imgs == 1:
+            arr_list = arr
+        else:
+            arr_list.append(arr)
     # DEBUG: Check that arrays are generated correctly
     assert all(str(type(arr)) == str(np.ndarray) for arr in arr_list)
     composite = merge_images(arr_list)
@@ -737,16 +751,18 @@ def test_merge_images(test_params: tuple[str, int, int, bool, int | float]):
 
 
 image_merging_fail_cases = (
-    # Image type | Num images | Same frames? | Same size?
-    ("gray", 2, True, False),
-    ("gray", 3, False, True),
-    ("rgb", 4, True, False),
-    ("rgb", 5, False, True),
+    # Image type | Num images | Same frames? | Same size? | Same dtype?
+    ("gray", 2, False, True, False),
+    ("gray", 3, True, True, False),
+    ("gray", 4, False, True, True),
+    ("rgb", 2, True, False, True),
+    ("rgb", 3, False, False, True),
+    ("rgb", 4, True, False, False),
 )
 
 
 @pytest.mark.parametrize("test_params", image_merging_fail_cases)
-def test_merge_images_fails(test_params: tuple[str, int, bool, bool]):
+def test_merge_images_fails(test_params: tuple[str, int, bool, bool, bool]):
 
     def create_test_array(shape, frames, dtype):
         for f in range(frames):
@@ -759,7 +775,7 @@ def test_merge_images_fails(test_params: tuple[str, int, bool, bool]):
 
     with pytest.raises(ValueError):
         # Unpack test_params
-        img_type, num_images, frames, size = test_params
+        img_type, num_images, frames, size, dtypes = test_params
 
         # Create list of test arrays
         arr_list: list[np.ndarray] = []
@@ -767,7 +783,8 @@ def test_merge_images_fails(test_params: tuple[str, int, bool, bool]):
             shape: tuple[int, ...] = (64, 64) if size is True else (64 + i, 64 + i)
             shape = (*shape, 3) if img_type == "rgb" else shape
             num_frames = 5 if frames is True else 1 + i
-            arr = create_test_array(shape, num_frames, "float64")
+            dtype = f"uint{int(8 * (2**i))}" if dtypes is False else "uint8"
+            arr = create_test_array(shape, num_frames, dtype)
             arr_list.append(arr)
 
         merge_images(arr_list)

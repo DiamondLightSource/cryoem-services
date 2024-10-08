@@ -445,9 +445,10 @@ def stretch_image_contrast(
         # By this point, the target dtype should be "int" or "uint"
 
     # Raise exception if the target dtype is still not set by this point
+    # This shouldn't ever be triggered, but is there for MyPy type checking
     if target_dtype is None:
         logger.error("Unable to determine dtype to stretch image contrast to")
-        raise Exception
+        raise ValueError
 
     # Get key values
     b_lo: float | int = np.percentile(arr, percentile_range[0])
@@ -482,7 +483,6 @@ def stretch_image_contrast(
             )
 
         # Normalise differently depending on whether dtype supports negative values
-
         frame = (
             # Scale between 0 and max positive value if no negative values are present
             (((frame / diff) - (b_lo / diff)) * vmax)
