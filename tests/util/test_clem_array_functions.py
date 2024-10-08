@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import itertools
-from typing import Optional
+from typing import Any, Optional
 
 import numpy as np
 import pytest
@@ -174,6 +174,7 @@ def test_shrink_value(value: int):
 
 
 shrink_value_fail_cases = tuple(
+    # Generate list of the max and min values of non-integer dtypes
     sorted(
         set(
             itertools.chain.from_iterable(
@@ -195,7 +196,8 @@ shrink_value_fail_cases = tuple(
 
 
 @pytest.mark.parametrize("value", shrink_value_fail_cases)
-def test_shrink_value_fails(value):
+def test_shrink_value_fails(value: int):
+    # Test that this function will reject non-ints
     with pytest.raises(TypeError):
         shrink_value(value)
 
@@ -620,7 +622,7 @@ image_flattening_fail_cases: tuple[tuple, ...] = (
 
 
 @pytest.mark.parametrize("test_params", image_flattening_fail_cases)
-def test_flatten_image_fails(test_params: tuple):
+def test_flatten_image_fails(test_params: tuple[str, int, Any, bool]):
 
     # Helper function to create an array simulating an image stack
     def create_test_array(shape: tuple, frames: int, dtype: str) -> np.ndarray:
