@@ -6,7 +6,8 @@ from typing import List
 
 import ispyb
 import ispyb.sqlalchemy as models
-import matplotlib.pyplot as plt
+
+# import matplotlib.pyplot as plt
 import mrcfile
 import numpy as np
 import pylatex
@@ -135,7 +136,7 @@ class SessionResults:
             with doc.create(pylatex.Table(position="h!")) as table_environment:
                 table_environment.append(pylatex.NoEscape(r"\centering"))
                 table_environment.append(pylatex.NoEscape(r"\label{collection_params}"))
-                table_environment.add_caption("Parameters set during collection")
+                table_environment.add_caption("Parameters used for data collection")
                 with doc.create(pylatex.Tabular("|c|c|")) as table:
                     table.add_hline()
                     table.add_row(("Parameter", "Value"))
@@ -148,7 +149,9 @@ class SessionResults:
                             pylatex.NoEscape(str(self.pixel_size * 10) + r" $\AA$"),
                         )
                     )
-                    table.add_row(("Image size", self.image_size))
+                    table.add_row(
+                        ("Image size", f"{self.image_size[0]} x {self.image_size[1]}")
+                    )
                     table.add_row(("Exposure time", f"{self.exposure_time} s"))
                     table.add_row(("Number of frames", self.frame_count))
                     table.add_row(
@@ -205,7 +208,7 @@ class SessionResults:
         with doc.create(pylatex.Section("Particle classification")):
             doc.append(
                 pylatex.NoEscape(
-                    "Before classification the particles are binned to a pixel size"
+                    "Before classification the particles are binned to a pixel size "
                     r"that gives a Nyquist frequency of around 8.5 $\AA$. "
                     "The binned pixel size for this collection was "
                     rf"{self.binned_pixel_size} $\AA$."
@@ -213,17 +216,24 @@ class SessionResults:
             )
             doc.append(pylatex.NoEscape("\n\n"))
             doc.append(
-                f"{self.class2d_batches} batches of 2D classification were run, "
-                "with 50,000 particles in each batch.\n"
+                pylatex.NoEscape(
+                    f"{self.class2d_batches} batches of 2D classification were run, "
+                    "with 50,000 particles in each batch. "
+                    r"Figure \ref{class3d_table} shows some examples of the classes "
+                    "which were generated. "
+                )
             )
+            doc.append(pylatex.NoEscape("\n"))
 
             with doc.create(pylatex.Figure(position="h")) as class2d_image:
-                class2d_image.add_image(self.example_class2d[0], width="100px")
-                class2d_image.append(pylatex.NoEscape(r"\hspace{10px}"))
-                class2d_image.add_image(self.example_class2d[1], width="100px")
+                for i in range(min(len(self.example_class2d), 18)):
+                    # Display up to 18 examples of 2d classes
+                    class2d_image.add_image(self.example_class2d[i], width="50px")
+                    class2d_image.append(pylatex.NoEscape(r"\hspace{1px}"))
                 class2d_image.add_caption(
-                    "The most populous classes from the first 2D classification batch"
+                    "The most populous two classes from some 2D classification batches"
                 )
+                class2d_image.append(pylatex.NoEscape(r"\label{class2d_images}"))
 
             doc.append(
                 pylatex.NoEscape(
@@ -261,14 +271,14 @@ class SessionResults:
                         )
                     table.add_hline()
 
-            with doc.create(pylatex.Figure(position="h")) as projections_3d:
-                plt.imshow(self.class3d_flat_x)
-                projections_3d.add_plot(width="75px")
-                plt.imshow(self.class3d_flat_y)
-                projections_3d.add_plot(width="75px")
-                plt.imshow(self.class3d_flat_z)
-                projections_3d.add_plot(width="75px")
-                projections_3d.add_caption("Projections of the best 3D class")
+            # with doc.create(pylatex.Figure(position="h")) as projections_3d:
+            #    plt.imshow(self.class3d_flat_x)
+            #    projections_3d.add_plot(width="75px")
+            #    plt.imshow(self.class3d_flat_y)
+            #    projections_3d.add_plot(width="75px")
+            #    plt.imshow(self.class3d_flat_z)
+            #    projections_3d.add_plot(width="75px")
+            #    projections_3d.add_caption("Projections of the best 3D class")
 
             with doc.create(pylatex.Figure(position="h")) as angdist_image:
                 angdist_image.add_image(self.class3d_angdist, width="200px")
@@ -414,34 +424,38 @@ class SessionResults:
             )[0][0]
             class2d_program_id = self.autoproc_ids[class2d_loc]
             if class2d_program_id:
-                class2d_group = (
+                class2d_all_groups = (
                     session.query(models.ParticleClassificationGroup)
                     .filter(
                         models.ParticleClassificationGroup.programId
                         == class2d_program_id
                     )
-                    .first()
+                    .all()
                 )
 
-                if class2d_group:
-                    class2d_classes = (
-                        session.query(models.ParticleClassification)
-                        .filter(
-                            models.ParticleClassification.particleClassificationGroupId
-                            == class2d_group.particleClassificationGroupId
+                self.example_class2d = []
+                if class2d_all_groups:
+                    for class2d_group in class2d_all_groups:
+                        class2d_classes = (
+                            session.query(models.ParticleClassification)
+                            .filter(
+                                models.ParticleClassification.particleClassificationGroupId
+                                == class2d_group.particleClassificationGroupId
+                            )
+                            .filter(models.ParticleClassification.selected == 1)
+                            .order_by(
+                                models.ParticleClassification.particlesPerClass.desc()
+                            )
+                            .all()
                         )
-                        .filter(models.ParticleClassification.selected == 1)
-                        .order_by(
-                            models.ParticleClassification.particlesPerClass.desc()
-                        )
-                        .all()
-                    )
 
-                    if class2d_classes:
-                        self.example_class2d = [
-                            class2d_classes[0].classImageFullPath,
-                            class2d_classes[1].classImageFullPath,
-                        ]
+                        if class2d_classes:
+                            self.example_class2d.append(
+                                class2d_classes[0].classImageFullPath
+                            )
+                            self.example_class2d.append(
+                                class2d_classes[1].classImageFullPath
+                            )
             else:
                 print("Cannot find Class2D job")
 
