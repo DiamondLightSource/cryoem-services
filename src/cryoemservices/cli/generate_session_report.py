@@ -53,6 +53,11 @@ class SessionResults:
         self.number_of_grid_squares = len(
             list(Path(self.image_directory).glob("GridSquare*"))
         )
+        self.file_type = list(
+            list(Path(self.image_directory).glob("GridSquare*"))[0].glob(
+                "Data/FoilHole_*"
+            )
+        )[0].suffix
 
         # Get all processing jobs
         self.autoproc_ids = []
@@ -91,6 +96,7 @@ class SessionResults:
         self.example_micrographs: List[str] = []
         self.example_picks: List[str] = []
         self.mean_picks: float = 0
+        self.median_motion: float = 0
         self.median_ctf_resolution: float = 0
         self.particle_diameter: float = 0
 
@@ -131,7 +137,12 @@ class SessionResults:
         doc.preamble.append(pylatex.Command("date", pylatex.NoEscape(r"\today")))
         doc.append(pylatex.NoEscape(r"\maketitle"))
 
-        with doc.create(pylatex.Section("Data collection parameters")):
+        with doc.create(pylatex.Section("Data collection")):
+            doc.append(
+                f"A total of {self.micrograph_count} micrographs were collected "
+                f"across {self.number_of_grid_squares} grid squares."
+            )
+            doc.append(pylatex.NoEscape("\n"))
             doc.append("The following parameters were set during data collection:\n")
             with doc.create(pylatex.Table(position="h!")) as table_environment:
                 table_environment.append(pylatex.NoEscape(r"\centering"))
@@ -141,6 +152,7 @@ class SessionResults:
                     table.add_hline()
                     table.add_row(("Parameter", "Value"))
                     table.add_hline()
+                    table.add_row(("File format", self.file_type))
                     table.add_row(("Voltage", f"{self.voltage} keV"))
                     table.add_row(("Magnification", self.magnification))
                     table.add_row(
@@ -173,19 +185,23 @@ class SessionResults:
 
         with doc.create(pylatex.Section("Pre-processing")):
             doc.append(
-                f"A total of {self.micrograph_count} micrographs were then collected "
-                f"across {self.number_of_grid_squares} grid squares.\n"
+                "Pre-processing of the micrographs was carried out, "
+                "consisting of motion correction, CTF estimation and particle picking. "
             )
+            doc.append(pylatex.NoEscape("\n"))
             doc.append(
                 pylatex.NoEscape(
-                    rf"These had a median CTF max resolution of {self.median_ctf_resolution} $\AA$"
+                    rf"The median motion was {self.median_motion} $\AA$ and"
+                    "the median resolution from CTF correction was "
+                    rf"{self.median_ctf_resolution} $\AA$"
                 )
             )
+            doc.append(pylatex.NoEscape("\n"))
             doc.append(
                 pylatex.NoEscape(
-                    f"\nParticle picking gave a mean of {self.mean_picks} particles "
-                    "per micrograph, and an estimated particle diameter of "
-                    rf"{self.particle_diameter} $\AA$."
+                    f"During particle picking a mean of {self.mean_picks} particles "
+                    "were found per micrograph, and an estimated particle diameter of "
+                    rf"{self.particle_diameter} $\AA$ was determined."
                 )
             )
 
@@ -202,7 +218,8 @@ class SessionResults:
                 pick_image.append(pylatex.NoEscape(r"\hspace{20px}"))
                 pick_image.add_image(self.example_picks[1], width="200px")
                 pick_image.add_caption(
-                    "The first and last motion micrographs, with particle picks overlaid"
+                    "The first and last motion corrected micrographs, "
+                    "with particle picks overlaid"
                 )
 
         with doc.create(pylatex.Section("Particle classification")):
@@ -390,6 +407,19 @@ class SessionResults:
             )[0][0]
             preprocess_program_id = self.autoproc_ids[preprocessing_loc]
             if preprocess_program_id:
+                self.median_motion = (
+                    session.query(
+                        func.percentile_disc(0.5)
+                        .within_group(models.MotionCorrection.totalMotion)
+                        .over(partition_by=models.MotionCorrection.autoProcProgramId)
+                    )
+                    .filter(
+                        models.MotionCorrection.autoProcProgramId
+                        == preprocess_program_id
+                    )
+                    .first()[0]
+                )
+
                 self.median_ctf_resolution = (
                     session.query(
                         func.percentile_disc(0.5)
