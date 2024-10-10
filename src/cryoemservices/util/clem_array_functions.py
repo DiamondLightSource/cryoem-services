@@ -788,7 +788,7 @@ def write_stack_to_tiff(
     photometric: Optional[str] = None,  # Valid options listed below
     color_map: Optional[np.ndarray] = None,
     extended_metadata: Optional[str] = None,  # Stored as an extended string
-):
+) -> Path:
     """
     Writes the NumPy array as a calibrated, ImageJ-compatible TIFF image stack.
     """
@@ -852,3 +852,5 @@ def write_stack_to_tiff(
             "Labels": image_labels,
         },
     )
+
+    return save_name

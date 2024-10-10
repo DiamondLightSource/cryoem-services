@@ -13,7 +13,9 @@ from typing import Optional
 from xml.etree import ElementTree as ET
 
 import numpy as np
+from pydantic import BaseModel, ValidationError
 from readlif.reader import LifFile
+from zocalo.wrapper import BaseWrapper
 
 from cryoemservices.util.clem_array_functions import (
     estimate_int_dtype,
@@ -23,7 +25,13 @@ from cryoemservices.util.clem_array_functions import (
 from cryoemservices.util.clem_raw_metadata import get_image_elements
 
 # Create logger object to output messages with
-logger = logging.getLogger("cryoemservices.services.clem_process_raw_lifs")
+logger = logging.getLogger("cryoemservices.wrappers.clem_process_raw_lifs")
+
+
+class LIFToStackParameters(BaseModel):
+    lif_file: Path
+    root_folder: str  # Name of the folder to treat as the root folder for LIF files
+    number_of_processes: int = 1  # Number of processing threads to run
 
 
 def get_lif_xml_metadata(
@@ -54,7 +62,7 @@ def process_lif_file(
     scene_num: int,
     metadata: ET.Element,
     save_dir: Path,
-) -> bool:
+) -> dict | None:
     """
     Takes the LIF file and its corresponding metadata and loads the relevant sub-stack,
     with each channel as its own array. Rescales their intensity values to utilise the
@@ -109,6 +117,7 @@ def process_lif_file(
     # timestamps = metadata.find("Data/Image/TimeStampList")
 
     # Process channels as individual TIFFs
+    output_tiffs: list[str] = []
     for c in range(len(colors)):
 
         # Get color
@@ -168,7 +177,7 @@ def process_lif_file(
 
         # Save as a greyscale TIFF
         logger.info("Processing image stack")
-        write_stack_to_tiff(
+        img_stk_file = write_stack_to_tiff(
             array=arr,
             save_dir=img_dir,
             file_name=color,
@@ -180,15 +189,27 @@ def process_lif_file(
             image_labels=image_labels,
             photometric="minisblack",
         )
+        # Collect the image stacks created
+        output_tiffs.append(img_stk_file.resolve().as_posix())
 
-    return True
+    # Return None if no files were generated
+    if len(output_tiffs) == 0:
+        return None
+    # Collect the files that have been generated
+    output_files = {
+        "image_stacks": output_tiffs,
+        "metadata": img_xml_file,
+        "series_name": "",
+    }
+    # Return the actual files as a dict
+    return output_files
 
 
 def convert_lif_to_stack(
     file: Path,
     root_folder: str,  # Name of the folder to treat as the root folder for LIF files
     number_of_processes: int = 1,  # Number of processing threads to run
-) -> bool:
+):
     """
     Takes a LIF file, extracts its metadata as an XML tree, then parses through the
     sub-images stored inside it, saving each channel in the sub-image as a separate
@@ -237,7 +258,7 @@ def convert_lif_to_stack(
         logger.error(
             f"Subpath {root_folder!r} was not found in image path " f"{str(file)!r}"
         )
-        return False
+        return None
 
     # Create folders if not already present
     processed_dir = Path("/".join(path_parts)).parent / file_name  # Processed images
@@ -291,8 +312,46 @@ def convert_lif_to_stack(
 
     # Parallel process image stacks
     with mp.Pool(processes=num_procs) as pool:
-        result = pool.starmap(process_lif_file, pool_args)
+        results = pool.starmap(process_lif_file, pool_args)
 
-    if result:
-        return all(result)
-    return False
+    # If any of the sub-images fail, return None for this process
+    if any(result is None for result in results):
+        return None
+
+    return results
+
+
+class LIFToStackWrapper(BaseWrapper):
+    """ """
+
+    def run(self) -> bool:
+        assert hasattr(self, "recwrap"), "No recipewrapper object found"
+        params_dict = self.recwrap.recipe_step["job_parameters"]
+        try:
+            params = LIFToStackParameters(**params_dict)
+        except (ValidationError, TypeError) as e:
+            logger.warning(
+                f"LIFToStackParameters validation failed for parameters: {params_dict} "
+                f"with exception: {e}"
+            )
+            return False
+
+        # Collect the output files
+        results = convert_lif_to_stack(
+            # Params go in here
+            file=params.lif_file,
+            root_folder=params.root_folder,  # Name of the folder to treat as the root folder for LIF files
+            number_of_processes=params.number_of_processes,  # Number of processing threads to run
+        )
+
+        # Return False if any of the output files are missing
+        if any(result is None for result in results):
+            return False
+        # Send each subset of output files to Murfey for registration
+        for result in results:
+            murfey_params = {
+                "register": "register_lif_preprocessing_result",
+                "output_files": result,
+            }
+            self.recwrap.send_to("murfey_feedback", murfey_params)
+        return True

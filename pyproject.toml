@@ -103,6 +103,7 @@ dev = [
 [project.entry-points."zocalo.wrappers"]
     Class2D = "cryoemservices.wrappers.class2d_wrapper:Class2DWrapper"
     Class3D = "cryoemservices.wrappers.class3d_wrapper:Class3DWrapper"
+    LIFToStack = "cryoemservices.wrappers.clem_process_raw_lifs:LIFToStack"
     Refine3D = "cryoemservices.wrappers.refine3d_wrapper:Refine3DWrapper"
 
 [tool.setuptools]
