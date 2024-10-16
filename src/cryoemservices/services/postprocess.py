@@ -130,13 +130,13 @@ class PostProcess(CommonService):
             and postprocess_params.symmetry == "C1"
             and postprocess_params.particles_file
         ):
-            estimated_symmetry = determine_symmetry(
+            estimated_symmetry, symmetrised_reference = determine_symmetry(
                 Path(postprocess_params.half_map).parent / "run_class001.mrc"
             )
             refine_params = {
                 "refine_job_dir": f"{project_dir}/Refine3D/job{postprocess_job_number + 1:03}",
                 "particles_file": postprocess_params.particles_file,
-                "rescaled_class_reference": postprocess_params.rescaled_class_reference,
+                "rescaled_class_reference": symmetrised_reference,
                 "is_first_refinement": True,
                 "number_of_particles": postprocess_params.number_of_particles,
                 "batch_size": postprocess_params.number_of_particles,
