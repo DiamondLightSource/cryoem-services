@@ -23,6 +23,31 @@ from cryoemservices.util.relion_service_options import (
 logger = logging.getLogger("relion.refine.wrapper")
 
 
+def find_mask_threshold(density_file: str):
+    """Estimate a mask threshold by subtracting the noise"""
+    with mrcfile.open(density_file) as mrc:
+        density_data = mrc.data
+
+    # Histogram across all reasonable densities
+    histogram_bins = np.arange(-0.1005, 0.101, 0.001)  # 201 bins
+    bin_centres = histogram_bins[:-1] + (histogram_bins[1] - histogram_bins[0]) / 2
+    density_histogram = np.histogram(density_data.flatten(), bins=histogram_bins)[0]
+
+    # Subtract the noise (density < 0 side) from the histogram
+    noise_subtracted = np.copy(density_histogram)
+    noise_subtracted[100] = 0
+    for i in range(100):
+        noise_subtracted[-i - 1] -= noise_subtracted[i]
+        noise_subtracted[i] = 0
+
+    # Threshold at the maximum of the remaining density
+    threshold = bin_centres[noise_subtracted == max(noise_subtracted)][0]
+    if threshold < density_data[0, 0, 0]:
+        # Case of density appearing from edges inwards
+        threshold = density_data[0, 0, 0]
+    return threshold
+
+
 class RefineParameters(BaseModel):
     refine_job_dir: str = Field(..., min_length=1)
     particles_file: str = Field(..., min_length=1)
@@ -37,7 +62,6 @@ class RefineParameters(BaseModel):
     mask_diameter: float = 190
     mask: Optional[str] = None
     mask_lowpass: float = 15
-    mask_threshold_fraction: float = 0.2
     mask_extend: int = 3
     mask_soft_edge: int = 3
     mpi_run_command: str = "srun -n 5"
@@ -264,12 +288,8 @@ class Refine3DWrapper(zocalo.wrapper.BaseWrapper):
             self.log.info(f"Running {self.mask_job_type} in {mask_job_dir}")
 
             # Figure out the density threshold to use
-            with mrcfile.open(
+            mask_threshold = find_mask_threshold(
                 f"{refine_params.refine_job_dir}/run_class001.mrc"
-            ) as mrc:
-                class_header = mrc.header
-            mask_threshold = (
-                class_header["dmax"] * refine_params.mask_threshold_fraction
             )
             refine_params.relion_options.mask_threshold = mask_threshold
 
