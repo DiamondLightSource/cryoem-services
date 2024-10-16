@@ -251,9 +251,9 @@ def test_refine3d_wrapper_with_mask(
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.wrappers.refine3d_wrapper.subprocess.run")
 @mock.patch("workflows.recipe.wrapper.RecipeWrapper.send_to")
-@mock.patch("cryoemservices.services.extract.mrcfile.open")
+@mock.patch("cryoemservices.wrappers.refine3d_wrapper.find_mask_threshold")
 def test_refine3d_wrapper_no_mask(
-    mock_mrcfile,
+    mock_mask_threshold,
     mock_recwrap_send,
     mock_subprocess,
     mock_environment,
@@ -269,7 +269,7 @@ def test_refine3d_wrapper_no_mask(
     mock_subprocess().stdout = "stdout".encode("utf8")
     mock_subprocess().stderr = "stderr".encode("utf8")
 
-    mock_mrcfile().__enter__().header = {"dmax": 10}
+    mock_mask_threshold.return_value = 0.1
 
     rescaling_command = [
         "relion_image_handler",
@@ -300,7 +300,6 @@ def test_refine3d_wrapper_no_mask(
                     "mask_extend": 2,
                     "mask_lowpass": 14,
                     "mask_soft_edge": 2,
-                    "mask_threshold_fraction": "0.3",
                     "number_of_particles": 10000,
                     "particle_diameter": "180",
                     "particles_file": f"{tmp_path}/Extract/job020/particles.star",
@@ -427,7 +426,7 @@ def test_refine3d_wrapper_no_mask(
         "--lowpass",
         "14.0",
         "--ini_threshold",
-        "3.0",
+        "0.1",
         "--extend_inimask",
         "2",
         "--width_soft_edge",
@@ -458,7 +457,7 @@ def test_refine3d_wrapper_no_mask(
             "success": True,
         },
     )
-    output_relion_options["mask_threshold"] = 3.0
+    output_relion_options["mask_threshold"] = 0.1
     mock_recwrap_send.assert_any_call(
         "node_creator",
         {

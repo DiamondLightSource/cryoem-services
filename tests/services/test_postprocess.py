@@ -161,7 +161,7 @@ def test_postprocess_first_refine(
                         "buffer_lookup": {"particle_classification_group_id": 2},
                         "buffer_store": 3,
                         "class_distribution": 1,
-                        "class_image_full_path": f"{tmp_path}/PostProcess/job015/postprocess.mrc",
+                        "class_image_full_path": f"{tmp_path}/PostProcess/job015/postprocess_masked.mrc",
                         "class_number": 1,
                         "estimated_resolution": 4.0,
                         "ispyb_command": "buffer",
