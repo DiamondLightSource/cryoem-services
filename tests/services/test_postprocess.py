@@ -235,7 +235,7 @@ def test_postprocess_first_refine_without_symmetry(
     # Symmetry C1, as this will result in a symmetry search, mocked to get T
     symmetry = "C1"
     estimated_symmetry = "T"
-    mock_symmetry.return_value = estimated_symmetry
+    mock_symmetry.return_value = (estimated_symmetry, str(tmp_path / "class_sym_T.mrc"))
 
     # Create the expected input files
     (tmp_path / "Refine3D/job013").mkdir(parents=True)
@@ -318,7 +318,7 @@ def test_postprocess_first_refine_without_symmetry(
             "parameters": {
                 "refine_job_dir": f"{tmp_path}/Refine3D/job016",
                 "particles_file": f"{tmp_path}/Extract/job012/particles.star",
-                "rescaled_class_reference": str(tmp_path / "class_ref.mrc"),
+                "rescaled_class_reference": str(tmp_path / "class_sym_T.mrc"),
                 "is_first_refinement": True,
                 "number_of_particles": 5,
                 "batch_size": 5,
