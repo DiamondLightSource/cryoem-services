@@ -257,7 +257,7 @@ class PostProcess(CommonService):
                 },
                 "buffer_command": {"ispyb_command": "insert_particle_classification"},
                 "class_number": postprocess_params.class_number,
-                "class_image_full_path": f"{postprocess_params.job_dir}/postprocess.mrc",
+                "class_image_full_path": f"{postprocess_params.job_dir}/postprocess_masked.mrc",
                 "particles_per_class": postprocess_params.number_of_particles,
                 "class_distribution": 1,
                 "rotation_accuracy": classes_loop[0, 2],
