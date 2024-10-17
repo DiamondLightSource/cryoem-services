@@ -62,8 +62,8 @@ dev = [
     Bug-Tracker = "https://github.com/DiamondLightSource/cryoem-services/issues"
     GitHub = "https://github.com/DiamondLightSource/cryoem-services"
 [project.scripts]
+    "clem.align_and_merge" = "cryoemservices.cli.clem_align_and_merge:run"
     "clem.lif_to_stack" = "cryoemservices.cli.clem_lif_to_stack:run"
-    "clem.process_stacks" = "cryoemservices.cli.clem_process_stacks:run"
     "clem.tiff_to_stack" = "cryoemservices.cli.clem_tiff_to_stack:run"
     "combine_star_files" = "cryoemservices.pipeliner_plugins.combine_star_files:main"
     "cryoemservices.reextract" = "cryoemservices.pipeliner_plugins.reextract:run"
@@ -103,6 +103,7 @@ dev = [
 [project.entry-points."zocalo.wrappers"]
     Class2D = "cryoemservices.wrappers.class2d_wrapper:Class2DWrapper"
     Class3D = "cryoemservices.wrappers.class3d_wrapper:Class3DWrapper"
+    LIFToStack = "cryoemservices.wrappers.clem_process_raw_lifs:LIFToStack"
     Refine3D = "cryoemservices.wrappers.refine3d_wrapper:Refine3DWrapper"
 
 [tool.setuptools]
