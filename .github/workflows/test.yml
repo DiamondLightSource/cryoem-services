@@ -46,9 +46,14 @@ jobs:
           pip install pytest pytest-cov pytest-mock pytest-datafiles
           pip install .
 
+      - name: Install fork of CCP-EM pipeliner
+        run: |
+          git clone -b diamond_tomo --single-branch https://gitlab.com/stephen-riggs/ccpem-pipeliner.git
+          pip install ./ccpem-pipeliner
+
       - name: Test with pytest
         run: |
-          PYTHONDEVMODE=1 pytest -v -ra --cov=cryoemservices --cov-report=xml --cov-branch
+          PYTHONDEVMODE=1 pytest -v -ra --cov=cryoemservices --cov-report=xml --cov-branch tests
 
       - name: Upload to Codecov
         uses: codecov/codecov-action@v4

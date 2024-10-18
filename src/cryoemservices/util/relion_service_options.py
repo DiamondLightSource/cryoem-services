@@ -250,7 +250,6 @@ def generate_service_options(
         "particle_diameter": relion_options.mask_diameter,
         "use_gpu": True,
         "gpu_ids": "0,1,2,3",
-        "nr_mpi": 1,
         "nr_threads": 12,
     }
 
