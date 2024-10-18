@@ -206,7 +206,7 @@ def test_postprocess_first_refine_has_symmetry(
                 "command": " ".join(postprocess_command),
                 "stdout": "+ apply b-factor of: 50\n+ FINAL RESOLUTION: 4.5\n",
                 "stderr": "stderr",
-                "alias": f"{symmetry}_symmetry",
+                "alias": f"PostProcess_{symmetry}_symmetry",
                 "success": True,
             },
             "content": "dummy",
