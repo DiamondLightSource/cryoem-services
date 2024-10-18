@@ -8,6 +8,36 @@ from typing import List, Optional
 import starfile
 
 
+def compare_optics_tables(split_file: Path, reference_optics: list):
+    with open(split_file, "r") as added_starfile:
+        while True:
+            optics_line = added_starfile.readline()
+            if not optics_line:
+                raise IndexError(f"Cannot find optics group in {split_file}")
+            if optics_line.startswith("opticsGroup"):
+                new_optics = optics_line.split()
+                break
+
+    if len(new_optics) != len(reference_optics):
+        raise IndexError(
+            "Cannot combine star files with different length optics tables."
+        )
+    for optics_label in range(len(reference_optics)):
+        ref_value = reference_optics[optics_label]
+        new_value = new_optics[optics_label]
+        if ref_value[0].isdigit() and new_value[0].isdigit():
+            if float(ref_value) != float(new_value):
+                raise IndexError(
+                    "Cannot combine star files with different optics tables: "
+                    f"{ref_value}, {new_value}"
+                )
+        elif ref_value != new_value:
+            raise IndexError(
+                "Cannot combine star files with different optics tables. "
+                f"{ref_value}, {new_value}"
+            )
+
+
 def write_empty_particles_file(file_to_write, optics_dataframe, particles_dataframe):
     """Write a particles star file with no particles, ready for appending to"""
     with open(file_to_write, "w") as optics_file:
@@ -22,7 +52,11 @@ def write_empty_particles_file(file_to_write, optics_dataframe, particles_datafr
             optics_file.write(f"_{particles_loop_tag}\n")
 
 
-def combine_star_files(files_to_process: List[Path], output_dir: Path):
+def combine_star_files(
+    files_to_process: List[Path],
+    output_dir: Path,
+    output_name: str = "particles_all.star",
+):
     """Combines any number of particle star files into a single file.
 
     Parameters:
@@ -32,7 +66,7 @@ def combine_star_files(files_to_process: List[Path], output_dir: Path):
     total_particles = 0
 
     # Never read particles_all.star first as it will be big
-    if files_to_process[0].name == "particles_all.star":
+    if files_to_process[0].name == output_name:
         files_to_process.append(files_to_process[0])
         files_to_process = files_to_process[1:]
 
@@ -65,33 +99,7 @@ def combine_star_files(files_to_process: List[Path], output_dir: Path):
     # Add the remaining files using append mode for speed and memory efficiency
     for split_file in files_to_process:
         # Check that the files have the same optics tables
-        with open(split_file, "r") as added_starfile:
-            while True:
-                optics_line = added_starfile.readline()
-                if not optics_line:
-                    raise IndexError(f"Cannot find optics group in {split_file}")
-                if optics_line.startswith("opticsGroup"):
-                    new_optics = optics_line.split()
-                    break
-
-        if len(new_optics) != len(reference_optics):
-            raise IndexError(
-                "Cannot combine star files with different length optics tables."
-            )
-        for optics_label in range(len(reference_optics)):
-            ref_value = reference_optics[optics_label]
-            new_value = new_optics[optics_label]
-            if ref_value[0].isdigit() and new_value[0].isdigit():
-                if float(ref_value) != float(new_value):
-                    raise IndexError(
-                        "Cannot combine star files with different optics tables: "
-                        f"{ref_value}, {new_value}"
-                    )
-            elif ref_value != new_value:
-                raise IndexError(
-                    "Cannot combine star files with different optics tables. "
-                    f"{ref_value}, {new_value}"
-                )
+        compare_optics_tables(split_file, reference_optics)
 
         # Add the particles lines to the final star file
         file_particles_count = 0
@@ -111,9 +119,9 @@ def combine_star_files(files_to_process: List[Path], output_dir: Path):
         print(f"Adding {split_file} with {file_particles_count} particles")
         number_of_star_files += 1
 
-    (output_dir / ".particles_all_tmp.star").rename(output_dir / "particles_all.star")
+    (output_dir / ".particles_all_tmp.star").rename(output_dir / output_name)
     print(
-        f"Combined {number_of_star_files} files into particles_all.star "
+        f"Combined {number_of_star_files} files into {output_name}r "
         f"with {total_particles} particles"
     )
 
