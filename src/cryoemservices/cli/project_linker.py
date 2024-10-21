@@ -52,6 +52,17 @@ def run():
                     ),
                 ]
             )
+        elif f.is_symlink():
+            # Case of symlinks in the project directory
+            source = f.resolve()
+            try:
+                (destination_path / f.relative_to(project_path)).symlink_to(
+                    destination_path / source.relative_to(project_path)
+                    if source.is_relative_to(project_path)
+                    else source
+                )
+            except FileExistsError:
+                pass
         elif f.is_dir():
             job_type_dir = destination_path / f.relative_to(project_path)
             job_type_dir.mkdir(exist_ok=True)
@@ -97,14 +108,3 @@ def run():
                         )
                     except FileExistsError:
                         pass
-        elif f.is_symlink():
-            # Case of symlinks in the project directory
-            source = f.resolve()
-            try:
-                (destination_path / f.relative_to(project_path)).symlink_to(
-                    destination_path / source.relative_to(project_path)
-                    if source.is_relative_to(project_path)
-                    else source
-                )
-            except FileExistsError:
-                pass
