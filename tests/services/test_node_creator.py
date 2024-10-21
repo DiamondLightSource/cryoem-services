@@ -48,6 +48,7 @@ def setup_and_run_node_creation(
     job_type: str,
     input_file: Path,
     output_file: Path,
+    skip_short_pipeline: bool = False,
     results: dict = {},
 ):
     """
@@ -99,6 +100,8 @@ def setup_and_run_node_creation(
     # assert (project_dir / job_dir / "job_metadata.json").exists()
     assert (project_dir / job_dir / "default_pipeline.star").exists()
     assert (project_dir / job_dir / ".CCPEM_pipeliner_jobinfo").exists()
+    if not skip_short_pipeline:
+        assert (project_dir / "short_pipeline.star").exists()
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
