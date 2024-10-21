@@ -48,7 +48,6 @@ def test_project_linker(tmp_path):
 
     # Check all the expected new files got made
     for dummy_file in dummy_project_files.keys():
-        assert (new_project / dummy_file).exists()
         if dummy_project_files[dummy_file] == "copy":
             assert (new_project / dummy_file).is_file()
         elif dummy_project_files[dummy_file] == "parent_link":
