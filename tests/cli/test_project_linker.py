@@ -21,6 +21,7 @@ def test_project_linker(tmp_path):
         "default_pipeline.star": "copy",
         ".gui_projectdir.star": "copy",
         "MotionCorr/MC_link": "symlink",
+        "top_level_symlink": "symlink",
     }
 
     # Make a sample project to copy from
