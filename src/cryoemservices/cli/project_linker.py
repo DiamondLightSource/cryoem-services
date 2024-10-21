@@ -133,3 +133,4 @@ def run():
         (destination_path / "short_pipeline.star").rename(
             destination_path / "default_pipeline.star"
         )
+
