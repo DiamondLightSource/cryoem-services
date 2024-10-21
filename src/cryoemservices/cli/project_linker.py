@@ -89,11 +89,11 @@ def run():
                             except FileExistsError:
                                 pass
                 else:
-                    # Case of symlinks in the job directory
+                    # Case of symlinks used as job aliases
                     job_dir_source = job_dir.resolve()
                     try:
                         (destination_path / job_type_dir / job_dir.name).symlink_to(
-                            job_dir_source
+                            destination_path / job_dir_source.relative_to(project_path)
                         )
                     except FileExistsError:
                         pass
@@ -101,6 +101,10 @@ def run():
             # Case of symlinks in the project directory
             source = f.resolve()
             try:
-                (destination_path / f.relative_to(project_path)).symlink_to(source)
+                (destination_path / f.relative_to(project_path)).symlink_to(
+                    destination_path / source.relative_to(project_path)
+                    if source.is_relative_to(project_path)
+                    else source
+                )
             except FileExistsError:
                 pass

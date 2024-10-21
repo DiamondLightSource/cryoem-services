@@ -33,6 +33,8 @@ def test_project_linker(tmp_path):
             (original_project / dummy_file).symlink_to(symlink_target)
         else:
             (original_project / dummy_file).touch()
+    external_link_target = tmp_path / "external_link_target"
+    (original_project / "external_link").symlink_to(external_link_target)
 
     # Run the project linker
     sys.argv = [
@@ -46,13 +48,19 @@ def test_project_linker(tmp_path):
 
     # Check all the expected new files got made
     for dummy_file in dummy_project_files.keys():
+        assert (new_project / dummy_file).exists()
         if dummy_project_files[dummy_file] == "copy":
             assert (new_project / dummy_file).is_file()
         elif dummy_project_files[dummy_file] == "parent_link":
             assert (new_project / dummy_file).parent.is_symlink()
         elif dummy_project_files[dummy_file] == "symlink":
             assert (new_project / dummy_file).is_symlink()
+            assert (new_project / dummy_file).resolve() == (
+                new_project / dummy_file
+            ).parent / "link_target"
         elif dummy_project_files[dummy_file] == "ignore":
             assert not (new_project / dummy_file).exists()
         else:
             raise RuntimeError("Unknown file creation option")
+    assert (new_project / "external_link").is_symlink()
+    assert (new_project / "external_link").resolve() == external_link_target
