@@ -40,7 +40,7 @@ def run():
     required_dirs = (".Nodes", ".TMP_runfiles")
 
     ignore_file_extensions = {"Class2D": [".jpeg"]}
-    skip_class2d_ignore_jobs = {"Class2D": 0, "IceBreaker": 10}
+    skip_class2d_ignore_jobs = {"Class2D": 1, "IceBreaker": 10}
 
     project_path = Path(args.project).resolve()
     destination_path = Path(args.destination).resolve()
@@ -82,7 +82,7 @@ def run():
                 ):
                     # Skip copying Class2D and IceBreaker particle jobs if requested
                     job_number = int(job_dir.name[3:])
-                    if job_number > skip_class2d_ignore_jobs[job_type_dir.name]:
+                    if job_number >= skip_class2d_ignore_jobs[job_type_dir.name]:
                         continue
 
                 if not job_dir.is_symlink():
@@ -133,4 +133,3 @@ def run():
         (destination_path / "short_pipeline.star").rename(
             destination_path / "default_pipeline.star"
         )
-
