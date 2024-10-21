@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import numpy as np
 from gemmi import cif
+from scipy.cluster.hierarchy import fcluster, linkage
 
 from cryoemservices.pipeliner_plugins.combine_star_files import (
     combine_star_files,
@@ -66,3 +68,55 @@ def combine_batches(
         (job_dir / ".tmp_particles.star").unlink()
 
     return job_dir / "particles_rebatch.star"
+
+
+def sample_orientations(particles_file: Path, threshold: float = 0.1):
+    particle_ctf_max_res = np.array([])
+    particle_angles = []
+    particle_norm_angles = np.array([])
+    with open(particles_file, "r") as particles_data:
+        while True:
+            line = particles_data.readline()
+            if not line:
+                break
+            if line.strip()[0].isnumeric():
+                particle_ctf_max_res = np.append(
+                    particle_ctf_max_res, float(line.split()[10])
+                )  # wherever ctf max res is
+                particle_angles.append(
+                    (
+                        float(line.split()[11]),
+                        float(line.split()[12]),  # wherever theta, phi are in the line
+                    )
+                )
+                particle_norm_angles = np.append(
+                    particle_norm_angles,
+                    [
+                        np.sin(float(line.split()[11]) / 2),  # if theta is 0 to 2pi
+                        np.sin(float(line.split()[12]) / 2),  # if phi is -pi to pi
+                    ],
+                )
+
+    clusters = linkage(particle_norm_angles, method="single", metric="euclidean")
+    clustered_particles = fcluster(clusters, threshold, criterion="distance")
+
+    selected_particles = np.zeros(len(particle_ctf_max_res), dtype=bool)
+
+    number_of_clusters = max(clustered_particles)
+    for cluster_id in range(number_of_clusters):
+        cluster_ctfs = particle_ctf_max_res[clustered_particles == cluster_id]
+        if min(cluster_ctfs) > 5:
+            # some threshold on bad clusters (possibly from class2d res as well?)
+            continue
+
+        particles_to_use = len(clustered_particles) / number_of_clusters / 10
+        if len(cluster_ctfs) < particles_to_use:
+            # some threshold on having very few particles
+            selected_particles[clustered_particles == cluster_id] = True
+        else:
+            ctf_threshold = sorted(cluster_ctfs)[particles_to_use]
+            selected_particles[clustered_particles == cluster_id][
+                cluster_ctfs < ctf_threshold
+            ] = True
+
+    return selected_particles
