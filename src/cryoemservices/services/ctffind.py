@@ -147,6 +147,12 @@ class CTFFind(CommonService):
             rw.transport.nack(header)
             return
 
+        if ctf_params.ctffind_version not in [4, 5]:
+            self.log.error(f"Cannot use CTFFind version {ctf_params.ctffind_version}")
+            rw.transport.nack(header)
+            return
+        self.log.info(f"Using CTFFind version {ctf_params.ctffind_version}")
+
         # Check if this file has been run before
         if Path(ctf_params.output_image).is_file():
             job_is_rerun = True
