@@ -32,6 +32,15 @@ class CTFParameters(BaseModel):
     astigmatism_restrain: str = "no"
     additional_phase_shift: str = "no"
     expert_options: str = "no"
+    determine_tilt: str = "no"
+    determine_thickness: str = "no"
+    brute_force_1d: str = "yes"
+    refinement_2d: str = "yes"
+    node_low_res: float = 30.0
+    node_high_res: float = 3.0
+    node_rounded_square: str = "no"
+    node_downweight: str = "no"
+    ctffind_version: int = 4
     mc_uuid: int
     picker_uuid: int
     relion_options: RelionServiceOptions
@@ -165,8 +174,21 @@ class CTFFind(CommonService):
             ctf_params.slow_search,
             ctf_params.astigmatism_restrain,
             ctf_params.additional_phase_shift,
-            ctf_params.expert_options,
         ]
+        if ctf_params.ctffind_version == 5:
+            parameters_list.extend(
+                [
+                    ctf_params.determine_tilt,
+                    ctf_params.determine_thickness,
+                    ctf_params.brute_force_1d,
+                    ctf_params.refinement_2d,
+                    ctf_params.node_low_res,
+                    ctf_params.node_high_res,
+                    ctf_params.node_rounded_square,
+                    ctf_params.node_downweight,
+                ]
+            )
+        parameters_list.append(ctf_params.expert_options)
 
         parameters_string = "\n".join(map(str, parameters_list))
         self.log.info(
