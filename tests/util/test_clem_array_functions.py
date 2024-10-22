@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import itertools
+# import itertools
 from typing import Any, Optional
 
 import numpy as np
@@ -16,7 +16,6 @@ from cryoemservices.util.clem_array_functions import (
     get_valid_dtypes,
     merge_images,
     preprocess_img_stk,
-    shrink_value,
     stretch_image_contrast,
 )
 
@@ -145,62 +144,6 @@ def test_estimate_int_dtype_fails(
             arr.imag = np.random.randint(vmin, vmax, shape).astype("float64") * mult
 
         estimate_int_dtype(arr, bits)
-
-
-shrink_value_pass_cases = tuple(
-    sorted(
-        set(
-            itertools.chain.from_iterable(
-                [
-                    itertools.chain.from_iterable(
-                        [-value, value]
-                        for value in (
-                            get_dtype_info(dtype).min,
-                            get_dtype_info(dtype).max,
-                        )
-                    )
-                    for dtype in known_dtypes
-                    if dtype.startswith(("int", "uint"))
-                ]
-            )
-        )
-    )
-)
-
-
-@pytest.mark.parametrize("value", shrink_value_pass_cases)
-def test_shrink_value(value: int):
-    v_new = shrink_value(value)
-    assert abs(float(v_new)) <= abs(value)
-
-
-shrink_value_fail_cases = tuple(
-    # Generate list of the max and min values of non-integer dtypes
-    sorted(
-        set(
-            itertools.chain.from_iterable(
-                [
-                    itertools.chain.from_iterable(
-                        [-value, value]
-                        for value in (
-                            get_dtype_info(dtype).min,
-                            get_dtype_info(dtype).max,
-                        )
-                    )
-                    for dtype in known_dtypes
-                    if not dtype.startswith(("int", "uint"))
-                ]
-            )
-        )
-    )
-)
-
-
-@pytest.mark.parametrize("value", shrink_value_fail_cases)
-def test_shrink_value_fails(value: int):
-    # Test that this function will reject non-ints
-    with pytest.raises(TypeError):
-        shrink_value(value)
 
 
 array_conversion_test_matrix = (
