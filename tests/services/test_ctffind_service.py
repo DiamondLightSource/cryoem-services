@@ -283,7 +283,7 @@ def test_ctffind5_service(
 
     assert mock_subprocess.call_count == 4
     mock_subprocess.assert_called_with(
-        ["ctffind"],
+        ["ctffind5"],
         input=parameters_string.encode("ascii"),
         capture_output=True,
     )
@@ -299,7 +299,7 @@ def test_ctffind5_service(
                 "input_file": f"{tmp_path}/MotionCorr/job002/sample.mrc",
                 "output_file": f"{tmp_path}/CtfFind/job006/sample.ctf",
                 "relion_options": output_relion_options,
-                "command": f"ctffind\n{' '.join(map(str, parameters_list))}",
+                "command": f"ctffind5\n{' '.join(map(str, parameters_list))}",
                 "stdout": "stdout",
                 "stderr": "stderr",
                 "success": True,
@@ -380,7 +380,7 @@ def test_ctffind5_service_nothickness(
 
     assert mock_subprocess.call_count == 4
     mock_subprocess.assert_called_with(
-        ["ctffind"],
+        ["ctffind5"],
         input=parameters_string.encode("ascii"),
         capture_output=True,
     )
