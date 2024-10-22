@@ -19,7 +19,7 @@ def offline_transport(mocker):
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.ctffind.subprocess.run")
-def test_ctffind_service(mock_subprocess, offline_transport, tmp_path):
+def test_ctffind4_service(mock_subprocess, offline_transport, tmp_path):
     """
     Send a test message to CTFFind
     This should call the mock subprocess then send messages on to the
@@ -104,6 +104,7 @@ def test_ctffind_service(mock_subprocess, offline_transport, tmp_path):
     )
 
     # Check that the correct messages were sent
+    assert offline_transport.send.call_count == 4
     offline_transport.send.assert_any_call(
         destination="cryolo",
         message={
@@ -167,6 +168,117 @@ def test_ctffind_service(mock_subprocess, offline_transport, tmp_path):
         message={
             "parameters": {
                 "experiment_type": "spa",
+                "job_type": "relion.ctffind.ctffind4",
+                "input_file": f"{tmp_path}/MotionCorr/job002/sample.mrc",
+                "output_file": f"{tmp_path}/CtfFind/job006/sample.ctf",
+                "relion_options": output_relion_options,
+                "command": f"ctffind\n{' '.join(map(str, parameters_list))}",
+                "stdout": "stdout",
+                "stderr": "stderr",
+                "success": True,
+            },
+            "content": "dummy",
+        },
+    )
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+@mock.patch("cryoemservices.services.ctffind.subprocess.run")
+def test_ctffind5_service(mock_subprocess, offline_transport, tmp_path):
+    """
+    Send a test message to CTFFind
+    This should call the mock subprocess then send messages on to the
+    cryolo, node_creator, ispyb_connector and images services
+    """
+    mock_subprocess().returncode = 0
+    mock_subprocess().stdout = "stdout".encode("utf8")
+    mock_subprocess().stderr = "stderr".encode("utf8")
+
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+    ctffind_test_message = {
+        "parameters": {
+            "experiment_type": "tomography",
+            "pixel_size": 0.1,
+            "determine_tilt": "yes",
+            "determine_thickness": "yes",
+            "brute_force_1d": "yes",
+            "refinement_2d": "yes",
+            "node_min_res": 30.0,
+            "node_max_res": 3.0,
+            "node_rounded_square": "no",
+            "node_downweight": "no",
+            "ctffind_version": 5,
+            "expert_options": "no",
+            "input_image": f"{tmp_path}/MotionCorr/job002/sample.mrc",
+            "output_image": f"{tmp_path}/CtfFind/job006/sample.ctf",
+            "mc_uuid": 0,
+            "picker_uuid": 0,
+            "relion_options": {},
+        },
+        "content": "dummy",
+    }
+    output_relion_options = dict(RelionServiceOptions())
+    output_relion_options.update(ctffind_test_message["parameters"]["relion_options"])
+
+    # Set up the mock service
+    service = ctffind.CTFFind()
+    service.transport = offline_transport
+    service.start()
+
+    # Set some parameters then send a message to the service
+    service.defocus1 = 1
+    service.defocus2 = 2
+    service.astigmatism_angle = 3
+    service.cc_value = 4
+    service.estimated_resolution = 5
+    service.ctf_find(None, header=header, message=ctffind_test_message)
+
+    parameters_list = [
+        ctffind_test_message["parameters"]["input_image"],
+        ctffind_test_message["parameters"]["output_image"],
+        ctffind_test_message["parameters"]["pixel_size"],
+        "300.0",
+        "2.7",
+        "0.1",
+        "512",
+        "30.0",
+        "5.0",
+        "5000.0",
+        "50000.0",
+        "100.0",
+        "no",
+        "no",
+        "no",
+        "no",
+        ctffind_test_message["parameters"]["determine_tilt"],
+        ctffind_test_message["parameters"]["determine_thickness"],
+        ctffind_test_message["parameters"]["brute_force_1d"],
+        ctffind_test_message["parameters"]["refinement_2d"],
+        ctffind_test_message["parameters"]["node_min_res"],
+        ctffind_test_message["parameters"]["node_max_res"],
+        ctffind_test_message["parameters"]["node_rounded_square"],
+        ctffind_test_message["parameters"]["node_downweight"],
+        ctffind_test_message["parameters"]["expert_options"],
+    ]
+    parameters_string = "\n".join(map(str, parameters_list))
+
+    assert mock_subprocess.call_count == 4
+    mock_subprocess.assert_called_with(
+        ["ctffind"],
+        input=parameters_string.encode("ascii"),
+        capture_output=True,
+    )
+
+    # Check that the correct messages were sent (no need to recheck ones tested above)
+    assert offline_transport.send.call_count == 3
+    offline_transport.send.assert_any_call(
+        destination="node_creator",
+        message={
+            "parameters": {
+                "experiment_type": "tomography",
                 "job_type": "relion.ctffind.ctffind4",
                 "input_file": f"{tmp_path}/MotionCorr/job002/sample.mrc",
                 "output_file": f"{tmp_path}/CtfFind/job006/sample.ctf",
