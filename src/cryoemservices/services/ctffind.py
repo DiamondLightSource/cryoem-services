@@ -129,8 +129,6 @@ class CTFFind(CommonService):
             rw.recipe_step = {"parameters": message["parameters"]}
             message = message["content"]
 
-        command = ["ctffind"]
-
         try:
             if isinstance(message, dict):
                 ctf_params = CTFParameters(
@@ -152,6 +150,11 @@ class CTFFind(CommonService):
             rw.transport.nack(header)
             return
         self.log.info(f"Using CTFFind version {ctf_params.ctffind_version}")
+
+        if ctf_params.ctffind_version == 5:
+            command = ["ctffind5"]
+        else:
+            command = ["ctffind"]
 
         # Check if this file has been run before
         if Path(ctf_params.output_image).is_file():
