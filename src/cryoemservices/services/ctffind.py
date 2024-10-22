@@ -180,14 +180,19 @@ class CTFFind(CommonService):
                 [
                     ctf_params.determine_tilt,
                     ctf_params.determine_thickness,
-                    ctf_params.brute_force_1d,
-                    ctf_params.refinement_2d,
-                    ctf_params.node_low_res,
-                    ctf_params.node_high_res,
-                    ctf_params.node_rounded_square,
-                    ctf_params.node_downweight,
                 ]
             )
+            if ctf_params.determine_thickness in ["yes", "Yes"]:
+                parameters_list.extend(
+                    [
+                        ctf_params.brute_force_1d,
+                        ctf_params.refinement_2d,
+                        ctf_params.node_low_res,
+                        ctf_params.node_high_res,
+                        ctf_params.node_rounded_square,
+                        ctf_params.node_downweight,
+                    ]
+                )
         parameters_list.append(ctf_params.expert_options)
 
         parameters_string = "\n".join(map(str, parameters_list))
