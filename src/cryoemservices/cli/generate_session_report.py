@@ -210,7 +210,7 @@ class SessionResults:
                 micrograph_image.append(pylatex.NoEscape(r"\hspace{20px}"))
                 micrograph_image.add_image(self.example_micrographs[1], width="200px")
                 micrograph_image.add_caption(
-                    "The first and last motion corrected micrographs"
+                    "The motion corrected micrographs with the most picked particles"
                 )
 
             with doc.create(pylatex.Figure(position="h")) as pick_image:
@@ -218,8 +218,8 @@ class SessionResults:
                 pick_image.append(pylatex.NoEscape(r"\hspace{20px}"))
                 pick_image.add_image(self.example_picks[1], width="200px")
                 pick_image.add_caption(
-                    "The first and last motion corrected micrographs, "
-                    "with particle picks overlaid"
+                    "The motion corrected micrographs with the most picked particles, "
+                    "with the particle locations overlaid"
                 )
 
         with doc.create(pylatex.Section("Particle classification")):
@@ -372,41 +372,35 @@ class SessionResults:
                 .one()[0]
             )
 
-            first_mc_id = (
-                session.query(models.MotionCorrection)
-                .filter(models.MotionCorrection.dataCollectionId == self.dc_id)
-                .all()
-            )
-            self.dose_per_frame = first_mc_id[0].dosePerFrame
-            self.frame_count = first_mc_id[0].lastFrame
-            self.example_micrographs = [
-                first_mc_id[0].micrographSnapshotFullPath,
-                first_mc_id[-1].micrographSnapshotFullPath,
-            ]
-
-            self.example_picks = [
-                session.query(models.ParticlePicker)
-                .filter(
-                    models.ParticlePicker.firstMotionCorrectionId
-                    == first_mc_id[0].motionCorrectionId
-                )
-                .one()
-                .summaryImageFullPath,
-                session.query(models.ParticlePicker)
-                .filter(
-                    models.ParticlePicker.firstMotionCorrectionId
-                    == first_mc_id[-1].motionCorrectionId
-                )
-                .one()
-                .summaryImageFullPath,
-            ]
-
             # Preprocessing information
             preprocessing_loc = np.where(
                 np.array(self.processing_stages) == "em-spa-preprocess"
             )[0][0]
             preprocess_program_id = self.autoproc_ids[preprocessing_loc]
             if preprocess_program_id:
+                motion_correction_ids = (
+                    session.query(models.MotionCorrection, models.ParticlePicker)
+                    .filter(models.ParticlePicker.programId == preprocess_program_id)
+                    .join(
+                        models.MotionCorrection,
+                        models.ParticlePicker.firstMotionCorrectionId
+                        == models.MotionCorrection.motionCorrectionId,
+                    )
+                    .order_by(models.ParticlePicker.numberOfParticles.desc())
+                )
+
+                self.dose_per_frame = motion_correction_ids[0][0].dosePerFrame
+                self.frame_count = motion_correction_ids[0][0].lastFrame
+                self.example_micrographs = [
+                    motion_correction_ids[0][0].micrographSnapshotFullPath,
+                    motion_correction_ids[1][0].micrographSnapshotFullPath,
+                ]
+
+                self.example_picks = [
+                    motion_correction_ids[0][1].summaryImageFullPath,
+                    motion_correction_ids[1][1].summaryImageFullPath,
+                ]
+
                 self.median_motion = (
                     session.query(
                         func.percentile_disc(0.5)
