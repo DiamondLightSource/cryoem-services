@@ -95,7 +95,7 @@ class SessionResults:
         self.micrograph_count: int = 0
         self.example_micrographs: List[str] = []
         self.example_picks: List[str] = []
-        self.mean_picks: float = 0
+        self.mean_picks: int = 0
         self.median_motion: float = 0
         self.median_ctf_resolution: float = 0
         self.particle_diameter: float = 0
@@ -129,6 +129,7 @@ class SessionResults:
                 "rmargin": "2cm",
             }
         )
+        doc.preamble.append(pylatex.NoEscape(r"\setlength{\parindent}{0pt}"))
         doc.preamble.append(
             pylatex.Command(
                 "title", f"Auto-processing report for {self.visit_name} {self.raw_name}"
@@ -191,7 +192,7 @@ class SessionResults:
             doc.append(pylatex.NoEscape("\n"))
             doc.append(
                 pylatex.NoEscape(
-                    rf"The median motion was {self.median_motion} $\AA$ and"
+                    rf"The median motion was {self.median_motion} $\AA$ and "
                     "the median resolution from CTF correction was "
                     rf"{self.median_ctf_resolution} $\AA$"
                 )
@@ -235,7 +236,7 @@ class SessionResults:
             doc.append(
                 pylatex.NoEscape(
                     f"{self.class2d_batches} batches of 2D classification were run, "
-                    "with 50,000 particles in each batch. "
+                    "with 50000 particles in each batch. "
                     r"Figure \ref{class3d_table} shows some examples of the classes "
                     "which were generated. "
                 )
@@ -252,41 +253,42 @@ class SessionResults:
                 )
                 class2d_image.append(pylatex.NoEscape(r"\label{class2d_images}"))
 
-            doc.append(
-                pylatex.NoEscape(
-                    f"3D classification was run up to {self.class3d_batch} particles "
-                    f"using a symmetry of {self.provided_symmetry}. "
-                    r"The classes produced are given in table \ref{class3d_table}"
-                )
-            )
-            doc.append(pylatex.NoEscape("\n"))
-            with doc.create(pylatex.Table(position="h!")) as table_environment:
-                table_environment.append(pylatex.NoEscape(r"\centering"))
-                table_environment.append(pylatex.NoEscape(r"\label{class3d_table}"))
-                table_environment.add_caption("3D classification results")
-                with doc.create(pylatex.Tabular("|c|c|c|c|")) as table:
-                    table.add_hline()
-                    table.add_row(
-                        (
-                            "Class number",
-                            "Number of particles",
-                            "Resolution",
-                            "Fourier completeness",
-                        )
+            if self.class3d_batch:
+                doc.append(
+                    pylatex.NoEscape(
+                        f"3D classification was run up to {self.class3d_batch} particles "
+                        f"using a symmetry of {self.provided_symmetry}. "
+                        r"The classes produced are given in table \ref{class3d_table}."
                     )
-                    table.add_hline()
-                    for class3d in range(len(self.class3d_particles)):
+                )
+                doc.append(pylatex.NoEscape("\n"))
+                with doc.create(pylatex.Table(position="h!")) as table_environment:
+                    table_environment.append(pylatex.NoEscape(r"\centering"))
+                    table_environment.append(pylatex.NoEscape(r"\label{class3d_table}"))
+                    table_environment.add_caption("3D classification results")
+                    with doc.create(pylatex.Tabular("|c|c|c|c|")) as table:
+                        table.add_hline()
                         table.add_row(
                             (
-                                class3d + 1,
-                                self.class3d_particles[class3d],
-                                pylatex.NoEscape(
-                                    rf"{self.class3d_resolution[class3d]} $\AA$"
-                                ),
-                                self.class3d_completeness[class3d],
+                                "Class number",
+                                "Number of particles",
+                                "Resolution",
+                                "Fourier completeness",
                             )
                         )
-                    table.add_hline()
+                        table.add_hline()
+                        for class3d in range(len(self.class3d_particles)):
+                            table.add_row(
+                                (
+                                    class3d + 1,
+                                    self.class3d_particles[class3d],
+                                    pylatex.NoEscape(
+                                        rf"{self.class3d_resolution[class3d]} $\AA$"
+                                    ),
+                                    self.class3d_completeness[class3d],
+                                )
+                            )
+                        table.add_hline()
 
             # with doc.create(pylatex.Figure(position="h")) as projections_3d:
             #    plt.imshow(self.class3d_flat_x)
@@ -297,11 +299,12 @@ class SessionResults:
             #    projections_3d.add_plot(width="75px")
             #    projections_3d.add_caption("Projections of the best 3D class")
 
-            with doc.create(pylatex.Figure(position="h")) as angdist_image:
-                angdist_image.add_image(self.class3d_angdist, width="200px")
-                angdist_image.add_caption(
-                    "The distribution of particle angles for the best 3D class"
-                )
+            if self.class3d_angdist:
+                with doc.create(pylatex.Figure(position="h")) as angdist_image:
+                    angdist_image.add_image(self.class3d_angdist, width="200px")
+                    angdist_image.add_caption(
+                        "The distribution of particle angles for the best 3D class"
+                    )
 
             if self.refined_batch:
                 doc.append(pylatex.NoEscape("\n\n"))
@@ -401,7 +404,7 @@ class SessionResults:
                     motion_correction_ids[1][1].summaryImageFullPath,
                 ]
 
-                self.median_motion = (
+                self.median_motion = round(
                     session.query(
                         func.percentile_disc(0.5)
                         .within_group(models.MotionCorrection.totalMotion)
@@ -411,31 +414,34 @@ class SessionResults:
                         models.MotionCorrection.autoProcProgramId
                         == preprocess_program_id
                     )
-                    .first()[0]
+                    .first()[0],
+                    1,
                 )
 
-                self.median_ctf_resolution = (
+                self.median_ctf_resolution = round(
                     session.query(
                         func.percentile_disc(0.5)
                         .within_group(models.CTF.estimatedResolution)
                         .over(partition_by=models.CTF.autoProcProgramId)
                     )
                     .filter(models.CTF.autoProcProgramId == preprocess_program_id)
-                    .first()[0]
+                    .first()[0],
+                    1,
                 )
 
-                self.mean_picks = (
+                self.mean_picks = int(
                     session.query(func.avg(models.ParticlePicker.numberOfParticles))
                     .filter(models.ParticlePicker.programId == preprocess_program_id)
                     .one()[0]
                 )
 
-                self.particle_diameter = (
+                self.particle_diameter = round(
                     session.query(models.ParticlePicker)
                     .filter(models.ParticlePicker.programId == preprocess_program_id)
                     .filter(models.ParticlePicker.particleDiameter > 0)
                     .first()
-                    .particleDiameter
+                    .particleDiameter,
+                    1,
                 )
             else:
                 print("Cannot find preprocessing job")
