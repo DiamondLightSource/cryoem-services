@@ -49,6 +49,11 @@ class SessionResults:
             )
         self.visit_name = self.image_directory.split("/")[5]
         self.raw_name = self.image_directory.split("/")[6]
+        metadata_dirs = list(Path(self.image_directory).glob("metadata_*"))
+        if len(metadata_dirs) == 1:
+            self.supervisor_name = str(metadata_dirs[0]).split("metadata_")[1]
+        else:
+            self.supervisor_name = ""
 
         self.number_of_grid_squares = len(
             list(Path(self.image_directory).glob("GridSquare*"))
@@ -139,9 +144,12 @@ class SessionResults:
         doc.append(pylatex.NoEscape(r"\maketitle"))
 
         with doc.create(pylatex.Section("Data collection")):
+            if self.supervisor_name:
+                doc.append(f"This dataset was named {self.supervisor_name}. ")
             doc.append(
-                f"A total of {self.micrograph_count} micrographs were collected "
-                f"across {self.number_of_grid_squares} grid squares."
+                f"The raw data for this collection is in {self.image_directory}. "
+                f"In this, a total of {self.micrograph_count} micrographs were "
+                f"collected across {self.number_of_grid_squares} grid squares."
             )
             doc.append(pylatex.NoEscape("\n"))
             doc.append("The following parameters were set during data collection:\n")
@@ -185,6 +193,10 @@ class SessionResults:
                     table.add_hline()
 
         with doc.create(pylatex.Section("Pre-processing")):
+            doc.append(
+                "Processed results from this collection are in "
+                f"{Path(self.image_directory).parent}/processed/{self.raw_name}. "
+            )
             doc.append(
                 "Pre-processing of the micrographs was carried out, "
                 "consisting of motion correction, CTF estimation and particle picking. "
@@ -300,11 +312,29 @@ class SessionResults:
             #    projections_3d.add_caption("Projections of the best 3D class")
 
             if self.class3d_angdist:
-                with doc.create(pylatex.Figure(position="h")) as angdist_image:
+                best_class = np.argmin(self.class3d_resolution)
+                doc.append(
+                    f"The Fourier completeness of class {best_class+1} "
+                    f"suggests this sample has "
+                )
+                if self.class3d_completeness[best_class] > 0.9:
+                    doc.append("multiple orientations visible. ")
+                else:
+                    doc.append("a strong preferred orientation. ")
+                doc.append(
+                    pylatex.NoEscape(
+                        "The angular distribution of the particles in this class "
+                        r"is shown in figure \ref{angular_plot}, "
+                        "which should make clear the spread of orientations present."
+                    )
+                )
+                with doc.create(pylatex.Figure(position="h!")) as angdist_image:
                     angdist_image.add_image(self.class3d_angdist, width="200px")
                     angdist_image.add_caption(
-                        "The distribution of particle angles for the best 3D class"
+                        "The distribution of particle angles for the 3D class "
+                        "with the highest resolution"
                     )
+                    angdist_image.append(pylatex.NoEscape(r"\label{angular_plot}"))
 
             if self.refined_batch:
                 doc.append(pylatex.NoEscape("\n\n"))
