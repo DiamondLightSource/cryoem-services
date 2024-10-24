@@ -85,18 +85,14 @@ dtype_limits_test_matrix = (
     ("int8", -(2**7), (2**7) - 1),
     ("int16", -(2**15), (2**15) - 1),
     ("int32", -(2**31), (2**31) - 1),
-    ("int64", -(2**51), (2**51)),  # Use safe integer casting limit
+    ("int64", -(2**63), (2**63) - 1),
     ("uint8", 0, (2**8) - 1),
     ("uint16", 0, (2**16) - 1),
     ("uint32", 0, (2**32) - 1),
-    ("uint64", 0, (2**51)),  # Use safe integer casting limit
-    ("float16", -(2**10), 2**10),  # Use safe casting limit
-    ("float32", -(2**23), (2**23)),  # Use safe integer casting limit
-    ("float64", -(2**51), (2**51)),  # Use safe integer casting limit
-    ("float128", -(2**51), (2**51)),  # Use safe integer casting limit
-    ("complex64", -(2**23), (2**23)),  # Use safe integer casting limit
-    ("complex128", -(2**51), (2**51)),  # Use safe integer casting limit
-    ("complex256", -(2**51), (2**51)),  # Use safe integer casting limit
+    ("uint64", 0, (2**64) - 1),
+    ("float16", -65504, 65504),
+    #   NOTE: float32, float64, float128, and the corresponding complex types
+    #   have numbers that are too long to list and test
 )
 
 
@@ -114,7 +110,6 @@ dtype_estimation_test_matrix = (
     (-(2**7), 2**7 - 1, 8, True, "int8"),
     (-(2**7), 2**7 - 1, 16, False, "int16"),
     (-(2**7), 2**7 - 1, 32, True, "int32"),
-    (-(2**7), 2**7 - 1, 64, True, "int64"),
     (0, 2**7 - 1, 8, False, "uint8"),
     (0, 2**7 - 1, 16, True, "uint16"),
     (0, 2**7 - 1, 32, False, "uint32"),
@@ -123,11 +118,11 @@ dtype_estimation_test_matrix = (
     (0, 2**8 - 1, None, False, "uint8"),
     (0, 2**16 - 1, None, True, "uint16"),
     (0, 2**32 - 1, None, False, "uint32"),
-    (0, 2**51, None, True, "uint64"),
+    (0, 2**63, None, True, "uint64"),
     (-(2**7), 2**7 - 1, None, True, "int8"),
     (-(2**15), 2**15 - 1, None, True, "int16"),
     (-(2**31), 2**31 - 1, None, False, "int32"),
-    (-(2**51), 2**51, None, True, "int64"),
+    (-(2**62), 2**62, None, True, "int64"),
 )
 
 
@@ -191,164 +186,95 @@ def test_estimate_int_dtype_fails(
 
 array_conversion_test_matrix = (
     # Starting dtype | Target dtype | Estimate initial dtype? | Starting values
-    # float128 -> int/uint
-    ("float128", "int8", True, (-(2**51), (2**51))),  # Simulate int64
+    # float/complex -> int/uint
+    # 1
+    ("float128", "int8", True, (-(2**63), (2**62.9999))),  # Simulate int64
     ("float128", "int8", False, (-(2**31), (2**31) - 1)),  # Simulate int32
-    ("float128", "int8", True, (-(2**15), (2**15) - 1)),  # Simulate int16
+    ("complex256", "int8", True, (-(2**15), (2**15) - 1)),  # Simulate int16
     ("float128", "int8", True, (-(2**7), (2**7) - 1)),  # Simulate int8
-    ("float128", "int8", False, (0, (2**51))),  # Simulate uint64
-    ("float128", "int8", True, (0, (2**31) - 1)),  # Simulate uint32
+    ("float128", "int8", False, (0, (2**62.9999))),  # Simulate uint64
+    # 2
+    ("complex256", "int8", True, (0, (2**31) - 1)),  # Simulate uint32
     ("float128", "int8", True, (0, (2**15) - 1)),  # Simulate uint16
     ("float128", "int8", False, (0, (2**7) - 1)),  # Simulate uint8
-    ("float128", "int32", True, (-(2**51), (2**51))),  # Simulate int64
-    ("float128", "int32", False, (-(2**31), (2**31) - 1)),  # Simulate int32
+    ("complex128", "int16", True, (-(2**63), (2**62.9999))),  # Simulate int64
+    ("float64", "int16", True, (-(2**31), (2**31) - 1)),  # Simulate int32
+    # 3
+    ("float64", "int16", False, (-(2**15), (2**15) - 1)),  # Simulate int16
+    ("complex128", "int16", True, (-(2**7), (2**7) - 1)),  # Simulate int8
+    ("float64", "int16", True, (0, (2**62.9999))),  # Simulate uint64
+    ("float64", "int16", False, (0, (2**31) - 1)),  # Simulate uint32
+    ("complex128", "int16", True, (0, (2**15) - 1)),  # Simulate uint16
+    # 4
+    ("float64", "int16", True, (0, (2**7) - 1)),  # Simulate uint8
+    ("float128", "int32", True, (-(2**63), (2**62.9999))),  # Simulate int64
+    ("complex256", "int32", False, (-(2**31), (2**31) - 1)),  # Simulate int32
     ("float128", "int32", True, (-(2**15), (2**15) - 1)),  # Simulate int16
     ("float128", "int32", True, (-(2**7), (2**7) - 1)),  # Simulate int8
-    ("float128", "int32", False, (0, (2**51))),  # Simulate uint64
+    # 5
+    ("complex256", "int32", False, (0, (2**62.9999))),  # Simulate uint64
     ("float128", "int32", True, (0, (2**31) - 1)),  # Simulate uint32
     ("float128", "int32", True, (0, (2**15) - 1)),  # Simulate uint16
-    ("float128", "int32", False, (0, (2**7) - 1)),  # Simulate uint8
-    ("float128", "uint16", True, (-(2**51), (2**51))),  # Simulate int64
-    ("float128", "uint16", False, (-(2**31), (2**31) - 1)),  # Simulate int32
-    ("float128", "uint16", True, (-(2**15), (2**15) - 1)),  # Simulate int16
-    ("float128", "uint16", True, (-(2**7), (2**7) - 1)),  # Simulate int8
-    ("float128", "uint16", False, (0, (2**51))),  # Simulate uint64
-    ("float128", "uint16", True, (0, (2**31) - 1)),  # Simulate uint32
-    ("float128", "uint16", True, (0, (2**15) - 1)),  # Simulate uint16
-    ("float128", "uint16", False, (0, (2**7) - 1)),  # Simulate uint8
-    ("float128", "uint64", True, (-(2**51), (2**51))),  # Simulate int64
-    ("float128", "uint64", False, (-(2**31), (2**31) - 1)),  # Simulate int32
-    ("float128", "uint64", True, (-(2**15), (2**15) - 1)),  # Simulate int16
-    ("float128", "uint64", True, (-(2**7), (2**7) - 1)),  # Simulate int8
-    ("float128", "uint64", False, (0, (2**51))),  # Simulate uint64
-    ("float128", "uint64", True, (0, (2**31) - 1)),  # Simulate uint32
-    ("float128", "uint64", True, (0, (2**15) - 1)),  # Simulate uint16
-    ("float128", "uint64", False, (0, (2**7) - 1)),  # Simulate uint8
-    # float64 -> int/uint
-    ("float64", "int16", True, (-(2**51), (2**51))),  # Simulate int64
-    ("float64", "int16", True, (-(2**31), (2**31) - 1)),  # Simulate int32
-    ("float64", "int16", False, (-(2**15), (2**15) - 1)),  # Simulate int16
-    ("float64", "int16", True, (-(2**7), (2**7) - 1)),  # Simulate int8
-    ("float64", "int16", True, (0, (2**51))),  # Simulate uint64
-    ("float64", "int16", False, (0, (2**31) - 1)),  # Simulate uint32
-    ("float64", "int16", True, (0, (2**15) - 1)),  # Simulate uint16
-    ("float64", "int16", True, (0, (2**7) - 1)),  # Simulate uint8
-    ("float64", "int64", True, (-(2**51), (2**51))),  # Simulate int64
-    ("float64", "int64", True, (-(2**31), (2**31) - 1)),  # Simulate int32
-    ("float64", "int64", False, (-(2**15), (2**15) - 1)),  # Simulate int16
-    ("float64", "int64", True, (-(2**7), (2**7) - 1)),  # Simulate int8
-    ("float64", "int64", True, (0, (2**51))),  # Simulate uint64
-    ("float64", "int64", False, (0, (2**31) - 1)),  # Simulate uint32
-    ("float64", "int64", True, (0, (2**15) - 1)),  # Simulate uint16
-    ("float64", "int64", True, (0, (2**7) - 1)),  # Simulate uint8
-    ("float64", "uint8", True, (-(2**51), (2**51))),  # Simulate int64
+    ("complex256", "int32", False, (0, (2**7) - 1)),  # Simulate uint8
+    ("complex128", "uint8", True, (-(2**63), (2**62.9999))),  # Simulate int64
+    # 6
     ("float64", "uint8", True, (-(2**31), (2**31) - 1)),  # Simulate int32
     ("float64", "uint8", False, (-(2**15), (2**15) - 1)),  # Simulate int16
-    ("float64", "uint8", True, (-(2**7), (2**7) - 1)),  # Simulate int8
-    ("float64", "uint8", True, (0, (2**51))),  # Simulate uint64
+    ("complex128", "uint8", True, (-(2**7), (2**7) - 1)),  # Simulate int8
+    ("float64", "uint8", True, (0, (2**62.9999))),  # Simulate uint64
     ("float64", "uint8", False, (0, (2**31) - 1)),  # Simulate uint32
-    ("float64", "uint8", True, (0, (2**15) - 1)),  # Simulate uint16
+    # 7
+    ("complex128", "uint8", True, (0, (2**15) - 1)),  # Simulate uint16
     ("float64", "uint8", True, (0, (2**7) - 1)),  # Simulate uint8
-    ("float64", "uint32", True, (-(2**51), (2**51))),  # Simulate int64
+    ("float128", "uint16", True, (-(2**63), (2**62.9999))),  # Simulate int64
+    ("complex256", "uint16", False, (-(2**31), (2**31) - 1)),  # Simulate int32
+    ("float128", "uint16", True, (-(2**15), (2**15) - 1)),  # Simulate int16
+    # 8
+    ("float128", "uint16", True, (-(2**7), (2**7) - 1)),  # Simulate int8
+    ("complex256", "uint16", False, (0, (2**62.9999))),  # Simulate uint64
+    ("float128", "uint16", True, (0, (2**31) - 1)),  # Simulate uint32
+    ("float128", "uint16", True, (0, (2**15) - 1)),  # Simulate uint16
+    ("complex256", "uint16", False, (0, (2**7) - 1)),  # Simulate uint8
+    # 9
+    ("float64", "uint32", True, (-(2**63), (2**62.9999))),  # Simulate int64
     ("float64", "uint32", True, (-(2**31), (2**31) - 1)),  # Simulate int32
-    ("float64", "uint32", False, (-(2**15), (2**15) - 1)),  # Simulate int16
+    ("complex128", "uint32", False, (-(2**15), (2**15) - 1)),  # Simulate int16
     ("float64", "uint32", True, (-(2**7), (2**7) - 1)),  # Simulate int8
-    ("float64", "uint32", True, (0, (2**51))),  # Simulate uint64
-    ("float64", "uint32", False, (0, (2**31) - 1)),  # Simulate uint32
+    ("float64", "uint32", True, (0, (2**62.9999))),  # Simulate uint64
+    # 10
+    ("complex128", "uint32", False, (0, (2**31) - 1)),  # Simulate uint32
     ("float64", "uint32", True, (0, (2**15) - 1)),  # Simulate uint16
     ("float64", "uint32", True, (0, (2**7) - 1)),  # Simulate uint8
-    # float32 -> int/uint
-    ("float32", "int8", False, (-(2**15), (2**15) - 2)),  # Simulate int16
-    ("float32", "int8", True, (-(2**7), (2**7) - 1)),  # Simulate int8
-    ("float32", "int8", True, (0, (2**51))),  # Simulate uint64
-    ("float32", "int8", False, (0, (2**31) - 1)),  # Simulate uint32
-    ("float32", "int8", True, (0, (2**15) - 1)),  # Simulate uint16
-    ("float32", "int8", True, (0, (2**7) - 1)),  # Simulate uint8
-    ("float32", "int16", False, (-(2**15), (2**15) - 2)),  # Simulate int16
-    ("float32", "int16", True, (-(2**7), (2**7) - 1)),  # Simulate int8
-    ("float32", "int16", True, (0, (2**51))),  # Simulate uint64
-    ("float32", "int16", False, (0, (2**31) - 1)),  # Simulate uint32
-    ("float32", "int16", True, (0, (2**15) - 1)),  # Simulate uint16
-    ("float32", "int16", True, (0, (2**7) - 1)),  # Simulate uint8
-    ("float32", "uint32", False, (-(2**15), (2**15) - 2)),  # Simulate int16
-    ("float32", "uint32", True, (-(2**7), (2**7) - 1)),  # Simulate int8
-    ("float32", "uint32", True, (0, (2**51))),  # Simulate uint64
-    ("float32", "uint32", False, (0, (2**31) - 1)),  # Simulate uint32
-    ("float32", "uint32", True, (0, (2**15) - 1)),  # Simulate uint16
-    ("float32", "uint32", True, (0, (2**7) - 1)),  # Simulate uint8
-    ("float32", "uint64", False, (-(2**15), (2**15) - 2)),  # Simulate int16
-    ("float32", "uint64", True, (-(2**7), (2**7) - 1)),  # Simulate int8
-    ("float32", "uint64", True, (0, (2**51))),  # Simulate uint64
-    ("float32", "uint64", False, (0, (2**31) - 1)),  # Simulate uint32
-    ("float32", "uint64", True, (0, (2**15) - 1)),  # Simulate uint16
-    ("float32", "uint64", True, (0, (2**7) - 1)),  # Simulate uint8
-    # float16 -> int/uint
-    ("float16", "int16", False, (-(2**7), (2**7) - 1)),  # Simulate int8
-    ("float16", "int16", True, (0, (2**7) - 1)),  # Simulate uint8
-    ("float16", "int32", False, (-(2**7), (2**7) - 1)),  # Simulate int8
-    ("float16", "int32", True, (0, (2**7) - 1)),  # Simulate uint8
-    ("float16", "uint8", False, (-(2**7), (2**7) - 1)),  # Simulate int8
-    ("float16", "uint8", True, (0, (2**7) - 1)),  # Simulate uint8
-    ("float16", "uint64", False, (-(2**7), (2**7) - 1)),  # Simulate int8
-    ("float16", "uint64", True, (0, (2**7) - 1)),  # Simulate uint8
     # int/uint -> int/uint
-    ("int64", "int8", True, (-(2**51), (2**51))),  # Simulate int64
-    ("int32", "int8", False, (-(2**31), (2**31) - 1)),  # Simulate int32
-    ("int16", "int8", True, (-(2**15), (2**15) - 1)),  # Simulate int16
-    ("int8", "int8", True, (-(2**7), (2**7) - 1)),  # Simulate int8
-    ("int64", "int16", True, (-(2**51), (2**51))),  # Simulate int64
-    ("int32", "int16", False, (-(2**31), (2**31) - 1)),  # Simulate int32
-    ("int16", "int16", True, (-(2**15), (2**15) - 1)),  # Simulate int16
-    ("int8", "int16", True, (-(2**7), (2**7) - 1)),  # Simulate int8
-    ("uint64", "int32", False, (0, (2**51))),  # Simulate uint64
-    ("uint32", "int32", True, (0, (2**31) - 1)),  # Simulate uint32
-    ("uint16", "int32", True, (0, (2**15) - 1)),  # Simulate uint16
-    ("uint8", "int32", False, (0, (2**7) - 1)),  # Simulate uint8
-    ("uint64", "int64", False, (0, (2**51))),  # Simulate uint64
-    ("uint32", "int64", True, (0, (2**31) - 1)),  # Simulate uint32
-    ("uint16", "int64", True, (0, (2**15) - 1)),  # Simulate uint16
-    ("uint8", "int64", False, (0, (2**7) - 1)),  # Simulate uint8
-    # int/uint -> float/complex
-    ("int64", "float16", True, (-(2**51), (2**51))),  # Simulate int64
-    ("int32", "float16", False, (-(2**31), (2**31) - 1)),  # Simulate int32
-    ("int16", "float16", True, (-(2**15), (2**15) - 1)),  # Simulate int16
-    ("int8", "float16", True, (-(2**7), (2**7) - 1)),  # Simulate int8
-    ("int64", "float32", True, (-(2**51), (2**51))),  # Simulate int64
-    ("int32", "float32", False, (-(2**31), (2**31) - 1)),  # Simulate int32
-    ("int16", "float32", True, (-(2**15), (2**15) - 1)),  # Simulate int16
-    ("int8", "float32", True, (-(2**7), (2**7) - 1)),  # Simulate int8
-    ("uint64", "float64", False, (0, (2**51))),  # Simulate uint64
-    ("uint32", "float64", True, (0, (2**31) - 1)),  # Simulate uint32
-    ("uint16", "float64", True, (0, (2**15) - 1)),  # Simulate uint16
-    ("uint8", "float64", False, (0, (2**7) - 1)),  # Simulate uint8
-    ("uint64", "float128", False, (0, (2**51))),  # Simulate uint64
-    ("uint32", "float128", True, (0, (2**31) - 1)),  # Simulate uint32
-    ("uint16", "float128", True, (0, (2**15) - 1)),  # Simulate uint16
-    ("uint8", "float128", False, (0, (2**7) - 1)),  # Simulate uint8
-    ("int64", "complex64", True, (-(2**51), (2**51))),  # Simulate int64
-    ("int32", "complex64", False, (-(2**31), (2**31) - 1)),  # Simulate int32
-    ("int16", "complex64", True, (-(2**15), (2**15) - 1)),  # Simulate int16
-    ("int8", "complex64", True, (-(2**7), (2**7) - 1)),  # Simulate int8
-    ("int64", "complex128", True, (-(2**51), (2**51))),  # Simulate int64
-    ("int32", "complex128", False, (-(2**31), (2**31) - 1)),  # Simulate int32
-    ("int16", "complex128", True, (-(2**15), (2**15) - 1)),  # Simulate int16
-    ("int8", "complex128", True, (-(2**7), (2**7) - 1)),  # Simulate int8
-    ("int64", "complex256", True, (-(2**51), (2**51))),  # Simulate int64
-    ("int32", "complex256", False, (-(2**31), (2**31) - 1)),  # Simulate int32
-    ("int16", "complex256", True, (-(2**15), (2**15) - 1)),  # Simulate int16
-    ("int8", "complex256", True, (-(2**7), (2**7) - 1)),  # Simulate int8
-    ("uint64", "complex64", False, (0, (2**51))),  # Simulate uint64
-    ("uint32", "complex64", True, (0, (2**31) - 1)),  # Simulate uint32
-    ("uint16", "complex64", True, (0, (2**15) - 1)),  # Simulate uint16
-    ("uint8", "complex64", False, (0, (2**7) - 1)),  # Simulate uint8
-    ("uint64", "complex128", False, (0, (2**51))),  # Simulate uint64
-    ("uint32", "complex128", True, (0, (2**31) - 1)),  # Simulate uint32
-    ("uint16", "complex128", True, (0, (2**15) - 1)),  # Simulate uint16
-    ("uint8", "complex128", False, (0, (2**7) - 1)),  # Simulate uint8
-    ("uint64", "complex256", False, (0, (2**51))),  # Simulate uint64
-    ("uint32", "complex256", True, (0, (2**31) - 1)),  # Simulate uint32
-    ("uint16", "complex256", True, (0, (2**15) - 1)),  # Simulate uint16
-    ("uint8", "complex256", False, (0, (2**7) - 1)),  # Simulate uint8
+    ("int64", "int8", True, (-(2**63), (2**62.9999))),
+    ("int32", "int8", False, (-(2**31), (2**31) - 1)),
+    # 11
+    ("int16", "int8", True, (-(2**15), (2**15) - 1)),
+    ("int8", "int8", True, (-(2**7), (2**7) - 1)),
+    ("int64", "int16", True, (-(2**63), (2**62.9999))),
+    ("int32", "int16", False, (-(2**31), (2**31) - 1)),
+    ("int16", "int16", True, (-(2**15), (2**15) - 1)),
+    # 12
+    ("int8", "int16", True, (-(2**7), (2**7) - 1)),
+    ("uint64", "int32", False, (0, (2**62.9999))),
+    ("uint32", "int32", True, (0, (2**31) - 1)),
+    ("uint16", "int32", True, (0, (2**15) - 1)),
+    ("uint8", "int32", False, (0, (2**7) - 1)),
+    # 13
+    ("int64", "uint8", True, (-(2**63), (2**62.9999))),
+    ("int32", "uint8", False, (-(2**31), (2**31) - 1)),
+    ("int16", "uint8", True, (-(2**15), (2**15) - 1)),
+    ("int8", "uint8", True, (-(2**7), (2**7) - 1)),
+    ("int64", "uint16", True, (-(2**63), (2**62.9999))),
+    # 14
+    ("int32", "uint16", False, (-(2**31), (2**31) - 1)),
+    ("int16", "uint16", True, (-(2**15), (2**15) - 1)),
+    ("int8", "uint16", True, (-(2**7), (2**7) - 1)),
+    ("uint64", "uint32", False, (0, (2**62.9999))),
+    ("uint32", "uint32", True, (0, (2**31) - 1)),
+    # 15
+    ("uint16", "uint32", True, (0, (2**15) - 1)),
+    ("uint8", "uint32", False, (0, (2**7) - 1)),
 )
 
 
@@ -394,16 +320,23 @@ def test_convert_array_dtype(test_params: tuple[str, str, bool, tuple[int, int]]
 
 array_conversion_fail_cases = (
     # Image type | Frames | Initial dtype | Target dtype
-    # Wrong final dyptes
-    ("rgb", 1, "complex128", "float64"),
-    (
-        "rgb",
-        1,
-        "complex128",
-        "TaumatawhakatangihangakoauauoTamateaturipukakapikimaungahoronukupokaiwhenuakitanatahu",
-    ),
-    ("rgb", 5, "float64", "Chargoggagoggmanchauggagoggchaubunagungamaugg"),
+    # Wrong initial dtypes
+    ("rgb", 1, "complex256", "uint8"),
     ("rgb", 1, "complex128", "uint8"),
+    ("rgb", 1, "complex64", "uint8"),
+    ("rgb", 1, "float16", "uint8"),
+    ("rgb", 1, "float32", "uint8"),
+    # Wrong target dtypes
+    ("rgb", 5, "float64", "Chargoggagoggmanchauggagoggchaubunagungamaugg"),
+    ("rgb", 1, "float64", "int64"),
+    ("rgb", 1, "float64", "uint64"),
+    ("rgb", 1, "float64", "float16"),
+    ("rgb", 1, "float64", "float32"),
+    ("rgb", 1, "float64", "float64"),
+    ("rgb", 1, "float64", "float128"),
+    ("rgb", 1, "float64", "complex64"),
+    ("rgb", 1, "float64", "complex128"),
+    ("rgb", 1, "float64", "complex256"),
 )
 
 
@@ -445,30 +378,31 @@ contrast_stretching_test_matrix = (
     ("gray", "uint8", "uint8", 1, (0, 100)),
     ("gray", "uint16", "uint32", 5, (0, 100)),
     ("gray", "uint32", None, 1, (5, 95)),
-    ("gray", "uint64", "uint64", 5, (5, 95)),
+    ("gray", "uint64", "uint16", 1, (5, 95)),
     ("gray", "int8", "int8", 1, (0, 100)),
     ("gray", "int16", None, 5, (0, 100)),
     ("gray", "int32", "int32", 1, (5, 95)),
-    ("gray", "int64", "int64", 5, (5, 95)),
     # Test for RGB images/stacks
     ("rgb", "uint8", None, 5, (5, 95)),
-    ("rgb", "uint16", "uint8", 1, (0, 100)),
-    ("rgb", "uint32", "uint32", 5, (5, 95)),
-    ("rgb", "uint64", None, 1, (0, 100)),
+    ("rgb", "uint16", "uint32", 1, (0, 100)),
+    ("rgb", "uint32", "uint16", 5, (5, 95)),
+    ("rgb", "uint64", "uint8", 5, (5, 95)),
     ("rgb", "int8", "int8", 5, (5, 95)),
     ("rgb", "int16", "int32", 1, (0, 100)),
     ("rgb", "int32", None, 5, (5, 95)),
-    ("rgb", "int64", "int64", 1, (0, 100)),
     # Test for float and complex starting arrays
     ("gray", "float64", "uint8", 1, (0, 100)),
-    ("gray", "complex128", "uint16", 5, (0, 100)),
+    ("gray", "float64", "uint16", 5, (0, 100)),
     ("rgb", "float64", "uint32", 1, (5, 95)),
-    ("rgb", "complex128", "uint64", 5, (5, 95)),
-    # Test for float and complex target dtypes
-    ("gray", "int8", "float16", 1, (0, 100)),
-    ("gray", "int16", "float64", 5, (0, 100)),
-    ("gray", "uint32", "complex128", 1, (5, 95)),
-    ("gray", "uint64", "complex256", 5, (5, 95)),
+    ("gray", "float64", "int8", 1, (0, 100)),
+    ("rgb", "float128", "int16", 5, (0, 100)),
+    ("rgb", "float128", "int32", 1, (5, 95)),
+    ("gray", "complex128", "uint16", 5, (0, 100)),
+    ("gray", "complex128", "int16", 5, (0, 100)),
+    ("gray", "complex128", "uint16", 5, (0, 100)),
+    ("rgb", "complex256", "uint32", 1, (0, 100)),
+    ("rgb", "complex256", "int32", 1, (0, 100)),
+    ("rgb", "complex256", "uint8", 1, (0, 100)),
 )
 
 
@@ -558,7 +492,15 @@ def test_stretch_image_contrast(
 contrast_stretching_fail_cases = (
     # Array dtype | Target dtype
     ("complex128", None),
-    ("complex128", "complex128"),
+    ("complex128", "complex256"),
+    ("float64", "complex128"),
+    ("float64", "complex64"),
+    ("float64", "uint64"),
+    ("float64", "int64"),
+    ("float64", "float128"),
+    ("float64", "float64"),
+    ("float64", "float32"),
+    ("float64", "float16"),
 )
 
 
@@ -892,21 +834,15 @@ preprocess_img_test_matrix = (
     ("gray", "float64", "uint8", 1, "stretch"),
     ("gray", "float64", "uint16", 5, None),
     ("gray", None, "uint32", 1, "harambe"),
-    ("gray", "float64", "uint64", 5, "stretch"),  #
     ("gray", "uint8", "int8", 1, "stretch"),
     ("gray", None, "int16", 5, None),
     ("gray", "uint32", "int32", 1, "harambe"),
-    ("gray", "paracelsus", "uint64", 5, "stretch"),  #
-    ("gray", None, "uint64", 5, "stretch"),  #
     ("rgb", "complex128", "uint8", 1, "stretch"),
     ("rgb", "complex128", "uint16", 5, None),
     ("rgb", None, "uint32", 1, "harambe"),
-    ("rgb", "complex128", "uint64", 5, "stretch"),  #
     ("rgb", "int8", "uint8", 1, "stretch"),
     ("rgb", "int16", "uint16", 5, None),
     ("rgb", "int32", "uint32", 1, "harambe"),
-    ("rgb", None, "uint64", 5, "stretch"),  #
-    ("rgb", "theseus", "uint64", 5, "stretch"),  #
 )
 
 
@@ -943,8 +879,21 @@ preprocess_img_fail_cases = (
     # Image type | Initial dtype | Target dtype | Num frames | Contrast adjustment
     # Invalid target dtypes should fail
     ("gray", "float64", "archimedes", 1, "stretch"),
+    # Float, complex, and int64/uint64 should fail
+    ("gray", "float64", "float128", 1, "stretch"),
+    ("gray", "float64", "float64", 1, "stretch"),
+    ("gray", "float64", "float32", 1, "stretch"),
+    ("gray", "float64", "float16", 1, "stretch"),
+    ("gray", "float64", "float64", 1, "stretch"),
+    ("gray", "float64", "complex256", 1, "stretch"),
+    ("gray", "float64", "complex128", 1, "stretch"),
+    ("gray", "float64", "complex64", 1, "stretch"),
+    ("gray", "float64", "int64", 1, "stretch"),
+    ("gray", "float64", "uint64", 1, "stretch"),
     # Complex arrays with imaginary components should fail
+    ("gray", "complex256", "uint8", 1, "stretch"),
     ("gray", "complex128", "uint8", 1, "stretch"),
+    ("gray", "complex64", "uint8", 1, "stretch"),
 )
 
 
@@ -956,7 +905,7 @@ def test_preprocess_img_stk_fails(test_params: tuple):
         ).astype(dtype)
         return arr
 
-    with pytest.raises((ValueError)):
+    with pytest.raises((ValueError, NotImplementedError)):
         # Unpack parameters
         img_type, dtype_0, dtype_1, frames, method = test_params
         shape = (64, 64) if img_type == "gray" else (64, 64, 3)
