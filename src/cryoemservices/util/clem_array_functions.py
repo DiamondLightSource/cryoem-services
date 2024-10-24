@@ -587,9 +587,8 @@ def stretch_image_contrast(
 
 class LUT(Enum):
     """
-    3-channel color lookup tables to use when colorising image stacks. They are placed
-    on a continuous scale from 0 to 1, making them potentially compatible with images
-    of any bit depth.
+    3-channel color lookup tables to use when colorising image stacks. They are binary
+    values, making them potentially compatible with images of any bit depth.
     """
 
     # (R, G, B)
