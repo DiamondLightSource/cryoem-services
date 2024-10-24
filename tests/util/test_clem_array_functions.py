@@ -110,6 +110,7 @@ dtype_estimation_test_matrix = (
     (-(2**7), 2**7 - 1, 8, True, "int8"),
     (-(2**7), 2**7 - 1, 16, False, "int16"),
     (-(2**7), 2**7 - 1, 32, True, "int32"),
+    (-(2**7), 2**7 - 1, 64, True, "int64"),
     (0, 2**7 - 1, 8, False, "uint8"),
     (0, 2**7 - 1, 16, True, "uint16"),
     (0, 2**7 - 1, 32, False, "uint32"),
@@ -118,7 +119,7 @@ dtype_estimation_test_matrix = (
     (0, 2**8 - 1, None, False, "uint8"),
     (0, 2**16 - 1, None, True, "uint16"),
     (0, 2**32 - 1, None, False, "uint32"),
-    (0, 2**63, None, True, "uint64"),
+    (0, 2**62, None, False, "uint64"),
     (-(2**7), 2**7 - 1, None, True, "int8"),
     (-(2**15), 2**15 - 1, None, True, "int16"),
     (-(2**31), 2**31 - 1, None, False, "int32"),
@@ -142,20 +143,14 @@ def test_estimate_int_dtype(test_params: tuple[int, int, Optional[int], bool, st
 
 dtype_estimation_fail_cases = (
     # Min value | Max value | Multiplier | dtype | Bit depth (optional)
-    (
-        -(2**63),
-        2**63,
-        2**64,
-        "float64",
-        256,
-    ),  # Fails due to being too big for int dtype
-    (
-        -(2**63),
-        2**63,
-        1,
-        "complex128",
-        None,
-    ),  # Fails due to having an imaginary component
+    # Fails due to being too big for int dtype
+    (-(2**63), 2**63, 4, "float64", 256),
+    (0, 2**63, 4, "float64", None),
+    (-(2**63), 0, 4, "float64", 256),
+    # Fails due to having an imaginary component
+    (-(2**63), 2**63, 1, "complex64", None),
+    (-(2**63), 2**63, 1, "complex128", None),
+    (-(2**63), 2**63, 1, "complex256", None),
 )
 
 
@@ -187,92 +182,92 @@ def test_estimate_int_dtype_fails(
 array_conversion_test_matrix = (
     # Starting dtype | Target dtype | Estimate initial dtype? | Starting values
     # float/complex -> int/uint
-    # 1
+    # 0
     ("float128", "int8", True, (-(2**63), (2**62.9999))),  # Simulate int64
     ("float128", "int8", False, (-(2**31), (2**31) - 1)),  # Simulate int32
     ("complex256", "int8", True, (-(2**15), (2**15) - 1)),  # Simulate int16
     ("float128", "int8", True, (-(2**7), (2**7) - 1)),  # Simulate int8
     ("float128", "int8", False, (0, (2**62.9999))),  # Simulate uint64
-    # 2
+    # 5
     ("complex256", "int8", True, (0, (2**31) - 1)),  # Simulate uint32
     ("float128", "int8", True, (0, (2**15) - 1)),  # Simulate uint16
     ("float128", "int8", False, (0, (2**7) - 1)),  # Simulate uint8
     ("complex128", "int16", True, (-(2**63), (2**62.9999))),  # Simulate int64
     ("float64", "int16", True, (-(2**31), (2**31) - 1)),  # Simulate int32
-    # 3
+    # 10
     ("float64", "int16", False, (-(2**15), (2**15) - 1)),  # Simulate int16
     ("complex128", "int16", True, (-(2**7), (2**7) - 1)),  # Simulate int8
     ("float64", "int16", True, (0, (2**62.9999))),  # Simulate uint64
     ("float64", "int16", False, (0, (2**31) - 1)),  # Simulate uint32
     ("complex128", "int16", True, (0, (2**15) - 1)),  # Simulate uint16
-    # 4
+    # 15
     ("float64", "int16", True, (0, (2**7) - 1)),  # Simulate uint8
     ("float128", "int32", True, (-(2**63), (2**62.9999))),  # Simulate int64
     ("complex256", "int32", False, (-(2**31), (2**31) - 1)),  # Simulate int32
     ("float128", "int32", True, (-(2**15), (2**15) - 1)),  # Simulate int16
     ("float128", "int32", True, (-(2**7), (2**7) - 1)),  # Simulate int8
-    # 5
+    # 20
     ("complex256", "int32", False, (0, (2**62.9999))),  # Simulate uint64
     ("float128", "int32", True, (0, (2**31) - 1)),  # Simulate uint32
     ("float128", "int32", True, (0, (2**15) - 1)),  # Simulate uint16
     ("complex256", "int32", False, (0, (2**7) - 1)),  # Simulate uint8
     ("complex128", "uint8", True, (-(2**63), (2**62.9999))),  # Simulate int64
-    # 6
+    # 25
     ("float64", "uint8", True, (-(2**31), (2**31) - 1)),  # Simulate int32
     ("float64", "uint8", False, (-(2**15), (2**15) - 1)),  # Simulate int16
     ("complex128", "uint8", True, (-(2**7), (2**7) - 1)),  # Simulate int8
     ("float64", "uint8", True, (0, (2**62.9999))),  # Simulate uint64
     ("float64", "uint8", False, (0, (2**31) - 1)),  # Simulate uint32
-    # 7
+    # 30
     ("complex128", "uint8", True, (0, (2**15) - 1)),  # Simulate uint16
     ("float64", "uint8", True, (0, (2**7) - 1)),  # Simulate uint8
     ("float128", "uint16", True, (-(2**63), (2**62.9999))),  # Simulate int64
     ("complex256", "uint16", False, (-(2**31), (2**31) - 1)),  # Simulate int32
     ("float128", "uint16", True, (-(2**15), (2**15) - 1)),  # Simulate int16
-    # 8
+    # 35
     ("float128", "uint16", True, (-(2**7), (2**7) - 1)),  # Simulate int8
     ("complex256", "uint16", False, (0, (2**62.9999))),  # Simulate uint64
     ("float128", "uint16", True, (0, (2**31) - 1)),  # Simulate uint32
     ("float128", "uint16", True, (0, (2**15) - 1)),  # Simulate uint16
     ("complex256", "uint16", False, (0, (2**7) - 1)),  # Simulate uint8
-    # 9
+    # 40
     ("float64", "uint32", True, (-(2**63), (2**62.9999))),  # Simulate int64
     ("float64", "uint32", True, (-(2**31), (2**31) - 1)),  # Simulate int32
     ("complex128", "uint32", False, (-(2**15), (2**15) - 1)),  # Simulate int16
     ("float64", "uint32", True, (-(2**7), (2**7) - 1)),  # Simulate int8
     ("float64", "uint32", True, (0, (2**62.9999))),  # Simulate uint64
-    # 10
+    # 45
     ("complex128", "uint32", False, (0, (2**31) - 1)),  # Simulate uint32
     ("float64", "uint32", True, (0, (2**15) - 1)),  # Simulate uint16
     ("float64", "uint32", True, (0, (2**7) - 1)),  # Simulate uint8
     # int/uint -> int/uint
     ("int64", "int8", True, (-(2**63), (2**62.9999))),
     ("int32", "int8", False, (-(2**31), (2**31) - 1)),
-    # 11
+    # 50
     ("int16", "int8", True, (-(2**15), (2**15) - 1)),
     ("int8", "int8", True, (-(2**7), (2**7) - 1)),
     ("int64", "int16", True, (-(2**63), (2**62.9999))),
     ("int32", "int16", False, (-(2**31), (2**31) - 1)),
     ("int16", "int16", True, (-(2**15), (2**15) - 1)),
-    # 12
+    # 55
     ("int8", "int16", True, (-(2**7), (2**7) - 1)),
     ("uint64", "int32", False, (0, (2**62.9999))),
     ("uint32", "int32", True, (0, (2**31) - 1)),
     ("uint16", "int32", True, (0, (2**15) - 1)),
     ("uint8", "int32", False, (0, (2**7) - 1)),
-    # 13
+    # 60
     ("int64", "uint8", True, (-(2**63), (2**62.9999))),
     ("int32", "uint8", False, (-(2**31), (2**31) - 1)),
     ("int16", "uint8", True, (-(2**15), (2**15) - 1)),
     ("int8", "uint8", True, (-(2**7), (2**7) - 1)),
     ("int64", "uint16", True, (-(2**63), (2**62.9999))),
-    # 14
+    # 65
     ("int32", "uint16", False, (-(2**31), (2**31) - 1)),
     ("int16", "uint16", True, (-(2**15), (2**15) - 1)),
     ("int8", "uint16", True, (-(2**7), (2**7) - 1)),
     ("uint64", "uint32", False, (0, (2**62.9999))),
     ("uint32", "uint32", True, (0, (2**31) - 1)),
-    # 15
+    # 70
     ("uint16", "uint32", True, (0, (2**15) - 1)),
     ("uint8", "uint32", False, (0, (2**7) - 1)),
 )
@@ -321,17 +316,20 @@ def test_convert_array_dtype(test_params: tuple[str, str, bool, tuple[int, int]]
 array_conversion_fail_cases = (
     # Image type | Frames | Initial dtype | Target dtype
     # Wrong initial dtypes
+    # 0
     ("rgb", 1, "complex256", "uint8"),
     ("rgb", 1, "complex128", "uint8"),
     ("rgb", 1, "complex64", "uint8"),
     ("rgb", 1, "float16", "uint8"),
     ("rgb", 1, "float32", "uint8"),
     # Wrong target dtypes
+    # 5
     ("rgb", 5, "float64", "Chargoggagoggmanchauggagoggchaubunagungamaugg"),
     ("rgb", 1, "float64", "int64"),
     ("rgb", 1, "float64", "uint64"),
     ("rgb", 1, "float64", "float16"),
     ("rgb", 1, "float64", "float32"),
+    # 10
     ("rgb", 1, "float64", "float64"),
     ("rgb", 1, "float64", "float128"),
     ("rgb", 1, "float64", "complex64"),
@@ -375,33 +373,39 @@ def test_convert_array_dtype_wrong_dtype(test_params: tuple[str, int, str, str])
 contrast_stretching_test_matrix = (
     # Image type | dtype | Target dtype | Frames | Range
     # Test for grayscale images/stacks
+    # 0
     ("gray", "uint8", "uint8", 1, (0, 100)),
     ("gray", "uint16", "uint32", 5, (0, 100)),
     ("gray", "uint32", None, 1, (5, 95)),
     ("gray", "uint64", "uint16", 1, (5, 95)),
     ("gray", "int8", "int8", 1, (0, 100)),
+    # 5
     ("gray", "int16", None, 5, (0, 100)),
     ("gray", "int32", "int32", 1, (5, 95)),
     # Test for RGB images/stacks
     ("rgb", "uint8", None, 5, (5, 95)),
     ("rgb", "uint16", "uint32", 1, (0, 100)),
     ("rgb", "uint32", "uint16", 5, (5, 95)),
+    # 10
     ("rgb", "uint64", "uint8", 5, (5, 95)),
     ("rgb", "int8", "int8", 5, (5, 95)),
     ("rgb", "int16", "int32", 1, (0, 100)),
     ("rgb", "int32", None, 5, (5, 95)),
     # Test for float and complex starting arrays
     ("gray", "float64", "uint8", 1, (0, 100)),
+    # 15
     ("gray", "float64", "uint16", 5, (0, 100)),
     ("rgb", "float64", "uint32", 1, (5, 95)),
     ("gray", "float64", "int8", 1, (0, 100)),
     ("rgb", "float128", "int16", 5, (0, 100)),
     ("rgb", "float128", "int32", 1, (5, 95)),
+    # 20
     ("gray", "complex128", "uint16", 5, (0, 100)),
     ("gray", "complex128", "int16", 5, (0, 100)),
     ("gray", "complex128", "uint16", 5, (0, 100)),
     ("rgb", "complex256", "uint32", 1, (0, 100)),
     ("rgb", "complex256", "int32", 1, (0, 100)),
+    # 25
     ("rgb", "complex256", "uint8", 1, (0, 100)),
 )
 
@@ -491,12 +495,22 @@ def test_stretch_image_contrast(
 
 contrast_stretching_fail_cases = (
     # Array dtype | Target dtype
-    ("complex128", None),
-    ("complex128", "complex256"),
+    # Fails due to having an imaginary component
+    # 0
+    ("complex256", "uint8"),
+    ("complex128", "uint8"),
+    ("complex64", "uint8"),
+    # Fails due to incorrect input
+    ("float32", "uint8"),
+    ("float16", "uint8"),
+    # Fails due to incorrect output dtype
+    # 5
+    ("float64", "complex256"),
     ("float64", "complex128"),
     ("float64", "complex64"),
     ("float64", "uint64"),
     ("float64", "int64"),
+    # 10
     ("float64", "float128"),
     ("float64", "float64"),
     ("float64", "float32"),
@@ -527,26 +541,31 @@ def test_stretch_image_contrast_fails(test_params: tuple[str, Optional[str]]):
 
 image_coloring_test_matrix = (
     # Colour | dtype | frames
+    # 0
     ("red", "uint8", 1),
     ("green", "int16", 5),
     ("blue", "uint32", 1),
     ("cyan", "int64", 5),
     ("magenta", "float16", 1),
+    # 5
     ("yellow", "float32", 5),
     ("gray", "float64", 1),
     ("red", "float128", 5),
     ("green", "complex64", 1),
     ("blue", "complex128", 5),
+    # 10
     ("cyan", "complex256", 1),
     ("magenta", "complex64", 5),
     ("yellow", "complex128", 1),
     ("gray", "complex256", 5),
     ("red", "float16", 1),
+    # 15
     ("green", "float32", 5),
     ("blue", "float64", 1),
     ("cyan", "float128", 5),
     ("magenta", "int8", 1),
     ("yellow", "uint16", 5),
+    # 20
     ("gray", "int32", 1),
 )
 
@@ -681,11 +700,13 @@ def test_flatten_image(test_params: tuple[str, int, Optional[str], bool, int]):
 
 image_flattening_fail_cases: tuple[tuple, ...] = (
     # Image type | Frames | Mode | Is float?
+    # 0
     ("gray", 5, "uvuvwevwevwe", True),
     ("gray", 5, "onyetenyevwe", False),
     ("gray", 5, "ugwemubwem", True),
     ("rgb", 5, "osas", False),
     ("rgb", 5, 5, True),
+    # 5
     ("rgb", 5, True, False),
     ("rgb", 5, [], True),
     ("rgb", 5, (), True),
@@ -877,20 +898,22 @@ def test_preprocess_img_stk(
 
 preprocess_img_fail_cases = (
     # Image type | Initial dtype | Target dtype | Num frames | Contrast adjustment
-    # Invalid target dtypes should fail
-    ("gray", "float64", "archimedes", 1, "stretch"),
     # Float, complex, and int64/uint64 should fail
+    # 0
     ("gray", "float64", "float128", 1, "stretch"),
     ("gray", "float64", "float64", 1, "stretch"),
     ("gray", "float64", "float32", 1, "stretch"),
     ("gray", "float64", "float16", 1, "stretch"),
-    ("gray", "float64", "float64", 1, "stretch"),
     ("gray", "float64", "complex256", 1, "stretch"),
+    # 5
     ("gray", "float64", "complex128", 1, "stretch"),
     ("gray", "float64", "complex64", 1, "stretch"),
     ("gray", "float64", "int64", 1, "stretch"),
     ("gray", "float64", "uint64", 1, "stretch"),
+    # Invalid target dtypes should fail
+    ("gray", "float64", "archimedes", 1, "stretch"),
     # Complex arrays with imaginary components should fail
+    # 10
     ("gray", "complex256", "uint8", 1, "stretch"),
     ("gray", "complex128", "uint8", 1, "stretch"),
     ("gray", "complex64", "uint8", 1, "stretch"),
