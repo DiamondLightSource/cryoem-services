@@ -275,10 +275,13 @@ def convert_array_dtype(
     Rescales the pixel values of the array to fit within the allowed range of the
     desired array dtype while preserving the existing contrast.
 
-    The target dtypes should belong to the "int" or "uint" groups. 'int64' and
-    'uint64' are not supported by this function, as np.int64(np.float64(2**63 - 1))
-    and np.uint64(np.float64(2**64 - 1)) both lead to overflow errors due to loss of
-    precision in np.float64 at such large values.
+    The target dtype should belong to the "int" or "uint" groups, excluding 'int64'
+    and 'uint64'. np.int64(np.float64(2**63 - 1)) and np.uint64(np.float64(2**64 - 1))
+    cannot be represented exactly in np.float64 or Python's float due to the loss of
+    precision at such large values. The leads to overflow errors when trying to cast
+    to np.int64 and np.uint64. 32-bit floats and below are thus also not supported as
+    input arrays, as the loss of precision occurs even earlier, leading to casting
+    issues at smaller NumPy dtypes.
     """
 
     # Use shorter names for variables
@@ -293,7 +296,7 @@ def convert_array_dtype(
         logger.error(f"{dtype_final} is not a valid NumPy dtype")
         raise ValueError
 
-    # Reject floats, complexes, and int64/uint64 as target dtypes
+    # Reject float, complex, and int64/uint64 as target dtypes
     if dtype_final.startswith(("float", "complex")) or dtype_final in (
         "int64",
         "uint64",
@@ -388,7 +391,13 @@ def stretch_image_contrast(
     Changes the range of pixel values occupied by the data, rescaling it across the
     entirety of the array's bit depth.
 
-    This function should be applied to arrays of the "int" and "uint" dtypes.
+    The target dtype should belong to the "int" or "uint" groups, excluding 'int64'
+    and 'uint64'. np.int64(np.float64(2**63 - 1)) and np.uint64(np.float64(2**64 - 1))
+    cannot be represented exactly in np.float64 or Python's float due to the loss of
+    precision at such large values. The leads to overflow errors when trying to cast
+    to np.int64 and np.uint64. 32-bit floats and below are thus also not supported as
+    input arrays, as the loss of precision occurs even earlier, leading to casting
+    issues at smaller NumPy dtypes.
     """
 
     # Use shorter variable names
@@ -430,7 +439,7 @@ def stretch_image_contrast(
         logger.warning("Invalid target dtype provided; using array's own dtype")
         target_dtype = dtype
 
-    # Do not support float, complex, and int64/uint64 target dtypes
+    # Reject float, complex, and int64/uint64 target dtypes
     if target_dtype.startswith(("float", "complex")) or target_dtype in (
         "int64",
         "uint64",
@@ -684,6 +693,15 @@ def preprocess_img_stk(
     """
     Preprocessing routine for the image stacks extracted from raw data, rescaling
     intensities and converting the arrays to the desired dtypes as needed.
+
+    The target dtype should belong to the "int" or "uint" groups, excluding 'int64'
+    and 'uint64'. np.int64(np.float64(2**63 - 1)) and np.uint64(np.float64(2**64 - 1))
+    cannot be represented exactly in np.float64 or Python's float due to the loss of
+    precision at such large values. The leads to overflow errors when trying to cast
+    to np.int64 and np.uint64. 32-bit floats and below are thus also not supported as
+    input arrays, as the loss of precision occurs even earlier, leading to casting
+    issues at smaller NumPy dtypes.
+
     """
 
     # Use shorter aliases in function
