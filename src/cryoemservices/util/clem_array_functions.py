@@ -123,11 +123,12 @@ def estimate_int_dtype(array: np.ndarray, bit_depth: Optional[int] = None) -> st
     """
 
     # Define helper sub-functions
-    def _round_from_zero(x: int | float):
+    def _round_from_zero(x: float) -> int:
         """
         Round values AWAY from zero.
         """
-        return int(np.sign(x) * np.ceil(abs(x)))
+        x_round = int(np.sign(x) * np.ceil(abs(x)))
+        return x_round
 
     def _by_bit_depth(
         array: np.ndarray,
@@ -186,8 +187,16 @@ def estimate_int_dtype(array: np.ndarray, bit_depth: Optional[int] = None) -> st
                 limits = get_dtype_limits(dtype)
                 vmin = limits.min
                 vmax = limits.max
-                arr_min = _round_from_zero(arr.min())
-                arr_max = _round_from_zero(arr.max())
+                arr_min = (
+                    int(arr.min())
+                    if str(arr.dtype).startswith(("int", "uint"))
+                    else _round_from_zero(arr.min())
+                )
+                arr_max = (
+                    int(arr.max())
+                    if str(arr.dtype).startswith(("int", "uint"))
+                    else _round_from_zero(arr.max())
+                )
                 if vmax >= arr_max and vmin <= arr_min:
                     dtype_subset.append(dtype)
                 else:
