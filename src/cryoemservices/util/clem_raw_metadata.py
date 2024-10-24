@@ -1,4 +1,8 @@
 """
+=======================================================================================
+XML-RELATED FUNCTIONS
+=======================================================================================
+
 Functions to handle file types that can be read in as XML Element objects.
 These include, but are not limited to:
     1.  XML (self-explanatory)
@@ -10,14 +14,13 @@ These include, but are not limited to:
 from __future__ import annotations
 
 import logging
-from typing import Generator, List
+from typing import Generator
 from xml.etree import ElementTree as ET
 
-# Create logger object to output messages with
-logger = logging.getLogger("cryoemservices.clem.xml")
+logger = logging.getLogger("cryoemservice.util.clem_raw_metadata")
 
 
-def get_image_elements(root: ET.Element) -> List[ET.Element]:
+def get_image_elements(root: ET.Element) -> list[ET.Element]:
     """
     Searches the XML metadata recursively to find the nodes tagged as "Element" that
     have image-related tags. Some LIF datasets have layers of nested elements, so a
