@@ -66,17 +66,14 @@ additional_dtype_keywords = (
 )
 
 
-def get_dtype_info(dtype: str) -> np.finfo | np.iinfo:
+def get_dtype_info(dtype: str):
     """
-    Returns NumPy's built-int dtype info object, which contains useful information about
-    the dtype that can be called for use in other functions.
+    Returns NumPy's built-in dtype info object.
 
     See the docs for:
     numpy.finfo - https://numpy.org/doc/stable/reference/generated/numpy.finfo.html
     numpy.iinfo = https://numpy.org/doc/stable/reference/generated/numpy.iinfo.html
     """
-
-    # Additional keywords to support for this function
 
     # Validate input
     if dtype not in valid_dtypes and not any(
@@ -84,14 +81,13 @@ def get_dtype_info(dtype: str) -> np.finfo | np.iinfo:
         dtype == key
         for key in additional_dtype_keywords
     ):
-        logger.error(f"{dtype} is not a valid or supported NumPy dtype")
+        logger.error(f"{dtype} is not a valid NumPy dtype")
         raise ValueError
 
     # Load corresponding dictionary from NumPy
     dtype_info = (
         np.iinfo(dtype) if dtype.startswith(("int", "uint")) else np.finfo(dtype)
     )
-
     return dtype_info
 
 
@@ -102,6 +98,13 @@ def estimate_int_dtype(array: np.ndarray, bit_depth: Optional[int] = None) -> st
     """
 
     # Define helper sub-functions
+    def _round_from_zero(x: float) -> int:
+        """
+        Round values AWAY from zero.
+        """
+        x_round = int(np.sign(x) * np.ceil(abs(x)))
+        return x_round
+
     def _by_bit_depth(
         array: np.ndarray,
         dtype_group: str,
@@ -132,7 +135,13 @@ def estimate_int_dtype(array: np.ndarray, bit_depth: Optional[int] = None) -> st
         dtype_final = f"{dtype_group}{min(bit_list)}"
 
         # Raise error if dtype calculated using provided bit depth can't accommodate array
-        if get_dtype_info(dtype_final).max < max(abs(arr.min()), abs(arr.max())):
+        dtype_info = get_dtype_info(dtype_final)
+        vmin = int(dtype_info.min)
+        vmax = int(dtype_info.max)
+        # Use the rounded, int values of the array to ensure no rounding errors
+        arr_min = _round_from_zero(arr.min())
+        arr_max = _round_from_zero(arr.max())
+        if (arr_max > vmax) or (arr_min < vmin):
             logger.warning(
                 "Array values still exceed those supported by the estimated dtype"
             )
@@ -147,15 +156,26 @@ def estimate_int_dtype(array: np.ndarray, bit_depth: Optional[int] = None) -> st
         arr = array
 
         # Get the list of dtypes that can accommodate the array's contents
-        dtype_subset = [
-            dtype
-            for dtype in valid_dtypes
-            if dtype.startswith(dtype_group)
-            and (
-                get_dtype_info(dtype).max >= arr.max()
-                and get_dtype_info(dtype).min <= arr.min()
-            )
-        ]
+        dtype_subset = []
+        for dtype in valid_dtypes:
+            if dtype.startswith(dtype_group):
+                dtype_info = get_dtype_info(dtype)
+                vmin = int(dtype_info.min)
+                vmax = int(dtype_info.max)
+                arr_min = (
+                    int(arr.min())
+                    if str(arr.dtype).startswith(("int", "uint"))
+                    else _round_from_zero(arr.min())
+                )
+                arr_max = (
+                    int(arr.max())
+                    if str(arr.dtype).startswith(("int", "uint"))
+                    else _round_from_zero(arr.max())
+                )
+                if vmax >= arr_max and vmin <= arr_min:
+                    dtype_subset.append(dtype)
+                else:
+                    continue
         # Get the numerical portion of the suitable dtypes
         bit_list: list[int] = []
         for dtype in dtype_subset:
@@ -177,16 +197,18 @@ def estimate_int_dtype(array: np.ndarray, bit_depth: Optional[int] = None) -> st
 
     # Set up variables
     arr = array
-    dtype_init = str(arr.dtype)
+    dtype = str(arr.dtype)
 
     # Validate initial dtype (this should never be triggered, in principle)
-    if dtype_init not in valid_dtypes:
-        logger.error(f"{dtype_init} is not a valid or supported NumPy dtype")
+    if dtype not in valid_dtypes:
+        logger.error(f"{dtype} is not a valid NumPy dtype")
         raise ValueError
 
-    # Reject complex dtypes if imaginary components are present
-    if dtype_init.startswith("complex") and np.any(arr.imag != 0):
-        logger.error("Complex numbers not currently supported")
+    # Reject complex numbers with imaginary components
+    if dtype.startswith("complex") and np.any(arr.imag != 0):
+        logger.error(
+            "Complex numbers with imaginary components not currently supported"
+        )
         raise NotImplementedError
     else:
         arr = arr.real
@@ -194,9 +216,9 @@ def estimate_int_dtype(array: np.ndarray, bit_depth: Optional[int] = None) -> st
     # Use "int" if negative values are present, and "uint" if not
     dtype_group = "uint" if arr.min() >= 0 else "int"
 
-    result: Optional[str] = None
+    estimate: Optional[str] = None
     # Make an estimate using the provided bit depth if set
-    result = (
+    estimate = (
         _by_bit_depth(
             array=arr,
             dtype_group=dtype_group,
@@ -207,76 +229,16 @@ def estimate_int_dtype(array: np.ndarray, bit_depth: Optional[int] = None) -> st
     )
 
     # Estimate using array depth instead
-    result = (
+    estimate = (
         _by_array_values(array=arr, dtype_group=dtype_group)
-        if result is None
-        else result
+        if estimate is None
+        else estimate
     )
 
-    if result is None:
+    if estimate is None:
         raise ValueError("Unable to find an appropriate dtype for the array")
     else:
-        return result
-
-
-def shrink_value(value: int) -> int:
-    """
-    When converting between floats and int dtypes in NumPy, there are cases where the
-    float value will be rounded inexactly to be larger than that of its corresponding
-    int, leading to issues when casting arrays with large values.
-
-    This function replaces the value of the integer with one that can be correctly
-    represented in both float and int without a further change in info.
-    """
-
-    # Validate input
-    if not isinstance(value, (int)):
-        raise TypeError(f"Input is not an integer: {str(type(value))}")
-
-    vfloat = float(value)
-
-    # Process number if float conversion increases its value
-    if abs(vfloat) > abs(value):
-        vstr = str(vfloat)
-        if "e" in vstr:
-            # Separate the numerical bit from the exponent
-            num, exp = vstr.split("e", 1)
-
-            # Remove negative sign for subsequent stage
-            if num.startswith("-"):
-                num = num.split("-", 1)[-1]
-                neg = "-"
-            else:
-                neg = ""
-
-            # Reduce precision and shrink value
-
-            #   NOTE: Python rounds floats in scientific notation mode to 15 decimal
-            #   places, so subtract 2 from that last decimal place.
-
-            #   NOTE: Python rounds values that are exactly halfway (i.e. 0.5) to the
-            #   nearest EVEN number, so 2 needs to be subtracted to ensure it doesn't
-            #   round up to above the maximum value allowed by the array dtype again.
-            num = str(round((float(num) - (2 / 10**15)), 15))
-
-            # Rebuild new value as string
-            vstr = "e".join(["".join([neg, num]), exp])
-            vfloat = float(vstr)
-            value = int(vfloat)
-        else:
-            # Can't think of any cases where a number not in scientific notation might
-            # be bigger than its integer representation, so raising ValueError for now.
-            raise ValueError(f"{vfloat} is larger than {value}")
-
-    # Skip if it can be represented exactly as a float
-    elif abs(vfloat) == abs(value):
-        pass
-
-    else:
-        raise Exception("Unexpected exception occurred")
-
-    # Returns value unchanged if it can be presented correctly as a float
-    return value
+        return estimate
 
 
 def convert_array_dtype(
@@ -288,7 +250,13 @@ def convert_array_dtype(
     Rescales the pixel values of the array to fit within the allowed range of the
     desired array dtype while preserving the existing contrast.
 
-    The target dtypes should belong to the "int" or "uint" groups.
+    The target dtype should belong to the "int" or "uint" groups, excluding 'int64'
+    and 'uint64'. np.int64(np.float64(2**63 - 1)) and np.uint64(np.float64(2**64 - 1))
+    cannot be represented exactly in np.float64 or Python's float due to the loss of
+    precision at such large values. The leads to overflow errors when trying to cast
+    to np.int64 and np.uint64. 32-bit floats and below are thus also not supported as
+    input arrays, as the loss of precision occurs even earlier, leading to casting
+    issues at smaller NumPy dtypes.
     """
 
     # Use shorter names for variables
@@ -296,51 +264,65 @@ def convert_array_dtype(
     dtype_final = target_dtype
     dtype_init = initial_dtype
 
-    # Validate the final dtype to convert to
+    # Parse target dtype provided
     if dtype_final not in valid_dtypes and not any(
         dtype_final == key for key in additional_dtype_keywords
     ):
-        logger.error(f"{dtype_final} is not a valid or supported NumPy dtype")
+        logger.error(f"{dtype_final} is not a valid NumPy dtype")
         raise ValueError
 
-    # Support only conversion to "int" or "uint" dtypes for now
-    if not dtype_final.startswith(("int", "uint")):
-        logger.error(f"Array conversion to {dtype_final} is not currently supported")
+    # Reject float, complex, and int64/uint64 as target dtypes
+    if dtype_final.startswith(("float", "complex")) or dtype_final in (
+        "int64",
+        "uint64",
+    ):
+        logger.error(f"{dtype_final} output array not currently supported")
         raise NotImplementedError
 
-    # Parse initial dtype provided
-    # Estimate dtype if None provided
+    # Parse initial dtype estimate provided
+    # Estimate initial corresponding integer dtype if None provided
     if dtype_init is None:
         dtype_init = estimate_int_dtype(arr)
 
     # Estimate dtype if invalid one provided
-    if dtype_init not in valid_dtypes and not any(
-        dtype_init == key for key in additional_dtype_keywords
-    ):
+    if dtype_init not in valid_dtypes and dtype_init not in additional_dtype_keywords:
         logger.warning(
-            f"{dtype_init} is not a valid or supported NumPy dtype; estimating the dtype from the array"
+            f"{dtype_init} is not a valid NumPy dtype; estimating dtype from the array"
         )
         dtype_init = estimate_int_dtype(arr)
 
     # Find closest equivalent integer dtype that encompasses floats
-    if dtype_init.startswith("float"):
+    if dtype_init.startswith(("float", "complex")):
+        logger.warning(
+            "Unsupported dtype estimate provided; estimating dtype from the array"
+        )
         dtype_init = estimate_int_dtype(arr)
 
-    # Accept complex dtypes if imaginary components are zero
-    if dtype_init.startswith("complex") and np.any(arr.imag != 0):
-        logger.error("Complex numbers not currently supported")
+    # Validate that the initial array is supported
+    # Reject float16, float32, complex64 input arrays
+    if str(arr.dtype) in ("float16", "float32", "complex64"):
+        logger.error(f"{arr.dtype} input array not currently supported")
+        raise NotImplementedError
+
+    # Accept 'complex' dtypes if no imaginary component
+    if str(arr.dtype).startswith("complex") and np.any(arr.imag != 0):
+        logger.error(
+            "Complex numbers with imaginary components not currently supported"
+        )
         raise NotImplementedError
     else:
         arr = arr.real
         dtype_init = estimate_int_dtype(arr)
 
     # Get max supported values of initial and final arrays
-    min_init = shrink_value(get_dtype_info(dtype_init).min)
-    max_init = shrink_value(get_dtype_info(dtype_init).max)
+    dtype_info_init = get_dtype_info(dtype_init)
+    min_init = int(dtype_info_init.min)
+    max_init = int(dtype_info_init.max)
     range_init = max_init - min_init
 
-    min_final = shrink_value(get_dtype_info(dtype_final).min)
-    max_final = shrink_value(get_dtype_info(dtype_final).max)
+    dtype_info_final = get_dtype_info(dtype_final)
+    min_final = int(dtype_info_final.min)
+    max_final = int(dtype_info_final.max)
     range_final = max_final - min_final
 
     # Rescale
@@ -353,12 +335,12 @@ def convert_array_dtype(
         # Catch numbers exceeding thresholds when going between dtypes
         if frame.min() < min_final:
             logger.warning(
-                f"Encountered {np.sum(frame < min_final)} values below allowed target minimum value"
+                f"{np.sum(frame < min_final)} values below allowed target minimum value"
             )
             frame[frame < min_final] = min_final
         if frame.max() > max_final:
             logger.warning(
-                f"Encountered {np.sum(frame > max_final)} values above allowed target maximum value"
+                f"{np.sum(frame > max_final)} values above allowed target maximum value"
             )
             frame[frame > max_final] = max_final
 
@@ -371,12 +353,6 @@ def convert_array_dtype(
             arr_new = np.array([frame])
         else:
             arr_new = np.append(arr_new, [frame], axis=0)
-
-    # Do any pixels exceed the limits?
-    if arr_new.min() < min_final:
-        logger.warning(f"Lower limit of target array dtype exceeded: {arr_new.min()}")
-    if arr_new.max() > max_final:
-        logger.warning(f"Upper limit of target array dtype exceeded: {arr_new.max()}")
 
     return arr_new
 
@@ -391,71 +367,69 @@ def stretch_image_contrast(
     Changes the range of pixel values occupied by the data, rescaling it across the
     entirety of the array's bit depth.
 
-    This function should be applied to arrays of the "int" and "uint" dtypes.
+    The target dtype should belong to the "int" or "uint" groups, excluding 'int64'
+    and 'uint64'. np.int64(np.float64(2**63 - 1)) and np.uint64(np.float64(2**64 - 1))
+    cannot be represented exactly in np.float64 or Python's float due to the loss of
+    precision at such large values. The leads to overflow errors when trying to cast
+    to np.int64 and np.uint64. 32-bit floats and below are thus also not supported as
+    input arrays, as the loss of precision occurs even earlier, leading to casting
+    issues at smaller NumPy dtypes.
     """
 
     # Use shorter variable names
     arr: np.ndarray = array
 
-    # Check that dtype is supported by NumPy
+    # Check that input array dtype is supported by NumPy
     dtype = str(arr.dtype)
     if dtype not in valid_dtypes:
-        logger.error(f"{dtype} is not a valid or supported NumPy dtype")
+        logger.error(f"{dtype} is not a valid NumPy dtype")
         raise ValueError
 
-    # Handle "complex" dtypes
+    # Reject 'float16', 'float32', and 'complex64' input arrays
+    if dtype in ("float16", "float32", "complex64"):
+        logger.error(f"{dtype} input array not currently supported")
+        raise NotImplementedError
+
+    # Handle 'complex' dtypes
     if dtype.startswith("complex"):
-        # Accept "complex" dtypes with no imaginary component
+        # Accept 'complex' dtypes with no imaginary component
         if np.all(arr.imag == 0):
             dtype = "float64"  # Overwrite initial dtype
             arr = arr.real.astype(dtype)
-        # Reject "complex" dtypes
+        # Reject otherwise
         else:
             logger.error(
-                f"Contrast stretching for {dtype} arrays is not currently supported"
+                "Complex numbers with imaginary components not currently supported"
             )
             raise NotImplementedError
-        # By this point, "complex" dtypes should be eliminated
-        # Only "float", "int", and "uint" should be left
 
-    # Reject "float" dtypes if no "int"/"uint" target dtype is provided
-    if dtype.startswith("float"):
-        if target_dtype is None:
-            logger.error(f"No target integer dtype provided for initial {dtype} array")
-            raise ValueError
-        if not target_dtype.startswith(("int", "uint")):
-            logger.error(
-                f"No valid target integer dtype provided for initial {dtype} array"
-            )
-            raise ValueError
-        # By this point, target dtype should be "int" or "uint"
-
-    # Handle input parameters when dtype is valid to begin with
-    if dtype.startswith(("int", "uint")):
-        # Raise warning if the target dtype differs from the initial array dtype and both are valid options
-        if (
-            target_dtype is not None
-            and target_dtype.startswith(("int", "uint"))
-            and target_dtype != dtype
-        ):
-            logger.warning(
-                "Target integer dtype different from initial array dtype; using array dtype"
-            )
-        target_dtype = dtype
-        # By this point, the target dtype should be "int" or "uint"
-
-    # Raise exception if the target dtype is still not set by this point
-    # This shouldn't ever be triggered, but is there for MyPy type checking
+    # Parse target dtype
     if target_dtype is None:
-        logger.error("Unable to determine dtype to stretch image contrast to")
-        raise ValueError
+        target_dtype = dtype
+
+    # Validate target_dtype
+    if (
+        target_dtype not in valid_dtypes
+        and target_dtype not in additional_dtype_keywords
+    ):
+        logger.warning("Invalid target dtype provided; using array's own dtype")
+        target_dtype = dtype
+
+    # Reject float, complex, and int64/uint64 target dtypes
+    if target_dtype.startswith(("float", "complex")) or target_dtype in (
+        "int64",
+        "uint64",
+    ):
+        logger.error(f"{target_dtype} output array not currently supported")
+        raise NotImplementedError
 
     # Get key values
     b_lo: float | int = np.percentile(arr, percentile_range[0])
     b_up: float | int = np.percentile(arr, percentile_range[1])
     diff: float | int = b_up - b_lo
     dtype_info = get_dtype_info(target_dtype)
-    vmax = shrink_value(dtype_info.max)
+    vmin = int(dtype_info.min)
+    vmax = int(dtype_info.max)
 
     if debug:
         logger.debug(f"Using {vmax} as maximum array value")
@@ -486,7 +460,7 @@ def stretch_image_contrast(
         frame = (
             # Scale between 0 and max positive value if no negative values are present
             (((frame / diff) - (b_lo / diff)) * vmax)
-            if (dtype_info.min == 0 or b_lo >= 0)
+            if (vmin == 0 or b_lo >= 0)
             # Keep 0 as center; scale values by largest scalar present
             else (frame / max(abs(b_lo), abs(b_up)) * vmax)
         )
@@ -510,8 +484,11 @@ def stretch_image_contrast(
         # Catch negative numbers after contrast stretching
         #   NOTE: For some reason (maybe NumPy inaccuracies when rounding), it's still
         #   possible for some pixel values to go negative
-        if dtype_info.min == 0 or b_lo >= 0:
+        if vmin == 0 or b_lo >= 0:
             frame[frame <= 0] = 0
+        # Catch floats that potentially exceed limits of target dtype
+        frame[frame >= vmax] = vmax
+        frame[frame <= vmin] = vmin
 
         if debug:
             # Calculate positions of mins and maxes in array
@@ -549,7 +526,7 @@ def stretch_image_contrast(
             )
 
         # Restore original dtype
-        frame = frame.astype(dtype)
+        frame = frame.astype(target_dtype)
 
         if debug:
             # Calculate positions of mins and maxes in array
@@ -568,11 +545,11 @@ def stretch_image_contrast(
 
         # DEBUG: Check array properties after rounding
         if debug:
-            if frame.min() <= dtype_info.min:
+            if frame.min() <= vmin:
                 logger.debug(
                     "There are values below the minimum bit range for this dtype"
                 )
-            if frame.max() >= dtype_info.max:
+            if frame.max() >= vmax:
                 logger.debug("There are values above the max bit range for this dtype")
 
         # Append to array
@@ -586,9 +563,8 @@ def stretch_image_contrast(
 
 class LUT(Enum):
     """
-    3-channel color lookup tables to use when colorising image stacks. They are placed
-    on a continuous scale from 0 to 1, making them potentially compatible with images
-    of any bit depth.
+    3-channel color lookup tables to use when colorising image stacks. They are binary
+    values, making them potentially compatible with images of any bit depth.
     """
 
     # (R, G, B)
@@ -637,10 +613,9 @@ def flatten_image(
     elif mode == "mean":
         dtype = str(array.dtype)
         arr_new = array.mean(axis=axis)
-        arr_new = (
-            arr_new.round(0) if str(dtype).startswith(("int", "uint")) else arr_new
-        )
+        arr_new = arr_new.round(0) if dtype.startswith(("int", "uint")) else arr_new
         arr_new = arr_new.astype(dtype)
+
     # Raise error if the mode provided is incorrect
     else:
         logger.error(f"{mode} is not a valid image flattening option")
@@ -676,8 +651,8 @@ def merge_images(
     arr_new: np.ndarray = np.mean(arrays, axis=0)
 
     # Preserve dtype of array
-    # This is an averaging operation, so we can safely switch the dtype back from
-    # float64 without encountering an overflow
+    #   This is an averaging operation, so we can safely switch the dtype back from
+    #   float64 without encountering an overflow
     arr_new = arr_new.round(0) if dtype.startswith(("int", "uint")) else arr_new
     arr_new = arr_new.astype(dtype)
 
@@ -693,6 +668,15 @@ def preprocess_img_stk(
     """
     Preprocessing routine for the image stacks extracted from raw data, rescaling
     intensities and converting the arrays to the desired dtypes as needed.
+
+    The target dtype should belong to the "int" or "uint" groups, excluding 'int64'
+    and 'uint64'. np.int64(np.float64(2**63 - 1)) and np.uint64(np.float64(2**64 - 1))
+    cannot be represented exactly in np.float64 or Python's float due to the loss of
+    precision at such large values. The leads to overflow errors when trying to cast
+    to np.int64 and np.uint64. 32-bit floats and below are thus also not supported as
+    input arrays, as the loss of precision occurs even earlier, leading to casting
+    issues at smaller NumPy dtypes.
+
     """
 
     # Use shorter aliases in function
@@ -700,18 +684,29 @@ def preprocess_img_stk(
     dtype_init = initial_dtype
     dtype_final = target_dtype
 
-    # Validate that function inputs are correct
+    # Validate target dtype
     if dtype_final not in valid_dtypes:
-        logger.error(f"{dtype_final} is not a valid or supported NumPy dtype")
+        logger.error(f"{dtype_final} is not a valid NumPy dtype")
         raise ValueError
 
-    # Handle complex arrays differently
+    # Reject float, complex, and int64/uint64 output dtypes
+    if dtype_final.startswith(("float", "complex")) or dtype_final in (
+        "int64",
+        "uint64",
+    ):
+        logger.error(f"{dtype_final} output dtype not currently supported")
+        raise NotImplementedError
+
+    # Check that input array dtype is supported
+    if str(arr.dtype) in ("float16", "float32", "complex64"):
+        logger.error(f"{arr.dtype} input array not currently supported")
+        raise NotImplementedError
+
+    # Reject "complex" arrays with imaginary values
     if str(arr.dtype).startswith("complex"):
-        # Reject "complex" arrays with imaginary values
         if not np.all(arr.imag == 0):
             logger.error(f"{str(arr.dtype)} not supported by this workflow")
             raise ValueError
-        # Keep only the real component
         else:
             arr = arr.real
 
@@ -721,13 +716,13 @@ def preprocess_img_stk(
             pass  # No warning needed for None
         elif dtype_init not in valid_dtypes:
             logger.warning(
-                f"{dtype_init} is not a valid or supported NumPy dtype; converting to most appropriate dtype"
+                f"{dtype_init} is not a valid NumPy dtype; converting to most appropriate dtype"
             )
         elif not dtype_init.startswith(("int", "uint")):
             logger.warning(
                 f"{dtype_init} is not supported by this workflow; converting to most appropriate dtype"
             )
-
+        # Convert to suitable dtype
         dtype_init = estimate_int_dtype(arr)
         arr = (
             convert_array_dtype(
@@ -788,7 +783,7 @@ def write_stack_to_tiff(
     photometric: Optional[str] = None,  # Valid options listed below
     color_map: Optional[np.ndarray] = None,
     extended_metadata: Optional[str] = None,  # Stored as an extended string
-) -> Path:
+):
     """
     Writes the NumPy array as a calibrated, ImageJ-compatible TIFF image stack.
     """
@@ -852,5 +847,3 @@ def write_stack_to_tiff(
             "Labels": image_labels,
         },
     )
-
-    return save_name
