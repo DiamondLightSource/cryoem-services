@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import itertools
+# import itertools
 from typing import Any, Optional
 
 import numpy as np
@@ -16,7 +16,6 @@ from cryoemservices.util.clem_array_functions import (
     get_valid_dtypes,
     merge_images,
     preprocess_img_stk,
-    shrink_value,
     stretch_image_contrast,
 )
 
@@ -83,15 +82,23 @@ def test_get_dtype_info_fails(dtype: str):
 dtype_estimation_test_matrix = (
     # Min value | Max value | Bit depth (optional) | As float? (bool) | Expected estimate
     # Test bit depth parameter
-    (-(2**7), 2**7, 8, True, "int8"),
-    (0, 2**7, 16, False, "uint16"),
-    (0, 2**8, 32, True, "uint32"),
-    (-(2**7), 2**7, 64, False, "int64"),
+    (-(2**7), 2**7 - 1, 8, True, "int8"),
+    (-(2**7), 2**7 - 1, 16, False, "int16"),
+    (-(2**7), 2**7 - 1, 32, True, "int32"),
+    (-(2**7), 2**7 - 1, 64, True, "int64"),
+    (0, 2**7 - 1, 8, False, "uint8"),
+    (0, 2**7 - 1, 16, True, "uint16"),
+    (0, 2**7 - 1, 32, False, "uint32"),
+    (0, 2**7 - 1, 64, False, "uint64"),
     # Test auto-find ability
-    (0, 2**7, None, False, "uint8"),
-    (-(2**15), 2**15, None, True, "int16"),
-    (-(2**31), 2**31, None, False, "int32"),
-    (0, 2**63, None, True, "uint64"),
+    (0, 2**8 - 1, None, False, "uint8"),
+    (0, 2**16 - 1, None, True, "uint16"),
+    (0, 2**32 - 1, None, False, "uint32"),
+    (0, 2**62, None, False, "uint64"),
+    (-(2**7), 2**7 - 1, None, True, "int8"),
+    (-(2**15), 2**15 - 1, None, True, "int16"),
+    (-(2**31), 2**31 - 1, None, False, "int32"),
+    (-(2**62), 2**62, None, True, "int64"),
 )
 
 
@@ -102,7 +109,8 @@ def test_estimate_int_dtype(test_params: tuple[int, int, Optional[int], bool, st
     # Create test array
     shape = (64, 64)
     dtype = "float64" if is_float is True else "int64"
-    arr = np.random.randint(vmin, vmax, shape).astype(dtype)
+    # Create test array with numbers spanning the range provided
+    arr = np.reshape(np.linspace(vmin, vmax, np.prod(shape)), shape).astype(dtype)
 
     estimate = estimate_int_dtype(arr, bits)
     assert estimate == target
@@ -110,20 +118,14 @@ def test_estimate_int_dtype(test_params: tuple[int, int, Optional[int], bool, st
 
 dtype_estimation_fail_cases = (
     # Min value | Max value | Multiplier | dtype | Bit depth (optional)
-    (
-        -(2**63),
-        2**63,
-        2**64,
-        "float64",
-        256,
-    ),  # Fails due to being too big for int dtype
-    (
-        -(2**63),
-        2**63,
-        1,
-        "complex128",
-        None,
-    ),  # Fails due to having an imaginary component
+    # Fails due to being too big for int dtype
+    (-(2**63), 2**63, 4, "float64", 256),
+    (0, 2**63, 4, "float64", None),
+    (-(2**63), 0, 4, "float64", 256),
+    # Fails due to having an imaginary component
+    (-(2**63), 2**63, 1, "complex64", None),
+    (-(2**63), 2**63, 1, "complex128", None),
+    (-(2**63), 2**63, 1, "complex256", None),
 )
 
 
@@ -137,183 +139,181 @@ def test_estimate_int_dtype_fails(
 
         shape = (64, 64)
         # Create array with values that exceed that of the initial 'int64' limits
-        arr = (np.random.randint(vmin, vmax, shape).astype("float64") * mult).astype(
-            dtype
-        )
+        arr = (
+            np.reshape(np.linspace(vmin, vmax, np.prod(shape)), shape).astype("float64")
+            * mult
+        ).astype(dtype)
         if dtype.startswith("complex"):
             # Add an imaginary bit to test
-            arr.imag = np.random.randint(vmin, vmax, shape).astype("float64") * mult
-
+            arr.imag = (
+                np.reshape(np.linspace(vmin, vmax, np.prod(shape)), shape).astype(
+                    "float64"
+                )
+                * mult
+            )
         estimate_int_dtype(arr, bits)
 
 
-shrink_value_pass_cases = tuple(
-    sorted(
-        set(
-            itertools.chain.from_iterable(
-                [
-                    itertools.chain.from_iterable(
-                        [-value, value]
-                        for value in (
-                            get_dtype_info(dtype).min,
-                            get_dtype_info(dtype).max,
-                        )
-                    )
-                    for dtype in known_dtypes
-                    if dtype.startswith(("int", "uint"))
-                ]
-            )
-        )
-    )
-)
-
-
-@pytest.mark.parametrize("value", shrink_value_pass_cases)
-def test_shrink_value(value: int):
-    v_new = shrink_value(value)
-    assert abs(float(v_new)) <= abs(value)
-
-
-shrink_value_fail_cases = tuple(
-    # Generate list of the max and min values of non-integer dtypes
-    sorted(
-        set(
-            itertools.chain.from_iterable(
-                [
-                    itertools.chain.from_iterable(
-                        [-value, value]
-                        for value in (
-                            get_dtype_info(dtype).min,
-                            get_dtype_info(dtype).max,
-                        )
-                    )
-                    for dtype in known_dtypes
-                    if not dtype.startswith(("int", "uint"))
-                ]
-            )
-        )
-    )
-)
-
-
-@pytest.mark.parametrize("value", shrink_value_fail_cases)
-def test_shrink_value_fails(value: int):
-    # Test that this function will reject non-ints
-    with pytest.raises(TypeError):
-        shrink_value(value)
-
-
 array_conversion_test_matrix = (
-    # Starting dtype | Target dtype | Estimate initial dtype?
-    # Float -> int/uint
-    ("float64", "int8", True),
-    ("float32", "int16", False),
-    ("float64", "int32", False),
-    ("float32", "int64", True),
-    ("float32", "uint8", False),
-    ("float64", "uint16", True),
-    ("float32", "uint32", True),
-    ("float64", "uint64", False),
-    # int -> int/uint
-    ("int64", "int8", False),
-    ("int32", "int16", True),
-    ("int16", "int32", False),
-    ("int8", "int64", True),
-    ("int32", "uint8", True),
-    ("int64", "uint16", False),
-    ("int8", "uint32", True),
-    ("int16", "uint64", False),
-    # uint -> int/uint
-    ("uint32", "int8", True),
-    ("uint64", "int16", False),
-    ("uint8", "int32", True),
-    ("uint16", "int64", False),
-    ("uint64", "uint8", False),
-    ("uint32", "uint16", True),
-    ("uint16", "uint32", False),
-    ("uint8", "uint64", True),
-    # Wrong initial dtypes
-    ("float32", "int8", True),
-    ("float64", "int16", False),
-    ("complex64", "int32", True),
-    ("complex128", "int64", False),
-    ("float64", "uint8", False),
-    ("float32", "uint16", True),
-    ("aristotle", "uint32", False),
-    ("theophrastus", "uint64", True),
+    # Starting dtype | Target dtype | Estimate initial dtype? | Starting values
+    # float/complex -> int/uint
+    # 0
+    ("float128", "int8", True, (-(2**63), (2**62.9999))),  # Simulate int64
+    ("float128", "int8", False, (-(2**31), (2**31) - 1)),  # Simulate int32
+    ("complex256", "int8", True, (-(2**15), (2**15) - 1)),  # Simulate int16
+    ("float128", "int8", True, (-(2**7), (2**7) - 1)),  # Simulate int8
+    ("float128", "int8", False, (0, (2**62.9999))),  # Simulate uint64
+    # 5
+    ("complex256", "int8", True, (0, (2**31) - 1)),  # Simulate uint32
+    ("float128", "int8", True, (0, (2**15) - 1)),  # Simulate uint16
+    ("float128", "int8", False, (0, (2**7) - 1)),  # Simulate uint8
+    ("complex128", "int16", True, (-(2**63), (2**62.9999))),  # Simulate int64
+    ("float64", "int16", True, (-(2**31), (2**31) - 1)),  # Simulate int32
+    # 10
+    ("float64", "int16", False, (-(2**15), (2**15) - 1)),  # Simulate int16
+    ("complex128", "int16", True, (-(2**7), (2**7) - 1)),  # Simulate int8
+    ("float64", "int16", True, (0, (2**62.9999))),  # Simulate uint64
+    ("float64", "int16", False, (0, (2**31) - 1)),  # Simulate uint32
+    ("complex128", "int16", True, (0, (2**15) - 1)),  # Simulate uint16
+    # 15
+    ("float64", "int16", True, (0, (2**7) - 1)),  # Simulate uint8
+    ("float128", "int32", True, (-(2**63), (2**62.9999))),  # Simulate int64
+    ("complex256", "int32", False, (-(2**31), (2**31) - 1)),  # Simulate int32
+    ("float128", "int32", True, (-(2**15), (2**15) - 1)),  # Simulate int16
+    ("float128", "int32", True, (-(2**7), (2**7) - 1)),  # Simulate int8
+    # 20
+    ("complex256", "int32", False, (0, (2**62.9999))),  # Simulate uint64
+    ("float128", "int32", True, (0, (2**31) - 1)),  # Simulate uint32
+    ("float128", "int32", True, (0, (2**15) - 1)),  # Simulate uint16
+    ("complex256", "int32", False, (0, (2**7) - 1)),  # Simulate uint8
+    ("complex128", "uint8", True, (-(2**63), (2**62.9999))),  # Simulate int64
+    # 25
+    ("float64", "uint8", True, (-(2**31), (2**31) - 1)),  # Simulate int32
+    ("float64", "uint8", False, (-(2**15), (2**15) - 1)),  # Simulate int16
+    ("complex128", "uint8", True, (-(2**7), (2**7) - 1)),  # Simulate int8
+    ("float64", "uint8", True, (0, (2**62.9999))),  # Simulate uint64
+    ("float64", "uint8", False, (0, (2**31) - 1)),  # Simulate uint32
+    # 30
+    ("complex128", "uint8", True, (0, (2**15) - 1)),  # Simulate uint16
+    ("float64", "uint8", True, (0, (2**7) - 1)),  # Simulate uint8
+    ("float128", "uint16", True, (-(2**63), (2**62.9999))),  # Simulate int64
+    ("complex256", "uint16", False, (-(2**31), (2**31) - 1)),  # Simulate int32
+    ("float128", "uint16", True, (-(2**15), (2**15) - 1)),  # Simulate int16
+    # 35
+    ("float128", "uint16", True, (-(2**7), (2**7) - 1)),  # Simulate int8
+    ("complex256", "uint16", False, (0, (2**62.9999))),  # Simulate uint64
+    ("float128", "uint16", True, (0, (2**31) - 1)),  # Simulate uint32
+    ("float128", "uint16", True, (0, (2**15) - 1)),  # Simulate uint16
+    ("complex256", "uint16", False, (0, (2**7) - 1)),  # Simulate uint8
+    # 40
+    ("float64", "uint32", True, (-(2**63), (2**62.9999))),  # Simulate int64
+    ("float64", "uint32", True, (-(2**31), (2**31) - 1)),  # Simulate int32
+    ("complex128", "uint32", False, (-(2**15), (2**15) - 1)),  # Simulate int16
+    ("float64", "uint32", True, (-(2**7), (2**7) - 1)),  # Simulate int8
+    ("float64", "uint32", True, (0, (2**62.9999))),  # Simulate uint64
+    # 45
+    ("complex128", "uint32", False, (0, (2**31) - 1)),  # Simulate uint32
+    ("float64", "uint32", True, (0, (2**15) - 1)),  # Simulate uint16
+    ("float64", "uint32", True, (0, (2**7) - 1)),  # Simulate uint8
+    # int/uint -> int/uint
+    ("int64", "int8", True, (-(2**63), (2**62.9999))),
+    ("int32", "int8", False, (-(2**31), (2**31) - 1)),
+    # 50
+    ("int16", "int8", True, (-(2**15), (2**15) - 1)),
+    ("int8", "int8", True, (-(2**7), (2**7) - 1)),
+    ("int64", "int16", True, (-(2**63), (2**62.9999))),
+    ("int32", "int16", False, (-(2**31), (2**31) - 1)),
+    ("int16", "int16", True, (-(2**15), (2**15) - 1)),
+    # 55
+    ("int8", "int16", True, (-(2**7), (2**7) - 1)),
+    ("uint64", "int32", False, (0, (2**62.9999))),
+    ("uint32", "int32", True, (0, (2**31) - 1)),
+    ("uint16", "int32", True, (0, (2**15) - 1)),
+    ("uint8", "int32", False, (0, (2**7) - 1)),
+    # 60
+    ("int64", "uint8", True, (-(2**63), (2**62.9999))),
+    ("int32", "uint8", False, (-(2**31), (2**31) - 1)),
+    ("int16", "uint8", True, (-(2**15), (2**15) - 1)),
+    ("int8", "uint8", True, (-(2**7), (2**7) - 1)),
+    ("int64", "uint16", True, (-(2**63), (2**62.9999))),
+    # 65
+    ("int32", "uint16", False, (-(2**31), (2**31) - 1)),
+    ("int16", "uint16", True, (-(2**15), (2**15) - 1)),
+    ("int8", "uint16", True, (-(2**7), (2**7) - 1)),
+    ("uint64", "uint32", False, (0, (2**62.9999))),
+    ("uint32", "uint32", True, (0, (2**31) - 1)),
+    # 70
+    ("uint16", "uint32", True, (0, (2**15) - 1)),
+    ("uint8", "uint32", False, (0, (2**7) - 1)),
 )
 
 
 @pytest.mark.parametrize("test_params", array_conversion_test_matrix)
-def test_convert_array_dtype(test_params: tuple[str, str, bool]):
+def test_convert_array_dtype(test_params: tuple[str, str, bool, tuple[int, int]]):
 
     def normalize(arr: np.ndarray) -> np.ndarray:
-        diff = arr.max() - arr.min()
-        return (arr / diff) - (arr.min() / diff)
+        if str(arr.dtype).startswith("complex"):
+            arr = arr.real
+        diff = float(arr.max()) - float(arr.min())
+        arr_new = (arr / diff) - (arr.min() / diff)
+        return arr_new
 
     # Get dtype parameters
-    dtype_0, dtype_1, estimate = test_params
+    dtype_init, dtype_final, estimate, (vmin, vmax) = test_params
+    shape = (64, 64)
 
-    # Set dtype to use when creating the test array
-    dtype_test = dtype_0 if dtype_0 in known_dtypes else "int64"
-
-    info_0 = get_dtype_info(dtype_test)
-    info_1 = get_dtype_info(dtype_1)
-    shape = (16, 16)
-
-    # Create test arrays with ranges within allowed values
-    if dtype_test.startswith(("int", "uint")):
-        # Use half range of starting array
-        # (np.random.randint uses "int64" by default, so "uint64"'s max value will
-        # exceed it)
-        vmin = int(0.5 * info_0.min)
-        vmax = int(0.5 * info_0.max)
-        arr_0 = np.random.randint(vmin, vmax, size=shape).astype(dtype_test)
-    else:
-        # Use half the integer range of target dtype if starting with float
-        vmin = int(0.5 * info_1.min)
-        vmax = int(0.5 * info_1.max)
-        arr_0 = np.random.randint(vmin, vmax, size=shape).astype(dtype_test)
+    # Create test array with numbers going throughout the specified range
+    arr_ref = np.reshape(np.linspace(vmin, vmax, np.prod(shape)), shape).astype(
+        dtype_init
+    )
 
     # Convert the array using the function
-    initial_dtype = dtype_0 if estimate is True else None
-    arr_1 = convert_array_dtype(arr_0, dtype_1, initial_dtype)
+    dtype_estimate = None if estimate is True else dtype_init
+    arr_new = convert_array_dtype(arr_ref, dtype_final, dtype_estimate)
+
+    # Check that target dtype is attained
+    assert str(arr_new.dtype) == dtype_final
 
     # Normalise both arrays to (0, 1) for comparison
-    arr_0 = normalize(arr_0)
-    arr_1 = normalize(arr_1)
+    arr_ref = normalize(arr_ref)
+    arr_new = normalize(arr_new)
 
     # Check that deviations are within a set threshold:
     # arr_1 - arr_0 = atol + rtol * abs(arr_0)
     np.testing.assert_allclose(
-        arr_1,
-        arr_0,
+        arr_new,
+        arr_ref,
         rtol=0,
-        atol=0.01,  # <= 1% deviation when going between 64- and 8-bit arrays
+        atol=0.01,  # <= 1% deviation when going between 128- and 8-bit arrays
     )
 
 
 array_conversion_fail_cases = (
     # Image type | Frames | Initial dtype | Target dtype
-    # Wrong final dyptes
-    ("gray", 5, "int64", "complex128"),
-    ("gray", 1, "uint32", "complex128"),
-    ("gray", 5, "int16", "float64"),
-    ("gray", 1, "uint8", "complex128"),
-    ("gray", 5, "Tweebuffelsmeteenskootmorsdoodgeskietfontein", "complex128"),
-    ("rgb", 1, "complex128", "float64"),
-    ("rgb", 5, "float64", "complex128"),
-    (
-        "rgb",
-        1,
-        "complex128",
-        "TaumatawhakatangihangakoauauoTamateaturipukakapikimaungahoronukupokaiwhenuakitanatahu",
-    ),
-    ("rgb", 5, "float64", "Chargoggagoggmanchauggagoggchaubunagungamaugg"),
+    # Wrong initial dtypes
+    # 0
+    ("rgb", 1, "complex256", "uint8"),
     ("rgb", 1, "complex128", "uint8"),
+    ("rgb", 1, "complex64", "uint8"),
+    ("rgb", 1, "float16", "uint8"),
+    ("rgb", 1, "float32", "uint8"),
+    # Wrong target dtypes
+    # 5
+    ("rgb", 5, "float64", "Chargoggagoggmanchauggagoggchaubunagungamaugg"),
+    ("rgb", 1, "float64", "int64"),
+    ("rgb", 1, "float64", "uint64"),
+    ("rgb", 1, "float64", "float16"),
+    ("rgb", 1, "float64", "float32"),
+    # 10
+    ("rgb", 1, "float64", "float64"),
+    ("rgb", 1, "float64", "float128"),
+    ("rgb", 1, "float64", "complex64"),
+    ("rgb", 1, "float64", "complex128"),
+    ("rgb", 1, "float64", "complex256"),
 )
 
 
+# @pytest.mark.skip
 @pytest.mark.parametrize("test_params", array_conversion_fail_cases)
 def test_convert_array_dtype_wrong_dtype(test_params: tuple[str, int, str, str]):
     def create_test_array(shape: tuple, frames: int, dtype: str) -> np.ndarray:
@@ -348,28 +348,40 @@ def test_convert_array_dtype_wrong_dtype(test_params: tuple[str, int, str, str])
 contrast_stretching_test_matrix = (
     # Image type | dtype | Target dtype | Frames | Range
     # Test for grayscale images/stacks
+    # 0
     ("gray", "uint8", "uint8", 1, (0, 100)),
     ("gray", "uint16", "uint32", 5, (0, 100)),
     ("gray", "uint32", None, 1, (5, 95)),
-    ("gray", "uint64", "uint64", 5, (5, 95)),
+    ("gray", "uint64", "uint16", 1, (5, 95)),
     ("gray", "int8", "int8", 1, (0, 100)),
+    # 5
     ("gray", "int16", None, 5, (0, 100)),
     ("gray", "int32", "int32", 1, (5, 95)),
-    ("gray", "int64", "int64", 5, (5, 95)),
     # Test for RGB images/stacks
     ("rgb", "uint8", None, 5, (5, 95)),
-    ("rgb", "uint16", "uint8", 1, (0, 100)),
-    ("rgb", "uint32", "uint32", 5, (5, 95)),
-    ("rgb", "uint64", None, 1, (0, 100)),
+    ("rgb", "uint16", "uint32", 1, (0, 100)),
+    ("rgb", "uint32", "uint16", 5, (5, 95)),
+    # 10
+    ("rgb", "uint64", "uint8", 5, (5, 95)),
     ("rgb", "int8", "int8", 5, (5, 95)),
     ("rgb", "int16", "int32", 1, (0, 100)),
     ("rgb", "int32", None, 5, (5, 95)),
-    ("rgb", "int64", "int64", 1, (0, 100)),
     # Test for float and complex starting arrays
     ("gray", "float64", "uint8", 1, (0, 100)),
-    ("gray", "complex128", "uint16", 5, (0, 100)),
+    # 15
+    ("gray", "float64", "uint16", 5, (0, 100)),
     ("rgb", "float64", "uint32", 1, (5, 95)),
-    ("rgb", "complex128", "uint64", 5, (5, 95)),
+    ("gray", "float64", "int8", 1, (0, 100)),
+    ("rgb", "float128", "int16", 5, (0, 100)),
+    ("rgb", "float128", "int32", 1, (5, 95)),
+    # 20
+    ("gray", "complex128", "uint16", 5, (0, 100)),
+    ("gray", "complex128", "int16", 5, (0, 100)),
+    ("gray", "complex128", "uint16", 5, (0, 100)),
+    ("rgb", "complex256", "uint32", 1, (0, 100)),
+    ("rgb", "complex256", "int32", 1, (0, 100)),
+    # 25
+    ("rgb", "complex256", "uint8", 1, (0, 100)),
 )
 
 
@@ -381,19 +393,16 @@ def test_stretch_image_contrast(
     # Helper function to create arrays
     def create_test_array(shape: tuple, frames: int, dtype: str) -> np.ndarray:
         dtype_info = get_dtype_info(dtype)
-        # Avoid overflow errors due to uint64's max exceeding int64's
-        vmin = int(0.5 * dtype_info.min)
-        vmax = int(0.5 * dtype_info.max)
-        for f in range(frames):
-            frame = np.random.randint(vmin, vmax, shape)
-            if f == 0:
-                arr = np.array([frame])
-            else:
-                arr = np.append(arr, [frame], axis=0)
-        arr = arr.astype(dtype)
+        vmin = int(dtype_info.min)
+        vmax = int(dtype_info.max)
+        arr = np.reshape(
+            np.linspace(vmin, vmax, np.prod((frames, *shape))), (frames, *shape)
+        ).astype(dtype)
         return arr
 
     def normalize(arr: np.ndarray) -> np.ndarray:
+        if str(arr.dtype).startswith("complex"):
+            arr = arr.real
         vmin = float(arr.min())
         vmax = float(arr.max())
         diff = vmax - vmin
@@ -415,7 +424,7 @@ def test_stretch_image_contrast(
 
     # Create test array and reference array
     arr = (
-        create_test_array(shape, frames, target_dtype).astype(dtype)
+        create_test_array(shape, frames, target_dtype)
         if target_dtype is not None
         else create_test_array(shape, frames, dtype)
     )
@@ -461,23 +470,42 @@ def test_stretch_image_contrast(
 
 contrast_stretching_fail_cases = (
     # Array dtype | Target dtype
-    ("float64", None),
+    # Fails due to having an imaginary component
+    # 0
+    ("complex256", "uint8"),
+    ("complex128", "uint8"),
+    ("complex64", "uint8"),
+    # Fails due to incorrect input
+    ("float32", "uint8"),
+    ("float16", "uint8"),
+    # Fails due to incorrect output dtype
+    # 5
+    ("float64", "complex256"),
+    ("float64", "complex128"),
+    ("float64", "complex64"),
+    ("float64", "uint64"),
+    ("float64", "int64"),
+    # 10
+    ("float64", "float128"),
     ("float64", "float64"),
-    ("complex128", None),
-    ("complex128", "complex128"),
+    ("float64", "float32"),
+    ("float64", "float16"),
 )
 
 
+# @pytest.mark.skip
 @pytest.mark.parametrize("test_params", contrast_stretching_fail_cases)
 def test_stretch_image_contrast_fails(test_params: tuple[str, Optional[str]]):
     with pytest.raises((NotImplementedError, ValueError)):
         # Unpack parameters
         dtype, target_dtype = test_params
-
+        shape = (64, 64)
         # Create test array
-        arr = np.random.randint(0, 255, (64, 64)).astype(dtype)
+        arr = np.reshape(np.linspace(0, 255, np.prod(shape)), shape).astype(dtype)
         if dtype.startswith("complex"):
-            arr.imag = np.random.randint(0, 255, (64, 64)).astype("float64")
+            arr.imag = np.reshape(np.linspace(0, 255, np.prod(shape)), shape).astype(
+                "float64"
+            )
 
         # Test function
         if target_dtype is None:
@@ -486,59 +514,33 @@ def test_stretch_image_contrast_fails(test_params: tuple[str, Optional[str]]):
             stretch_image_contrast(arr, target_dtype=target_dtype)
 
 
-image_coloring_fail_cases = (
-    ("black", "uint8", 1),
-    ("white", "int16", 5),
-    ("orange", "uint32", 1),
-    ("indigo", "int64", 5),
-    ("violet", "float64", 1),
-    ("pneumonoultramicroscopicsilicovolcanoconiosis", "complex128", 5),
-)
-
-
-@pytest.mark.parametrize("test_params", image_coloring_fail_cases)
-def test_convert_to_rgb_fails(test_params: tuple[str, str, int]):
-    def create_test_array(shape: tuple, frames: int, dtype: str) -> np.ndarray:
-        for f in range(frames):
-            frame = np.ones(shape).astype(dtype)
-            if f == 0:
-                arr = np.array([frame])
-            else:
-                arr = np.append(arr, [frame], axis=0)
-        return arr
-
-    # The colours should throw up an error
-    with pytest.raises(KeyError):
-        # Unpack parameters
-        color, dtype, frames = test_params
-        shape = (64, 64)
-        arr = create_test_array(shape, frames, dtype)
-
-        convert_to_rgb(arr, color)
-
-
 image_coloring_test_matrix = (
     # Colour | dtype | frames
+    # 0
     ("red", "uint8", 1),
     ("green", "int16", 5),
     ("blue", "uint32", 1),
     ("cyan", "int64", 5),
     ("magenta", "float16", 1),
+    # 5
     ("yellow", "float32", 5),
     ("gray", "float64", 1),
     ("red", "float128", 5),
     ("green", "complex64", 1),
     ("blue", "complex128", 5),
+    # 10
     ("cyan", "complex256", 1),
     ("magenta", "complex64", 5),
     ("yellow", "complex128", 1),
     ("gray", "complex256", 5),
     ("red", "float16", 1),
+    # 15
     ("green", "float32", 5),
     ("blue", "float64", 1),
     ("cyan", "float128", 5),
     ("magenta", "int8", 1),
     ("yellow", "uint16", 5),
+    # 20
     ("gray", "int32", 1),
 )
 
@@ -573,6 +575,37 @@ def test_convert_to_rgb(test_params: tuple[str, str, int]):
     # Check that RGB values have been applied correctly
     pixel_values = np.array(LUT[color].value).astype(dtype)
     assert np.all(arr_new[0][0][0] == pixel_values)
+
+
+image_coloring_fail_cases = (
+    ("black", "uint8", 1),
+    ("white", "int16", 5),
+    ("orange", "uint32", 1),
+    ("indigo", "int64", 5),
+    ("violet", "float64", 1),
+    ("pneumonoultramicroscopicsilicovolcanoconiosis", "complex128", 5),
+)
+
+
+@pytest.mark.parametrize("test_params", image_coloring_fail_cases)
+def test_convert_to_rgb_fails(test_params: tuple[str, str, int]):
+    def create_test_array(shape: tuple, frames: int, dtype: str) -> np.ndarray:
+        for f in range(frames):
+            frame = np.ones(shape).astype(dtype)
+            if f == 0:
+                arr = np.array([frame])
+            else:
+                arr = np.append(arr, [frame], axis=0)
+        return arr
+
+    # The colours should throw up an error
+    with pytest.raises(KeyError):
+        # Unpack parameters
+        color, dtype, frames = test_params
+        shape = (64, 64)
+        arr = create_test_array(shape, frames, dtype)
+
+        convert_to_rgb(arr, color)
 
 
 image_flattening_test_matrix = (
@@ -642,11 +675,13 @@ def test_flatten_image(test_params: tuple[str, int, Optional[str], bool, int]):
 
 image_flattening_fail_cases: tuple[tuple, ...] = (
     # Image type | Frames | Mode | Is float?
+    # 0
     ("gray", 5, "uvuvwevwevwe", True),
     ("gray", 5, "onyetenyevwe", False),
     ("gray", 5, "ugwemubwem", True),
     ("rgb", 5, "osas", False),
     ("rgb", 5, 5, True),
+    # 5
     ("rgb", 5, True, False),
     ("rgb", 5, [], True),
     ("rgb", 5, (), True),
@@ -795,21 +830,15 @@ preprocess_img_test_matrix = (
     ("gray", "float64", "uint8", 1, "stretch"),
     ("gray", "float64", "uint16", 5, None),
     ("gray", None, "uint32", 1, "harambe"),
-    ("gray", "float64", "uint64", 5, "stretch"),  #
     ("gray", "uint8", "int8", 1, "stretch"),
     ("gray", None, "int16", 5, None),
     ("gray", "uint32", "int32", 1, "harambe"),
-    ("gray", "paracelsus", "uint64", 5, "stretch"),  #
-    ("gray", None, "uint64", 5, "stretch"),  #
     ("rgb", "complex128", "uint8", 1, "stretch"),
     ("rgb", "complex128", "uint16", 5, None),
     ("rgb", None, "uint32", 1, "harambe"),
-    ("rgb", "complex128", "uint64", 5, "stretch"),  #
     ("rgb", "int8", "uint8", 1, "stretch"),
     ("rgb", "int16", "uint16", 5, None),
     ("rgb", "int32", "uint32", 1, "harambe"),
-    ("rgb", None, "uint64", 5, "stretch"),  #
-    ("rgb", "theseus", "uint64", 5, "stretch"),  #
 )
 
 
@@ -818,12 +847,9 @@ def test_preprocess_img_stk(
     test_params: tuple[Optional[str], Optional[str], str, int, Optional[str]]
 ):
     def create_test_array(shape, frames, dtype):
-        for f in range(frames):
-            frame = np.random.randint(0, 2**8, shape).astype(dtype)
-            if f == 0:
-                arr = np.array([frame])
-            else:
-                arr = np.append(arr, [frame], axis=0)
+        arr = np.reshape(
+            np.linspace(0, 2**8 - 1, np.prod((frames, *shape))), (frames, *shape)
+        ).astype(dtype)
         return arr
 
     # Unpack parameters
@@ -847,28 +873,37 @@ def test_preprocess_img_stk(
 
 preprocess_img_fail_cases = (
     # Image type | Initial dtype | Target dtype | Num frames | Contrast adjustment
+    # Float, complex, and int64/uint64 should fail
+    # 0
+    ("gray", "float64", "float128", 1, "stretch"),
+    ("gray", "float64", "float64", 1, "stretch"),
+    ("gray", "float64", "float32", 1, "stretch"),
+    ("gray", "float64", "float16", 1, "stretch"),
+    ("gray", "float64", "complex256", 1, "stretch"),
+    # 5
+    ("gray", "float64", "complex128", 1, "stretch"),
+    ("gray", "float64", "complex64", 1, "stretch"),
+    ("gray", "float64", "int64", 1, "stretch"),
+    ("gray", "float64", "uint64", 1, "stretch"),
     # Invalid target dtypes should fail
     ("gray", "float64", "archimedes", 1, "stretch"),
     # Complex arrays with imaginary components should fail
+    # 10
+    ("gray", "complex256", "uint8", 1, "stretch"),
     ("gray", "complex128", "uint8", 1, "stretch"),
+    ("gray", "complex64", "uint8", 1, "stretch"),
 )
 
 
 @pytest.mark.parametrize("test_params", preprocess_img_fail_cases)
 def test_preprocess_img_stk_fails(test_params: tuple):
     def create_test_array(shape, frames, dtype):
-        for f in range(frames):
-            frame = np.random.randint(0, 2**7, shape).astype(dtype)
-            if f == 0:
-                if frames > 1:
-                    arr = np.array([frame])
-                else:
-                    arr = frame
-            else:
-                arr = np.append(arr, [frame], axis=0)
+        arr: np.ndarray = np.reshape(
+            np.linspace(0, 2**7 - 1, np.prod((frames, *shape))), (frames, *shape)
+        ).astype(dtype)
         return arr
 
-    with pytest.raises((ValueError)):
+    with pytest.raises((ValueError, NotImplementedError)):
         # Unpack parameters
         img_type, dtype_0, dtype_1, frames, method = test_params
         shape = (64, 64) if img_type == "gray" else (64, 64, 3)
