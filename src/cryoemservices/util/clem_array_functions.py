@@ -10,7 +10,7 @@ import logging
 import re
 from enum import Enum
 from pathlib import Path
-from typing import NamedTuple, Optional
+from typing import Optional
 
 import numpy as np
 from tifffile import imwrite
@@ -91,31 +91,6 @@ def get_dtype_info(dtype: str):
     return dtype_info
 
 
-class Range(NamedTuple):
-    """
-    General named tuple containing range information.
-    """
-
-    min: int
-    max: int
-    range: int
-
-
-def get_dtype_limits(dtype: str):
-    """
-    Parses NumPy's built-int dtype info object to return the min and max values a
-    NumPy dtype can support.
-    """
-
-    dtype_info = get_dtype_info(dtype)
-
-    # Python's 'int' can fully represent these numbers
-    min = int(dtype_info.min)
-    max = int(dtype_info.max)
-
-    return Range(min, max, max - min)
-
-
 def estimate_int_dtype(array: np.ndarray, bit_depth: Optional[int] = None) -> str:
     """
     Finds the smallest NumPy integer dtype that can contain the range of values
@@ -160,9 +135,9 @@ def estimate_int_dtype(array: np.ndarray, bit_depth: Optional[int] = None) -> st
         dtype_final = f"{dtype_group}{min(bit_list)}"
 
         # Raise error if dtype calculated using provided bit depth can't accommodate array
-        limits = get_dtype_limits(dtype_final)
-        vmin = limits.min
-        vmax = limits.max
+        dtype_info = get_dtype_info(dtype_final)
+        vmin = int(dtype_info.min)
+        vmax = int(dtype_info.max)
         # Use the rounded, int values of the array to ensure no rounding errors
         arr_min = _round_from_zero(arr.min())
         arr_max = _round_from_zero(arr.max())
@@ -184,9 +159,9 @@ def estimate_int_dtype(array: np.ndarray, bit_depth: Optional[int] = None) -> st
         dtype_subset = []
         for dtype in valid_dtypes:
             if dtype.startswith(dtype_group):
-                limits = get_dtype_limits(dtype)
-                vmin = limits.min
-                vmax = limits.max
+                dtype_info = get_dtype_info(dtype)
+                vmin = int(dtype_info.min)
+                vmax = int(dtype_info.max)
                 arr_min = (
                     int(arr.min())
                     if str(arr.dtype).startswith(("int", "uint"))
@@ -340,14 +315,15 @@ def convert_array_dtype(
         dtype_init = estimate_int_dtype(arr)
 
     # Get max supported values of initial and final arrays
-    limits_init = get_dtype_limits(dtype_init)
-    min_init = limits_init.min
-    range_init = limits_init.range
+    dtype_info_init = get_dtype_info(dtype_init)
+    min_init = int(dtype_info_init.min)
+    max_init = int(dtype_info_init.max)
+    range_init = max_init - min_init
 
-    limits_final = get_dtype_limits(dtype_final)
-    min_final = limits_final.min
-    max_final = limits_final.max
-    range_final = limits_final.range
+    dtype_info_final = get_dtype_info(dtype_final)
+    min_final = int(dtype_info_final.min)
+    max_final = int(dtype_info_final.max)
+    range_final = max_final - min_final
 
     # Rescale
     for f in range(arr.shape[0]):
@@ -451,9 +427,9 @@ def stretch_image_contrast(
     b_lo: float | int = np.percentile(arr, percentile_range[0])
     b_up: float | int = np.percentile(arr, percentile_range[1])
     diff: float | int = b_up - b_lo
-    dtype_limits = get_dtype_limits(target_dtype)
-    vmin = dtype_limits.min
-    vmax = dtype_limits.max
+    dtype_info = get_dtype_info(target_dtype)
+    vmin = int(dtype_info.min)
+    vmax = int(dtype_info.max)
 
     if debug:
         logger.debug(f"Using {vmax} as maximum array value")
