@@ -97,7 +97,7 @@ class Denoise(CommonService):
         tomogram_volume: Path,
         denoised_full_path: Path,
     ):
-        return subprocess.run(topaz_command)
+        return subprocess.run(topaz_command, capture_output=True)
 
     def denoise(self, rw, header: dict, message: dict):
         """Main function which interprets and processes received messages"""

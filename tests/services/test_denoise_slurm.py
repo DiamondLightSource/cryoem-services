@@ -21,7 +21,11 @@ def offline_transport(mocker):
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.util.slurm_submission.subprocess.run")
+@mock.patch("cryoemservices.services.denoise_slurm.transfer_files")
+@mock.patch("cryoemservices.services.denoise_slurm.retrieve_files")
 def test_denoise_slurm_service(
+    mock_retrieve,
+    mock_transfer,
     mock_subprocess,
     offline_transport,
     tmp_path,
@@ -36,6 +40,8 @@ def test_denoise_slurm_service(
         '{"job_id": "1", "jobs": [{"job_state": ["COMPLETED"]}]}'.encode("ascii")
     )
     mock_subprocess().stderr = "stderr".encode("ascii")
+
+    mock_transfer.return_value = 0
 
     header = {
         "message-id": mock.sentinel,
@@ -126,14 +132,16 @@ def test_denoise_slurm_service(
     )
 
     # Check file transfer and retrieval
-    # assert mock_transfer.call_count == 1
-    # mock_transfer.assert_any_call([f"{tmp_path}/test_stack_aretomo.mrc"])
-    # assert mock_retrieve.call_count == 1
-    # mock_retrieve.assert_any_call(
-    #    job_directory=tmp_path,
-    #    files_to_skip=[tmp_path / "test_stack_aretomo.mrc"],
-    #    basepath="test_stack_aretomo",
-    # )
+    assert mock_transfer.call_count == 1
+    mock_transfer.assert_any_call(
+        [f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc"]
+    )
+    assert mock_retrieve.call_count == 1
+    mock_retrieve.assert_any_call(
+        job_directory=tmp_path / "Denoise/job007/denoised",
+        files_to_skip=[tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo.mrc"],
+        basepath="test_stack_aretomo",
+    )
     assert mock_subprocess.call_count == 5
 
     # Check the denoising command
@@ -141,8 +149,18 @@ def test_denoise_slurm_service(
         tmp_path / "Denoise/job007/denoised/test_stack_aretomo.denoised.mrc.json", "r"
     ) as script_file:
         script_json = json.load(script_file)
-    topaz_command = script_json["script"].split("\n")[-1]
+    topaz_command = script_json["script"].split("\n")[-2]
 
+    singularity_command = [
+        "singularity",
+        "exec",
+        "--nv",
+        "--bind",
+        "/lib64,/tmp/tmp_$SLURM_JOB_ID:/tmp,directory1,directory2",
+        "--home",
+        "/home",
+        "topaz.sif",
+    ]
     denoise_command = [
         "topaz",
         "denoise3d",
@@ -191,7 +209,8 @@ def test_denoise_slurm_service(
         "-d",
         "-2",
     ]
-    assert topaz_command == " ".join(denoise_command)
+    singularity_command.extend(denoise_command)
+    assert topaz_command == " ".join(singularity_command)
 
     # Check the images service request
     assert offline_transport.send.call_count == 5
