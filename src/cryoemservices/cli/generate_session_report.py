@@ -135,19 +135,28 @@ class SessionResults:
             }
         )
         doc.preamble.append(pylatex.NoEscape(r"\setlength{\parindent}{0pt}"))
+        doc.preamble.append(pylatex.NoEscape(r"\usepackage[T1]{fontenc}"))
+        doc.preamble.append(pylatex.NoEscape(r"\usepackage{palatino}"))
         doc.preamble.append(
             pylatex.Command(
                 "title", f"Auto-processing report for {self.visit_name} {self.raw_name}"
             )
         )
+        doc.preamble.append(pylatex.Command("author", ""))
         doc.preamble.append(pylatex.Command("date", pylatex.NoEscape(r"\today")))
+
+        # doc.preamble.append(pylatex.NoEscape(r"\usepackage{fancyhdr}"))
+        # doc.preamble.append(pylatex.NoEscape(r"\pagestyle{fancy}"))
+        # doc.preamble.append(pylatex.NoEscape(r"\includegraphics{dls-logo.png}"))
+
         doc.append(pylatex.NoEscape(r"\maketitle"))
+        doc.append(pylatex.NoEscape(r"\hyphenpenalty=10000"))
 
         with doc.create(pylatex.Section("Data collection")):
             if self.supervisor_name:
                 doc.append(f"This dataset was named {self.supervisor_name}. ")
             doc.append(
-                f"The raw data for this collection is in {self.image_directory}. "
+                f"The raw data for this collection is in \n{self.image_directory}\n"
                 f"In this, a total of {self.micrograph_count} micrographs were "
                 f"collected across {self.number_of_grid_squares} grid squares."
             )
@@ -218,7 +227,7 @@ class SessionResults:
                 )
             )
 
-            with doc.create(pylatex.Figure(position="h")) as micrograph_image:
+            with doc.create(pylatex.Figure(position="h!")) as micrograph_image:
                 micrograph_image.add_image(self.example_micrographs[0], width="200px")
                 micrograph_image.append(pylatex.NoEscape(r"\hspace{20px}"))
                 micrograph_image.add_image(self.example_micrographs[1], width="200px")
@@ -226,7 +235,7 @@ class SessionResults:
                     "The motion corrected micrographs with the most picked particles"
                 )
 
-            with doc.create(pylatex.Figure(position="h")) as pick_image:
+            with doc.create(pylatex.Figure(position="h!")) as pick_image:
                 pick_image.add_image(self.example_picks[0], width="200px")
                 pick_image.append(pylatex.NoEscape(r"\hspace{20px}"))
                 pick_image.add_image(self.example_picks[1], width="200px")
@@ -255,7 +264,7 @@ class SessionResults:
             )
             doc.append(pylatex.NoEscape("\n"))
 
-            with doc.create(pylatex.Figure(position="h")) as class2d_image:
+            with doc.create(pylatex.Figure(position="h!")) as class2d_image:
                 for i in range(min(len(self.example_class2d), 18)):
                     # Display up to 18 examples of 2d classes
                     class2d_image.add_image(self.example_class2d[i], width="50px")
@@ -267,11 +276,9 @@ class SessionResults:
 
             if self.class3d_batch:
                 doc.append(
-                    pylatex.NoEscape(
-                        f"3D classification was run up to {self.class3d_batch} particles "
-                        f"using a symmetry of {self.provided_symmetry}. "
-                        r"The classes produced are given in table \ref{class3d_table}."
-                    )
+                    f"3D classification was run up to {self.class3d_batch} particles "
+                    f"using a symmetry of {self.provided_symmetry}. "
+                    "The classes produced are given in the table below."
                 )
                 doc.append(pylatex.NoEscape("\n"))
                 with doc.create(pylatex.Table(position="h!")) as table_environment:
@@ -325,7 +332,7 @@ class SessionResults:
                     pylatex.NoEscape(
                         "The angular distribution of the particles in this class "
                         r"is shown in figure \ref{angular_plot}, "
-                        "which should make clear the spread of orientations present."
+                        "which should indicate how many orientations are present."
                     )
                 )
                 with doc.create(pylatex.Figure(position="h!")) as angdist_image:
