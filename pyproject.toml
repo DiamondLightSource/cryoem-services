@@ -84,6 +84,7 @@ dev = [
     CTFFind = "cryoemservices.services.ctffind:CTFFind"
     ClusterSubmission = "cryoemservices.services.cluster_submission:ClusterSubmission"
     CrYOLO = "cryoemservices.services.cryolo:CrYOLO"
+    Denoise = "cryoemservices.services.denoise_slurm:Denoise"
     DenoiseSlurm = "cryoemservices.services.denoise_slurm:DenoiseSlurm"
     Extract = "cryoemservices.services.extract:Extract"
     ExtractClass = "cryoemservices.services.extract_class:ExtractClass"
