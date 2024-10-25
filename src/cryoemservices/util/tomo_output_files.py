@@ -13,7 +13,7 @@ from cryoemservices.util.spa_output_files import get_ice_ring_density
 def _find_angle_index(split_name: List[str]) -> int:
     # Naming structure {tilt_series_name}_{tilt_number}_{tilt_angle}_{timestamp}.suffix
     for i, part in enumerate(split_name):
-        if "." in part and part[0].isnumeric():
+        if "." in part and part[-1].isnumeric():
             return i
     return -1
 

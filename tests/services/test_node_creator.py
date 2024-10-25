@@ -1150,9 +1150,9 @@ def test_node_creator_ctffind_tomo(mock_environment, offline_transport, tmp_path
     """
     job_dir = "CtfFind/job003"
     input_file = (
-        f"{tmp_path}/MotionCorr/job002/Movies/Position_1_2_001_1.50_fractions.mrc"
+        f"{tmp_path}/MotionCorr/job002/Movies/Position_1_2_001_-1.50_fractions.mrc"
     )
-    output_file = tmp_path / job_dir / "Movies/Position_1_2_001_1.50_fractions.ctf"
+    output_file = tmp_path / job_dir / "Movies/Position_1_2_001_-1.50_fractions.ctf"
     relion_options = RelionServiceOptions()
 
     output_file.parent.mkdir(parents=True)
@@ -1197,7 +1197,7 @@ def test_node_creator_ctffind_tomo(mock_environment, offline_transport, tmp_path
     assert list(tilts_block.find_loop("_rlnTomoTiltMovieFrameCount")) == [
         str(relion_options.frame_count)
     ]
-    assert list(tilts_block.find_loop("_rlnTomoNominalStageTiltAngle")) == ["1.50"]
+    assert list(tilts_block.find_loop("_rlnTomoNominalStageTiltAngle")) == ["-1.50"]
     assert list(tilts_block.find_loop("_rlnTomoNominalTiltAxisAngle")) == [
         str(relion_options.tilt_axis_angle)
     ]
@@ -1206,10 +1206,10 @@ def test_node_creator_ctffind_tomo(mock_environment, offline_transport, tmp_path
         str(relion_options.defocus)
     ]
     assert list(tilts_block.find_loop("_rlnMicrographName")) == [
-        "MotionCorr/job002/Movies/Position_1_2_001_1.50_fractions.mrc"
+        "MotionCorr/job002/Movies/Position_1_2_001_-1.50_fractions.mrc"
     ]
     assert list(tilts_block.find_loop("_rlnCtfImage")) == [
-        f"{job_dir}/Movies/Position_1_2_001_1.50_fractions.ctf:mrc"
+        f"{job_dir}/Movies/Position_1_2_001_-1.50_fractions.ctf:mrc"
     ]
     assert list(tilts_block.find_loop("_rlnDefocusU")) == ["1.0"]
     assert list(tilts_block.find_loop("_rlnDefocusV")) == ["2.0"]
