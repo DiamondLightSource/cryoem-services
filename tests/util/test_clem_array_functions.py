@@ -13,7 +13,6 @@ from cryoemservices.util.clem_array_functions import (
     estimate_int_dtype,
     flatten_image,
     get_dtype_info,
-    get_dtype_limits,
     get_valid_dtypes,
     merge_images,
     preprocess_img_stk,
@@ -78,30 +77,6 @@ invalid_dtypes = (
 def test_get_dtype_info_fails(dtype: str):
     with pytest.raises(ValueError):
         get_dtype_info(dtype)
-
-
-dtype_limits_test_matrix = (
-    # dtype | Expected min | Expected max
-    ("int8", -(2**7), (2**7) - 1),
-    ("int16", -(2**15), (2**15) - 1),
-    ("int32", -(2**31), (2**31) - 1),
-    ("int64", -(2**63), (2**63) - 1),
-    ("uint8", 0, (2**8) - 1),
-    ("uint16", 0, (2**16) - 1),
-    ("uint32", 0, (2**32) - 1),
-    ("uint64", 0, (2**64) - 1),
-    ("float16", -65504, 65504),
-    #   NOTE: float32, float64, float128, and the corresponding complex types
-    #   have numbers that are too long to list and test
-)
-
-
-@pytest.mark.parametrize("test_params", dtype_limits_test_matrix)
-def test_get_dtype_limits(test_params: tuple[str, int, int]):
-    # Unpack test parameters
-    dtype, vmin, vmax = test_params
-    limits = get_dtype_limits(dtype)
-    assert limits.min == vmin and limits.max == vmax
 
 
 dtype_estimation_test_matrix = (
@@ -417,9 +392,9 @@ def test_stretch_image_contrast(
 
     # Helper function to create arrays
     def create_test_array(shape: tuple, frames: int, dtype: str) -> np.ndarray:
-        limits = get_dtype_limits(dtype)
-        vmin = limits.min
-        vmax = limits.max
+        dtype_info = get_dtype_info(dtype)
+        vmin = int(dtype_info.min)
+        vmax = int(dtype_info.max)
         arr = np.reshape(
             np.linspace(vmin, vmax, np.prod((frames, *shape))), (frames, *shape)
         ).astype(dtype)
