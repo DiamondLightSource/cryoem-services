@@ -28,12 +28,6 @@ from cryoemservices.util.clem_raw_metadata import get_image_elements
 logger = logging.getLogger("cryoemservices.wrappers.clem_process_raw_lifs")
 
 
-class LIFToStackParameters(BaseModel):
-    lif_file: Path
-    root_folder: str  # Name of the folder to treat as the root folder for LIF files
-    number_of_processes: int = 1  # Number of processing threads to run
-
-
 def get_lif_xml_metadata(
     file: LifFile,
     save_xml: Optional[Path] = None,
@@ -57,12 +51,12 @@ def get_lif_xml_metadata(
     return xml_root
 
 
-def process_lif_file(
+def process_lif_substack(
     file: Path,
     scene_num: int,
     metadata: ET.Element,
-    save_dir: Path,
-) -> dict | None:
+    processed_dir: Path,
+) -> dict:
     """
     Takes the LIF file and its corresponding metadata and loads the relevant sub-stack,
     with each channel as its own array. Rescales their intensity values to utilise the
@@ -71,16 +65,21 @@ def process_lif_file(
     """
 
     # Load LIF file
-    file_name = file.stem.replace(" ", "_")
     image = LifFile(str(file)).get_image(scene_num)
 
     # Get name of sub-image
+    file_name = file.stem.replace(" ", "_")  # Remove spaces
     img_name = metadata.attrib["Name"].replace(" ", "_")  # Remove spaces
     logger.info(f"Processing {file_name}-{img_name}")
 
     # Create save dirs for TIFF files and their metadata
-    img_dir = save_dir / img_name
-    img_xml_dir = img_dir / "metadata"
+    save_dir = (  # Save directory for all substacks from this LIF file
+        processed_dir
+        / "/".join(file.relative_to(processed_dir.parent).parts[1:-1])
+        / file_name
+    )
+    img_dir = save_dir / img_name  # Save directory for this specific substack
+    img_xml_dir = img_dir / "metadata"  # Save metadata relative to the substack
     for folder in (img_dir, img_xml_dir):
         if not folder.exists():
             # Potential race condition when generating folders from multiple pools
@@ -88,6 +87,9 @@ def process_lif_file(
             logger.info(f"Created {folder}")
         else:
             logger.info(f"{folder} already exists")
+
+    # Create a name for this series
+    series_name = img_dir.relative_to(processed_dir).as_posix().replace("/", "--")
 
     # Save image stack XML metadata (all channels together)
     img_xml_file = img_xml_dir / (img_name + ".xml")
@@ -117,7 +119,7 @@ def process_lif_file(
     # timestamps = metadata.find("Data/Image/TimeStampList")
 
     # Process channels as individual TIFFs
-    output_tiffs: list[str] = []
+    output_tiffs: list[Path] = []
     for c in range(len(colors)):
 
         # Get color
@@ -190,18 +192,17 @@ def process_lif_file(
             photometric="minisblack",
         )
         # Collect the image stacks created
-        output_tiffs.append(img_stk_file.resolve().as_posix())
+        output_tiffs.append(img_stk_file.resolve())
 
-    # Return None if no files were generated
+    # Return empty dict if no files were generated
     if len(output_tiffs) == 0:
-        return None
-    # Collect the files that have been generated
+        return {}
+    # Collect and return the files that have been generated
     output_files = {
         "image_stacks": output_tiffs,
-        "metadata": img_xml_file,
-        "series_name": "",
+        "metadata": img_xml_file.resolve(),
+        "series_name": series_name,
     }
-    # Return the actual files as a dict
     return output_files
 
 
@@ -237,35 +238,31 @@ def convert_lif_to_stack(
         num_procs = 1
 
     # Folder for processed files with same structure as old one
+    new_root_folder = "processed"
     file_name = file.stem.replace(" ", "_")  # Replace spaces
     path_parts = list(file.parts)
-    new_root_folder = "processed"
-    # Rewrite string in-place
-    counter = 0
-    for p in range(len(path_parts)):
-        part = path_parts[p]
-        # Omit initial "/" in Linux file systems for subsequent rejoining
-        if part == "/":
-            path_parts[p] = ""
-        # Rename designated root folder to "processed"
-        if (
-            part.lower() == root_folder.lower() and counter < 1
-        ):  # Remove case-sensitivity
-            path_parts[p] = new_root_folder
-            counter += 1  # Do for first instance only
-    # Check that "processed" has been inserted into file path
-    if new_root_folder not in path_parts:
+
+    # Build path to processed directory
+    # Remove leading "/" in Unix paths
+    path_parts[0] = "" if path_parts[0] == "/" else path_parts[0]
+    try:
+        # Search for root folder with case-insensitivity
+        root_index = [p.lower() for p in path_parts].index(root_folder.lower())
+        path_parts[root_index] = new_root_folder
+    except ValueError:
         logger.error(
             f"Subpath {root_folder!r} was not found in image path " f"{str(file)!r}"
         )
         return None
+    processed_dir = Path("/".join(path_parts[: root_index + 1]))
+
+    # Save master metadata relative to raw file
+    raw_xml_dir = file.parent / "metadata"
 
     # Create folders if not already present
-    processed_dir = Path("/".join(path_parts)).parent / file_name  # Processed images
-    raw_xml_dir = file.parent / "metadata"  # Raw metadata
     for folder in (processed_dir, raw_xml_dir):
         if not folder.exists():
-            folder.mkdir(parents=True)
+            folder.mkdir(parents=True, exist_ok=True)
             logger.info(f"Created {str(folder)!r}")
         else:
             logger.info(f"{str(folder)!r} already exists")
@@ -287,12 +284,13 @@ def convert_lif_to_stack(
 
     # Check that elements match number of images
     if not len(metadata_list) == len(scene_list):
-        raise IndexError(
-            "Error matching metadata list to list of sub-images. \n"
+        logger.error(
+            "Error matching metadata list to list of sub-images. "
             # Show what went wrong
-            f"Metadata entries: {len(metadata_list)} \n"
-            f"Sub-images: {len(scene_list)}"
+            f"Metadata entries: {len(metadata_list)} "
+            f"Sub-images: {len(scene_list)} "
         )
+        return None
 
     # Iterate through scenes
     logger.info("Examining sub-images")
@@ -310,15 +308,16 @@ def convert_lif_to_stack(
             ]
         )
 
-    # Parallel process image stacks
+    # Parallel process image stacks and return results
     with mp.Pool(processes=num_procs) as pool:
-        results = pool.starmap(process_lif_file, pool_args)
-
-    # If any of the sub-images fail, return None for this process
-    if any(result is None for result in results):
-        return None
-
+        results = pool.starmap(process_lif_substack, pool_args)
     return results
+
+
+class LIFToStackParameters(BaseModel):
+    lif_file: Path
+    root_folder: str  # Name of the folder to treat as the root folder for LIF files
+    number_of_processes: int = 1  # Number of processing threads to run
 
 
 class LIFToStackWrapper(BaseWrapper):
