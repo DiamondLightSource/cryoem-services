@@ -119,7 +119,7 @@ def process_lif_substack(
     # timestamps = metadata.find("Data/Image/TimeStampList")
 
     # Process channels as individual TIFFs
-    output_tiffs: list[Path] = []
+    img_stks: list[Path] = []
     for c in range(len(colors)):
 
         # Get color
@@ -192,14 +192,11 @@ def process_lif_substack(
             photometric="minisblack",
         )
         # Collect the image stacks created
-        output_tiffs.append(img_stk_file.resolve())
+        img_stks.append(img_stk_file.resolve())
 
-    # Return empty dict if no files were generated
-    if len(output_tiffs) == 0:
-        return {}
     # Collect and return the files that have been generated
     output_files = {
-        "image_stacks": output_tiffs,
+        "image_stacks": img_stks,
         "metadata": img_xml_file.resolve(),
         "series_name": series_name,
     }
@@ -300,10 +297,11 @@ def convert_lif_to_stack(
     for i in range(len(scene_list)):
         pool_args.append(
             # Arguments need to be pickle-able; no complex objects allowed
-            [  # Follow order of args in the function
-                file,  # Load LIF file in the sub-process
+            #   Follow order of args in the function
+            [
+                file,
                 i,
-                metadata_list[i],  # Corresponding metadata
+                metadata_list[i],
                 processed_dir,
             ]
         )
@@ -315,42 +313,63 @@ def convert_lif_to_stack(
 
 
 class LIFToStackParameters(BaseModel):
+    """
+    Pydantic model for validating the received message for the LIF file conversion
+    workflow.
+
+    The keys under the "job_parameters" key in the Zocalo wrapper recipe must match
+    the attributes present in this model. Attributes in the model with a default
+    value don't have to be provided in the wrapper recipe.
+    """
+
     lif_file: Path
-    root_folder: str  # Name of the folder to treat as the root folder for LIF files
-    number_of_processes: int = 1  # Number of processing threads to run
+    root_folder: str  # The root folder under which all LIF files are saved
+    num_procs: int = 20  # Number of processing threads to run
 
 
 class LIFToStackWrapper(BaseWrapper):
-    """ """
-
     def run(self) -> bool:
+        """
+        Reads the Zocalo wrapper recipe, loads the parameters, and passes them to the
+        LIF file processing function. Upon collecting the results, it then passes them
+        back to Murfey for the next stage in the workflow.
+        """
+
         assert hasattr(self, "recwrap"), "No recipewrapper object found"
         params_dict = self.recwrap.recipe_step["job_parameters"]
         try:
             params = LIFToStackParameters(**params_dict)
         except (ValidationError, TypeError) as e:
-            logger.warning(
-                f"LIFToStackParameters validation failed for parameters: {params_dict} "
-                f"with exception: {e}"
+            logger.error(
+                f"LIFToStackParameters validation failed for parameters: {params_dict} with exception: {e}"
             )
             return False
 
-        # Collect the output files
+        # Process files and collect output
         results = convert_lif_to_stack(
-            # Params go in here
             file=params.lif_file,
-            root_folder=params.root_folder,  # Name of the folder to treat as the root folder for LIF files
-            number_of_processes=params.number_of_processes,  # Number of processing threads to run
+            root_folder=params.root_folder,  # Name of the folder under which LIF files are saved
+            number_of_processes=params.num_procs,  # Number of processing threads to run
         )
 
-        # Return False if any of the output files are missing
-        if any(result is None for result in results):
+        # Return False and log error if the command fails to execute
+        if results is None:
+            logger.error(f"Failed to extract image stacks from {params.lif_file!r}")
             return False
         # Send each subset of output files to Murfey for registration
         for result in results:
-            murfey_params = {
-                "register": "register_lif_preprocessing_result",
-                "output_files": result,
-            }
-            self.recwrap.send_to("murfey_feedback", murfey_params)
+            # Log warning if a subset fails
+            if len(result["image_stacks"]) == 0:
+                logger.warning(f"Failed to process sub-image {result['series_name']}")
+            else:
+                # Create dictionary and send it to Murfey's "feedback_callback" function
+                murfey_params = {
+                    "register": "register_lif_preprocessing_result",
+                    "output_files": result,
+                }
+                self.recwrap.send_to("murfey_feedback", murfey_params)
+                logger.info(
+                    f"Image stacks for {result['series_name']} successfully created"
+                )
+
         return True
