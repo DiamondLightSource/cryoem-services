@@ -33,7 +33,7 @@ def process_tiff_files(
     tiff_list: list[Path],
     metadata_file: Path,
     save_dir: Path,
-) -> bool:
+) -> dict | None:
     """
     Opens the TIFF files as NumPy arrays and stacks them.
     """
@@ -42,14 +42,14 @@ def process_tiff_files(
     # Convert to list for Python 3.9 compatibility
     if list(metadata_file.parents)[-2] != list(tiff_list[0].parents)[-2]:
         logger.error("The base paths of the metadata and TIFF files do not match")
-        return False
+        return None
 
     # Load relevant metadata
     elem_list = get_image_elements(parse(metadata_file).getroot())
     metadata = elem_list[0]
 
     # Get name of image series
-    img_name = metadata.attrib["Name"]
+    img_name = metadata.attrib["Name"].replace(" ", "_")
     logger.info(f"Processing {img_name}")
 
     # Create save directory for image metadata
@@ -61,7 +61,7 @@ def process_tiff_files(
         logger.info(f"{metadata_dir} already exists")
 
     # Save image metadata
-    img_xml_file = metadata_dir / (img_name.replace(" ", "_") + ".xml")
+    img_xml_file = metadata_dir / (img_name + ".xml")
     metadata_tree = ET.ElementTree(metadata)
     ET.indent(metadata_tree, "  ")
     metadata_tree.write(img_xml_file, encoding="utf-8")
@@ -93,6 +93,7 @@ def process_tiff_files(
     image_labels = [f"{f}" for f in range(num_frames)]
 
     # Process channels as individual TIFFs
+    output_tiffs: list[Path] = []
     for c in range(len(colors)):
 
         # Get color
@@ -105,7 +106,7 @@ def process_tiff_files(
             f
             for f in tiff_list
             if (f"C{str(c).zfill(2)}" in f.stem or f"C{str(c).zfill(3)}" in f.stem)
-            and (img_name.replace(" ", "_") == f.stem.split("--")[0].replace(" ", "_"))
+            and (img_name == f.stem.split("--")[0].replace(" ", "_"))
         ]
         tiff_sublist.sort(
             key=lambda f: (int(f.stem.split("--")[1].replace("Z", "")),)
@@ -116,7 +117,7 @@ def process_tiff_files(
             logger.error(
                 f"Error processing {color} channel for {img_name}; no TIFF files found"
             )
-            return False
+            return None
 
         # Load image stack
         logger.info("Loading image stack")
@@ -171,7 +172,7 @@ def process_tiff_files(
 
         # Save as a greyscale TIFF
         logger.info("Processing image stack")
-        write_stack_to_tiff(
+        img_stk_file = write_stack_to_tiff(
             array=arr,
             save_dir=save_dir,
             file_name=color,
@@ -183,15 +184,25 @@ def process_tiff_files(
             image_labels=image_labels,
             photometric="minisblack",
         )
+        # Collect the image stacks created
+        output_tiffs.append(img_stk_file.resolve())
 
-    return True
+    # Return empty dict if no files were generated
+    if len(output_tiffs) == 0:
+        return None
+    # Collect and return files that have been generated
+    output_files = {
+        "image_stacks": output_tiffs,
+        "metadata": img_xml_file.resolve(),
+    }
+    return output_files
 
 
 def convert_tiff_to_stack(
     tiff_list: list[Path],  # List of files associated with this series
     root_folder: str,  # Name of the folder to treat as the root folder
     metadata_file: Optional[Path] = None,  # Option to manually provide metadata file
-):
+) -> dict | None:
     """
     Takes a list of TIFF files for a distinct image series and converts them into a
     TIFF image stack with the key metadata embedded. Stacks are saved in a folder
@@ -225,59 +236,63 @@ def convert_tiff_to_stack(
 
     # Use the names of the TIFF files to get the unique path to it
     # Remove the "--Z##--C##.tiff" end of the file path strings
-    path = tiff_list[0].parent / tiff_list[0].stem.split("--")[0]
+    series_path = tiff_list[0].parent / tiff_list[0].stem.split("--")[0]
 
     # Extract key variables
-    parent_dir = path.parent  # File path not including partial file name
-    series_name = path.stem  # Last item is part of file name
+    parent_dir = series_path.parent  # File path not including partial file name
+    series_name_short = series_path.stem  # Last item is part of file name
 
-    logger.info(f"Processing {series_name} TIFF files")
+    logger.info(f"Processing {series_name_short} TIFF files")
 
-    # Create processed directory
-    path_parts = list(path.parts)
-    counter = 0
-    for p in range(len(path_parts)):
-        part = path_parts[p]
-        # Remove leading "/" in Unix systems for subsequent rejoining
-        if part == "/":
-            path_parts[p] = ""
-        # Remove spaces to prevent subsequent Murfey errors
-        if " " in part:
-            path_parts[p] = part.replace(" ", "_")
-        # Rename designated root folder to "processed"
-        if (
-            part.lower() == root_folder.lower() and counter < 1
-        ):  # Remove case-sensitivity
-            path_parts[p] = new_root_folder
-            counter += 1  # Do for first instance only
-        # Remove last level in path if same as previous one (redundancy)
-        if p == len(path_parts) - 1:
-            if part.replace(" ", "_") == path_parts[p - 1].replace(" ", "_"):
-                path_parts.pop(p)
-    # Check that "processed" has been inserted into file path
-    if new_root_folder not in path_parts:
+    # Construct path to save directory
+    path_parts = list(series_path.parts)
+    # Remove leading "/" in Unix paths
+    path_parts[0] = "" if path_parts[0] == "/" else path_parts[0]
+    # Replace spaces in path
+    path_parts = [p.replace(" ", "_") if " " in p else p for p in path_parts]
+    # Remove last level if it is redundant
+    path_parts = path_parts[:-1] if path_parts[-1] == path_parts[-2] else path_parts
+
+    try:
+        # Search for root folder with case-insensitivity and point to new location
+        root_index = [p.lower() for p in path_parts].index(root_folder.lower())
+        path_parts[root_index] = new_root_folder
+    except ValueError:
         logger.error(
-            f"Subpath {root_folder!r} was not found in file path "
+            f"Subpath {root_folder!r} was not found in image path "
             f"{str(parent_dir)!r}"
         )
-        return False
+        return None
+    save_dir = Path("/".join(path_parts))  # Path to this series
+
+    # Get the long version of the series name
+    processed_dir = Path("/".join(path_parts[: root_index + 1]))
+    series_name_long = save_dir.relative_to(processed_dir).as_posix().replace("/", "--")
+
     # Make directory for processed files
-    processed_dir = Path("/".join(path_parts))  # Images
-    if not processed_dir.exists():
-        processed_dir.mkdir(parents=True)
-        logger.info(f"Created {processed_dir}")
+    if not save_dir.exists():
+        save_dir.mkdir(parents=True)
+        logger.info(f"Created {save_dir}")
     else:
-        logger.info(f"{str(processed_dir)} already exists")
+        logger.info(f"{str(save_dir)} already exists")
 
     # Get associated XML file
-    if not metadata_file:  # Search for it using relative paths if not provided
-        xml_file = parent_dir / "Metadata" / (series_name + ".xlif")
+    if metadata_file is None:  # Search for it using relative paths if not provided
+        xml_file = parent_dir / "Metadata" / (series_name_short + ".xlif")
         if xml_file.exists():
             logger.info(f"Metadata file found at {xml_file}")
         else:
             logger.error(f"No metadata file found at {xml_file}")
-            return False
+            return None
     else:
         xml_file = metadata_file
 
-    return process_tiff_files(tiff_list, xml_file, processed_dir)
+    # Process TIFF files and collect results
+    output_files = process_tiff_files(tiff_list, xml_file, save_dir)
+
+    # Return empty dict if no files were generated
+    if output_files is None:
+        return {}
+    # Add the series name to the dict and return it
+    output_files["series_name"] = series_name_long
+    return output_files
