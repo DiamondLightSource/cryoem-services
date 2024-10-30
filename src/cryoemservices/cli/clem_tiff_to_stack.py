@@ -13,16 +13,16 @@ def run():
     )
     # Path to single TIFF file from series (Mandatory)
     parser.add_argument(
-        dest="tiff_path",
+        dest="tiff_file",
         type=str,
         help="Path to any one of the TIFF files from the series to be processed",
     )
     # Root directory (Optional)
     parser.add_argument(
-        "--root-dir",
+        "--root-folder",
         default="images",
         type=str,
-        help="Top subdirectory that raw TIFF files are stored in. Used to determine destination of the created image stacks",
+        help="Name of the top folder that raw TIFF files are stored in. Used to determine destination of the created image stacks",
     )
     # Path to metadata file (Optional)
     parser.add_argument(
@@ -35,7 +35,7 @@ def run():
     args = parser.parse_args()
 
     # Convert to correct object types
-    tiff_file = Path(args.tiff_path)
+    tiff_file = Path(args.tiff_file)
     # Generate list from the single file provided
     tiff_list: list[Path] = [
         f.resolve()
@@ -47,7 +47,7 @@ def run():
     ]
 
     # Parse root folder argument
-    root_folder: str = args.root_dir
+    root_folder: str = args.root_folder
 
     # Parse metadata argument
     if not args.metadata:

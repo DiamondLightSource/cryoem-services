@@ -13,15 +13,15 @@ def run():
     )
 
     parser.add_argument(
-        dest="lif_path",
+        dest="lif_file",
         type=str,
         help="Path to LIF file for conversion",
     )
     parser.add_argument(
-        "--root-dir",
+        "--root-folder",
         type=str,
         default="images",
-        help="Top subdirectory that LIF files are stored in. Used to determine destination of the created TIFF image stacks",
+        help="Name of the top folder that LIF files are stored in. Used to determine destination of the created TIFF image stacks",
     )
     parser.add_argument(
         "-n",
@@ -33,13 +33,13 @@ def run():
     args = parser.parse_args()
 
     # Load args
-    lif_path = Path(args.lif_path)
-    root_folder: str = args.root_dir
+    lif_file = Path(args.lif_file)
+    root_folder: str = args.root_folder
     num_procs: int = args.num_procs
 
     # Run function
     results = convert_lif_to_stack(
-        file=lif_path,
+        file=lif_file,
         root_folder=root_folder,
         number_of_processes=num_procs,
     )
