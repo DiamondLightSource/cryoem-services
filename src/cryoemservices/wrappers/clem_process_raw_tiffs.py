@@ -244,7 +244,7 @@ def convert_tiff_to_stack(
 
     logger.info(f"Processing {series_name_short} TIFF files")
 
-    # Construct path to save directory
+    # Parse path parts
     path_parts = list(series_path.parts)
     # Remove leading "/" in Unix paths
     path_parts[0] = "" if path_parts[0] == "/" else path_parts[0]
@@ -252,7 +252,6 @@ def convert_tiff_to_stack(
     path_parts = [p.replace(" ", "_") if " " in p else p for p in path_parts]
     # Remove last level if it is redundant
     path_parts = path_parts[:-1] if path_parts[-1] == path_parts[-2] else path_parts
-
     try:
         # Search for root folder with case-insensitivity and point to new location
         root_index = [p.lower() for p in path_parts].index(root_folder.lower())
@@ -263,11 +262,10 @@ def convert_tiff_to_stack(
             f"{str(parent_dir)!r}"
         )
         return None
-    save_dir = Path("/".join(path_parts))  # Path to this series
 
-    # Get the long version of the series name
-    processed_dir = Path("/".join(path_parts[: root_index + 1]))
-    series_name_long = save_dir.relative_to(processed_dir).as_posix().replace("/", "--")
+    # Construct save directory and long name of the series
+    save_dir = Path("/".join(path_parts))  # Path to this series
+    series_name_long = "--".join(path_parts[root_index + 1 :])
 
     # Make directory for processed files
     if not save_dir.exists():
