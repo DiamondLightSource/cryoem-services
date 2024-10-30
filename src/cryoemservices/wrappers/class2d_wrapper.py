@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Optional
 
 import numpy as np
-from gemmi import cif
+from gemmi import cif  # type: ignore
 from pydantic import BaseModel, Field, ValidationError
 from zocalo.wrapper import BaseWrapper
 
