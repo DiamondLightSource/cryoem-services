@@ -46,14 +46,21 @@ def run():
         and f.stem.startswith(tiff_file.stem.split("--")[0] + "--")
     ]
 
-    # Resolve for metadata argument
+    # Parse root folder argument
+    root_folder: str = args.root_dir
+
+    # Parse metadata argument
     if not args.metadata:
         metadata = None
     else:
         metadata = Path(args.metadata)
 
-    convert_tiff_to_stack(
+    result = convert_tiff_to_stack(
         tiff_list=tiff_list,
-        root_folder=args.root_dir,
+        root_folder=root_folder,
         metadata_file=metadata,
     )
+
+    # Print result to output log
+    if result is not None:
+        print(result)
