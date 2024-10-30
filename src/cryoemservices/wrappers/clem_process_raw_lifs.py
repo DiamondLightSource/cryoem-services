@@ -55,7 +55,7 @@ def process_lif_substack(
     file: Path,
     scene_num: int,
     metadata: ET.Element,
-    processed_dir: Path,
+    root_save_dir: Path,
 ) -> dict:
     """
     Takes the LIF file and its corresponding metadata and loads the relevant sub-stack,
@@ -74,8 +74,8 @@ def process_lif_substack(
 
     # Create save dirs for TIFF files and their metadata
     save_dir = (  # Save directory for all substacks from this LIF file
-        processed_dir
-        / "/".join(file.relative_to(processed_dir.parent).parts[1:-1])
+        root_save_dir
+        / "/".join(file.relative_to(root_save_dir.parent).parts[1:-1])
         / file_name
     )
     img_dir = save_dir / img_name  # Save directory for this specific substack
@@ -89,7 +89,7 @@ def process_lif_substack(
             logger.info(f"{folder} already exists")
 
     # Create a name for this series
-    series_name = img_dir.relative_to(processed_dir).as_posix().replace("/", "--")
+    series_name = img_dir.relative_to(root_save_dir).as_posix().replace("/", "--")
 
     # Save image stack XML metadata (all channels together)
     img_xml_file = img_xml_dir / (img_name + ".xml")
@@ -248,7 +248,7 @@ def convert_lif_to_stack(
     try:
         # Search for root folder with case-insensitivity
         root_index = [p.lower() for p in path_parts].index(root_folder.lower())
-        path_parts[root_index] = new_root_folder
+        path_parts[root_index] = new_root_folder  # Point to new folder
     except ValueError:
         logger.error(
             f"Subpath {root_folder!r} was not found in image path " f"{str(file)!r}"
@@ -262,7 +262,7 @@ def convert_lif_to_stack(
     # Create folders if not already present
     for folder in (processed_dir, raw_xml_dir):
         if not folder.exists():
-            folder.mkdir(parents=True, exist_ok=True)
+            folder.mkdir(parents=True)
             logger.info(f"Created {str(folder)!r}")
         else:
             logger.info(f"{str(folder)!r} already exists")
