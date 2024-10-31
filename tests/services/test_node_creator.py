@@ -101,7 +101,7 @@ def setup_and_run_node_creation(
     # assert (project_dir / job_dir / "job_metadata.json").exists()
     assert (project_dir / job_dir / "default_pipeline.star").exists()
     assert (project_dir / job_dir / ".CCPEM_pipeliner_jobinfo").exists()
-    if not skip_short_pipeline:
+    if experiment_type == "spa" and not skip_short_pipeline:
         assert (project_dir / "short_pipeline.star").exists()
 
 

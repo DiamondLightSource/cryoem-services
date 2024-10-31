@@ -68,7 +68,7 @@ def adjust_job_counter(pipeline_name: str, job_number: int):
                     line = " ".join(split_line)
                 new_pipeline.write(line)
         Path(f"{pipeline_name}_pipeline.star").unlink()
-        Path(f"{pipeline_name}t_pipeline.star.tmp").rename(
+        Path(f"{pipeline_name}_pipeline.star.tmp").rename(
             f"{pipeline_name}_pipeline.star"
         )
     return job_count
@@ -305,7 +305,16 @@ class NodeCreator(CommonService):
 
         if not (project_dir / "default_pipeline.star").exists():
             self.log.info("No existing project found, so creating one")
-            PipelinerProject(make_new_project=True)
+            PipelinerProject(make_new_project=True, pipeline_name="default")
+        if not (project_dir / "short_pipeline.star").exists():
+            self.log.info("No existing short project found, so creating one")
+            with ProjectGraph(
+                read_only=False,
+                pipeline_dir=str(project_dir),
+                name="short",
+                create_new=True,
+            ):
+                pass
 
         if not pipeline_jobs.get(job_info.job_type) or not pipeline_jobs[
             job_info.job_type
