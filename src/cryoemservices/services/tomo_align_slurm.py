@@ -148,8 +148,8 @@ class TomoAlignSlurm(TomoAlign, CommonService):
                 stderr="Failed transfer".encode("utf8"),
             )
         self.log.info("All files transferred")
-        self.log.info(f"Running AreTomo2 with command: {command}")
 
+        self.log.info(f"Running AreTomo2 with command: {command}")
         slurm_outcome = slurm_submission(
             log=self.log,
             job_name="AreTomo2",

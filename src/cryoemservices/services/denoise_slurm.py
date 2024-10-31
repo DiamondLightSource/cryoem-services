@@ -40,9 +40,9 @@ class DenoiseSlurm(Denoise):
                 stderr=transfer_status.encode("utf8"),
             )
         self.log.info("All files transferred")
-        self.log.info(f"Running AreTomo2 with command: {topaz_command}")
 
         # Submit the command to slurm
+        self.log.info(f"Running topaz denoising with command: {topaz_command}")
         slurm_outcome = slurm_submission(
             log=self.log,
             job_name="Denoising",
