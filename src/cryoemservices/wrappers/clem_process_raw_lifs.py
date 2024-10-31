@@ -6,6 +6,7 @@ processing workflow.
 
 from __future__ import annotations
 
+import itertools
 import logging
 import multiprocessing as mp
 from pathlib import Path
@@ -28,35 +29,12 @@ from cryoemservices.util.clem_raw_metadata import get_image_elements
 logger = logging.getLogger("cryoemservices.wrappers.clem_process_raw_lifs")
 
 
-def get_lif_xml_metadata(
-    file: LifFile,
-    save_xml: Optional[Path] = None,
-) -> ET.Element:
-    """
-    Extracts and returns the metadata from the LIF file as a formatted XML Element.
-    It can be optionally saved as an XML file to the specified file path.
-    """
-
-    # Use readlif function to get XML metadata
-    xml_root: ET.Element = file.xml_root  # This one for navigating
-    xml_tree = ET.ElementTree(xml_root)  # This one for saving
-
-    # Skip saving the metadata if save_xml not provided
-    if save_xml:
-        xml_file = str(save_xml)  # Convert Path to string
-        ET.indent(xml_tree, "  ")  # Format with proper indentation
-        xml_tree.write(xml_file, encoding="utf-8")  # Save
-        logger.info(f"File metadata saved to {xml_file!r}")
-
-    return xml_root
-
-
 def process_lif_substack(
     file: Path,
     scene_num: int,
     metadata: ET.Element,
     root_save_dir: Path,
-) -> dict:
+) -> list[dict]:
     """
     Takes the LIF file and its corresponding metadata and loads the relevant sub-stack,
     with each channel as its own array. Rescales their intensity values to utilise the
@@ -119,7 +97,7 @@ def process_lif_substack(
     # timestamps = metadata.find("Data/Image/TimeStampList")
 
     # Process channels as individual TIFFs
-    img_stks: list[Path] = []
+    results: list[dict] = []
     for c in range(len(colors)):
 
         # Get color
@@ -192,22 +170,23 @@ def process_lif_substack(
             photometric="minisblack",
         )
         # Collect the image stacks created
-        img_stks.append(img_stk_file.resolve())
+        result = {
+            "image_stack": img_stk_file.resolve(),
+            "metadata": img_xml_file.resolve(),
+            "series_name": series_name,
+            "color": color,
+            "parent_lif": file.resolve(),
+        }
+        results.append(result)
 
-    # Collect and return the files that have been generated
-    output_files = {
-        "image_stacks": img_stks,
-        "metadata": img_xml_file.resolve(),
-        "series_name": series_name,
-    }
-    return output_files
+    return results
 
 
 def convert_lif_to_stack(
     file: Path,
     root_folder: str,  # Name of the folder to treat as the root folder for LIF files
     number_of_processes: int = 1,  # Number of processing threads to run
-):
+) -> list[dict] | None:
     """
     Takes a LIF file, extracts its metadata as an XML tree, then parses through the
     sub-images stored inside it, saving each channel in the sub-image as a separate
@@ -227,6 +206,28 @@ def convert_lif_to_stack(
                 |   |__ tiffs       <- Save channels as individual image stacks
                 |   |__ metadata    <- Individual XML files saved here (not yet implemented)
     """
+
+    def get_lif_xml_metadata(
+        file: LifFile,
+        save_xml: Optional[Path] = None,
+    ) -> ET.Element:
+        """
+        Extracts and returns the metadata from the LIF file as a formatted XML Element.
+        It can be optionally saved as an XML file to the specified file path.
+        """
+
+        # Use readlif function to get XML metadata
+        xml_root: ET.Element = file.xml_root  # This one for navigating
+        xml_tree = ET.ElementTree(xml_root)  # This one for saving
+
+        # Skip saving the metadata if save_xml not provided
+        if save_xml:
+            xml_file = str(save_xml)  # Convert Path to string
+            ET.indent(xml_tree, "  ")  # Format with proper indentation
+            xml_tree.write(xml_file, encoding="utf-8")  # Save
+            logger.info(f"File metadata saved to {xml_file!r}")
+
+        return xml_root
 
     # Validate processor count input
     num_procs = number_of_processes  # Use shorter phrase in script
@@ -308,7 +309,11 @@ def convert_lif_to_stack(
 
     # Parallel process image stacks and return results
     with mp.Pool(processes=num_procs) as pool:
-        results = pool.starmap(process_lif_substack, pool_args)
+        # Each thread will return a list of dicts
+        results_map = pool.starmap(process_lif_substack, pool_args)
+
+    # Return flattened list of dicts
+    results = list(itertools.chain.from_iterable(results_map))
     return results
 
 
@@ -335,7 +340,7 @@ class LIFToStackWrapper(BaseWrapper):
         back to Murfey for the next stage in the workflow.
         """
 
-        assert hasattr(self, "recwrap"), "No recipewrapper object found"
+        assert hasattr(self, "recwrap"), "No RecipeWrapper object found"
         params_dict = self.recwrap.recipe_step["job_parameters"]
         try:
             params = LIFToStackParameters(**params_dict)
@@ -358,18 +363,14 @@ class LIFToStackWrapper(BaseWrapper):
             return False
         # Send each subset of output files to Murfey for registration
         for result in results:
-            # Log warning if a subset fails
-            if len(result["image_stacks"]) == 0:
-                logger.warning(f"Failed to process sub-image {result['series_name']}")
-            else:
-                # Create dictionary and send it to Murfey's "feedback_callback" function
-                murfey_params = {
-                    "register": "register_lif_preprocessing_result",
-                    "output_files": result,
-                }
-                self.recwrap.send_to("murfey_feedback", murfey_params)
-                logger.info(
-                    f"Image stacks for {result['series_name']} successfully created"
-                )
+            # Create dictionary and send it to Murfey's "feedback_callback" function
+            murfey_params = {
+                "register": "register_lif_preprocessing_result",
+                "output_files": result,
+            }
+            self.recwrap.send_to("murfey_feedback", murfey_params)
+            logger.info(
+                f"{result['color']} channel image stack for {result['series_name']} successfully created"
+            )
 
         return True

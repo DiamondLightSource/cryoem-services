@@ -124,7 +124,7 @@ def convert_tiff_to_stack(
         image_labels = [f"{f}" for f in range(num_frames)]
 
         # Process channels as individual TIFFs
-        output_files: list[dict] = []
+        results: list[dict] = []
         for c in range(len(colors)):
 
             # Get color
@@ -219,17 +219,17 @@ def convert_tiff_to_stack(
                 photometric="minisblack",
             )
             # Create dictionary for the image stack created
-            output = {
+            result = {
                 "image_stack": img_stk_file.resolve(),
                 "metadata": img_xml_file.resolve(),
                 "series_name": series_name_long,
                 "color": color,
                 "parent_tiffs": tiff_sublist,
             }
-            output_files.append(output)
+            results.append(result)
 
         # Collect and return files that have been generated
-        return output_files
+        return results
 
     # Set variables and shorter names for use within function
     new_root_folder = "processed"
@@ -281,9 +281,9 @@ def convert_tiff_to_stack(
         xml_file = metadata_file
 
     # Process TIFF files and collect results
-    output_files = process_tiff_files(tiff_list, xml_file, save_dir)
+    results = process_tiff_files(tiff_list, xml_file, save_dir)
 
-    return output_files
+    return results
 
 
 class TIFFToStackParameters(BaseModel):
@@ -313,7 +313,7 @@ class TIFFToStackWrapper(BaseWrapper):
             )
             return False
 
-        # Process files and collect output
+        # Set up parameters
         tiff_list = params.tiff_list
         root_folder = params.root_folder
         path_parts = list(
@@ -332,9 +332,10 @@ class TIFFToStackWrapper(BaseWrapper):
             ]
         )
 
+        # Process files and collect output
         results = convert_tiff_to_stack(
-            tiff_list=params.tiff_list,
-            root_folder=params.root_folder,
+            tiff_list=tiff_list,
+            root_folder=root_folder,
             metadata_file=params.metadata,
         )
 
