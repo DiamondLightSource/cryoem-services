@@ -101,9 +101,10 @@ dev = [
 [project.entry-points."zocalo.services.dispatcher.ready_for_processing"]
     ispyb = "cryoemservices.util.dispatcher_tools:ready_for_processing"
 [project.entry-points."zocalo.wrappers"]
+    CLEMLIFToStack = "cryoemservices.wrappers.clem_process_raw_lifs:LIFToStackWrapper"
+    CLEMTIFFToStack = "cryoemservices.wrappers.clem_process_raw_tiffs:TIFFToStackWrapper"
     Class2D = "cryoemservices.wrappers.class2d_wrapper:Class2DWrapper"
     Class3D = "cryoemservices.wrappers.class3d_wrapper:Class3DWrapper"
-    LIFToStack = "cryoemservices.wrappers.clem_process_raw_lifs:LIFToStack"
     Refine3D = "cryoemservices.wrappers.refine3d_wrapper:Refine3DWrapper"
 
 [tool.setuptools]
