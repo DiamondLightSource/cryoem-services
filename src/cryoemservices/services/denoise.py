@@ -222,9 +222,9 @@ class Denoise(CommonService):
 
         # Clean up the slurm files
         if denoise_params.cleanup_output:
-            Path(f"{denoised_full_path}.out").unlink()
-            Path(f"{denoised_full_path}.err").unlink()
-            Path(f"{denoised_full_path}.json").unlink()
+            Path(f"{denoised_full_path}.out").unlink(missing_ok=True)
+            Path(f"{denoised_full_path}.err").unlink(missing_ok=True)
+            Path(f"{denoised_full_path}.json").unlink(missing_ok=True)
 
         # Forward results to images service
         self.log.info(f"Sending to images service {denoise_params.volume}")

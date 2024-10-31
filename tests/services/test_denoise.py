@@ -67,7 +67,6 @@ def test_denoise_local_service(
             "patch_size": 96,
             "patch_padding": 48,
             "device": "-2",
-            "cleanup_output": False,
             "relion_options": {},
         },
         "content": "dummy",
@@ -78,29 +77,6 @@ def test_denoise_local_service(
     service = denoise.Denoise(environment=mock_environment)
     service.transport = offline_transport
     service.start()
-
-    # Construct the file which contains rest api submission information
-    os.environ["DENOISING_SIF"] = "topaz.sif"
-    os.environ["SLURM_RESTAPI_CONFIG"] = str(tmp_path / "restapi.txt")
-    with open(tmp_path / "restapi.txt", "w") as restapi_config:
-        restapi_config.write(
-            "user: user\n"
-            "user_home: /home\n"
-            f"user_token: {tmp_path}/token.txt\n"
-            "required_directories: [directory1, directory2]\n"
-            "partition: partition\n"
-            "partition_preference: preference\n"
-            "cluster: cluster\n"
-            "url: /url/of/slurm/restapi\n"
-            "api_version: v0.0.40\n"
-        )
-    with open(tmp_path / "token.txt", "w") as token:
-        token.write("token_key")
-
-    # Touch the expected output files
-    (tmp_path / "Denoise/job007/denoised").mkdir(parents=True)
-    (tmp_path / "Denoise/job007/denoised/test_stack_aretomo.denoised.mrc.out").touch()
-    (tmp_path / "Denoise/job007/denoised/test_stack_aretomo.denoised.mrc.err").touch()
 
     # Send a message to the service
     service.denoise(None, header=header, message=denoise_test_message)
@@ -242,29 +218,6 @@ def test_denoise_slurm_service(
         "parameters": {
             "volume": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
             "output_dir": f"{tmp_path}/Denoise/job007/denoised",
-            "suffix": ".denoised",
-            "model": "unet-3d",
-            "even_train_path": None,
-            "odd_train_path": None,
-            "n_train": 1000,
-            "n_test": 200,
-            "crop": 96,
-            "base_kernel_width": 11,
-            "optim": "adagrad",
-            "lr": "0.001",
-            "criteria": "L2",
-            "momentum": "0.8",
-            "batch_size": 10,
-            "num_epochs": 500,
-            "weight_decay": 0,
-            "save_interval": 10,
-            "save_prefix": "prefix",
-            "num_workers": 1,
-            "num_threads": 0,
-            "gaussian": 0,
-            "patch_size": 96,
-            "patch_padding": 48,
-            "device": "-2",
             "cleanup_output": False,
             "relion_options": {},
         },
@@ -360,46 +313,6 @@ def test_denoise_slurm_service(
         f"{tmp_path}/Denoise/job007/denoised",
         "--suffix",
         ".denoised",
-        "-m",
-        "unet-3d",
-        "--N-train",
-        "1000",
-        "--N-test",
-        "200",
-        "-c",
-        "96",
-        "--base-kernel-width",
-        "11",
-        "--optim",
-        "adagrad",
-        "--lr",
-        "0.001",
-        "--criteria",
-        "L2",
-        "--momentum",
-        "0.8",
-        "--batch-size",
-        "10",
-        "--num-epochs",
-        "500",
-        "-w",
-        "0",
-        "--save-interval",
-        "10",
-        "--save-prefix",
-        "prefix",
-        "--num-workers",
-        "1",
-        "-j",
-        "0",
-        "-g",
-        "0",
-        "-s",
-        "96",
-        "-p",
-        "48",
-        "-d",
-        "-2",
     ]
     singularity_command.extend(denoise_command)
     assert topaz_command == " ".join(singularity_command)
