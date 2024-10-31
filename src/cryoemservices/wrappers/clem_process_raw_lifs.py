@@ -171,11 +171,11 @@ def process_lif_substack(
         )
         # Collect the image stacks created
         result = {
-            "image_stack": img_stk_file.resolve(),
-            "metadata": img_xml_file.resolve(),
+            "image_stack": str(img_stk_file.resolve()),
+            "metadata": str(img_xml_file.resolve()),
             "series_name": series_name,
             "color": color,
-            "parent_lif": file.resolve(),
+            "parent_lif": str(file.resolve()),
         }
         results.append(result)
 
