@@ -14,6 +14,8 @@ from xml.etree import ElementTree as ET
 import numpy as np
 from defusedxml.ElementTree import parse
 from PIL import Image
+from pydantic import BaseModel, ValidationError
+from zocalo.wrapper import BaseWrapper
 
 from cryoemservices.util.clem_array_functions import (
     estimate_int_dtype,
@@ -29,180 +31,11 @@ from cryoemservices.util.clem_raw_metadata import (
 logger = logging.getLogger("cryoemservices.services.clem_process_raw_tiffs")
 
 
-def process_tiff_files(
-    tiff_list: list[Path],
-    metadata_file: Path,
-    save_dir: Path,
-) -> dict | None:
-    """
-    Opens the TIFF files as NumPy arrays and stacks them.
-    """
-
-    # Validate metadata
-    # Convert to list for Python 3.9 compatibility
-    if list(metadata_file.parents)[-2] != list(tiff_list[0].parents)[-2]:
-        logger.error("The base paths of the metadata and TIFF files do not match")
-        return None
-
-    # Load relevant metadata
-    elem_list = get_image_elements(parse(metadata_file).getroot())
-    metadata = elem_list[0]
-
-    # Get name of image series
-    img_name = metadata.attrib["Name"].replace(" ", "_")
-    logger.info(f"Processing {img_name}")
-
-    # Create save directory for image metadata
-    metadata_dir = save_dir / "metadata"
-    if not metadata_dir.exists():
-        metadata_dir.mkdir(parents=True)
-        logger.info(f"Created metadata directory at {metadata_dir}")
-    else:
-        logger.info(f"{metadata_dir} already exists")
-
-    # Save image metadata
-    img_xml_file = metadata_dir / (img_name + ".xml")
-    metadata_tree = ET.ElementTree(metadata)
-    ET.indent(metadata_tree, "  ")
-    metadata_tree.write(img_xml_file, encoding="utf-8")
-    logger.info(f"Metadata for image stack saved to {img_xml_file}")
-
-    # Load channels
-    channels = metadata.findall(
-        "Data/Image/ImageDescription/Channels/ChannelDescription"
-    )
-    colors = [channels[c].attrib["LUTName"].lower() for c in range(len(channels))]
-
-    # Get x, y, and z resolution (pixels per um)
-    dimensions = metadata.findall(
-        "Data/Image/ImageDescription/Dimensions/DimensionDescription"
-    )
-    x_res = get_axis_resolution(dimensions[0])
-    y_res = get_axis_resolution(dimensions[1])
-
-    # Process z-axis if it exists
-    z_res = get_axis_resolution(dimensions[2]) if len(dimensions) > 2 else float(0)
-
-    # Load timestamps (might be useful in the future)
-    # timestamps = elem.find("Data/Image/TimeStampList")
-
-    # Generate slice labels for later
-    num_frames = (
-        int(dimensions[2].attrib["NumberOfElements"]) if len(dimensions) > 2 else 1
-    )
-    image_labels = [f"{f}" for f in range(num_frames)]
-
-    # Process channels as individual TIFFs
-    output_tiffs: list[Path] = []
-    for c in range(len(colors)):
-
-        # Get color
-        color = colors[c]
-        logger.info(f"Processing {color} channel")
-
-        # Find TIFFs from relevant channel and series
-        # Replace " " with "_" when comparing file name against series name as found in metadata
-        tiff_sublist = [
-            f
-            for f in tiff_list
-            if (f"C{str(c).zfill(2)}" in f.stem or f"C{str(c).zfill(3)}" in f.stem)
-            and (img_name == f.stem.split("--")[0].replace(" ", "_"))
-        ]
-        tiff_sublist.sort(
-            key=lambda f: (int(f.stem.split("--")[1].replace("Z", "")),)
-        )  # Sort by Z as an int, not str
-
-        # Return error message if the list of TIFFs is empty for some reason
-        if not tiff_sublist:
-            logger.error(
-                f"Error processing {color} channel for {img_name}; no TIFF files found"
-            )
-            return None
-
-        # Load image stack
-        logger.info("Loading image stack")
-        for t in range(len(tiff_sublist)):
-            img = Image.open(tiff_sublist[t])
-            if t == 0:
-                arr = np.array([img])  # Store as 3D array
-            else:
-                arr = np.append(arr, [img], axis=0)
-        logger.debug(
-            f"{img_name} {color} array properties: \n"
-            f"Shape: {arr.shape} \n"
-            f"dtype: {arr.dtype} \n"
-            f"Min value: {arr.min()} \n"
-            f"Max value: {arr.max()} \n"
-        )
-
-        # Estimate initial NumPy dtype
-        bit_depth = int(channels[c].attrib["Resolution"])
-        dtype_init = estimate_int_dtype(arr, bit_depth=bit_depth)
-
-        # Rescale intensity values for fluorescent channels
-        adjust_contrast = (
-            "stretch"
-            if color
-            in (
-                "blue",
-                "cyan",
-                "green",
-                "magenta",
-                "red",
-                "yellow",
-            )
-            else None
-        )
-
-        # Process the image stack
-        logger.info("Processing image stack")
-        arr = preprocess_img_stk(
-            array=arr,
-            initial_dtype=dtype_init,
-            target_dtype="uint8",
-            adjust_contrast=adjust_contrast,
-        )
-        logger.debug(
-            f"{img_name} {color} array properties: \n"
-            f"Shape: {arr.shape} \n"
-            f"dtype: {arr.dtype} \n"
-            f"Min value: {arr.min()} \n"
-            f"Max value: {arr.max()} \n"
-        )
-
-        # Save as a greyscale TIFF
-        logger.info("Processing image stack")
-        img_stk_file = write_stack_to_tiff(
-            array=arr,
-            save_dir=save_dir,
-            file_name=color,
-            x_res=x_res,
-            y_res=y_res,
-            z_res=z_res,
-            units="micron",
-            axes="ZYX",
-            image_labels=image_labels,
-            photometric="minisblack",
-        )
-        # Collect the image stacks created
-        output_tiffs.append(img_stk_file.resolve())
-
-    # Return empty dict if no files were generated
-    if len(output_tiffs) == 0:
-        return None
-    # Collect and return files that have been generated
-    output_files = {
-        "image_stacks": output_tiffs,
-        "metadata": img_xml_file.resolve(),
-    }
-    return output_files
-
-
 def convert_tiff_to_stack(
     tiff_list: list[Path],  # List of files associated with this series
     root_folder: str,  # Name of the folder to treat as the root folder
     metadata_file: Optional[Path] = None,  # Option to manually provide metadata file
-) -> dict | None:
+) -> list[dict] | None:
     """
     Takes a list of TIFF files for a distinct image series and converts them into a
     TIFF image stack with the key metadata embedded. Stacks are saved in a folder
@@ -231,20 +64,182 @@ def convert_tiff_to_stack(
         |   |   ... Mimics "images" folder structure
     """
 
+    def process_tiff_files(
+        tiff_list: list[Path],
+        metadata_file: Path,
+        save_dir: Path,
+    ) -> list[dict] | None:
+        """
+        Opens the TIFF files as NumPy arrays and stacks them.
+        """
+
+        # Validate metadata
+        # Convert to list for Python 3.9 compatibility
+        if list(metadata_file.parents)[-2] != list(tiff_list[0].parents)[-2]:
+            logger.error("The base paths of the metadata and TIFF files do not match")
+            return None
+
+        # Load relevant metadata
+        elem_list = get_image_elements(parse(metadata_file).getroot())
+        metadata = elem_list[0]
+
+        # Create save directory for image metadata
+        metadata_dir = save_dir / "metadata"
+        if not metadata_dir.exists():
+            metadata_dir.mkdir(parents=True)
+            logger.info(f"Created metadata directory at {metadata_dir}")
+        else:
+            logger.info(f"{metadata_dir} already exists")
+
+        # Save image metadata
+        img_xml_file = metadata_dir / (series_name_short + ".xml")
+        metadata_tree = ET.ElementTree(metadata)
+        ET.indent(metadata_tree, "  ")
+        metadata_tree.write(img_xml_file, encoding="utf-8")
+        logger.info(f"Metadata for image stack saved to {img_xml_file}")
+
+        # Load channels
+        channels = metadata.findall(
+            "Data/Image/ImageDescription/Channels/ChannelDescription"
+        )
+        colors = [channels[c].attrib["LUTName"].lower() for c in range(len(channels))]
+
+        # Get x, y, and z resolution (pixels per um)
+        dimensions = metadata.findall(
+            "Data/Image/ImageDescription/Dimensions/DimensionDescription"
+        )
+        x_res = get_axis_resolution(dimensions[0])
+        y_res = get_axis_resolution(dimensions[1])
+
+        # Process z-axis if it exists
+        z_res = get_axis_resolution(dimensions[2]) if len(dimensions) > 2 else float(0)
+
+        # Load timestamps (might be useful in the future)
+        # timestamps = elem.find("Data/Image/TimeStampList")
+
+        # Generate slice labels for later
+        num_frames = (
+            int(dimensions[2].attrib["NumberOfElements"]) if len(dimensions) > 2 else 1
+        )
+        image_labels = [f"{f}" for f in range(num_frames)]
+
+        # Process channels as individual TIFFs
+        output_files: list[dict] = []
+        for c in range(len(colors)):
+
+            # Get color
+            color = colors[c]
+            logger.info(f"Processing {color} channel")
+
+            # Find TIFFs from relevant channel and series
+            # Replace " " with "_" when comparing file name against series name as found in metadata
+            tiff_sublist = [
+                f
+                for f in tiff_list
+                if (f"C{str(c).zfill(2)}" in f.stem or f"C{str(c).zfill(3)}" in f.stem)
+                and (
+                    series_name_short.replace(" ", "_")
+                    == f.stem.split("--")[0].replace(" ", "_")
+                )
+            ]
+            tiff_sublist.sort(
+                key=lambda f: (int(f.stem.split("--")[1].replace("Z", "")),)
+            )  # Sort by Z as an int, not str
+
+            # Return error message if the list of TIFFs is empty for some reason
+            if not tiff_sublist:
+                logger.error(
+                    f"Error processing {color} channel for {series_name_long}; no TIFF files found"
+                )
+                continue
+
+            # Load image stack
+            logger.info("Loading image stack")
+            for t in range(len(tiff_sublist)):
+                img = Image.open(tiff_sublist[t])
+                if t == 0:
+                    arr = np.array([img])  # Store as 3D array
+                else:
+                    arr = np.append(arr, [img], axis=0)
+            logger.debug(
+                f"{series_name_long} {color} array properties: \n"
+                f"Shape: {arr.shape} \n"
+                f"dtype: {arr.dtype} \n"
+                f"Min value: {arr.min()} \n"
+                f"Max value: {arr.max()} \n"
+            )
+
+            # Estimate initial NumPy dtype
+            bit_depth = int(channels[c].attrib["Resolution"])
+            dtype_init = estimate_int_dtype(arr, bit_depth=bit_depth)
+
+            # Rescale intensity values for fluorescent channels
+            adjust_contrast = (
+                "stretch"
+                if color
+                in (
+                    "blue",
+                    "cyan",
+                    "green",
+                    "magenta",
+                    "red",
+                    "yellow",
+                )
+                else None
+            )
+
+            # Process the image stack
+            logger.info("Processing image stack")
+            arr = preprocess_img_stk(
+                array=arr,
+                initial_dtype=dtype_init,
+                target_dtype="uint8",
+                adjust_contrast=adjust_contrast,
+            )
+            logger.debug(
+                f"{series_name_long} {color} array properties: \n"
+                f"Shape: {arr.shape} \n"
+                f"dtype: {arr.dtype} \n"
+                f"Min value: {arr.min()} \n"
+                f"Max value: {arr.max()} \n"
+            )
+
+            # Save as a greyscale TIFF
+            logger.info("Processing image stack")
+            img_stk_file = write_stack_to_tiff(
+                array=arr,
+                save_dir=save_dir,
+                file_name=color,
+                x_res=x_res,
+                y_res=y_res,
+                z_res=z_res,
+                units="micron",
+                axes="ZYX",
+                image_labels=image_labels,
+                photometric="minisblack",
+            )
+            # Create dictionary for the image stack created
+            output = {
+                "image_stack": img_stk_file.resolve(),
+                "metadata": img_xml_file.resolve(),
+                "series_name": series_name_long,
+                "color": color,
+                "parent_tiffs": tiff_sublist,
+            }
+            output_files.append(output)
+
+        # Collect and return files that have been generated
+        return output_files
+
     # Set variables and shorter names for use within function
     new_root_folder = "processed"
 
     # Use the names of the TIFF files to get the unique path to it
-    # Remove the "--Z##--C##.tiff" end of the file path strings
+    #   Remove the "--Z##--C##.tiff" end of the file path strings
     series_path = tiff_list[0].parent / tiff_list[0].stem.split("--")[0]
+    series_name_short = series_path.stem  # For finding and parsing metadata file
 
-    # Extract key variables
-    parent_dir = series_path.parent  # File path not including partial file name
-    series_name_short = series_path.stem  # Last item is part of file name
-
-    logger.info(f"Processing {series_name_short} TIFF files")
-
-    # Parse path parts
+    # Parse path parts to construct parameters
     path_parts = list(series_path.parts)
     # Remove leading "/" in Unix paths
     path_parts[0] = "" if path_parts[0] == "/" else path_parts[0]
@@ -259,24 +254,24 @@ def convert_tiff_to_stack(
     except ValueError:
         logger.error(
             f"Subpath {root_folder!r} was not found in image path "
-            f"{str(parent_dir)!r}"
+            f"{str(series_path.parent)!r}"
         )
         return None
 
-    # Construct save directory and long name of the series
-    save_dir = Path("/".join(path_parts))  # Path to this series
+    # Construct long name of the series for database records
     series_name_long = "--".join(path_parts[root_index + 1 :])
+    logger.info(f"Processing {series_name_long} TIFF files")
 
-    # Make directory for processed files
+    # Construct save directory
+    save_dir = Path("/".join(path_parts))  # Folder where this series will be saved
     if not save_dir.exists():
         save_dir.mkdir(parents=True)
         logger.info(f"Created {save_dir}")
     else:
         logger.info(f"{str(save_dir)} already exists")
-
     # Get associated XML file
     if metadata_file is None:  # Search for it using relative paths if not provided
-        xml_file = parent_dir / "Metadata" / (series_name_short + ".xlif")
+        xml_file = series_path.parent / "Metadata" / (series_name_short + ".xlif")
         if xml_file.exists():
             logger.info(f"Metadata file found at {xml_file}")
         else:
@@ -288,9 +283,74 @@ def convert_tiff_to_stack(
     # Process TIFF files and collect results
     output_files = process_tiff_files(tiff_list, xml_file, save_dir)
 
-    # Return empty dict if no files were generated
-    if output_files is None:
-        return {}
-    # Add the series name to the dict and return it
-    output_files["series_name"] = series_name_long
     return output_files
+
+
+class TIFFToStackParameters(BaseModel):
+    """
+    Pydantic model for validating the received message for the TIFF file conversion
+    workflow.
+
+    The keys under the "job_parameters" key in the Zocalo wrapper recipe must match
+    the attributes present in this model. Attributes in the model with a default
+    value don't have to be provided in the wrapper recipe.
+    """
+
+    tiff_list: list[Path]
+    root_folder: str
+    metadata: Path
+
+
+class TIFFToStackWrapper(BaseWrapper):
+    def run(self) -> bool:
+        assert hasattr(self, "recwrap"), "No RecipeWrapper object found"
+        params_dict = self.recwrap.recipe_step["job_parameters"]
+        try:
+            params = TIFFToStackParameters(**params_dict)
+        except (ValidationError, TypeError) as e:
+            logger.error(
+                f"TIFFToStackParameters validation failed for parameters: {params_dict} with exception: {e}"
+            )
+            return False
+
+        # Process files and collect output
+        tiff_list = params.tiff_list
+        root_folder = params.root_folder
+        path_parts = list(
+            (tiff_list[0].parent / tiff_list[0].stem.split("--")[0]).parts
+        )
+        try:
+            root_index = path_parts.index(root_folder)
+        except ValueError:
+            logger.error(
+                f"Subpath {root_folder!r} was not found in image path {(tiff_list[0].parent / tiff_list[0].stem.split('--')[0])!r}"
+            )
+            return False
+        series_name = "--".join(
+            [p.replace(" ", "_") if " " in p else p for p in path_parts][
+                root_index + 1 :
+            ]
+        )
+
+        results = convert_tiff_to_stack(
+            tiff_list=params.tiff_list,
+            root_folder=params.root_folder,
+            metadata_file=params.metadata,
+        )
+
+        # Log errors and warnings
+        if results is None:
+            logger.error(f"Process failed for TIFF series {series_name!r}")
+            return False
+        for result in results:
+            # Send results to Murfey's "feedback_callback" function
+            murfey_params = {
+                "register": "register_tiff_preprocessing_result",
+                "output_files": result,
+            }
+            self.recwrap.send_to("murfey_feedback", murfey_params)
+            logger.info(
+                f"{result['color']} channel image stack for {result['series_name']} successfully created"
+            )
+
+        return True
