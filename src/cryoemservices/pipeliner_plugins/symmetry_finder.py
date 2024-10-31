@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import subprocess
 from pathlib import Path
 
 import mrcfile
 import numpy as np
+
+logger = logging.getLogger("cryoemservices.pipeliner_plugins.symmetry_finder")
 
 
 def align_symmetry(volume_file: Path, symmetry: str):
@@ -63,19 +66,19 @@ def determine_symmetry(volume: Path):
         align_result, aligned_file = align_symmetry(volume, sym)
         if align_result:
             difference_scores[i] = 100
-            print(f"Failed to align {volume} to {sym}")
+            logger.error(f"Failed to align {volume} to {sym}")
             continue
 
         symmetrised_result, symmetrised_file = force_symmetry(aligned_file, sym)
         if symmetrised_result:
             difference_scores[i] = 100
-            print(f"Failed to make {volume} into {sym}")
+            logger.error(f"Failed to make {volume} into {sym}")
             continue
 
         difference_scores[i] = find_difference(aligned_file, symmetrised_file)
         all_symmetrised_files = np.append(all_symmetrised_files, str(symmetrised_file))
 
-        print(f"{sym}: {difference_scores[i]}")
+        logger.info(f"{sym}: {difference_scores[i]}")
 
     # Empirically determined reference scores for each symmetry compared to C2
     # found by running alignment on random noise
@@ -103,7 +106,7 @@ def determine_symmetry(volume: Path):
         # I better than O
         expected_sym = "I"
 
-    print(f"{volume} is predicted to be {expected_sym}")
+    logger.info(f"{volume} is predicted to be {expected_sym}")
     return expected_sym, all_symmetrised_files[symmetry_list == expected_sym]
 
 
