@@ -184,6 +184,8 @@ class Denoise(CommonService):
         )
         denoised_full_path = alignment_output_dir / denoised_file
 
+        # Run topaz either locally or using Slurm
+        self.log.info(f"Input: {denoise_params.volume} Output: {denoised_full_path}")
         result = self.run_topaz(
             topaz_command=command,
             alignment_output_dir=alignment_output_dir,

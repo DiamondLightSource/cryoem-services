@@ -43,7 +43,6 @@ class DenoiseSlurm(Denoise):
         self.log.info(f"Running AreTomo2 with command: {topaz_command}")
 
         # Submit the command to slurm
-        self.log.info(f"Input: {tomogram_volume} Output: {denoised_full_path}")
         slurm_outcome = slurm_submission(
             log=self.log,
             job_name="Denoising",
