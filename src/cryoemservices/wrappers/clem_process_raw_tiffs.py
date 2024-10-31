@@ -7,8 +7,9 @@ processing workflow.
 from __future__ import annotations
 
 import logging
+from ast import literal_eval
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional, Union
 from xml.etree import ElementTree as ET
 
 import numpy as np
@@ -220,11 +221,11 @@ def convert_tiff_to_stack(
             )
             # Create dictionary for the image stack created
             result = {
-                "image_stack": img_stk_file.resolve(),
-                "metadata": img_xml_file.resolve(),
+                "image_stack": str(img_stk_file.resolve()),
+                "metadata": str(img_xml_file.resolve()),
                 "series_name": series_name_long,
                 "color": color,
-                "parent_tiffs": tiff_sublist,
+                "parent_tiffs": str([str(f) for f in tiff_sublist]),
             }
             results.append(result)
 
@@ -296,9 +297,12 @@ class TIFFToStackParameters(BaseModel):
     value don't have to be provided in the wrapper recipe.
     """
 
-    tiff_list: list[Path]
+    tiff_list: Union[list[Path], str, Literal["null"]]
     root_folder: str
     metadata: Path
+    tiff_file: Union[Path, Literal["null"]] = (
+        "null"  # Alternative input when testing wrapper individually
+    )
 
 
 class TIFFToStackWrapper(BaseWrapper):
@@ -314,8 +318,49 @@ class TIFFToStackWrapper(BaseWrapper):
             return False
 
         # Set up parameters
-        tiff_list = params.tiff_list
+        tiff_file = params.tiff_file
         root_folder = params.root_folder
+
+        # If no file list is provided, use a singular TIFF file to get the necessary files
+        if isinstance(params.tiff_list, str):
+            # If "null" is set, use 'tiff_file' parameter to construct list
+            if params.tiff_list == "null":
+                if tiff_file == "null":
+                    logger.error(
+                        "'tiff_file' cannot be 'null' if 'tiff_list' is already 'null'"
+                    )
+                    return False
+                elif isinstance(tiff_file, Path):
+                    tiff_list = [
+                        f.resolve()
+                        for f in tiff_file.parent.glob("./*")
+                        if f.suffix in {".tif", ".tiff"}
+                        # Handle cases where series start with the same position number,
+                        # but deviate afterwards
+                        and f.stem.startswith(tiff_file.stem.split("--")[0] + "--")
+                    ]
+                else:
+                    logger.error("Error parsing 'tiff_file' parameter")
+                    return False
+            # Check if it's a stringified list
+            elif (
+                params.tiff_list.startswith("['") and params.tiff_list.endswith("']")
+            ) or (
+                params.tiff_list.startswith('["') and params.tiff_list.endswith('"]')
+            ):
+                eval_tiff_list: list[str] = literal_eval(params.tiff_list)
+                tiff_list = [Path(p) for p in eval_tiff_list]
+            # Log error if unable to parse 'tiff_list' parameter
+            else:
+                logger.error("Unable to parse 'tiff_file' string provided")
+                return False
+        elif isinstance(params.tiff_list, list):
+            tiff_list = params.tiff_list
+        else:
+            logger.error("Invalid type for 'tiff_list' parameter")
+            return False
+
+        # Parse file path to reconstruct series name
         path_parts = list(
             (tiff_list[0].parent / tiff_list[0].stem.split("--")[0]).parts
         )
