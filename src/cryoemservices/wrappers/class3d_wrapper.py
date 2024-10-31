@@ -11,7 +11,7 @@ from typing import Optional
 import healpy as hp
 import matplotlib.pyplot as plt
 import numpy as np
-from gemmi import cif  # type: ignore
+from gemmi import cif
 from pydantic import BaseModel, Field, ValidationError
 from zocalo.wrapper import BaseWrapper
 
