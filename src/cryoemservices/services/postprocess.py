@@ -131,7 +131,8 @@ class PostProcess(CommonService):
             and postprocess_params.particles_file
         ):
             estimated_symmetry, symmetrised_reference = determine_symmetry(
-                Path(postprocess_params.half_map).parent / "run_class001.mrc"
+                volume=Path(postprocess_params.half_map).parent / "run_class001.mrc",
+                use_precomputed_scores=True,
             )
             refine_params = {
                 "refine_job_dir": f"{project_dir}/Refine3D/job{postprocess_job_number + 1:03}",
