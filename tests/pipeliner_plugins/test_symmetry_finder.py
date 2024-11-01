@@ -28,18 +28,102 @@ def test_find_difference(tmp_path):
 
 @mock.patch("cryoemservices.pipeliner_plugins.symmetry_finder.subprocess.run")
 @mock.patch("cryoemservices.pipeliner_plugins.symmetry_finder.find_difference")
-def test_determine_symmetry_random(mock_difference, mock_subprocess, tmp_path):
+def test_determine_symmetry_random_precompute(
+    mock_difference, mock_subprocess, tmp_path
+):
     """Test the symmetry determination code runs all the checks"""
     mock_subprocess().returncode = 0
     mock_difference.return_value = 1
 
     volume_file = tmp_path / "random_mrcfile.mrc"
-    symmetry_result = symmetry_finder.determine_symmetry(volume_file)
+    symmetry_result = symmetry_finder.determine_symmetry(
+        volume=volume_file, use_precomputed_scores=True
+    )
 
     assert symmetry_result[0] == "I"
     assert symmetry_result[1] == f"{tmp_path}/random_mrcfile_aligned_I_symmetrised.mrc"
 
+    assert mock_subprocess.call_count == 21
     for symmetry in ["C2", "C3", "C4", "C5", "C6", "C7", "C8", "T", "O", "I"]:
+        mock_subprocess.assert_any_call(
+            [
+                "relion_align_symmetry",
+                "--i",
+                f"{tmp_path}/random_mrcfile.mrc",
+                "--o",
+                f"{tmp_path}/random_mrcfile_aligned_{symmetry}.mrc",
+                "--sym",
+                symmetry,
+            ],
+            capture_output=True,
+        )
+        mock_subprocess.assert_any_call(
+            [
+                "relion_image_handler",
+                "--i",
+                f"{tmp_path}/random_mrcfile_aligned_{symmetry}.mrc",
+                "--o",
+                f"{tmp_path}/random_mrcfile_aligned_{symmetry}_symmetrised.mrc",
+                "--sym",
+                symmetry,
+            ],
+            capture_output=True,
+        )
+        mock_difference.assert_any_call(
+            tmp_path / f"random_mrcfile_aligned_{symmetry}.mrc",
+            tmp_path / f"random_mrcfile_aligned_{symmetry}_symmetrised.mrc",
+        )
+
+
+@mock.patch("cryoemservices.pipeliner_plugins.symmetry_finder.subprocess.run")
+@mock.patch("cryoemservices.pipeliner_plugins.symmetry_finder.find_difference")
+@mock.patch("cryoemservices.pipeliner_plugins.symmetry_finder.mrcfile")
+def test_determine_symmetry_random_do_noise(
+    mock_mrcfile, mock_difference, mock_subprocess, tmp_path
+):
+    """Test the symmetry determination code runs all the checks"""
+    mock_subprocess().returncode = 0
+    mock_difference.return_value = 1
+    mock_mrcfile().__enter__().header = {"nx": 10, "ny": 10, "nz": 10}
+
+    volume_file = tmp_path / "random_mrcfile.mrc"
+    symmetry_finder.determine_symmetry(volume=volume_file, use_precomputed_scores=False)
+
+    assert mock_subprocess.call_count == 41
+    for symmetry in ["C2", "C3", "C4", "C5", "C6", "C7", "C8", "T", "O", "I"]:
+        mock_subprocess.assert_any_call(
+            [
+                "relion_align_symmetry",
+                "--i",
+                f"{tmp_path}/random_reference.mrc",
+                "--o",
+                f"{tmp_path}/random_reference_aligned_{symmetry}.mrc",
+                "--sym",
+                symmetry,
+            ],
+            capture_output=True,
+        )
+        mock_subprocess.assert_any_call(
+            [
+                "relion_image_handler",
+                "--i",
+                f"{tmp_path}/random_reference_aligned_{symmetry}.mrc",
+                "--o",
+                f"{tmp_path}/random_reference_aligned_{symmetry}_symmetrised.mrc",
+                "--sym",
+                symmetry,
+            ],
+            capture_output=True,
+        )
+        mock_difference.assert_any_call(
+            tmp_path / f"random_reference_aligned_{symmetry}.mrc",
+            tmp_path / f"random_reference_aligned_{symmetry}_symmetrised.mrc",
+        )
+        assert not (tmp_path / f"random_reference_aligned_{symmetry}.mrc").is_file()
+        assert not (
+            tmp_path / f"random_reference_aligned_{symmetry}_symmetrised.mrc"
+        ).is_file()
+
         mock_subprocess.assert_any_call(
             [
                 "relion_align_symmetry",

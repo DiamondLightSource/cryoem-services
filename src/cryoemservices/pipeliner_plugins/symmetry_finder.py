@@ -85,7 +85,7 @@ def calculate_noise_scores(input_volume: Path, symmetry_list: list[str]):
         aligned_file.unlink(missing_ok=True)
         symmetrised_file.unlink(missing_ok=True)
         logger.info(f"Random sample {sym}: {noise_scores[i] / noise_scores[0]}")
-    random_volume.unlink()
+    random_volume.unlink(missing_ok=True)
     return noise_scores / noise_scores[0]
 
 
@@ -145,7 +145,7 @@ def determine_symmetry(volume: Path, use_precomputed_scores: bool):
         expected_sym = "I"
 
     logger.info(f"{volume} is predicted to be {expected_sym}")
-    return expected_sym, all_symmetrised_files[symmetry_list == expected_sym]
+    return expected_sym, all_symmetrised_files[np.array(symmetry_list) == expected_sym]
 
 
 def run():

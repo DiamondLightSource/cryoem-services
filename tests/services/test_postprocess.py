@@ -306,7 +306,10 @@ def test_postprocess_first_refine_without_symmetry(
     mock_subprocess.assert_called_with(postprocess_command, capture_output=True)
 
     # Check the symmetry finding call was made
-    mock_symmetry.assert_called_with(tmp_path / "Refine3D/job013/run_class001.mrc")
+    mock_symmetry.assert_called_with(
+        volume=tmp_path / "Refine3D/job013/run_class001.mrc",
+        use_precomputed_scores=True,
+    )
 
     # Check that the correct messages were sent
     assert offline_transport.send.call_count == 4
