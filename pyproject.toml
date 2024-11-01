@@ -66,6 +66,7 @@ dev = [
     "clem.lif_to_stack" = "cryoemservices.cli.clem_lif_to_stack:run"
     "clem.tiff_to_stack" = "cryoemservices.cli.clem_tiff_to_stack:run"
     "combine_star_files" = "cryoemservices.pipeliner_plugins.combine_star_files:main"
+    "cryoemservices.find_symmetry" = "cryoemservices.pipeliner_plugins.symmetry_finder:run"
     "cryoemservices.reextract" = "cryoemservices.pipeliner_plugins.reextract:run"
     "cryoemservices.resubmit_wrapper" = "cryoemservices.cli.resubmit_wrapper:run"
     "relipy.link" = "cryoemservices.cli.project_linker:run"
