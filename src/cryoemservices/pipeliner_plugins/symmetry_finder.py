@@ -9,6 +9,7 @@ import mrcfile
 import numpy as np
 
 logger = logging.getLogger("cryoemservices.pipeliner_plugins.symmetry_finder")
+logger.setLevel(logging.INFO)
 
 
 def align_symmetry(volume_file: Path, symmetry: str):
@@ -145,7 +146,10 @@ def determine_symmetry(volume: Path, use_precomputed_scores: bool):
         expected_sym = "I"
 
     logger.info(f"{volume} is predicted to be {expected_sym}")
-    return expected_sym, all_symmetrised_files[np.array(symmetry_list) == expected_sym]
+    return (
+        expected_sym,
+        all_symmetrised_files[np.array(symmetry_list) == expected_sym][0],
+    )
 
 
 def run():
