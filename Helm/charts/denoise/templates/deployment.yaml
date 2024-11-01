@@ -54,7 +54,7 @@ spec:
         projected:
           defaultMode: 0444
           sources:
-          - secret: 
+          - secret:
               name: {{ .Values.global.dbSecretName }}
           - secret:
               name: {{ .Values.global.rmqSecretName }}
