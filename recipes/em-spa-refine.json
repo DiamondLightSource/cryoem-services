@@ -23,7 +23,8 @@
     "job_parameters": {
       "mask_diameter": "{mask_diameter}",
       "particle_diameter": "{particle_diameter}",
-      "relion_options": {}
+      "relion_options": {},
+      "symmetry": "{symmetry}"
     },
     "output": {
       "node_creator": 2,
@@ -53,7 +54,7 @@
         "standard_error": "{refine_job_dir}/run.err",
         "standard_output": "{refine_job_dir}/run.out",
         "tasks": 5,
-        "time_limit": "12:00:00"
+        "time_limit": "24:00:00"
       },
       "recipewrapper": "{refine_job_dir}/.recipewrap",
       "workingdir": "{refine_job_dir}/"
@@ -68,7 +69,8 @@
     "output": {
       "ispyb_connector": 6,
       "murfey_feedback": 5,
-      "node_creator": 2
+      "node_creator": 2,
+      "refine_wrapper": 7
     },
     "parameters": {
       "picker_id": "{picker_id}",
@@ -94,6 +96,64 @@
     },
     "queue": "ispyb_connector",
     "service": "EMISPyB"
+  },
+  "7": {
+    "job_parameters": {
+      "mask_diameter": "{mask_diameter}",
+      "particle_diameter": "{particle_diameter}"
+    },
+    "output": {
+      "node_creator": 2,
+      "postprocess": 8
+    },
+    "parameters": {
+      "cluster": {
+        "commands": [
+          "source /etc/profile.d/modules.sh",
+          "module load EM/cryoem-services",
+          "export ZOCALO_CONFIG={zocalo_config_file}",
+          "zocalo.wrap --wrap Refine3D --recipewrapper \"$RECIPEWRAP\" >runinfo 2>&1"
+        ],
+        "cpus_per_task": 8,
+        "environment": {
+          "PATH": "/bin/:/usr/bin/:/usr/local/bin/",
+          "USER": "{user}"
+        },
+        "gpus": 4,
+        "gpus_per_node": 4,
+        "job_name": "Symmetry3D-EM",
+        "min_memory_per_gpu": 4096,
+        "nodes": 1,
+        "partition": "{partition}",
+        "prefer": "{partition_preference}",
+        "scheduler": "slurm",
+        "standard_error": "{refine_job_dir}/run_sym.err",
+        "standard_output": "{refine_job_dir}/run_sym.out",
+        "tasks": 5,
+        "time_limit": "24:00:00"
+      },
+      "recipewrapper": "{refine_job_dir}/.recipewrap",
+      "workingdir": "{refine_job_dir}/"
+    },
+    "queue": "cluster.submission",
+    "service": "RefineWrapper",
+    "wrapper": {
+      "task_information": "Refine3D"
+    }
+  },
+  "8": {
+    "output": {
+      "ispyb_connector": 6,
+      "murfey_feedback": 5,
+      "node_creator": 2
+    },
+    "parameters": {
+      "picker_id": "{picker_id}",
+      "refined_class_uuid": "{refined_class_uuid}",
+      "refined_grp_uuid": "{refined_grp_uuid}"
+    },
+    "queue": "postprocess",
+    "service": "PostProcess"
   },
   "start": [[1, []]]
 }

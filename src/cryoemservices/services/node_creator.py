@@ -31,7 +31,7 @@ from cryoemservices.util.spa_output_files import create_spa_output_files
 from cryoemservices.util.tomo_output_files import create_tomo_output_files
 
 
-@lru_cache(maxsize=2)
+@lru_cache(maxsize=4)
 class CachedProjectGraph(ProjectGraph):
     def __enter__(self):
         if not self._lock:
@@ -42,6 +42,36 @@ class CachedProjectGraph(ProjectGraph):
             else:
                 raise RuntimeError("Cannot acquire lock")
         return self
+
+
+def adjust_job_counter(pipeline_name: str, job_number: int):
+    with open(f"{pipeline_name}_pipeline.star", "r") as pipeline_file:
+        while True:
+            line = pipeline_file.readline()
+            if not line:
+                break
+            if line.startswith("_rlnPipeLineJobCounter"):
+                job_count = int(line.split()[1])
+                break
+    if job_count <= job_number:
+        job_count = job_number + 1
+        with open(f"{pipeline_name}_pipeline.star", "r") as pipeline_file, open(
+            f"{pipeline_name}_pipeline.star.tmp", "w"
+        ) as new_pipeline:
+            while True:
+                line = pipeline_file.readline()
+                if not line:
+                    break
+                if line.startswith("_rlnPipeLineJobCounter"):
+                    split_line = line.split()
+                    split_line[1] = str(job_count)
+                    line = " ".join(split_line)
+                new_pipeline.write(line)
+        Path(f"{pipeline_name}_pipeline.star").unlink()
+        Path(f"{pipeline_name}_pipeline.star.tmp").rename(
+            f"{pipeline_name}_pipeline.star"
+        )
+    return job_count
 
 
 # A dictionary of all the available jobs,
@@ -275,7 +305,16 @@ class NodeCreator(CommonService):
 
         if not (project_dir / "default_pipeline.star").exists():
             self.log.info("No existing project found, so creating one")
-            PipelinerProject(make_new_project=True)
+            PipelinerProject(make_new_project=True, pipeline_name="default")
+        if not (project_dir / "short_pipeline.star").exists():
+            self.log.info("No existing short project found, so creating one")
+            with ProjectGraph(
+                read_only=False,
+                pipeline_dir=str(project_dir),
+                name="short",
+                create_new=True,
+            ):
+                pass
 
         if not pipeline_jobs.get(job_info.job_type) or not pipeline_jobs[
             job_info.job_type
@@ -503,7 +542,7 @@ class NodeCreator(CommonService):
 
         # Create the node and default_pipeline.star files in the project directory
         with CachedProjectGraph(
-            read_only=False, pipeline_dir=str(project_dir)
+            read_only=False, pipeline_dir=str(project_dir), name="default"
         ) as project:
             process = project.add_job(
                 pipeliner_job,
@@ -517,34 +556,37 @@ class NodeCreator(CommonService):
             # Generate the default_pipeline.star file
             project.check_process_completion()
             # Check the job count in the default_pipeline.star
-            with open("default_pipeline.star", "r") as pipeline_file:
-                while True:
-                    line = pipeline_file.readline()
-                    if not line:
-                        break
-                    if line.startswith("_rlnPipeLineJobCounter"):
-                        job_count = int(line.split()[1])
-                        break
-            if job_count <= job_number:
-                project.job_counter = job_number + 1
-                with open("default_pipeline.star", "r") as pipeline_file, open(
-                    "default_pipeline.star.tmp", "w"
-                ) as new_pipeline:
-                    while True:
-                        line = pipeline_file.readline()
-                        if not line:
-                            break
-                        if line.startswith("_rlnPipeLineJobCounter"):
-                            split_line = line.split()
-                            split_line[1] = str(project.job_counter)
-                            line = " ".join(split_line)
-                        new_pipeline.write(line)
-                Path("default_pipeline.star").unlink()
-                Path("default_pipeline.star.tmp").rename("default_pipeline.star")
+            project.job_counter = adjust_job_counter(
+                pipeline_name="default", job_number=job_number
+            )
+
             # Copy the default_pipeline.star file
             (job_dir / "default_pipeline.star").write_bytes(
                 Path("default_pipeline.star").read_bytes()
             )
+
+        if job_info.experiment_type == "spa" and job_info.job_type not in [
+            "relion.class2d.em",
+            "relion.class2d.vdam",
+            "relion.select.class2dauto",
+            "icebreaker.micrograph_analysis.particles",
+        ]:
+            # Set up a "short_pipeline.star" for SPA which excludes the 2D batches
+            with CachedProjectGraph(
+                read_only=False,
+                pipeline_dir=str(project_dir),
+                name="short",
+            ) as project:
+                project.add_job(
+                    pipeliner_job,
+                    as_status=("Succeeded" if job_info.success else "Failed"),
+                    do_overwrite=True,
+                    alias=job_info.alias,
+                )
+                project.check_process_completion()
+                project.job_counter = adjust_job_counter(
+                    pipeline_name="short", job_number=job_number
+                )
 
         end_time = datetime.datetime.now()
         self.log.info(

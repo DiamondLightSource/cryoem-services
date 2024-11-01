@@ -13,13 +13,13 @@ from cryoemservices.util.spa_output_files import get_ice_ring_density
 def _find_angle_index(split_name: List[str]) -> int:
     # Naming structure {tilt_series_name}_{tilt_number}_{tilt_angle}_{timestamp}.suffix
     for i, part in enumerate(split_name):
-        if "." in part:
+        if "." in part and part[-1].isnumeric():
             return i
     return -1
 
 
 def _get_tilt_angle_v5_12(p: Path) -> str:
-    split_name = p.name.split("_")
+    split_name = p.stem.split("_")
     angle_idx = _find_angle_index(split_name)
     if angle_idx == -1:
         return "0.0"
@@ -27,7 +27,7 @@ def _get_tilt_angle_v5_12(p: Path) -> str:
 
 
 def _get_tilt_number_v5_12(p: Path) -> str:
-    split_name = p.name.split("_")
+    split_name = p.stem.split("_")
     angle_idx = _find_angle_index(split_name)
     try:
         int(split_name[angle_idx - 1])
@@ -37,10 +37,18 @@ def _get_tilt_number_v5_12(p: Path) -> str:
 
 
 def _get_tilt_name_v5_12(p: Path) -> str:
-    split_name = p.name.split("_")
+    split_name = p.stem.split("_")
     angle_idx = _find_angle_index(split_name)
     if angle_idx == -1:
-        return p.name
+        # If no angle, strip off anything non-numeric at the end
+        last_numeric = 0
+        for i, part in enumerate(p.stem):
+            if part.isnumeric():
+                last_numeric = i
+        if last_numeric == 0:
+            # Can't find any numbers
+            return p.stem
+        return p.stem[: last_numeric + 1]
     return "_".join(split_name[: angle_idx - 1])
 
 
@@ -274,7 +282,6 @@ def _ctffind_output_files(
         ),
         str(relion_options.defocus),
         str(input_file),
-        str(stage_tilt_angle),
         str(output_file.with_suffix(".ctf")) + ":mrc",
         ctf_results[1],
         ctf_results[2],
@@ -299,7 +306,6 @@ def _ctffind_output_files(
                 "MicrographPreExposure",
                 "TomoNominalDefocus",
                 "MicrographName",
-                "TomoNominalTiltAxisAngle",
                 "CtfImage",
                 "DefocusU",
                 "DefocusV",

@@ -2,16 +2,14 @@ from __future__ import annotations
 
 import os
 import sys
+from pathlib import Path
 from unittest import mock
 
 import pytest
 import zocalo.configuration
 from workflows.transport.offline_transport import OfflineTransport
 
-tomo_align_slurm = pytest.importorskip(
-    "cryoemservices.services.tomo_align_slurm",
-    reason="these tests require the IRIS datasyncer",
-)
+from cryoemservices.services import tomo_align_slurm
 
 
 @pytest.fixture
@@ -64,7 +62,7 @@ def test_tomo_align_slurm_service(
 
     mock_mrcfile.open().__enter__().header = {"nx": 2000, "ny": 3000}
 
-    mock_transfer.return_value = 0
+    mock_transfer.return_value = ["test_stack.mrc"]
 
     header = {
         "message-id": mock.sentinel,
@@ -180,7 +178,7 @@ def test_tomo_align_slurm_service(
     # Check file transfer and retrieval
     assert mock_transfer.call_count == 1
     mock_transfer.assert_any_call(
-        [f"{tmp_path}/Tomograms/job006/tomograms/test_stack.mrc"]
+        [Path(f"{tmp_path}/Tomograms/job006/tomograms/test_stack.mrc")]
     )
     assert mock_retrieve.call_count == 1
     mock_retrieve.assert_any_call(

@@ -3,12 +3,9 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
-import time
 from pathlib import Path
 from typing import List
 
-import datasyncer
-from requests import HTTPError
 from workflows.services.common_service import CommonService
 
 from cryoemservices.services.tomo_align import TomoAlign, TomoParameters
@@ -17,7 +14,7 @@ from cryoemservices.util.slurm_submission import slurm_submission
 
 def retrieve_files(job_directory: Path, files_to_skip: List[Path], basepath: str):
     """Copy files back from the Iris cluster"""
-    iris_directory = Path("/iris") / Path(job_directory).relative_to("/dls")
+    iris_directory = Path("/iris") / job_directory.relative_to("/dls")
     for iris_item in iris_directory.glob(f"{basepath}*"):
         # Find all files in the job directory
         dls_item = job_directory / iris_item.relative_to(iris_directory)
@@ -37,23 +34,20 @@ def retrieve_files(job_directory: Path, files_to_skip: List[Path], basepath: str
             iris_item.unlink()
 
 
-def transfer_files(file_list: List[str]):
+def transfer_files(file_list: List[Path]):
     """Transfer files to the Iris cluster"""
-    try:
-        transfer_id = datasyncer.transfer(file_list)
-        status = "active"
-        while status == "active":
-            time.sleep(5)
-            status = datasyncer.status(transfer_id)
-    except HTTPError as e:
-        return f"Unable to transfer data: {e}"
-
-    if status == "succeeded":
-        return 0
-    elif status == "failed":
-        return "Data syncer reported a failure"
-    else:
-        return f"Unknown status {status}"
+    transferred_items: List[Path] = []
+    for dls_item in file_list:
+        if not dls_item.is_file():
+            continue
+        iris_item = Path("/iris") / dls_item.relative_to("/dls")
+        try:
+            iris_item.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy(dls_item, iris_item)
+            transferred_items.append(dls_item)
+        except Exception:
+            continue
+    return transferred_items
 
 
 class TomoAlignSlurm(TomoAlign, CommonService):
@@ -140,14 +134,18 @@ class TomoAlignSlurm(TomoAlign, CommonService):
 
         # Transfer the required files
         self.log.info("Transferring files...")
-        transfer_status = transfer_files([tomo_parameters.stack_file])
-        if transfer_status:
-            self.log.error(f"Unable to transfer files: {transfer_status}")
+        items_to_transfer = [Path(tomo_parameters.stack_file)]
+        transfer_status = transfer_files(items_to_transfer)
+        if len(transfer_status) != len(items_to_transfer):
+            self.log.error(
+                "Unable to transfer files: "
+                f"desired {items_to_transfer}, done {transfer_status}"
+            )
             return subprocess.CompletedProcess(
                 args="",
                 returncode=1,
                 stdout="".encode("utf8"),
-                stderr=transfer_status.encode("utf8"),
+                stderr="Failed transfer".encode("utf8"),
             )
         self.log.info("All files transferred")
         self.log.info(f"Running AreTomo2 with command: {command}")
