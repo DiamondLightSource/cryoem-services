@@ -366,7 +366,7 @@ class LIFToStackWrapper(BaseWrapper):
             # Create dictionary and send it to Murfey's "feedback_callback" function
             murfey_params = {
                 "register": "register_lif_preprocessing_result",
-                "output_files": result,
+                "result": result,
             }
             self.recwrap.send_to("murfey_feedback", murfey_params)
             logger.info(
