@@ -189,7 +189,7 @@ class PostProcess(CommonService):
         node_creator_params: dict[str, Any] = {
             "job_type": self.job_type,
             "input_file": f"{postprocess_params.half_map}:{postprocess_params.mask}",
-            "output_file": f"{postprocess_params.job_dir}/postprocess.mrc",
+            "output_file": f"{postprocess_params.job_dir}/postprocess_masked.mrc",
             "relion_options": dict(postprocess_params.relion_options),
             "command": " ".join(postprocess_command),
             "stdout": postprocess_result.stdout.decode("utf8", "replace"),
@@ -300,7 +300,7 @@ class PostProcess(CommonService):
                 },
                 "buffer_command": {"ispyb_command": "insert_particle_classification"},
                 "class_number": postprocess_params.class_number,
-                "class_image_full_path": f"{postprocess_params.job_dir}/postprocess.mrc",
+                "class_image_full_path": f"{postprocess_params.job_dir}/postprocess_masked.mrc",
                 "particles_per_class": postprocess_params.number_of_particles,
                 "class_distribution": 1,
                 "rotation_accuracy": classes_loop[0, 2],
