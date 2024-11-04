@@ -224,7 +224,8 @@ def convert_tiff_to_stack(
                 "image_stack": str(img_stk_file.resolve()),
                 "metadata": str(img_xml_file.resolve()),
                 "series_name": series_name_long,
-                "color": color,
+                "channel": color,
+                "number_of_members": len(channels),
                 "parent_tiffs": str([str(f) for f in tiff_sublist]),
             }
             results.append(result)

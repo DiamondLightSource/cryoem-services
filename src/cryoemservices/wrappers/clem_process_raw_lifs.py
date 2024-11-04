@@ -174,7 +174,8 @@ def process_lif_substack(
             "image_stack": str(img_stk_file.resolve()),
             "metadata": str(img_xml_file.resolve()),
             "series_name": series_name,
-            "color": color,
+            "channel": color,
+            "number_of_members": len(channels),
             "parent_lif": str(file.resolve()),
         }
         results.append(result)
