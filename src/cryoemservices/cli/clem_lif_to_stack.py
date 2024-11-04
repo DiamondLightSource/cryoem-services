@@ -32,16 +32,11 @@ def run():
     )
     args = parser.parse_args()
 
-    # Load args
-    lif_file = Path(args.lif_file)
-    root_folder: str = args.root_folder
-    num_procs: int = args.num_procs
-
     # Run function
     results = convert_lif_to_stack(
-        file=lif_file,
-        root_folder=root_folder,
-        number_of_processes=num_procs,
+        file=Path(args.lif_file),
+        root_folder=args.root_folder,
+        number_of_processes=args.num_procs,
     )
 
     # Print results in output log
