@@ -6,6 +6,7 @@ processing workflow.
 
 from __future__ import annotations
 
+import itertools
 import logging
 import multiprocessing as mp
 from pathlib import Path
@@ -13,7 +14,9 @@ from typing import Optional
 from xml.etree import ElementTree as ET
 
 import numpy as np
+from pydantic import BaseModel, ValidationError
 from readlif.reader import LifFile
+from zocalo.wrapper import BaseWrapper
 
 from cryoemservices.util.clem_array_functions import (
     estimate_int_dtype,
@@ -23,38 +26,15 @@ from cryoemservices.util.clem_array_functions import (
 from cryoemservices.util.clem_raw_metadata import get_image_elements
 
 # Create logger object to output messages with
-logger = logging.getLogger("cryoemservices.services.clem_process_raw_lifs")
+logger = logging.getLogger("cryoemservices.wrappers.clem_process_raw_lifs")
 
 
-def get_lif_xml_metadata(
-    file: LifFile,
-    save_xml: Optional[Path] = None,
-) -> ET.Element:
-    """
-    Extracts and returns the metadata from the LIF file as a formatted XML Element.
-    It can be optionally saved as an XML file to the specified file path.
-    """
-
-    # Use readlif function to get XML metadata
-    xml_root: ET.Element = file.xml_root  # This one for navigating
-    xml_tree = ET.ElementTree(xml_root)  # This one for saving
-
-    # Skip saving the metadata if save_xml not provided
-    if save_xml:
-        xml_file = str(save_xml)  # Convert Path to string
-        ET.indent(xml_tree, "  ")  # Format with proper indentation
-        xml_tree.write(xml_file, encoding="utf-8")  # Save
-        logger.info(f"File metadata saved to {xml_file!r}")
-
-    return xml_root
-
-
-def process_lif_file(
+def process_lif_substack(
     file: Path,
     scene_num: int,
     metadata: ET.Element,
-    save_dir: Path,
-) -> bool:
+    root_save_dir: Path,
+) -> list[dict]:
     """
     Takes the LIF file and its corresponding metadata and loads the relevant sub-stack,
     with each channel as its own array. Rescales their intensity values to utilise the
@@ -63,16 +43,21 @@ def process_lif_file(
     """
 
     # Load LIF file
-    file_name = file.stem.replace(" ", "_")
     image = LifFile(str(file)).get_image(scene_num)
 
     # Get name of sub-image
+    file_name = file.stem.replace(" ", "_")  # Remove spaces
     img_name = metadata.attrib["Name"].replace(" ", "_")  # Remove spaces
     logger.info(f"Processing {file_name}-{img_name}")
 
     # Create save dirs for TIFF files and their metadata
-    img_dir = save_dir / img_name
-    img_xml_dir = img_dir / "metadata"
+    save_dir = (  # Save directory for all substacks from this LIF file
+        root_save_dir
+        / "/".join(file.relative_to(root_save_dir.parent).parts[1:-1])
+        / file_name
+    )
+    img_dir = save_dir / img_name  # Save directory for this specific substack
+    img_xml_dir = img_dir / "metadata"  # Save metadata relative to the substack
     for folder in (img_dir, img_xml_dir):
         if not folder.exists():
             # Potential race condition when generating folders from multiple pools
@@ -80,6 +65,9 @@ def process_lif_file(
             logger.info(f"Created {folder}")
         else:
             logger.info(f"{folder} already exists")
+
+    # Create a name for this series
+    series_name = img_dir.relative_to(root_save_dir).as_posix().replace("/", "--")
 
     # Save image stack XML metadata (all channels together)
     img_xml_file = img_xml_dir / (img_name + ".xml")
@@ -109,6 +97,7 @@ def process_lif_file(
     # timestamps = metadata.find("Data/Image/TimeStampList")
 
     # Process channels as individual TIFFs
+    results: list[dict] = []
     for c in range(len(colors)):
 
         # Get color
@@ -168,7 +157,7 @@ def process_lif_file(
 
         # Save as a greyscale TIFF
         logger.info("Processing image stack")
-        write_stack_to_tiff(
+        img_stk_file = write_stack_to_tiff(
             array=arr,
             save_dir=img_dir,
             file_name=color,
@@ -180,15 +169,25 @@ def process_lif_file(
             image_labels=image_labels,
             photometric="minisblack",
         )
+        # Collect the image stacks created
+        result = {
+            "image_stack": str(img_stk_file.resolve()),
+            "metadata": str(img_xml_file.resolve()),
+            "series_name": series_name,
+            "channel": color,
+            "number_of_members": len(channels),
+            "parent_lif": str(file.resolve()),
+        }
+        results.append(result)
 
-    return True
+    return results
 
 
 def convert_lif_to_stack(
     file: Path,
     root_folder: str,  # Name of the folder to treat as the root folder for LIF files
     number_of_processes: int = 1,  # Number of processing threads to run
-) -> bool:
+) -> list[dict] | None:
     """
     Takes a LIF file, extracts its metadata as an XML tree, then parses through the
     sub-images stored inside it, saving each channel in the sub-image as a separate
@@ -209,6 +208,28 @@ def convert_lif_to_stack(
                 |   |__ metadata    <- Individual XML files saved here (not yet implemented)
     """
 
+    def get_lif_xml_metadata(
+        file: LifFile,
+        save_xml: Optional[Path] = None,
+    ) -> ET.Element:
+        """
+        Extracts and returns the metadata from the LIF file as a formatted XML Element.
+        It can be optionally saved as an XML file to the specified file path.
+        """
+
+        # Use readlif function to get XML metadata
+        xml_root: ET.Element = file.xml_root  # This one for navigating
+        xml_tree = ET.ElementTree(xml_root)  # This one for saving
+
+        # Skip saving the metadata if save_xml not provided
+        if save_xml:
+            xml_file = str(save_xml)  # Convert Path to string
+            ET.indent(xml_tree, "  ")  # Format with proper indentation
+            xml_tree.write(xml_file, encoding="utf-8")  # Save
+            logger.info(f"File metadata saved to {xml_file!r}")
+
+        return xml_root
+
     # Validate processor count input
     num_procs = number_of_processes  # Use shorter phrase in script
     if num_procs < 1:
@@ -216,32 +237,28 @@ def convert_lif_to_stack(
         num_procs = 1
 
     # Folder for processed files with same structure as old one
+    new_root_folder = "processed"
     file_name = file.stem.replace(" ", "_")  # Replace spaces
     path_parts = list(file.parts)
-    new_root_folder = "processed"
-    # Rewrite string in-place
-    counter = 0
-    for p in range(len(path_parts)):
-        part = path_parts[p]
-        # Omit initial "/" in Linux file systems for subsequent rejoining
-        if part == "/":
-            path_parts[p] = ""
-        # Rename designated root folder to "processed"
-        if (
-            part.lower() == root_folder.lower() and counter < 1
-        ):  # Remove case-sensitivity
-            path_parts[p] = new_root_folder
-            counter += 1  # Do for first instance only
-    # Check that "processed" has been inserted into file path
-    if new_root_folder not in path_parts:
+
+    # Build path to processed directory
+    # Remove leading "/" in Unix paths
+    path_parts[0] = "" if path_parts[0] == "/" else path_parts[0]
+    try:
+        # Search for root folder with case-insensitivity
+        root_index = [p.lower() for p in path_parts].index(root_folder.lower())
+        path_parts[root_index] = new_root_folder  # Point to new folder
+    except ValueError:
         logger.error(
             f"Subpath {root_folder!r} was not found in image path " f"{str(file)!r}"
         )
-        return False
+        return None
+    processed_dir = Path("/".join(path_parts[: root_index + 1]))
+
+    # Save master metadata relative to raw file
+    raw_xml_dir = file.parent / "metadata"
 
     # Create folders if not already present
-    processed_dir = Path("/".join(path_parts)).parent / file_name  # Processed images
-    raw_xml_dir = file.parent / "metadata"  # Raw metadata
     for folder in (processed_dir, raw_xml_dir):
         if not folder.exists():
             folder.mkdir(parents=True)
@@ -266,12 +283,13 @@ def convert_lif_to_stack(
 
     # Check that elements match number of images
     if not len(metadata_list) == len(scene_list):
-        raise IndexError(
-            "Error matching metadata list to list of sub-images. \n"
+        logger.error(
+            "Error matching metadata list to list of sub-images. "
             # Show what went wrong
-            f"Metadata entries: {len(metadata_list)} \n"
-            f"Sub-images: {len(scene_list)}"
+            f"Metadata entries: {len(metadata_list)} "
+            f"Sub-images: {len(scene_list)} "
         )
+        return None
 
     # Iterate through scenes
     logger.info("Examining sub-images")
@@ -281,18 +299,81 @@ def convert_lif_to_stack(
     for i in range(len(scene_list)):
         pool_args.append(
             # Arguments need to be pickle-able; no complex objects allowed
-            [  # Follow order of args in the function
-                file,  # Load LIF file in the sub-process
+            #   Follow order of args in the function
+            [
+                file,
                 i,
-                metadata_list[i],  # Corresponding metadata
+                metadata_list[i],
                 processed_dir,
             ]
         )
 
-    # Parallel process image stacks
+    # Parallel process image stacks and return results
     with mp.Pool(processes=num_procs) as pool:
-        result = pool.starmap(process_lif_file, pool_args)
+        # Each thread will return a list of dicts
+        results_map = pool.starmap(process_lif_substack, pool_args)
 
-    if result:
-        return all(result)
-    return False
+    # Return flattened list of dicts
+    results = list(itertools.chain.from_iterable(results_map))
+    return results
+
+
+class LIFToStackParameters(BaseModel):
+    """
+    Pydantic model for validating the received message for the LIF file conversion
+    workflow.
+
+    The keys under the "job_parameters" key in the Zocalo wrapper recipe must match
+    the attributes present in this model. Attributes in the model with a default
+    value don't have to be provided in the wrapper recipe.
+    """
+
+    lif_file: Path
+    root_folder: str  # The root folder under which all LIF files are saved
+    num_procs: int = 20  # Number of processing threads to run
+
+
+class LIFToStackWrapper(BaseWrapper):
+    def run(self) -> bool:
+        """
+        Reads the Zocalo wrapper recipe, loads the parameters, and passes them to the
+        LIF file processing function. Upon collecting the results, it then passes them
+        back to Murfey for the next stage in the workflow.
+        """
+
+        assert hasattr(self, "recwrap"), "No RecipeWrapper object found"
+        params_dict = self.recwrap.recipe_step["job_parameters"]
+        try:
+            params = LIFToStackParameters(**params_dict)
+        except (ValidationError, TypeError) as e:
+            logger.error(
+                f"LIFToStackParameters validation failed for parameters: {params_dict} with exception: {e}"
+            )
+            return False
+
+        # Process files and collect output
+        results = convert_lif_to_stack(
+            file=params.lif_file,
+            root_folder=params.root_folder,  # Name of the folder under which LIF files are saved
+            number_of_processes=params.num_procs,  # Number of processing threads to run
+        )
+
+        # Return False and log error if the command fails to execute
+        if results is None:
+            logger.error(
+                f"Failed to extract image stacks from {str(params.lif_file)!r}"
+            )
+            return False
+        # Send each subset of output files to Murfey for registration
+        for result in results:
+            # Create dictionary and send it to Murfey's "feedback_callback" function
+            murfey_params = {
+                "register": "register_lif_preprocessing_result",
+                "result": result,
+            }
+            self.recwrap.send_to("murfey_feedback", murfey_params)
+            logger.info(
+                f"{result['channel']!r} channel image stack for {result['series_name']!r} successfully created"
+            )
+
+        return True

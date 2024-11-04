@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from cryoemservices.services.clem_process_raw_tiffs import convert_tiff_to_stack
+from cryoemservices.wrappers.clem_process_raw_tiffs import convert_tiff_to_stack
 
 
 def run():
@@ -13,16 +13,16 @@ def run():
     )
     # Path to single TIFF file from series (Mandatory)
     parser.add_argument(
-        dest="tiff_path",
+        dest="tiff_file",
         type=str,
         help="Path to any one of the TIFF files from the series to be processed",
     )
     # Root directory (Optional)
     parser.add_argument(
-        "--root-dir",
+        "--root-folder",
         default="images",
         type=str,
-        help="Top subdirectory that raw TIFF files are stored in. Used to determine destination of the created image stacks",
+        help="Name of the top folder that raw TIFF files are stored in. Used to determine destination of the created image stacks",
     )
     # Path to metadata file (Optional)
     parser.add_argument(
@@ -34,9 +34,8 @@ def run():
     # Parse the arguments
     args = parser.parse_args()
 
-    # Convert to correct object types
-    tiff_file = Path(args.tiff_path)
     # Generate list from the single file provided
+    tiff_file = Path(args.tiff_file)
     tiff_list: list[Path] = [
         f.resolve()
         for f in tiff_file.parent.glob("./*")
@@ -46,14 +45,15 @@ def run():
         and f.stem.startswith(tiff_file.stem.split("--")[0] + "--")
     ]
 
-    # Resolve for metadata argument
-    if not args.metadata:
-        metadata = None
-    else:
-        metadata = Path(args.metadata)
+    # Parse metadata argument
+    metadata = None if not args.metadata else Path(args.metadata)
 
-    convert_tiff_to_stack(
+    result = convert_tiff_to_stack(
         tiff_list=tiff_list,
-        root_folder=args.root_dir,
+        root_folder=args.root_folder,
         metadata_file=metadata,
     )
+
+    # Print result to output log
+    if result is not None:
+        print(result)
