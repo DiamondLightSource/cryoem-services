@@ -34,9 +34,8 @@ def run():
     # Parse the arguments
     args = parser.parse_args()
 
-    # Convert to correct object types
-    tiff_file = Path(args.tiff_file)
     # Generate list from the single file provided
+    tiff_file = Path(args.tiff_file)
     tiff_list: list[Path] = [
         f.resolve()
         for f in tiff_file.parent.glob("./*")
@@ -46,18 +45,12 @@ def run():
         and f.stem.startswith(tiff_file.stem.split("--")[0] + "--")
     ]
 
-    # Parse root folder argument
-    root_folder: str = args.root_folder
-
     # Parse metadata argument
-    if not args.metadata:
-        metadata = None
-    else:
-        metadata = Path(args.metadata)
+    metadata = None if not args.metadata else Path(args.metadata)
 
     result = convert_tiff_to_stack(
         tiff_list=tiff_list,
-        root_folder=root_folder,
+        root_folder=args.root_folder,
         metadata_file=metadata,
     )
 
