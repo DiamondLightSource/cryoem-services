@@ -141,11 +141,14 @@ class TomoAlignSlurm(TomoAlign, CommonService):
                 "Unable to transfer files: "
                 f"desired {items_to_transfer}, done {transfer_status}"
             )
-            return subprocess.CompletedProcess(
-                args="",
-                returncode=1,
-                stdout="".encode("utf8"),
-                stderr="Failed transfer".encode("utf8"),
+            return (
+                subprocess.CompletedProcess(
+                    args="",
+                    returncode=1,
+                    stdout="".encode("utf8"),
+                    stderr="Failed transfer".encode("utf8"),
+                ),
+                command,
             )
         self.log.info("All files transferred")
 
