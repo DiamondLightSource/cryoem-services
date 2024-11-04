@@ -243,12 +243,15 @@ def convert_tiff_to_stack(
 
     # Parse path parts to construct parameters
     path_parts = list(series_path.parts)
-    # Remove leading "/" in Unix paths
-    path_parts[0] = "" if path_parts[0] == "/" else path_parts[0]
-    # Replace spaces in path
-    path_parts = [p.replace(" ", "_") if " " in p else p for p in path_parts]
-    # Remove last level if it is redundant
-    path_parts = path_parts[:-1] if path_parts[-1] == path_parts[-2] else path_parts
+    path_parts[0] = (
+        "" if path_parts[0] == "/" else path_parts[0]
+    )  # Remove leading "/" in Unix paths
+    path_parts = [
+        p.replace(" ", "_") if " " in p else p for p in path_parts
+    ]  # Replace spaces in path
+    path_parts = (
+        path_parts[:-1] if path_parts[-1] == path_parts[-2] else path_parts
+    )  # Remove last level if redundant
     try:
         # Search for root folder with case-insensitivity and point to new location
         root_index = [p.lower() for p in path_parts].index(root_folder.lower())
@@ -271,6 +274,7 @@ def convert_tiff_to_stack(
         logger.info(f"Created {save_dir}")
     else:
         logger.info(f"{str(save_dir)} already exists")
+
     # Get associated XML file
     if metadata_file is None:  # Search for it using relative paths if not provided
         xml_file = series_path.parent / "Metadata" / (series_name_short + ".xlif")
