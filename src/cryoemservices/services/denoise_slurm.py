@@ -30,14 +30,18 @@ class DenoiseSlurm(Denoise):
 
         # Transfer the required files
         self.log.info("Transferring files...")
-        transfer_status = transfer_files([tomogram_volume])
-        if transfer_status:
-            self.log.error(f"Unable to transfer files: {transfer_status}")
+        items_to_transfer = [tomogram_volume]
+        transfer_status = transfer_files(items_to_transfer)
+        if len(transfer_status) != len(items_to_transfer):
+            self.log.error(
+                "Unable to transfer files: "
+                f"desired {items_to_transfer}, done {transfer_status}"
+            )
             return subprocess.CompletedProcess(
                 args="",
                 returncode=1,
                 stdout="".encode("utf8"),
-                stderr=transfer_status.encode("utf8"),
+                stderr="Failed transfer".encode("utf8"),
             )
         self.log.info("All files transferred")
 

@@ -208,7 +208,7 @@ def test_denoise_slurm_service(
     )
     mock_subprocess().stderr = "stderr".encode("ascii")
 
-    mock_transfer.return_value = 0
+    mock_transfer.return_value = ["test_stack_aretomo.mrc"]
 
     header = {
         "message-id": mock.sentinel,
