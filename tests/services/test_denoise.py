@@ -250,6 +250,7 @@ def test_denoise_slurm_service(
 
     # Touch the expected output files
     (tmp_path / "Denoise/job007/denoised").mkdir(parents=True)
+    (tmp_path / "Denoise/job007/denoised/test_stack_aretomo.denoised.mrc").touch()
     (tmp_path / "Denoise/job007/denoised/test_stack_aretomo.denoised.mrc.out").touch()
     (tmp_path / "Denoise/job007/denoised/test_stack_aretomo.denoised.mrc.err").touch()
 

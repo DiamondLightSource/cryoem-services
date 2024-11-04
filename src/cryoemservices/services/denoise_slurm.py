@@ -72,6 +72,14 @@ class DenoiseSlurm(Denoise):
         slurm_output_file = f"{denoised_full_path}.out"
         slurm_error_file = f"{denoised_full_path}.out"
 
+        if not denoised_full_path.is_file():
+            return subprocess.CompletedProcess(
+                args="",
+                returncode=1,
+                stdout="".encode("utf8"),
+                stderr=f"Output {denoised_full_path} not fund".encode("utf8"),
+            )
+
         try:
             with open(slurm_output_file, "r") as slurm_stdout:
                 slurm_outcome.stdout = slurm_stdout.read()

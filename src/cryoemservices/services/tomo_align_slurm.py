@@ -177,6 +177,17 @@ class TomoAlignSlurm(TomoAlign, CommonService):
         )
         self.log.info("All output files retrieved")
 
+        if not aretomo_output_path.is_file():
+            return (
+                subprocess.CompletedProcess(
+                    args="",
+                    returncode=1,
+                    stdout="".encode("utf8"),
+                    stderr=f"Output {aretomo_output_path} not found".encode("utf8"),
+                ),
+                command,
+            )
+
         slurm_output_file = f"{aretomo_output_path}.out"
         slurm_error_file = f"{aretomo_output_path}.out"
         if tomo_parameters.tilt_cor and Path(slurm_output_file).is_file():
