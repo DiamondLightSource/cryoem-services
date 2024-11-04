@@ -322,33 +322,35 @@ class TIFFToStackWrapper(BaseWrapper):
             )
             return False
 
+        # Set alias for frequently used parameters
+        tiff_file = params.tiff_file
+        tiff_list = params.tiff_list
+
         # Parse 'tiff_list' parameter
-        if isinstance(params.tiff_list, str):
+        if isinstance(tiff_list, str):
             # If 'tiff_list' is 'null', parse 'tiff_file' to construct list
-            if params.tiff_list == "null":
-                if params.tiff_file == "null":
+            if tiff_list == "null":
+                if tiff_file == "null":
                     logger.error(
                         "'tiff_file' cannot be 'null' if 'tiff_list' is already 'null'"
                     )
                     return False
-                elif isinstance(params.tiff_file, Path):
+                elif isinstance(tiff_file, Path):
                     tiff_list = [
                         f.resolve()
-                        for f in params.tiff_file.parent.glob("./*")
+                        for f in tiff_file.parent.glob("./*")
                         if f.suffix in {".tif", ".tiff"}
                         # Handle cases where series start with the same position number,
                         # but deviate afterwards
-                        and f.stem.startswith(
-                            params.tiff_file.stem.split("--")[0] + "--"
-                        )
+                        and f.stem.startswith(tiff_file.stem.split("--")[0] + "--")
                     ]
                 else:
                     logger.error("Error parsing 'tiff_file' parameter")
                     return False
             # Check if 'tiff_list' is a stringified list
-            elif params.tiff_list.startswith("[") and params.tiff_list.endswith("]"):
+            elif tiff_list.startswith("[") and tiff_list.endswith("]"):
                 try:
-                    eval_tiff_list: list[str] = literal_eval(params.tiff_list)
+                    eval_tiff_list: list[str] = literal_eval(tiff_list)
                     tiff_list = [Path(p) for p in eval_tiff_list]
                 except Exception:
                     logger.error("List does not contain valid file paths")
@@ -358,8 +360,8 @@ class TIFFToStackWrapper(BaseWrapper):
                 logger.error("Unable to parse 'tiff_file' string provided")
                 return False
         # Use 'tiff_list' as is if it successfully evaluates as a list
-        elif isinstance(params.tiff_list, list):
-            tiff_list = params.tiff_list
+        elif isinstance(tiff_list, list):
+            pass
         else:
             logger.error("Invalid type for 'tiff_list' parameter")
             return False
