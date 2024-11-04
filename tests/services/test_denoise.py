@@ -278,7 +278,7 @@ def test_denoise_slurm_service(
     # Check file transfer and retrieval
     assert mock_transfer.call_count == 1
     mock_transfer.assert_any_call(
-        [f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc"]
+        [tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo.mrc"]
     )
     assert mock_retrieve.call_count == 1
     mock_retrieve.assert_any_call(
