@@ -9,13 +9,13 @@ from __future__ import annotations
 import logging
 from ast import literal_eval
 from pathlib import Path
-from typing import Literal, Optional, Union
+from typing import Optional
 from xml.etree import ElementTree as ET
 
 import numpy as np
 from defusedxml.ElementTree import parse
 from PIL import Image
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, ValidationError, field_validator, model_validator
 from zocalo.wrapper import BaseWrapper
 
 from cryoemservices.util.clem_array_functions import (
@@ -302,16 +302,68 @@ class TIFFToStackParameters(BaseModel):
     value don't have to be provided in the wrapper recipe.
     """
 
-    tiff_list: Union[list[Path], str, Literal["null"]]
+    # One of 'tiff_list' or 'tiff_file' should be provided
+    # The other one should be None (pass "null" in the CLI)
+    tiff_list: Optional[list[Path]]
+    tiff_file: Optional[Path]
     root_folder: str
     metadata: Path
-    tiff_file: Union[Path, Literal["null"]] = (
-        "null"  # Alternative input when testing wrapper individually
-    )
+
+    @field_validator("tiff_list", mode="before")
+    def parse_tiff_list(cls, value):
+        if isinstance(value, str):
+            # Check for "null" keyword
+            if value == "null":
+                return None
+            # Check for stringified list
+            if value.startswith("[") and value.endswith("]"):
+                try:
+                    eval_tiff_list: list[str] = literal_eval(value)
+                    tiff_list = [Path(p) for p in eval_tiff_list]
+                    return tiff_list
+                except (SyntaxError, ValueError):
+                    logger.error("Unable to parse stringified list for file paths")
+                    raise ValueError
+        # Leave the value as-is; if it fails, it fails
+        return value
+
+    @field_validator("tiff_file", mode="before")
+    def parse_tiff_file(cls, value):
+        # Check for "null" keyword
+        if value == "null":
+            return None
+        # Convert to Path otherwise
+        if isinstance(value, str):
+            return Path(value.strip())
+        return value
+
+    @model_validator(mode="after")
+    def construct_tiff_list(cls, model: TIFFToStackParameters):
+        if model.tiff_list and model.tiff_file:
+            raise ValueError(
+                "Only one of 'tiff_list' or 'tiff_file' should be provided, not both"
+            )
+        if not model.tiff_list and not model.tiff_file:
+            raise ValueError("One of 'tiff_list' or 'tiff_file' has to be provided")
+        if not model.tiff_list and model.tiff_file:
+            series_name = model.tiff_file.stem.split("--")[0]
+            model.tiff_list = [
+                f.resolve()
+                for f in model.tiff_file.parent.glob("./*")
+                if f.suffix in (".tif", ".tiff")
+                and f.stem.startswith(f"{series_name}--")
+            ]
+        # Return updated model
+        return model
 
 
 class TIFFToStackWrapper(BaseWrapper):
     def run(self) -> bool:
+        """
+        Reads the Zocalo wrapper recipe, loads the parameters, and passes them to the
+        TIFF file processing function. Upon collecting the results, it sends them back
+        to Murfey for the next stage of the workflow.
+        """
         assert hasattr(self, "recwrap"), "No RecipeWrapper object found"
         params_dict = self.recwrap.recipe_step["job_parameters"]
         try:
@@ -322,59 +374,19 @@ class TIFFToStackWrapper(BaseWrapper):
             )
             return False
 
-        # Set alias for frequently used parameters
-        tiff_file = params.tiff_file
-        tiff_list = params.tiff_list
-
-        # Parse 'tiff_list' parameter
-        if isinstance(tiff_list, str):
-            # If 'tiff_list' is 'null', parse 'tiff_file' to construct list
-            if tiff_list == "null":
-                if tiff_file == "null":
-                    logger.error(
-                        "'tiff_file' cannot be 'null' if 'tiff_list' is already 'null'"
-                    )
-                    return False
-                elif isinstance(tiff_file, Path):
-                    tiff_list = [
-                        f.resolve()
-                        for f in tiff_file.parent.glob("./*")
-                        if f.suffix in {".tif", ".tiff"}
-                        # Handle cases where series start with the same position number,
-                        # but deviate afterwards
-                        and f.stem.startswith(tiff_file.stem.split("--")[0] + "--")
-                    ]
-                else:
-                    logger.error("Error parsing 'tiff_file' parameter")
-                    return False
-            # Check if 'tiff_list' is a stringified list
-            elif tiff_list.startswith("[") and tiff_list.endswith("]"):
-                try:
-                    eval_tiff_list: list[str] = literal_eval(tiff_list)
-                    tiff_list = [Path(p) for p in eval_tiff_list]
-                except Exception:
-                    logger.error("List does not contain valid file paths")
-                    return False
-            # Log error if unable to parse 'tiff_list' parameter
-            else:
-                logger.error("Unable to parse 'tiff_file' string provided")
-                return False
-        # Use 'tiff_list' as is if it successfully evaluates as a list
-        elif isinstance(tiff_list, list):
-            pass
-        else:
-            logger.error("Invalid type for 'tiff_list' parameter")
+        # Catch no TIFF files case
+        if not params.tiff_list:  # Will catch None and []
+            logger.error("No list of TIFF files found after data validation")
             return False
 
-        # Parse file path to reconstruct series name
-        path_parts = list(
-            (tiff_list[0].parent / tiff_list[0].stem.split("--")[0]).parts
-        )
+        # Reconstruct series name using reference file from list
+        ref_file = params.tiff_list[0]
+        path_parts = list((ref_file.parent / ref_file.stem.split("--")[0]).parts)
         try:
             root_index = path_parts.index(params.root_folder)
         except ValueError:
             logger.error(
-                f"Subpath {params.root_folder!r} was not found in image path {str(tiff_list[0].parent / tiff_list[0].stem.split('--')[0])!r}"
+                f"Subpath {params.root_folder!r} was not found in file path {str(ref_file.parent / ref_file.stem.split('--')[0])!r}"
             )
             return False
         series_name = "--".join(
@@ -385,7 +397,7 @@ class TIFFToStackWrapper(BaseWrapper):
 
         # Process files and collect output
         results = convert_tiff_to_stack(
-            tiff_list=tiff_list,
+            tiff_list=params.tiff_list,
             root_folder=params.root_folder,
             metadata_file=params.metadata,
         )
