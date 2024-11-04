@@ -372,7 +372,7 @@ class TIFFToStackWrapper(BaseWrapper):
             root_index = path_parts.index(params.root_folder)
         except ValueError:
             logger.error(
-                f"Subpath {params.root_folder!r} was not found in image path {(tiff_list[0].parent / tiff_list[0].stem.split('--')[0])!r}"
+                f"Subpath {params.root_folder!r} was not found in image path {str(tiff_list[0].parent / tiff_list[0].stem.split('--')[0])!r}"
             )
             return False
         series_name = "--".join(
@@ -400,7 +400,7 @@ class TIFFToStackWrapper(BaseWrapper):
             }
             self.recwrap.send_to("murfey_feedback", murfey_params)
             logger.info(
-                f"{result['color']} channel image stack for {result['series_name']} successfully created"
+                f"{result['channel']!r} channel image stack for {result['series_name']!r} successfully created"
             )
 
         return True

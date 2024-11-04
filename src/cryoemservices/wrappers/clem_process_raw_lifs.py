@@ -360,7 +360,9 @@ class LIFToStackWrapper(BaseWrapper):
 
         # Return False and log error if the command fails to execute
         if results is None:
-            logger.error(f"Failed to extract image stacks from {params.lif_file!r}")
+            logger.error(
+                f"Failed to extract image stacks from {str(params.lif_file)!r}"
+            )
             return False
         # Send each subset of output files to Murfey for registration
         for result in results:
@@ -371,7 +373,7 @@ class LIFToStackWrapper(BaseWrapper):
             }
             self.recwrap.send_to("murfey_feedback", murfey_params)
             logger.info(
-                f"{result['color']} channel image stack for {result['series_name']} successfully created"
+                f"{result['channel']!r} channel image stack for {result['series_name']!r} successfully created"
             )
 
         return True
