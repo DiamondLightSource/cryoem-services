@@ -300,7 +300,7 @@ def test_denoise_slurm_service(
         "exec",
         "--nv",
         "--bind",
-        "/lib64,/tmp/tmp_$SLURM_JOB_ID:/tmp,directory1,directory2",
+        "/tmp/tmp_$SLURM_JOB_ID:/tmp,directory1,directory2",
         "--home",
         "/home",
         "topaz.sif",

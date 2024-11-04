@@ -1338,6 +1338,7 @@ def test_motioncor2_slurm_parameters(mock_slurm, offline_transport, tmp_path):
         use_gpu=True,
         use_singularity=True,
         cif_name="MotionCor2_SIF",
+        extra_singularity_directories=["/lib64"],
     )
 
 
