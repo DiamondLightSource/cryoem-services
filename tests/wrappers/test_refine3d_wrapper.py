@@ -3,6 +3,8 @@ from __future__ import annotations
 import sys
 from unittest import mock
 
+import mrcfile
+import numpy as np
 import pytest
 import zocalo.configuration
 from workflows.recipe.wrapper import RecipeWrapper
@@ -492,3 +494,37 @@ def test_refine3d_wrapper_no_mask(
             "relion_options": output_relion_options,
         },
     )
+
+
+def test_find_mask_threshold_noise(tmp_path):
+    """
+    Test using a flat input.
+    Returns the max of the binning due to the length of the array
+    """
+    test_matrix = np.arange(-0.0999, 0.1001, 0.0002, dtype=np.float32).reshape(
+        (10, 10, 10)
+    )
+    with mrcfile.new(tmp_path / "test_density_file.mrc") as mrc:
+        mrc.set_data(test_matrix)
+    found_density = refine3d_wrapper.find_mask_threshold(
+        f"{tmp_path}/test_density_file.mrc"
+    )
+    assert np.abs(found_density - 0.1) < 0.0001
+
+
+def test_find_mask_threshold_sample(tmp_path):
+    """
+    Test using a flat input, plus some extra values of 0.05 which should be the peak
+    Returns the max of the binning due to the length of the array
+    """
+    test_matrix = np.arange(-0.0999, 0.1001, 0.0002, dtype=np.float32).reshape(
+        (10, 10, 10)
+    )
+    test_matrix[0, 0, 0] = 0.05
+    test_matrix[-1, -1, -1] = 0.05
+    with mrcfile.new(tmp_path / "test_density_file.mrc") as mrc:
+        mrc.set_data(test_matrix)
+    found_density = refine3d_wrapper.find_mask_threshold(
+        f"{tmp_path}/test_density_file.mrc"
+    )
+    assert np.abs(found_density - 0.05) < 0.0001
