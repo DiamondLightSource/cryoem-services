@@ -227,6 +227,7 @@ def test_refine3d_wrapper_with_mask(
             "command": " ".join(refine3d_command),
             "stdout": "stdout",
             "stderr": "stderr",
+            "alias": "Refine_C3_symmetry",
             "success": True,
         },
     )
@@ -243,6 +244,7 @@ def test_refine3d_wrapper_with_mask(
             "batch_size": 50000,
             "class_number": 1,
             "symmetry": "C3",
+            "particles_file": f"{tmp_path}/Extract/job020/particles.star",
             "relion_options": output_relion_options,
         },
     )
@@ -454,6 +456,7 @@ def test_refine3d_wrapper_no_mask(
             "command": " ".join(refine3d_command),
             "stdout": "stdout",
             "stderr": "stderr",
+            "alias": "Refine_C1_symmetry",
             "success": True,
         },
     )
@@ -468,6 +471,7 @@ def test_refine3d_wrapper_no_mask(
             "command": " ".join(mask_creation_command),
             "stdout": "stdout",
             "stderr": "stderr",
+            "alias": "Mask_C1_symmetry",
             "success": True,
         },
     )
@@ -484,6 +488,7 @@ def test_refine3d_wrapper_no_mask(
             "batch_size": 50000,
             "class_number": 1,
             "symmetry": "C1",
+            "particles_file": f"{tmp_path}/Extract/job020/particles.star",
             "relion_options": output_relion_options,
         },
     )
