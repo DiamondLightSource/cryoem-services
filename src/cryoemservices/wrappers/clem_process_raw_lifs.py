@@ -67,7 +67,12 @@ def process_lif_substack(
             logger.info(f"{folder} already exists")
 
     # Create a name for this series
-    series_name = img_dir.relative_to(root_save_dir).as_posix().replace("/", "--")
+    series_name = (
+        img_dir.relative_to(root_save_dir)
+        .as_posix()
+        .replace("/", "--")
+        .replace(" ", "_")
+    )
 
     # Save image stack XML metadata (all channels together)
     img_xml_file = img_xml_dir / (img_name + ".xml")
