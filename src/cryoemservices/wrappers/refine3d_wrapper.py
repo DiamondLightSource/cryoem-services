@@ -31,12 +31,13 @@ def find_mask_threshold(density_file: str):
     # Histogram across all reasonable densities
     histogram_bins = np.arange(-0.1005, 0.101, 0.001)  # 201 bins
     bin_centres = histogram_bins[:-1] + (histogram_bins[1] - histogram_bins[0]) / 2
+    central_bin_num = int((len(bin_centres) - 1) / 2)
     density_histogram = np.histogram(density_data.flatten(), bins=histogram_bins)[0]
 
     # Subtract the noise (density < 0 side) from the histogram
     noise_subtracted = np.copy(density_histogram)
-    noise_subtracted[100] = 0
-    for i in range(100):
+    noise_subtracted[central_bin_num] = 0
+    for i in range(central_bin_num):
         noise_subtracted[-i - 1] -= noise_subtracted[i]
         noise_subtracted[i] = 0
 
