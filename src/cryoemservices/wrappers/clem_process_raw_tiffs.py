@@ -93,7 +93,7 @@ def convert_tiff_to_stack(
             logger.info(f"{metadata_dir} already exists")
 
         # Save image metadata
-        img_xml_file = metadata_dir / (series_name_short + ".xml")
+        img_xml_file = metadata_dir / (series_name_short.replace(" ", "_") + ".xml")
         metadata_tree = ET.ElementTree(metadata)
         ET.indent(metadata_tree, "  ")
         metadata_tree.write(img_xml_file, encoding="utf-8")
@@ -239,7 +239,9 @@ def convert_tiff_to_stack(
     # Use the names of the TIFF files to get the unique path to it
     #   Remove the "--Z##--C##.tiff" end of the file path strings
     series_path = tiff_list[0].parent / tiff_list[0].stem.split("--")[0]
-    series_name_short = series_path.stem  # For finding and parsing metadata file
+    series_name_short = (
+        series_path.stem
+    )  # For finding and parsing metadata file; may contain spaces
 
     # Parse path parts to construct parameters
     path_parts = list(series_path.parts)
@@ -264,7 +266,7 @@ def convert_tiff_to_stack(
         return None
 
     # Construct long name of the series for database records
-    series_name_long = "--".join(path_parts[root_index + 1 :])
+    series_name_long = "--".join(path_parts[root_index + 1 :]).replace(" ", "_")
     logger.info(f"Processing {series_name_long} TIFF files")
 
     # Construct save directory
