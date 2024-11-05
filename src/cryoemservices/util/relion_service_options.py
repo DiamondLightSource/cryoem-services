@@ -318,6 +318,8 @@ def generate_service_options(
 
     job_options["relion.aligntiltseries"] = {
         "do_aretomo": True,
+        "do_imod_fiducials": False,
+        "do_imod_patchtrack": False,
         "aretomo_thickness": relion_options.vol_z * relion_options.pixel_size / 10,
         "aretomo_tiltcorrect": True,
     }
