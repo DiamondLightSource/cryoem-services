@@ -1,4 +1,4 @@
 apiVersion: v2
 name: tomo_align_slurm
 description: A Helm chart for TomoAlign service which submits jobs to the IRIS cluster
-version: 0.5.2
+version: 0.5.3
