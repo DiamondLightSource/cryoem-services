@@ -47,7 +47,106 @@ def offline_transport(mocker):
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.util.slurm_submission.subprocess.run")
-def test_membrain_seg_service(
+def test_membrain_seg_service_local(
+    mock_subprocess,
+    offline_transport,
+    tmp_path,
+):
+    """
+    Send a test message to membrain-seg for the slurm submission version
+    This should call the mock subprocess then send messages to the images service.
+    """
+    mock_subprocess().returncode = 0
+
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+    segmentation_test_message = {
+        "parameters": {
+            "tomogram": f"{tmp_path}/Denoise/job007/tomograms/test_stack_aretomo.denoised.mrc",
+            "output_dir": f"{tmp_path}/Segmentation/job008/tomograms",
+            "pretrained_checkpoint": "checkpoint.ckpt",
+            "pixel_size": "1.0",
+            "rescale_patches": True,
+            "augmentation": True,
+            "store_probabilities": True,
+            "store_connected_components": True,
+            "window_size": 100,
+            "connected_component_threshold": 2,
+            "segmentation_threshold": 4,
+        },
+        "content": "dummy",
+    }
+
+    # Set up the mock service
+    service = membrain_seg.MembrainSeg()
+    service.transport = offline_transport
+    service.start()
+
+    # Send a message to the service
+    service.membrain_seg(None, header=header, message=segmentation_test_message)
+
+    # Check the membrain command was run
+    membrain_command = [
+        "membrain",
+        "segment",
+        "--out-folder",
+        f"{tmp_path}/Segmentation/job008/tomograms",
+        "--tomogram-path",
+        f"{tmp_path}/Denoise/job007/tomograms/test_stack_aretomo.denoised.mrc",
+        "--ckpt-path",
+        "checkpoint.ckpt",
+        "--in-pixel-size",
+        "1.0",
+        "--sliding-window-size",
+        "100",
+        "--connected-component-thres",
+        "2",
+        "--segmentation-threshold",
+        "4.0",
+        "--rescale-patches",
+        "--test-time-augmentation",
+        "--store-probabilities",
+        "--store-connected-components",
+    ]
+    assert mock_subprocess.call_count == 2
+    mock_subprocess.assert_any_call(membrain_command, capture_output=True)
+
+    # Check the images service request
+    assert offline_transport.send.call_count == 3
+    offline_transport.send.assert_any_call(
+        destination="images",
+        message={
+            "image_command": "mrc_central_slice",
+            "file": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented.mrc",
+            "skip_rescaling": True,
+        },
+    )
+    offline_transport.send.assert_any_call(
+        destination="movie",
+        message={
+            "image_command": "mrc_to_apng",
+            "file": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented.mrc",
+            "skip_rescaling": True,
+        },
+    )
+    offline_transport.send.assert_any_call(
+        destination="ispyb_connector",
+        message={
+            "parameters": {
+                "ispyb_command": "insert_processed_tomogram",
+                "file_path": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented.mrc",
+                "processing_type": "Segmented",
+            },
+            "content": {"dummy": "dummy"},
+        },
+    )
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+@mock.patch("cryoemservices.util.slurm_submission.subprocess.run")
+def test_membrain_seg_service_slurm(
     mock_subprocess,
     offline_transport,
     tmp_path,
@@ -80,12 +179,12 @@ def test_membrain_seg_service(
             "connected_component_threshold": 2,
             "segmentation_threshold": 4,
             "cleanup_output": False,
+            "submit_to_slurm": True,
         },
         "content": "dummy",
     }
 
     # Construct the file which contains rest api submission information
-    os.environ["DENOISING_SIF"] = "topaz.sif"
     cluster_submission_configuration(tmp_path)
 
     # Set up the mock service
