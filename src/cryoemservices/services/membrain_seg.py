@@ -167,7 +167,9 @@ class MembrainSeg(CommonService):
 
         # Stop here if the job failed
         if result.returncode:
-            self.log.error("membrain-seg failed to run")
+            self.log.error(
+                f"membrain-seg failed to run: {result.stderr.decode('utf8', 'replace')}"
+            )
             rw.transport.nack(header)
             return
 
