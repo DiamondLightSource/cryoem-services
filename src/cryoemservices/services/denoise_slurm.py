@@ -77,7 +77,7 @@ class DenoiseSlurm(Denoise):
                 args="",
                 returncode=1,
                 stdout="".encode("utf8"),
-                stderr=f"Output {denoised_full_path} not fund".encode("utf8"),
+                stderr=f"Output {denoised_full_path} not found".encode("utf8"),
             )
 
         try:
