@@ -32,7 +32,8 @@ class SessionResults:
     - comparison of res vs pixel size
     """
 
-    def __init__(self, dc_id: int):
+    def __init__(self, dc_id: int, logo: str):
+        self.logo = logo if Path(logo).is_file() else ""
         # Ispyb IDs
         self.dc_id: int = dc_id
         self.ispyb_sessionmaker = sqlalchemy.orm.sessionmaker(
@@ -145,11 +146,19 @@ class SessionResults:
         doc.preamble.append(pylatex.Command("author", ""))
         doc.preamble.append(pylatex.Command("date", pylatex.NoEscape(r"\today")))
 
-        # doc.preamble.append(pylatex.NoEscape(r"\usepackage{fancyhdr}"))
-        # doc.preamble.append(pylatex.NoEscape(r"\pagestyle{fancy}"))
-        # doc.preamble.append(pylatex.NoEscape(r"\includegraphics{dls-logo.png}"))
+        if self.logo:
+            doc.preamble.append(pylatex.NoEscape(r"\usepackage{fancyhdr}"))
+            doc.preamble.append(pylatex.NoEscape(r"\pagestyle{fancy}"))
+            doc.preamble.append(
+                pylatex.NoEscape(
+                    r"\rhead{\includegraphics[width=0.2\textwidth]{"
+                    f"{self.logo}"
+                    r"}}"
+                )
+            )
 
         doc.append(pylatex.NoEscape(r"\maketitle"))
+        doc.append(pylatex.NoEscape(r"\thispagestyle{fancy}"))
         doc.append(pylatex.NoEscape(r"\hyphenpenalty=10000"))
 
         with doc.create(pylatex.Section("Data collection")):
@@ -638,6 +647,12 @@ def run():
         required=True,
     )
     parser.add_argument(
+        "--logo",
+        help="Location of logo image to use",
+        required=False,
+        default="",
+    )
+    parser.add_argument(
         "--internal",
         help="Run comparison to other sessions",
         default=False,
@@ -646,7 +661,7 @@ def run():
     )
     args = parser.parse_args()
 
-    results = SessionResults(args.dc_id)
+    results = SessionResults(args.dc_id, args.logo)
     results.gather_preprocessing_ispyb_results()
     results.gather_classification_ispyb_results()
     results.write_report()
