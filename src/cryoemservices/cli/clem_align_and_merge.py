@@ -10,7 +10,7 @@ import argparse
 from ast import literal_eval
 from pathlib import Path
 
-from cryoemservices.services.clem_align_and_merge import align_and_merge_stacks
+from cryoemservices.wrappers.clem_align_and_merge import align_and_merge_stacks
 
 
 def run():
