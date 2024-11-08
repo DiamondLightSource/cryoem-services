@@ -18,7 +18,9 @@ from xml.etree import ElementTree as ET
 
 import numpy as np
 from defusedxml.ElementTree import parse
+from pydantic import BaseModel
 from tifffile import TiffFile, imwrite
+from zocalo.wrapper import BaseWrapper
 
 from cryoemservices.util.clem_array_functions import (
     convert_to_rgb,
@@ -332,3 +334,11 @@ def align_and_merge_stacks(
         print(f"Composite image saved as {save_name}")
 
     return composite_img
+
+
+class AlignAndMergeParameters(BaseModel):
+    pass
+
+
+class AlignAndMergeWrapper(BaseWrapper):
+    pass
