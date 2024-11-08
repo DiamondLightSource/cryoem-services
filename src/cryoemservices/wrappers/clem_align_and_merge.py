@@ -34,11 +34,11 @@ logger = logging.getLogger("cryoemservices.wrappers.clem_align_and_merge")
 
 
 def align_and_merge_stacks(
-    image_files: Union[Path, list[Path]],
-    metadata_file: Optional[Path] = None,
-    pre_align_stack: Optional[str] = None,
+    images: Union[Path, list[Path]],
+    metadata: Optional[Path] = None,
+    align_self: Optional[str] = None,
     flatten: Optional[Literal["min", "max", "mean"]] = "mean",
-    align_stacks: Optional[str] = None,
+    align_across: Optional[str] = None,
     # Print messages only if run as a CLI
     print_messages: bool = False,
     debug: bool = False,
@@ -65,7 +65,7 @@ def align_and_merge_stacks(
         raise ValueError
 
     # Use shorter inputs in function
-    files = image_files
+    files = images
 
     # Turn single entry into a list
     if isinstance(files, Path):
@@ -89,7 +89,7 @@ def align_and_merge_stacks(
         print(f"Setting {parent_dir!r} as the working directory")
 
     # Find metadata file if none was provided
-    if metadata_file is None:
+    if metadata is None:
         # Raise error if no files found
         if len(list((parent_dir / "metadata").glob("*.xml"))) == 0:
             logger.error("No metadata file was found at the default directory")
@@ -101,15 +101,15 @@ def align_and_merge_stacks(
             )
             raise Exception
         # Load metadata file
-        metadata_file = list((parent_dir / "metadata").glob("*.xml"))[0]
+        metadata = list((parent_dir / "metadata").glob("*.xml"))[0]
         if print_messages is True:
-            print(f"Using metadata from {metadata_file!r}")
+            print(f"Using metadata from {metadata!r}")
 
     # Load metadata for series from XML file
-    metadata: ET.ElementTree = parse(metadata_file).getroot()
+    xml_metadata: ET.ElementTree = parse(metadata).getroot()
 
     # Get order of colors as shown in metadata
-    channels = metadata.findall(
+    channels = xml_metadata.findall(
         "Data/Image/ImageDescription/Channels/ChannelDescription"
     )
     colors: list[str] = [
