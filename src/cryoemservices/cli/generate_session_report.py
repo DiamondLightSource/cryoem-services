@@ -31,9 +31,10 @@ class SessionResults:
     """
 
     def __init__(self, dc_id: int, logo: str):
-        self.logo = logo if Path(logo).is_file() else ""
-        # Ispyb IDs
         self.dc_id: int = dc_id
+        self.logo = logo if Path(logo).is_file() else ""
+
+        # Ispyb IDs
         self.ispyb_sessionmaker = sqlalchemy.orm.sessionmaker(
             bind=sqlalchemy.create_engine(
                 ispyb.sqlalchemy.url(), connect_args={"use_pure": True}
@@ -54,14 +55,12 @@ class SessionResults:
         else:
             self.supervisor_name = ""
 
-        self.number_of_grid_squares = len(
-            list(Path(self.image_directory).glob("GridSquare*"))
-        )
-        self.file_type = list(
-            list(Path(self.image_directory).glob("GridSquare*"))[0].glob(
-                "Data/FoilHole_*"
-            )
-        )[0].suffix
+        grid_squares = list(Path(self.image_directory).glob("GridSquare*"))
+        self.number_of_grid_squares = len(grid_squares)
+        if grid_squares and list(grid_squares[0].glob("Data/FoilHole_*")):
+            self.file_type = list(grid_squares[0].glob("Data/FoilHole_*"))[0].suffix
+        else:
+            self.file_type = "Unknown"
 
         # Get all processing jobs
         self.autoproc_ids = []
@@ -398,6 +397,9 @@ class SessionResults:
         )
 
     def gather_preprocessing_ispyb_results(self):
+        if "em-spa-preprocess" not in self.processing_stages:
+            print("No pre-processing job found")
+            return
         # Basic collection information
         with self.ispyb_sessionmaker() as session:
             data_collection = (
@@ -493,6 +495,12 @@ class SessionResults:
                 print("Cannot find preprocessing job")
 
     def gather_classification_ispyb_results(self):
+        if (
+            "em-spa-class2d" not in self.processing_stages
+            or "em-spa-class3d" not in self.processing_stages
+        ):
+            print("Classification jobs not found")
+            return
         with self.ispyb_sessionmaker() as session:
             # 2D classification information
             class2d_loc = np.where(
