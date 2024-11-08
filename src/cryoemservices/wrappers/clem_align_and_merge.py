@@ -28,7 +28,7 @@ from cryoemservices.util.clem_array_functions import (
 )
 
 # Create logger object to output messages with
-logger = logging.getLogger("cryoemservices.services.clem_align_and_merge")
+logger = logging.getLogger("cryoemservices.wrappers.clem_align_and_merge")
 
 
 def align_and_merge_stacks(
