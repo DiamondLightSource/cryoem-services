@@ -10,6 +10,7 @@ import argparse
 from ast import literal_eval
 from pathlib import Path
 
+from cryoemservices.cli import LineWrapHelpFormatter
 from cryoemservices.wrappers.clem_align_and_merge import align_and_merge_stacks
 
 
@@ -23,6 +24,7 @@ def run():
             "them, and creates a colourised composite image or image stack for that "
             "dataset."
         ),
+        formatter_class=LineWrapHelpFormatter,
     )
     # List of paths of files to merge (mandatory)
     parser.add_argument(
