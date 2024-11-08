@@ -155,7 +155,8 @@ class SessionResults:
             )
 
         doc.append(pylatex.NoEscape(r"\maketitle"))
-        doc.append(pylatex.NoEscape(r"\thispagestyle{fancy}"))
+        if self.logo:
+            doc.append(pylatex.NoEscape(r"\thispagestyle{fancy}"))
         doc.append(pylatex.NoEscape(r"\hyphenpenalty=10000"))
 
         with doc.create(pylatex.Section("Data collection")):
@@ -234,17 +235,25 @@ class SessionResults:
             )
 
             with doc.create(pylatex.Figure(position="h!")) as micrograph_image:
-                micrograph_image.add_image(self.example_micrographs[0], width="200px")
+                if len(self.example_micrographs):
+                    micrograph_image.add_image(
+                        self.example_micrographs[0], width="200px"
+                    )
                 micrograph_image.append(pylatex.NoEscape(r"\hspace{20px}"))
-                micrograph_image.add_image(self.example_micrographs[1], width="200px")
+                if len(self.example_micrographs) > 1:
+                    micrograph_image.add_image(
+                        self.example_micrographs[1], width="200px"
+                    )
                 micrograph_image.add_caption(
                     "The motion corrected micrographs with the most picked particles"
                 )
 
             with doc.create(pylatex.Figure(position="h!")) as pick_image:
-                pick_image.add_image(self.example_picks[0], width="200px")
+                if len(self.example_picks):
+                    pick_image.add_image(self.example_picks[0], width="200px")
                 pick_image.append(pylatex.NoEscape(r"\hspace{20px}"))
-                pick_image.add_image(self.example_picks[1], width="200px")
+                if len(self.example_picks) > 1:
+                    pick_image.add_image(self.example_picks[1], width="200px")
                 pick_image.add_caption(
                     "The motion corrected micrographs with the most picked particles, "
                     "with the particle locations overlaid"
@@ -392,9 +401,12 @@ class SessionResults:
                     )
                     doc.append(pylatex.NoEscape("\n"))
 
-        doc.generate_pdf(
-            f"{Path(self.image_directory).parent}/tmp/report_{self.raw_name}"
-        )
+        if (Path(self.image_directory).parent / "tmp").is_dir():
+            doc.generate_pdf(
+                f"{Path(self.image_directory).parent}/tmp/report_{self.raw_name}"
+            )
+        else:
+            print(f"Cannot generate file in {Path(self.image_directory).parent}/tmp")
 
     def gather_preprocessing_ispyb_results(self):
         if "em-spa-preprocess" not in self.processing_stages:
