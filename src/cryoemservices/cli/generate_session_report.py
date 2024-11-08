@@ -358,7 +358,7 @@ class SessionResults:
                     )
                     angdist_image.append(pylatex.NoEscape(r"\label{angular_plot}"))
 
-            if self.refined_batch:
+            if self.refined_batch and self.refined_symmetry:
                 doc.append(pylatex.NoEscape("\n\n"))
                 doc.append(
                     pylatex.NoEscape(
