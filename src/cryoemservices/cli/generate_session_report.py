@@ -393,7 +393,9 @@ class SessionResults:
                     )
                     doc.append(pylatex.NoEscape("\n"))
 
-        doc.generate_pdf("report")
+        doc.generate_pdf(
+            f"{Path(self.image_directory).parent}/tmp/report_{self.raw_name}"
+        )
 
     def gather_preprocessing_ispyb_results(self):
         # Basic collection information
