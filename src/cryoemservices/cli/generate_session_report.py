@@ -6,8 +6,6 @@ from typing import List
 
 import ispyb
 import ispyb.sqlalchemy as models
-
-# import matplotlib.pyplot as plt
 import mrcfile
 import numpy as np
 import pylatex
@@ -365,7 +363,7 @@ class SessionResults:
                 if len(self.refined_symmetry) == 1:
                     refine1 = 0
                 else:
-                    refine1 = np.where(self.refined_symmetry == "C1")[0][0]
+                    refine1 = np.where(np.array(self.refined_symmetry) == "C1")[0][0]
 
                 doc.append(
                     pylatex.NoEscape(
@@ -375,7 +373,7 @@ class SessionResults:
                 )
                 doc.append(pylatex.NoEscape("\n"))
                 doc.append(
-                    f"An estimated B-factor is {self.bfactor[refine1]}, "
+                    f"An estimated B-factor is {round(2 / self.bfactor[refine1])}, "
                     f"but we caution that masks are not optimised and "
                     f"the performance of earlier automated processing steps "
                     f"will affect the results, "
@@ -383,14 +381,14 @@ class SessionResults:
                 )
 
                 if len(self.refined_symmetry) == 2:
-                    symm_refine = 1 - refine1
+                    sym_refine = 1 - refine1
                     doc.append(
                         pylatex.NoEscape(
                             "Following refinement, we estimate that the symmetry "
-                            f"of the sample is {self.refined_symmetry[symm_refine]}. "
+                            f"of the sample is {self.refined_symmetry[sym_refine]}. "
                             "Using this symmetry refinement gives a final resolution "
-                            rf"of {self.refined_resolution[refine1]} $\AA$ "
-                            f"and completeness {self.refined_completeness[refine1]}."
+                            rf"of {self.refined_resolution[sym_refine]} $\AA$ "
+                            f"and completeness {self.refined_completeness[sym_refine]}."
                         )
                     )
                     doc.append(pylatex.NoEscape("\n"))
