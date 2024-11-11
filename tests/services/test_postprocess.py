@@ -245,6 +245,7 @@ def test_postprocess_first_refine_without_symmetry(
             "_Angles\n_Rotation\n_Translation\n_Resolution\n_FourierCompleteness\n"
             "image 0 10 20 4 90"
         )
+    (tmp_path / "Refine3D/job013/run_class001_angdist.jpeg").touch()
 
     header = {
         "message-id": mock.sentinel,
@@ -310,6 +311,9 @@ def test_postprocess_first_refine_without_symmetry(
         volume=tmp_path / "Refine3D/job013/run_class001.mrc",
         use_precomputed_scores=True,
     )
+
+    # Check the angdist was copied
+    assert (tmp_path / "PostProcess/job015/postprocess_masked_angdist.jpeg").is_file()
 
     # Check that the correct messages were sent
     assert offline_transport.send.call_count == 4
