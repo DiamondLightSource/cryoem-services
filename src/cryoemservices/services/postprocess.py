@@ -224,7 +224,8 @@ class PostProcess(CommonService):
         )
         if refine_angdist.is_file():
             shutil.copy(
-                refine_angdist, f"{postprocess_params.job_dir}/postprocess_angdist.jpeg"
+                refine_angdist,
+                f"{postprocess_params.job_dir}/postprocess_masked_angdist.jpeg",
             )
 
         # Get the bfactor and resolution from the postprocessing output
