@@ -44,7 +44,7 @@ def test_gather_preprocessing_results(mock_sqlalchemy, mock_ispyb, tmp_path):
     mock_sessionmaker().__enter__.assert_called()
     mock_sessionmaker().__enter__().query(models.DataCollection).filter(
         models.DataCollection.dataCollectionId == 1
-    ).one.assert_any_call()
+    ).one.assert_called()
     mock_sessionmaker().__enter__().query(
         models.MotionCorrection, models.ParticlePicker
     ).filter(models.ParticlePicker.programId == 2).join(
@@ -52,6 +52,43 @@ def test_gather_preprocessing_results(mock_sqlalchemy, mock_ispyb, tmp_path):
         models.ParticlePicker.firstMotionCorrectionId
         == models.MotionCorrection.motionCorrectionId,
     ).order_by.assert_called()
+
+
+@mock.patch("cryoemservices.cli.generate_session_report.ispyb")
+@mock.patch("cryoemservices.cli.generate_session_report.sqlalchemy")
+def test_gather_classification_results(mock_sqlalchemy, mock_ispyb, tmp_path):
+    """Test the finding of classification results"""
+    test_session_results = generate_session_report.SessionResults(
+        dc_id=1, logo="logo.jpg"
+    )
+
+    mock_sessionmaker = mock.MagicMock()
+    test_session_results.ispyb_sessionmaker = mock_sessionmaker
+
+    test_session_results.processing_stages = [
+        "em-spa-class2d",
+        "em-spa-class3d",
+        "em-spa-refine",
+    ]
+    test_session_results.autoproc_ids = [3, 4, 5]
+    test_session_results.raw_name = "raw"
+    test_session_results.image_directory = f"{tmp_path}/images"
+    (tmp_path / "tmp").mkdir()
+
+    test_session_results.gather_classification_ispyb_results()
+
+    mock_sessionmaker().__enter__.assert_called()
+    mock_sessionmaker().__enter__().query(models.ParticleClassificationGroup).filter(
+        models.ParticleClassificationGroup.programId == 2
+    ).all.assert_called()
+
+    mock_sessionmaker().__enter__().query(models.ParticleClassificationGroup).filter(
+        models.ParticleClassificationGroup.programId == 3
+    ).first.assert_called()
+
+    mock_sessionmaker().__enter__().query(models.ParticleClassificationGroup).filter(
+        models.ParticleClassificationGroup.programId == 4
+    ).first.assert_called()
 
 
 @mock.patch("cryoemservices.cli.generate_session_report.ispyb")
