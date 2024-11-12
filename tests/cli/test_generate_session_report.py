@@ -3,6 +3,8 @@ from __future__ import annotations
 import sys
 from unittest import mock
 
+import ispyb.sqlalchemy as models
+
 from cryoemservices.cli import generate_session_report
 
 
@@ -20,13 +22,48 @@ def test_generate_session_report_dataless(mock_sqlalchemy, mock_ispyb, tmp_path)
 
 @mock.patch("cryoemservices.cli.generate_session_report.ispyb")
 @mock.patch("cryoemservices.cli.generate_session_report.sqlalchemy")
+def test_gather_preprocessing_results(mock_sqlalchemy, mock_ispyb, tmp_path):
+    """Test the finding of preprocessing results"""
+    test_session_results = generate_session_report.SessionResults(
+        dc_id=1, logo="logo.jpg"
+    )
+
+    mock_sessionmaker = mock.MagicMock()
+    test_session_results.ispyb_sessionmaker = mock_sessionmaker
+
+    test_session_results.processing_stages = [
+        "em-spa-preprocess",
+    ]
+    test_session_results.autoproc_ids = [2]
+    test_session_results.raw_name = "raw"
+    test_session_results.image_directory = f"{tmp_path}/images"
+    (tmp_path / "tmp").mkdir()
+
+    test_session_results.gather_preprocessing_ispyb_results()
+
+    mock_sessionmaker().__enter__.assert_called()
+    mock_sessionmaker().__enter__().query(models.DataCollection).filter(
+        models.DataCollection.dataCollectionId == 1
+    ).one.assert_any_call()
+    mock_sessionmaker().__enter__().query(
+        models.MotionCorrection, models.ParticlePicker
+    ).filter(models.ParticlePicker.programId == 2).join(
+        models.MotionCorrection,
+        models.ParticlePicker.firstMotionCorrectionId
+        == models.MotionCorrection.motionCorrectionId,
+    ).order_by.assert_called()
+
+
+@mock.patch("cryoemservices.cli.generate_session_report.ispyb")
+@mock.patch("cryoemservices.cli.generate_session_report.sqlalchemy")
 @mock.patch("cryoemservices.cli.generate_session_report.pylatex")
 def test_generate_session_report_with_processing(
     mock_pylatex, mock_sqlalchemy, mock_ispyb, tmp_path
 ):
     """Test the session report if processing stages are present, but without database"""
+    (tmp_path / "logo.jpg").touch()
     test_session_results = generate_session_report.SessionResults(
-        dc_id=1, logo="logo.jpg"
+        dc_id=1, logo=f"{tmp_path}/logo.jpg"
     )
 
     test_session_results.processing_stages = [
