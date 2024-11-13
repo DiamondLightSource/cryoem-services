@@ -7,25 +7,10 @@ from unittest import mock
 import mrcfile
 import numpy as np
 import pytest
-import zocalo.configuration
 from workflows.transport.offline_transport import OfflineTransport
 
 from cryoemservices.services import select_classes
 from cryoemservices.util.relion_service_options import RelionServiceOptions
-
-
-@pytest.fixture
-def mock_zocalo_configuration(tmp_path):
-    mock_zc = mock.MagicMock(zocalo.configuration.Configuration)
-    mock_zc.storage = {
-        "zocalo.recipe_directory": tmp_path,
-    }
-    return mock_zc
-
-
-@pytest.fixture
-def mock_environment(mock_zocalo_configuration):
-    return {"config": mock_zocalo_configuration}
 
 
 @pytest.fixture
@@ -132,7 +117,7 @@ def select_classes_common_setup(
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.select_classes.subprocess.run")
 def test_select_classes_service_first_batch(
-    mock_subprocess, mock_environment, offline_transport, tmp_path
+    mock_subprocess, offline_transport, tmp_path
 ):
     """
     Send a test message to the select classes service when it is a new job.
@@ -152,7 +137,7 @@ def test_select_classes_service_first_batch(
     )
 
     # Set up the mock service and send the message to it
-    service = select_classes.SelectClasses(environment=mock_environment)
+    service = select_classes.SelectClasses()
     service.transport = offline_transport
     service.start()
     service.select_classes(None, header=header, message=select_test_message)
@@ -329,7 +314,7 @@ def test_select_classes_service_first_batch(
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.select_classes.subprocess.run")
 def test_select_classes_service_batch_threshold(
-    mock_subprocess, mock_environment, offline_transport, tmp_path
+    mock_subprocess, offline_transport, tmp_path
 ):
     """
     Test the service for the case where the particle count crosses a batch threshold.
@@ -351,7 +336,7 @@ def test_select_classes_service_batch_threshold(
     )
 
     # Set up the mock service and send the message to it
-    service = select_classes.SelectClasses(environment=mock_environment)
+    service = select_classes.SelectClasses()
     service.transport = offline_transport
     service.start()
     service.select_classes(None, header=header, message=select_test_message)
@@ -381,7 +366,7 @@ def test_select_classes_service_batch_threshold(
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.select_classes.subprocess.run")
 def test_select_classes_service_two_thresholds(
-    mock_subprocess, mock_environment, offline_transport, tmp_path
+    mock_subprocess, offline_transport, tmp_path
 ):
     """
     Test the service for the case where the particle count crosses two thresholds.
@@ -403,7 +388,7 @@ def test_select_classes_service_two_thresholds(
     )
 
     # Set up the mock service and send the message to it
-    service = select_classes.SelectClasses(environment=mock_environment)
+    service = select_classes.SelectClasses()
     service.transport = offline_transport
     service.start()
     service.select_classes(None, header=header, message=select_test_message)
@@ -433,7 +418,7 @@ def test_select_classes_service_two_thresholds(
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.ctffind.subprocess.run")
 def test_select_classes_service_last_threshold(
-    mock_subprocess, mock_environment, offline_transport, tmp_path
+    mock_subprocess, offline_transport, tmp_path
 ):
     """
     Test the service for the case where the particle count crosses the maximum.
@@ -456,7 +441,7 @@ def test_select_classes_service_last_threshold(
     )
 
     # Set up the mock service and send the message to it
-    service = select_classes.SelectClasses(environment=mock_environment)
+    service = select_classes.SelectClasses()
     service.transport = offline_transport
     service.start()
     service.select_classes(None, header=header, message=select_test_message)
@@ -486,7 +471,7 @@ def test_select_classes_service_last_threshold(
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.select_classes.subprocess.run")
 def test_select_classes_service_not_threshold(
-    mock_subprocess, mock_environment, offline_transport, tmp_path
+    mock_subprocess, offline_transport, tmp_path
 ):
     """
     Test the service for the case where the particle count doesn't cross a threshold.
@@ -506,7 +491,7 @@ def test_select_classes_service_not_threshold(
     )
 
     # Set up the mock service and send the message to it
-    service = select_classes.SelectClasses(environment=mock_environment)
+    service = select_classes.SelectClasses()
     service.transport = offline_transport
     service.start()
     service.select_classes(None, header=header, message=select_test_message)
@@ -526,7 +511,7 @@ def test_select_classes_service_not_threshold(
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.select_classes.subprocess.run")
 def test_select_classes_service_past_maximum(
-    mock_subprocess, mock_environment, offline_transport, tmp_path
+    mock_subprocess, offline_transport, tmp_path
 ):
     """
     Test the service for the case where the existing particle count exceeds the maximum.
@@ -546,7 +531,7 @@ def test_select_classes_service_past_maximum(
     )
 
     # Set up the mock service and send the message to it
-    service = select_classes.SelectClasses(environment=mock_environment)
+    service = select_classes.SelectClasses()
     service.transport = offline_transport
     service.start()
     service.select_classes(None, header=header, message=select_test_message)
@@ -563,12 +548,12 @@ def test_select_classes_service_past_maximum(
     assert len(offline_transport.send.call_args_list) == 7
 
 
-def test_parse_combiner_output(mock_environment, offline_transport):
+def test_parse_combiner_output(offline_transport):
     """
     Send test lines to the output parser
     to check the number of particles are being read in
     """
-    service = select_classes.SelectClasses(environment=mock_environment)
+    service = select_classes.SelectClasses()
     service.transport = offline_transport
     service.start()
 

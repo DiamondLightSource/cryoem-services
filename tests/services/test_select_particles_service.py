@@ -4,26 +4,11 @@ import sys
 from unittest import mock
 
 import pytest
-import zocalo.configuration
 from gemmi import cif
 from workflows.transport.offline_transport import OfflineTransport
 
 from cryoemservices.services import select_particles
 from cryoemservices.util.relion_service_options import RelionServiceOptions
-
-
-@pytest.fixture
-def mock_zocalo_configuration(tmp_path):
-    mock_zc = mock.MagicMock(zocalo.configuration.Configuration)
-    mock_zc.storage = {
-        "zocalo.recipe_directory": tmp_path,
-    }
-    return mock_zc
-
-
-@pytest.fixture
-def mock_environment(mock_zocalo_configuration):
-    return {"config": mock_zocalo_configuration}
 
 
 @pytest.fixture
@@ -34,7 +19,7 @@ def offline_transport(mocker):
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-def test_select_particles_service(mock_environment, offline_transport, tmp_path):
+def test_select_particles_service(offline_transport, tmp_path):
     """
     Send a test message to the select particles service
     This should call the mock file reader then send a message on to
@@ -82,7 +67,7 @@ def test_select_particles_service(mock_environment, offline_transport, tmp_path)
     }
 
     # Set up the mock service and send the message to it
-    service = select_particles.SelectParticles(environment=mock_environment)
+    service = select_particles.SelectParticles()
     service.transport = offline_transport
     service.start()
     service.select_particles(None, header=header, message=select_test_message)

@@ -4,26 +4,11 @@ import sys
 from unittest import mock
 
 import pytest
-import zocalo.configuration
 from workflows.recipe.wrapper import RecipeWrapper
 from workflows.transport.offline_transport import OfflineTransport
 
 from cryoemservices.util.relion_service_options import RelionServiceOptions
 from cryoemservices.wrappers import class3d_wrapper
-
-
-@pytest.fixture
-def mock_zocalo_configuration(tmp_path):
-    mock_zc = mock.MagicMock(zocalo.configuration.Configuration)
-    mock_zc.storage = {
-        "zocalo.recipe_directory": tmp_path,
-    }
-    return mock_zc
-
-
-@pytest.fixture
-def mock_environment(mock_zocalo_configuration):
-    return {"config": mock_zocalo_configuration}
 
 
 @pytest.fixture
@@ -37,7 +22,7 @@ def offline_transport(mocker):
 @mock.patch("cryoemservices.wrappers.class3d_wrapper.subprocess.run")
 @mock.patch("workflows.recipe.wrapper.RecipeWrapper.send_to")
 def test_class3d_wrapper_do_initial_model(
-    mock_recwrap_send, mock_subprocess, mock_environment, offline_transport, tmp_path
+    mock_recwrap_send, mock_subprocess, offline_transport, tmp_path
 ):
     """
     Send a test message to the Class3D wrapper for a first round of 50000 particles,
@@ -159,7 +144,7 @@ def test_class3d_wrapper_do_initial_model(
     )
 
     # Set up and run the mock service
-    service_wrapper = class3d_wrapper.Class3DWrapper(environment=mock_environment)
+    service_wrapper = class3d_wrapper.Class3DWrapper()
     service_wrapper.set_recipe_wrapper(recipe_wrapper)
     service_wrapper.run()
 
@@ -416,7 +401,7 @@ def test_class3d_wrapper_do_initial_model(
 @mock.patch("cryoemservices.wrappers.class3d_wrapper.subprocess.run")
 @mock.patch("workflows.recipe.wrapper.RecipeWrapper.send_to")
 def test_class3d_wrapper_has_initial_model(
-    mock_recwrap_send, mock_subprocess, mock_environment, offline_transport, tmp_path
+    mock_recwrap_send, mock_subprocess, offline_transport, tmp_path
 ):
     """
     Send a test message to the Class3D wrapper for a second round of 100000 particles,
@@ -496,7 +481,7 @@ def test_class3d_wrapper_has_initial_model(
     )
 
     # Set up and run the mock service
-    service_wrapper = class3d_wrapper.Class3DWrapper(environment=mock_environment)
+    service_wrapper = class3d_wrapper.Class3DWrapper()
     service_wrapper.set_recipe_wrapper(recipe_wrapper)
     service_wrapper.run()
 
@@ -644,7 +629,7 @@ def test_class3d_wrapper_has_initial_model(
 @mock.patch("cryoemservices.wrappers.class3d_wrapper.subprocess.run")
 @mock.patch("workflows.recipe.wrapper.RecipeWrapper.send_to")
 def test_class3d_wrapper_for_refinement(
-    mock_recwrap_send, mock_subprocess, mock_environment, offline_transport, tmp_path
+    mock_recwrap_send, mock_subprocess, offline_transport, tmp_path
 ):
     """
     Send a test message to the Class3D wrapper for a final round of 200000 particles,
@@ -718,7 +703,7 @@ def test_class3d_wrapper_for_refinement(
     )
 
     # Set up and run the mock service
-    service_wrapper = class3d_wrapper.Class3DWrapper(environment=mock_environment)
+    service_wrapper = class3d_wrapper.Class3DWrapper()
     service_wrapper.set_recipe_wrapper(recipe_wrapper)
     service_wrapper.run()
 

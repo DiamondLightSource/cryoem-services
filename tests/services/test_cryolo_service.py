@@ -4,25 +4,10 @@ import sys
 from unittest import mock
 
 import pytest
-import zocalo.configuration
 from workflows.transport.offline_transport import OfflineTransport
 
 from cryoemservices.services import cryolo
 from cryoemservices.util.relion_service_options import RelionServiceOptions
-
-
-@pytest.fixture
-def mock_zocalo_configuration(tmp_path):
-    mock_zc = mock.MagicMock(zocalo.configuration.Configuration)
-    mock_zc.storage = {
-        "zocalo.recipe_directory": tmp_path,
-    }
-    return mock_zc
-
-
-@pytest.fixture
-def mock_environment(mock_zocalo_configuration):
-    return {"config": mock_zocalo_configuration}
 
 
 @pytest.fixture
@@ -34,7 +19,7 @@ def offline_transport(mocker):
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.cryolo.subprocess.run")
-def test_cryolo_service(mock_subprocess, mock_environment, offline_transport, tmp_path):
+def test_cryolo_service(mock_subprocess, offline_transport, tmp_path):
     """
     Send a test message to CrYOLO
     This should call the mock subprocess then send messages on to the
@@ -94,7 +79,7 @@ def test_cryolo_service(mock_subprocess, mock_environment, offline_transport, tm
     (tmp_path / "filtered").mkdir()
 
     # Set up the mock service and send the message to it
-    service = cryolo.CrYOLO(environment=mock_environment)
+    service = cryolo.CrYOLO()
     service.transport = offline_transport
     service.start()
     service.cryolo(None, header=header, message=cryolo_test_message)
@@ -186,12 +171,12 @@ def test_cryolo_service(mock_subprocess, mock_environment, offline_transport, tm
     )
 
 
-def test_parse_cryolo_output(mock_environment, offline_transport):
+def test_parse_cryolo_output(offline_transport):
     """
     Send test lines to the output parser
     to check the number of particles is being read in
     """
-    service = cryolo.CrYOLO(environment=mock_environment)
+    service = cryolo.CrYOLO()
     service.transport = offline_transport
     service.start()
 
