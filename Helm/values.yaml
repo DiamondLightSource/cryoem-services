@@ -7,7 +7,7 @@ global:
 bfactor_setup:
   replicas: 1
   image: gcr.io/image/path
-  command: zocalo.service -s service-name -e environment
+  command: cryoemservices.service -s service-name -c config-file
   extraVolumes:
     - name: home
       hostPath:
@@ -22,7 +22,7 @@ bfactor_setup:
 cluster_submission:
   replicas: 1
   image: gcr.io/image/path
-  command: zocalo.service -s service-name -e environment
+  command: cryoemservices.service -s service-name -c config-file
   extraVolumes:
     - name: home
       hostPath:
@@ -37,7 +37,7 @@ cluster_submission:
 cryolo:
   replicas: 1
   image: gcr.io/image/path
-  command: zocalo.service -s service-name -e environment
+  command: cryoemservices.service -s service-name -c config-file
   extraVolumes:
     - name: home
       hostPath:
@@ -52,7 +52,7 @@ cryolo:
 ctffind:
   replicas: 1
   image: gcr.io/image/path
-  command: zocalo.service -s service-name -e environment
+  command: cryoemservices.service -s service-name -c config-file
   extraVolumes:
     - name: home
       hostPath:
@@ -82,7 +82,7 @@ denoise:
 denoise_slurm:
   replicas: 1
   image: gcr.io/image/path
-  command: zocalo.service -s service-name -e environment
+  command: cryoemservices.service -s service-name -c config-file
   extraVolumes:
     - name: dls
       hostPath:
@@ -97,7 +97,7 @@ denoise_slurm:
 dispatcher:
   replicas: 1
   image: gcr.io/image/path
-  command: zocalo.service -s service-name -e environment
+  command: cryoemservices.service -s service-name -c config-file
   extraVolumes:
     - name: home
       hostPath:
@@ -112,7 +112,7 @@ dispatcher:
 extract:
   replicas: 1
   image: gcr.io/image/path
-  command: zocalo.service -s service-name -e environment
+  command: cryoemservices.service -s service-name -c config-file
   extraVolumes:
     - name: home
       hostPath:
@@ -127,7 +127,7 @@ extract:
 extract_class:
   replicas: 1
   image: gcr.io/image/path
-  command: zocalo.service -s service-name -e environment
+  command: cryoemservices.service -s service-name -c config-file
   extraVolumes:
     - name: home
       hostPath:
@@ -142,7 +142,7 @@ extract_class:
 icebreaker:
   replicas: 1
   image: gcr.io/image/path
-  command: zocalo.service -s service-name -e environment
+  command: cryoemservices.service -s service-name -c config-file
   extraVolumes:
     - name: home
       hostPath:
@@ -157,7 +157,7 @@ icebreaker:
 images:
   replicas: 2
   image: gcr.io/image/path
-  command: zocalo.service -s service-name -e environment
+  command: cryoemservices.service -s service-name -c config-file
   extraVolumes:
     - name: home
       hostPath:
@@ -172,7 +172,7 @@ images:
 ispyb:
   replicas: 1
   image: gcr.io/image/path
-  command: zocalo.service -s service-name -e environment
+  command: cryoemservices.service -s service-name -c config-file
   extraVolumes:
     - name: home
       hostPath:
@@ -187,7 +187,7 @@ ispyb:
 membrain_seg:
   replicas: 1
   image: gcr.io/image/path
-  command: zocalo.service -s service-name -e environment
+  command: cryoemservices.service -s service-name -c config-file
   extraVolumes:
     - name: home
       hostPath:
@@ -202,7 +202,7 @@ membrain_seg:
 motioncorr:
   replicas: 1
   image: gcr.io/image/path
-  command: zocalo.service -s service-name -e environment
+  command: cryoemservices.service -s service-name -c config-file
   extraVolumes:
     - name: home
       hostPath:
@@ -217,7 +217,7 @@ motioncorr:
 node_creator:
   replicas: 1
   image: gcr.io/image/path
-  command: zocalo.service -s service-name -e environment
+  command: cryoemservices.service -s service-name -c config-file
   extraVolumes:
     - name: home
       hostPath:
@@ -232,7 +232,7 @@ node_creator:
 postprocess:
   replicas: 1
   image: gcr.io/image/path
-  command: zocalo.service -s service-name -e environment
+  command: cryoemservices.service -s service-name -c config-file
   extraVolumes:
     - name: home
       hostPath:
@@ -247,7 +247,7 @@ postprocess:
 select_classes:
   replicas: 1
   image: gcr.io/image/path
-  command: zocalo.service -s service-name -e environment
+  command: cryoemservices.service -s service-name -c config-file
   extraVolumes:
     - name: home
       hostPath:
@@ -262,7 +262,7 @@ select_classes:
 select_particles:
   replicas: 1
   image: gcr.io/image/path
-  command: zocalo.service -s service-name -e environment
+  command: cryoemservices.service -s service-name -c config-file
   extraVolumes:
     - name: home
       hostPath:
@@ -277,7 +277,7 @@ select_particles:
 tomo_align:
   replicas: 1
   image: gcr.io/image/path
-  command: zocalo.service -s service-name -e environment
+  command: cryoemservices.service -s service-name -c config-file
   extraVolumes:
     - name: dls
       hostPath:
@@ -292,7 +292,7 @@ tomo_align:
 tomo_align_slurm:
   replicas: 1
   image: gcr.io/image/path
-  command: zocalo.service -s service-name -e environment
+  command: cryoemservices.service -s service-name -c config-file
   extraVolumes:
     - name: dls
       hostPath:

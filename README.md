@@ -54,7 +54,7 @@ The processing pipeline consists of:
 The following services are provided for running the pipelines:
 
 - Utility services:
-  - **ClusterSubmission**: Submits zocalo wrappers to an HPC cluster
+  - **ClusterSubmission**: Submits wrapper scripts to an HPC cluster
   - **Dispatcher**: Converts recipes into messages suitable for processing services
   - **Images**: Creates thumbnail images for viewing processing outcomes
   - **ISPyB**: Inserts results into an ISPyB database
@@ -75,20 +75,20 @@ The following services are provided for running the pipelines:
   - **TomoAlign**: Tomogram reconstruction from a list of micrographs using [imod](https://bio3d.colorado.edu/imod) and [AreTomo2](https://github.com/czimaginginstitute/AreTomo2)
   - **TomoAlignSlurm**: Tomogram alignment processing submitted to a slurm HPC cluster
 
-There are also three zocalo wrapper scripts that can be run on an HPC cluster.
+There are also three wrapper scripts that can be run on an HPC cluster.
 These perform 2D classification, 3D classification and 3D refinement
 using [Relion](https://relion.readthedocs.io).
 
-# Running services using zocalo
+# Running services
 
 The services in this package are run using
 [zocalo](https://github.com/DiamondLightSource/python-zocalo)
 and [python-workflows](https://github.com/DiamondLightSource/python-workflows).
-To start a service run the `zocalo.service` command and specify the service name.
+To start a service run the `cryoemservices.service` command and specify the service name.
 For example, to start a motion correction service:
 
 ```bash
-$ zocalo.service -s MotionCorr
+$ cryoemservices.service -s MotionCorr
 ```
 
 Once started, these services will initialise and then wait for messages to be sent to them.
