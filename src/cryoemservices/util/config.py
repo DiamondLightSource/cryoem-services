@@ -11,6 +11,7 @@ class ServiceConfig(BaseModel):
     rabbitmq_credentials: Path
     recipe_directory: Path
     transport_type: str = "PikaTransport"
+    ispyb_credentials: Optional[Path] = None
     slurm_credentials: Optional[Path] = None
     slurm_cluster: Optional[str] = ""
 

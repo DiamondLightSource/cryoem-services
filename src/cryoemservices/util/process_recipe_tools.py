@@ -14,10 +14,6 @@ from sqlalchemy.orm import selectinload, sessionmaker
 
 logger = logging.getLogger("cryoemservices.services.dispatcher_tools")
 
-Session = sessionmaker(
-    bind=sqlalchemy.create_engine(models.url(), connect_args={"use_pure": True})
-)
-
 re_visit_base = re.compile(r"^(.*/([a-z][a-z][0-9]+-[0-9]+))/")
 
 
@@ -169,8 +165,17 @@ def ispyb_filter(
 ):
     """Do something to work out what to do with this data..."""
 
+    if (
+        not parameters.get("ispyb_process")
+        and not parameters.get("ispyb_reprocessing_id")
+        and not parameters.get("ispyb_dcid")
+    ):
+        return message, parameters
+
     if session is None:
-        session = Session()
+        session = sessionmaker(
+            bind=sqlalchemy.create_engine(models.url(), connect_args={"use_pure": True})
+        )()
 
     setup_marshmallow_schema(session)
 
