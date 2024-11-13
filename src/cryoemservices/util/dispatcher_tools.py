@@ -162,27 +162,6 @@ def dc_info_to_results_directory(dc_info):
     return os.path.join(visit, "processed", rest, collection_path, dc_info["uuid"])
 
 
-def ready_for_processing(
-    message, parameters, session: sqlalchemy.orm.session.Session | None = None
-):
-    """Check whether this message is ready for templatization."""
-
-    if session is None:
-        session = Session()
-
-    if not parameters.get("ispyb_wait_for_runstatus"):
-        return True
-
-    dcid = parameters.get("ispyb_dcid")
-    if not dcid:
-        return True
-
-    query = session.query(models.DataCollection.runStatus).filter(
-        models.DataCollection.dataCollectionId == dcid
-    )
-    return query.scalar() is not None
-
-
 def ispyb_filter(
     message,
     parameters,
