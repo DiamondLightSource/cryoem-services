@@ -25,26 +25,23 @@ class ServiceStarter:
         self.console.setLevel(logging.INFO)
         logging.getLogger().addHandler(self.console)
         logging.getLogger().setLevel(logging.INFO)
-        self.log = logging.getLogger("zocalo.service")
+        self.log = logging.getLogger("cryoemservices.service")
 
     def run(
         self,
         **kwargs,
     ):
-        """Example command line interface to start services.
-        :param cmdline_args: List of command line arguments to pass to parser
-        """
-
         # Enumerate all known services
         known_services = sorted(get_known_services())
 
         # Set up parser
-        parser = argparse.ArgumentParser()
+        parser = argparse.ArgumentParser(usage="cryoemservices.service [options]")
         parser.add_argument(
             "-s",
             "--service",
             dest="service",
             required=True,
+            choices=list(known_services),
             help="Name of the service to start. Known services: "
             + ", ".join(known_services),
         )
@@ -57,16 +54,9 @@ class ServiceStarter:
         )
         args = parser.parse_args()
 
-        # Check if service exists
-        if args.service not in known_services:
-            self.log.error(
-                f"Unknown service {args.service}. Valid options are {known_services}"
-            )
-            return
-
+        # Create Transport factory using given rabbitmq credentials
         service_config = config_from_file(args.config_file)
 
-        # Create Transport factory using given rabbitmq credentials
         def transport_factory():
             transport_type = PikaTransport()
             transport_type.load_configuration_file(service_config.rabbitmq_credentials)
@@ -81,10 +71,8 @@ class ServiceStarter:
         )
         kwargs.setdefault("environment", {})
 
-        # Create Frontend object
+        # Create and start workflows Frontend object
         frontend = workflows.frontend.Frontend(**kwargs)
-
-        # Start Frontend
         try:
             frontend.run()
         except KeyboardInterrupt:
