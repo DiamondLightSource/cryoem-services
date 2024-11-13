@@ -49,7 +49,7 @@ def run():
     console.setLevel(logging.INFO)
     logging.getLogger().addHandler(console)
     logging.getLogger().setLevel(logging.INFO)
-    log = logging.getLogger("zocalo.wrap")
+    log = logging.getLogger("cryoemservices.wrap")
 
     log.info(
         f"Starting wrapper for {args.wrapper} "
