@@ -3,8 +3,8 @@ from __future__ import annotations
 import argparse
 import json
 import logging
-from importlib.metadata import entry_points
 
+from backports.entry_points_selectable import entry_points
 from workflows.recipe.wrapper import RecipeWrapper
 from workflows.services import common_service
 from workflows.transport.pika_transport import PikaTransport
@@ -21,6 +21,7 @@ def run():
     # Parse command line arguments
     parser = argparse.ArgumentParser(usage="cryoemservices.wrap [options]")
     parser.add_argument(
+        "-w",
         "--wrap",
         action="store",
         dest="wrapper",
@@ -29,6 +30,7 @@ def run():
         help="Object to be wrapped. Known wrappers: " + ", ".join(known_wrappers),
     )
     parser.add_argument(
+        "-r",
         "--recipewrapper",
         action="store",
         dest="recipewrapper",
@@ -102,5 +104,5 @@ def run():
     instance.done("Finished processing")
     st.shutdown()
     st.join()
-    log.debug("Terminating")
+    log.info("Terminating")
     transport.disconnect()
