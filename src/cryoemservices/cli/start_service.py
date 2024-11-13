@@ -17,7 +17,7 @@ logging.getLogger().setLevel(logging.INFO)
 log = logging.getLogger("cryoemservices.service")
 
 
-def start_service():
+def run():
     # Enumerate all known services
     known_services = sorted(get_known_services())
 
