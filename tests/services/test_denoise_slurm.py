@@ -6,25 +6,10 @@ import sys
 from unittest import mock
 
 import pytest
-import zocalo.configuration
 from workflows.transport.offline_transport import OfflineTransport
 
 from cryoemservices.services import denoise_slurm
 from cryoemservices.util.relion_service_options import RelionServiceOptions
-
-
-@pytest.fixture
-def mock_zocalo_configuration(tmp_path):
-    mock_zc = mock.MagicMock(zocalo.configuration.Configuration)
-    mock_zc.storage = {
-        "zocalo.recipe_directory": tmp_path,
-    }
-    return mock_zc
-
-
-@pytest.fixture
-def mock_environment(mock_zocalo_configuration):
-    return {"config": mock_zocalo_configuration}
 
 
 @pytest.fixture
@@ -38,7 +23,6 @@ def offline_transport(mocker):
 @mock.patch("cryoemservices.util.slurm_submission.subprocess.run")
 def test_denoise_slurm_service(
     mock_subprocess,
-    mock_environment,
     offline_transport,
     tmp_path,
 ):
@@ -92,7 +76,7 @@ def test_denoise_slurm_service(
     output_relion_options = dict(RelionServiceOptions())
 
     # Set up the mock service
-    service = denoise_slurm.DenoiseSlurm(environment=mock_environment)
+    service = denoise_slurm.DenoiseSlurm()
     service.transport = offline_transport
     service.start()
 

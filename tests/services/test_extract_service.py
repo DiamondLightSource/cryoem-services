@@ -5,26 +5,11 @@ from unittest import mock
 
 import numpy as np
 import pytest
-import zocalo.configuration
 from gemmi import cif
 from workflows.transport.offline_transport import OfflineTransport
 
 from cryoemservices.services import extract
 from cryoemservices.util.relion_service_options import RelionServiceOptions
-
-
-@pytest.fixture
-def mock_zocalo_configuration(tmp_path):
-    mock_zc = mock.MagicMock(zocalo.configuration.Configuration)
-    mock_zc.storage = {
-        "zocalo.recipe_directory": tmp_path,
-    }
-    return mock_zc
-
-
-@pytest.fixture
-def mock_environment(mock_zocalo_configuration):
-    return {"config": mock_zocalo_configuration}
 
 
 @pytest.fixture
@@ -36,7 +21,7 @@ def offline_transport(mocker):
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.extract.mrcfile.open")
-def test_extract_service(mock_mrcfile, mock_environment, offline_transport, tmp_path):
+def test_extract_service(mock_mrcfile, offline_transport, tmp_path):
     """
     Send a test message to the extract service
     This should call the mock file reader then send messages on to the
@@ -97,7 +82,7 @@ def test_extract_service(mock_mrcfile, mock_environment, offline_transport, tmp_
     output_relion_options.update(extract_test_message["parameters"]["relion_options"])
 
     # Set up the mock service and send the message to it
-    service = extract.Extract(environment=mock_environment)
+    service = extract.Extract()
     service.transport = offline_transport
     service.start()
     service.extract(None, header=header, message=extract_test_message)

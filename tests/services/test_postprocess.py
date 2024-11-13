@@ -4,25 +4,10 @@ import sys
 from unittest import mock
 
 import pytest
-import zocalo.configuration
 from workflows.transport.offline_transport import OfflineTransport
 
 from cryoemservices.services import postprocess
 from cryoemservices.util.relion_service_options import RelionServiceOptions
-
-
-@pytest.fixture
-def mock_zocalo_configuration(tmp_path):
-    mock_zc = mock.MagicMock(zocalo.configuration.Configuration)
-    mock_zc.storage = {
-        "zocalo.recipe_directory": tmp_path,
-    }
-    return mock_zc
-
-
-@pytest.fixture
-def mock_environment(mock_zocalo_configuration):
-    return {"config": mock_zocalo_configuration}
 
 
 @pytest.fixture
@@ -35,7 +20,7 @@ def offline_transport(mocker):
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.postprocess.subprocess.run")
 def test_postprocess_first_refine_has_symmetry(
-    mock_subprocess, mock_environment, offline_transport, tmp_path
+    mock_subprocess, offline_transport, tmp_path
 ):
     """
     Send a test message to the PostProcess service for a first Refinement job
@@ -94,7 +79,7 @@ def test_postprocess_first_refine_has_symmetry(
     )
 
     # Set up the mock service and call it
-    service = postprocess.PostProcess(environment=mock_environment)
+    service = postprocess.PostProcess()
     service.transport = offline_transport
     service.start()
     service.postprocess(None, header=header, message=postprocess_test_message)
@@ -218,7 +203,7 @@ def test_postprocess_first_refine_has_symmetry(
 @mock.patch("cryoemservices.services.postprocess.subprocess.run")
 @mock.patch("cryoemservices.services.postprocess.determine_symmetry")
 def test_postprocess_first_refine_without_symmetry(
-    mock_symmetry, mock_subprocess, mock_environment, offline_transport, tmp_path
+    mock_symmetry, mock_subprocess, offline_transport, tmp_path
 ):
     """
     Send a test message to the PostProcess service for a first Refinement job
@@ -281,7 +266,7 @@ def test_postprocess_first_refine_without_symmetry(
     )
 
     # Set up the mock service and call it
-    service = postprocess.PostProcess(environment=mock_environment)
+    service = postprocess.PostProcess()
     service.transport = offline_transport
     service.start()
     service.postprocess(None, header=header, message=postprocess_test_message)
@@ -340,9 +325,7 @@ def test_postprocess_first_refine_without_symmetry(
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.postprocess.subprocess.run")
-def test_postprocess_bfactor(
-    mock_subprocess, mock_environment, offline_transport, tmp_path
-):
+def test_postprocess_bfactor(mock_subprocess, offline_transport, tmp_path):
     """
     Send a test message to the PostProcess service for a B-Factor job
     This should run particle selection and launch re-extraction jobs with slurm
@@ -395,7 +378,7 @@ def test_postprocess_bfactor(
     )
 
     # Set up the mock service and call it
-    service = postprocess.PostProcess(environment=mock_environment)
+    service = postprocess.PostProcess()
     service.transport = offline_transport
     service.start()
     service.postprocess(None, header=header, message=postprocess_test_message)

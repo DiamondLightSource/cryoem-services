@@ -4,25 +4,10 @@ import sys
 from unittest import mock
 
 import pytest
-import zocalo.configuration
 from workflows.transport.offline_transport import OfflineTransport
 
 from cryoemservices.services import ctffind
 from cryoemservices.util.relion_service_options import RelionServiceOptions
-
-
-@pytest.fixture
-def mock_zocalo_configuration(tmp_path):
-    mock_zc = mock.MagicMock(zocalo.configuration.Configuration)
-    mock_zc.storage = {
-        "zocalo.recipe_directory": tmp_path,
-    }
-    return mock_zc
-
-
-@pytest.fixture
-def mock_environment(mock_zocalo_configuration):
-    return {"config": mock_zocalo_configuration}
 
 
 @pytest.fixture
@@ -34,9 +19,7 @@ def offline_transport(mocker):
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.ctffind.subprocess.run")
-def test_ctffind_service(
-    mock_subprocess, mock_environment, offline_transport, tmp_path
-):
+def test_ctffind_service(mock_subprocess, offline_transport, tmp_path):
     """
     Send a test message to CTFFind
     This should call the mock subprocess then send messages on to the
@@ -80,7 +63,7 @@ def test_ctffind_service(
     output_relion_options.update(ctffind_test_message["parameters"]["relion_options"])
 
     # Set up the mock service
-    service = ctffind.CTFFind(environment=mock_environment)
+    service = ctffind.CTFFind()
     service.transport = offline_transport
     service.start()
 
@@ -198,12 +181,12 @@ def test_ctffind_service(
     )
 
 
-def test_parse_ctffind_output(mock_environment, offline_transport):
+def test_parse_ctffind_output(offline_transport):
     """
     Send test lines to the output parser
     to check the ctf values are being read in
     """
-    service = ctffind.CTFFind(environment=mock_environment)
+    service = ctffind.CTFFind()
     service.transport = offline_transport
     service.start()
 

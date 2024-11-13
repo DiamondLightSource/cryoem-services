@@ -4,26 +4,11 @@ import sys
 from unittest import mock
 
 import pytest
-import zocalo.configuration
 from workflows.recipe.wrapper import RecipeWrapper
 from workflows.transport.offline_transport import OfflineTransport
 
 from cryoemservices.util.relion_service_options import RelionServiceOptions
 from cryoemservices.wrappers import class2d_wrapper
-
-
-@pytest.fixture
-def mock_zocalo_configuration(tmp_path):
-    mock_zc = mock.MagicMock(zocalo.configuration.Configuration)
-    mock_zc.storage = {
-        "zocalo.recipe_directory": tmp_path,
-    }
-    return mock_zc
-
-
-@pytest.fixture
-def mock_environment(mock_zocalo_configuration):
-    return {"config": mock_zocalo_configuration}
 
 
 @pytest.fixture
@@ -37,7 +22,7 @@ def offline_transport(mocker):
 @mock.patch("cryoemservices.wrappers.class2d_wrapper.subprocess.run")
 @mock.patch("workflows.recipe.wrapper.RecipeWrapper.send_to")
 def test_class2d_wrapper_incomplete_batch(
-    mock_recwrap_send, mock_subprocess, mock_environment, offline_transport, tmp_path
+    mock_recwrap_send, mock_subprocess, offline_transport, tmp_path
 ):
     """
     Send a test message to the Class2D wrapper for an incomplete batch,
@@ -138,7 +123,7 @@ def test_class2d_wrapper_incomplete_batch(
     )
 
     # Set up and run the mock service
-    service_wrapper = class2d_wrapper.Class2DWrapper(environment=mock_environment)
+    service_wrapper = class2d_wrapper.Class2DWrapper()
     service_wrapper.set_recipe_wrapper(recipe_wrapper)
     service_wrapper.run()
 
@@ -288,7 +273,7 @@ def test_class2d_wrapper_incomplete_batch(
 @mock.patch("cryoemservices.wrappers.class2d_wrapper.subprocess.run")
 @mock.patch("workflows.recipe.wrapper.RecipeWrapper.send_to")
 def test_class2d_wrapper_complete_batch(
-    mock_recwrap_send, mock_subprocess, mock_environment, offline_transport, tmp_path
+    mock_recwrap_send, mock_subprocess, offline_transport, tmp_path
 ):
     """
     Send a test message to the Class2D wrapper for a complete batch,
@@ -346,7 +331,7 @@ def test_class2d_wrapper_complete_batch(
     )
 
     # Set up and run the mock service
-    service_wrapper = class2d_wrapper.Class2DWrapper(environment=mock_environment)
+    service_wrapper = class2d_wrapper.Class2DWrapper()
     service_wrapper.set_recipe_wrapper(recipe_wrapper)
     service_wrapper.run()
 
@@ -429,7 +414,7 @@ def test_class2d_wrapper_complete_batch(
 @mock.patch("cryoemservices.wrappers.class2d_wrapper.subprocess.run")
 @mock.patch("workflows.recipe.wrapper.RecipeWrapper.send_to")
 def test_class2d_wrapper_rerun_buffer_lookup(
-    mock_recwrap_send, mock_subprocess, mock_environment, offline_transport, tmp_path
+    mock_recwrap_send, mock_subprocess, offline_transport, tmp_path
 ):
     """
     Send a test message to the Class2D wrapper for a re-run incomplete batch.
@@ -482,7 +467,7 @@ def test_class2d_wrapper_rerun_buffer_lookup(
     )
 
     # Set up and run the mock service
-    service_wrapper = class2d_wrapper.Class2DWrapper(environment=mock_environment)
+    service_wrapper = class2d_wrapper.Class2DWrapper()
     service_wrapper.set_recipe_wrapper(recipe_wrapper)
     service_wrapper.run()
 
@@ -534,7 +519,7 @@ def test_class2d_wrapper_rerun_buffer_lookup(
 @mock.patch("cryoemservices.wrappers.class2d_wrapper.subprocess.run")
 @mock.patch("workflows.recipe.wrapper.RecipeWrapper.send_to")
 def test_class2d_wrapper_failure_releases_hold(
-    mock_recwrap_send, mock_subprocess, mock_environment, offline_transport, tmp_path
+    mock_recwrap_send, mock_subprocess, offline_transport, tmp_path
 ):
     """
     Send a test message to the Class2D wrapper which will fail the job.
@@ -587,7 +572,7 @@ def test_class2d_wrapper_failure_releases_hold(
     )
 
     # Set up and run the mock service
-    service_wrapper = class2d_wrapper.Class2DWrapper(environment=mock_environment)
+    service_wrapper = class2d_wrapper.Class2DWrapper()
     service_wrapper.set_recipe_wrapper(recipe_wrapper)
     service_wrapper.run()
 

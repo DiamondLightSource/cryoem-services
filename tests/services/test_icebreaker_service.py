@@ -6,27 +6,12 @@ from pathlib import Path
 from unittest import mock
 
 import pytest
-import zocalo.configuration
 from workflows.transport.offline_transport import OfflineTransport
 
 from cryoemservices.services import icebreaker
 from cryoemservices.util.relion_service_options import RelionServiceOptions
 
 output_relion_options = dict(RelionServiceOptions())
-
-
-@pytest.fixture
-def mock_zocalo_configuration(tmp_path):
-    mock_zc = mock.MagicMock(zocalo.configuration.Configuration)
-    mock_zc.storage = {
-        "zocalo.recipe_directory": tmp_path,
-    }
-    return mock_zc
-
-
-@pytest.fixture
-def mock_environment(mock_zocalo_configuration):
-    return {"config": mock_zocalo_configuration}
 
 
 @pytest.fixture
@@ -51,9 +36,7 @@ def icebreaker_flatten_output_file(*args):
     "cryoemservices.services.icebreaker.icebreaker_icegroups_multi.multigroup",
     side_effect=icebreaker_group_output_file,
 )
-def test_icebreaker_micrographs_service(
-    mock_icebreaker, mock_environment, offline_transport, tmp_path
-):
+def test_icebreaker_micrographs_service(mock_icebreaker, offline_transport, tmp_path):
     """
     Send a test message to IceBreaker for running the micrographs job
     This should call the mock subprocess
@@ -81,7 +64,7 @@ def test_icebreaker_micrographs_service(
     }
 
     # Set up the mock service and send a message to the service
-    service = icebreaker.IceBreaker(environment=mock_environment)
+    service = icebreaker.IceBreaker()
     service.transport = offline_transport
     service.start()
     service.icebreaker(None, header=header, message=icebreaker_test_message)
@@ -139,7 +122,7 @@ def test_icebreaker_micrographs_service(
     side_effect=icebreaker_flatten_output_file,
 )
 def test_icebreaker_enhancecontrast_service(
-    mock_icebreaker, mock_environment, offline_transport, tmp_path
+    mock_icebreaker, offline_transport, tmp_path
 ):
     """
     Send a test message to IceBreaker for running the enhance contrast job
@@ -167,7 +150,7 @@ def test_icebreaker_enhancecontrast_service(
     }
 
     # Set up the mock service and send a message to the service
-    service = icebreaker.IceBreaker(environment=mock_environment)
+    service = icebreaker.IceBreaker()
     service.transport = offline_transport
     service.start()
     service.icebreaker(None, header=header, message=icebreaker_test_message)
@@ -208,9 +191,7 @@ def test_icebreaker_enhancecontrast_service(
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.icebreaker.single_mic_5fig")
-def test_icebreaker_summary_service(
-    mock_icebreaker, mock_environment, offline_transport, tmp_path
-):
+def test_icebreaker_summary_service(mock_icebreaker, offline_transport, tmp_path):
     """
     Send a test message to IceBreaker for running the summary job
     This should call the mock subprocess
@@ -239,7 +220,7 @@ def test_icebreaker_summary_service(
     }
 
     # Set up the mock service and send a message to the service
-    service = icebreaker.IceBreaker(environment=mock_environment)
+    service = icebreaker.IceBreaker()
     service.transport = offline_transport
     service.start()
     service.icebreaker(None, header=header, message=icebreaker_test_message)
@@ -300,9 +281,7 @@ def test_icebreaker_summary_service(
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.icebreaker.ice_groups.main")
-def test_icebreaker_particles_service(
-    mock_icebreaker, mock_environment, offline_transport, tmp_path
-):
+def test_icebreaker_particles_service(mock_icebreaker, offline_transport, tmp_path):
     """
     Send a test message to IceBreaker for running the particle analysis job
     This should call the mock subprocess
@@ -330,7 +309,7 @@ def test_icebreaker_particles_service(
     }
 
     # Set up the mock service and send a message to the service
-    service = icebreaker.IceBreaker(environment=mock_environment)
+    service = icebreaker.IceBreaker()
     service.transport = offline_transport
     service.start()
     service.icebreaker(None, header=header, message=icebreaker_test_message)
@@ -378,7 +357,7 @@ def test_icebreaker_particles_service(
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.util.slurm_submission.subprocess.run")
 def test_icebreaker_particles_service_slurm(
-    mock_subprocess, mock_environment, offline_transport, tmp_path
+    mock_subprocess, offline_transport, tmp_path
 ):
     """
     Send a test message to IceBreaker for running the particle analysis job
@@ -429,7 +408,7 @@ def test_icebreaker_particles_service_slurm(
         token.write("token_key")
 
     # Set up the mock service and send a message to the service
-    service = icebreaker.IceBreaker(environment=mock_environment)
+    service = icebreaker.IceBreaker()
     service.transport = offline_transport
     service.start()
     service.icebreaker(None, header=header, message=icebreaker_test_message)

@@ -6,26 +6,11 @@ from unittest import mock
 import mrcfile
 import numpy as np
 import pytest
-import zocalo.configuration
 from workflows.recipe.wrapper import RecipeWrapper
 from workflows.transport.offline_transport import OfflineTransport
 
 from cryoemservices.util.relion_service_options import RelionServiceOptions
 from cryoemservices.wrappers import refine3d_wrapper
-
-
-@pytest.fixture
-def mock_zocalo_configuration(tmp_path):
-    mock_zc = mock.MagicMock(zocalo.configuration.Configuration)
-    mock_zc.storage = {
-        "zocalo.recipe_directory": tmp_path,
-    }
-    return mock_zc
-
-
-@pytest.fixture
-def mock_environment(mock_zocalo_configuration):
-    return {"config": mock_zocalo_configuration}
 
 
 @pytest.fixture
@@ -39,7 +24,7 @@ def offline_transport(mocker):
 @mock.patch("cryoemservices.wrappers.refine3d_wrapper.subprocess.run")
 @mock.patch("workflows.recipe.wrapper.RecipeWrapper.send_to")
 def test_refine3d_wrapper_with_mask(
-    mock_recwrap_send, mock_subprocess, mock_environment, offline_transport, tmp_path
+    mock_recwrap_send, mock_subprocess, offline_transport, tmp_path
 ):
     """
     Send a test message to the Refine3D wrapper with a provided mask.
@@ -152,7 +137,7 @@ def test_refine3d_wrapper_with_mask(
     )
 
     # Set up and run the mock service
-    service_wrapper = refine3d_wrapper.Refine3DWrapper(environment=mock_environment)
+    service_wrapper = refine3d_wrapper.Refine3DWrapper()
     service_wrapper.set_recipe_wrapper(recipe_wrapper)
     service_wrapper.run()
 
@@ -260,7 +245,6 @@ def test_refine3d_wrapper_no_mask(
     mock_mask_threshold,
     mock_recwrap_send,
     mock_subprocess,
-    mock_environment,
     offline_transport,
     tmp_path,
 ):
@@ -357,7 +341,7 @@ def test_refine3d_wrapper_no_mask(
     )
 
     # Set up and run the mock service
-    service_wrapper = refine3d_wrapper.Refine3DWrapper(environment=mock_environment)
+    service_wrapper = refine3d_wrapper.Refine3DWrapper()
     service_wrapper.set_recipe_wrapper(recipe_wrapper)
     service_wrapper.run()
 

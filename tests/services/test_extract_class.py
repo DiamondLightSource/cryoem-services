@@ -5,25 +5,10 @@ import sys
 from unittest import mock
 
 import pytest
-import zocalo.configuration
 from workflows.transport.offline_transport import OfflineTransport
 
 from cryoemservices.services import extract_class
 from cryoemservices.util.relion_service_options import RelionServiceOptions
-
-
-@pytest.fixture
-def mock_zocalo_configuration(tmp_path):
-    mock_zc = mock.MagicMock(zocalo.configuration.Configuration)
-    mock_zc.storage = {
-        "zocalo.recipe_directory": tmp_path,
-    }
-    return mock_zc
-
-
-@pytest.fixture
-def mock_environment(mock_zocalo_configuration):
-    return {"config": mock_zocalo_configuration}
 
 
 @pytest.fixture
@@ -35,9 +20,7 @@ def offline_transport(mocker):
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.util.slurm_submission.subprocess.run")
-def test_extract_class_service(
-    mock_subprocess, mock_environment, offline_transport, tmp_path
-):
+def test_extract_class_service(mock_subprocess, offline_transport, tmp_path):
     """
     Send a test message to the class extraction service
     This should run particle selection and launch re-extraction jobs with slurm
@@ -120,7 +103,7 @@ def test_extract_class_service(
     (tmp_path / "Extract/job012/slurm_run.err").touch()
 
     # Set up the mock service and call it
-    service = extract_class.ExtractClass(environment=mock_environment)
+    service = extract_class.ExtractClass()
     service.transport = offline_transport
     service.start()
     service.extract_class(None, header=header, message=extract_class_test_message)
