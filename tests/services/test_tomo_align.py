@@ -98,6 +98,7 @@ def test_tomo_align_service_file_list(
 
     # Set up outputs: stack_Imod file like AreTomo2, no exclusions but with space
     (tmp_path / "Tomograms/job006/tomograms/test_stack_Imod").mkdir(parents=True)
+    (tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo.mrc").touch()
     with open(
         tmp_path / "Tomograms/job006/tomograms/test_stack_Imod/tilt.com", "w"
     ) as dark_file:
@@ -368,6 +369,7 @@ def test_tomo_align_service_path_pattern(
 
     # Set up outputs: stack_Imod file like AreTomo2, no exclusions without space
     (tmp_path / "Tomograms/job006/tomograms/test_stack_Imod").mkdir(parents=True)
+    (tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo.mrc").touch()
     with open(
         tmp_path / "Tomograms/job006/tomograms/test_stack_Imod/tilt.com", "w"
     ) as dark_file:
@@ -533,6 +535,7 @@ def test_tomo_align_service_dark_images(
     (tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo_Imod").mkdir(
         parents=True
     )
+    (tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo.mrc").touch()
     with open(
         tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo_Imod/tilt.com", "w"
     ) as dark_file:
@@ -708,6 +711,7 @@ def test_tomo_align_service_all_dark(
 
     # Set up outputs: stack_Imod file like AreTomo2, with exclusions and no spaces
     (tmp_path / "Tomograms/job006/tomograms/test_stack_Imod").mkdir(parents=True)
+    (tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo.mrc").touch()
     with open(
         tmp_path / "Tomograms/job006/tomograms/test_stack_Imod/tilt.com", "w"
     ) as dark_file:
