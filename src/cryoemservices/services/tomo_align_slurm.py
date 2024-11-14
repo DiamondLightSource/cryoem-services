@@ -32,6 +32,10 @@ def retrieve_files(job_directory: Path, files_to_skip: List[Path], basepath: str
             if dls_item not in files_to_skip:
                 shutil.copy(iris_item, dls_item)
             iris_item.unlink()
+    for extra_dls_item in files_to_skip:
+        extra_iris_item = Path("/iris") / extra_dls_item.relative_to("/dls")
+        if extra_iris_item.is_file():
+            extra_iris_item.unlink()
 
 
 def transfer_files(file_list: List[Path]):
