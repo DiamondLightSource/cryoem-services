@@ -1,26 +1,54 @@
 # This Dockerfile is used for cryolo
-FROM continuumio/miniconda
+FROM rockylinux:8 AS conda-build
 
+# Set up conda environment
+RUN curl -L -O "https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-$(uname)-$(uname -m).sh"
+RUN bash Mambaforge-$(uname)-$(uname -m).sh -b -p "conda"
+
+# Create different conda environments for cryoem-services and cryolo
+RUN source "/conda/etc/profile.d/conda.sh" && conda install -c conda-forge conda-pack
+RUN source "/conda/etc/profile.d/conda.sh" && source "/conda/etc/profile.d/mamba.sh" && \
+    mamba create -p /install/services_env -c conda-forge python=3.11 --override-channels -y && \
+    mamba create -p /install/cryolo_env -c conda-forge pyqt=5 python=3.7 cudatoolkit=10.0.130 cudnn=7.6.5 numpy==1.18.5 libtiff wxPython=4.1.1 --override-channels -y
+
+# Install cryoem-services and Cryolo in their own environments
+RUN mkdir /install/cryoem-services
+COPY packages/cryoem-services /install/cryoem-services
+RUN source "/conda/etc/profile.d/conda.sh" && conda activate /install/services_env && pip install --cache-dir /tmp /install/cryoem-services
+RUN source "/conda/etc/profile.d/conda.sh" && conda activate /install/cryolo_env && pip install cryolo[cpu]
+
+# Pack the environments
+RUN /conda/bin/conda-pack -p /install/services_env -o /tmp/services_env.tar.gz
+RUN mkdir /install/venv_services
+RUN tar -xzf /tmp/services_env.tar.gz -C /install/venv_services
+RUN source "/conda/etc/profile.d/conda.sh" && conda activate /install/venv_services && /install/venv_services/bin/conda-unpack
+
+RUN /conda/bin/conda-pack -p /install/cryolo_env -o /tmp/cryolo_env.tar.gz
+RUN mkdir /install/venv_cryolo
+RUN tar -xzf /tmp/cryolo_env.tar.gz -C /install/venv_cryolo
+RUN source "/conda/etc/profile.d/conda.sh" && conda activate /install/venv_cryolo && /install/venv_cryolo/bin/conda-unpack
+
+
+# Second stage extracts the conda environments
+FROM rockylinux:8
+
+# Create EM user
 ARG groupid
 ARG userid
 ARG groupname
+RUN groupadd -r -g "${groupid}" "${groupname}" && useradd -r -M "${groupname}" -u "${userid}" -g "${groupname}"
 
-# Create different conda environments for cryoem-services and cryolo
-RUN conda create -n services_env -c conda-forge python=3.9 -y && \
-    conda create -n cryolo_env -c conda-forge pyqt=5 python=3.7 cudatoolkit=10.0.130 cudnn=7.6.5 numpy==1.18.5 libtiff wxPython=4.1.1 adwaita-icon-theme conda conda-wrappers --override-channels -y && \
-    conda clean --all --yes
-
-# Install cryoem-services and Cryolo in their own environments
-COPY --chown="${userid}":"${groupid}" packages/cryoem-services ./cryoem-services
-RUN conda run -n services_env /bin/bash -c "pip install -e ./cryoemservices" && \
-    conda run -n cryolo_env /bin/bash -c "pip install cryolo[cpu]==1.8.1"
+# Copy python environment
+COPY --from=conda-build --chown="${userid}":"${groupid}" /install/venv_services /install/venv_services
+COPY --from=conda-build --chown="${userid}":"${groupid}" /install/venv_cryolo /install/venv_cryolo
 
 RUN mkdir -p /dls_sw/apps/EM/crYOLO/phosaurus_models
 COPY cryolo_models/* /dls_sw/apps/EM/crYOLO/phosaurus_models
 RUN chown -R "${userid}":"${groupid}" /dls_sw
+USER "${userid}":"${groupid}"
 
-RUN echo '#!/bin/bash\n\nif [ ! -z ${RECURSION_PROTECTION} ]; then\n    echo "Unintended recursion detected in zocalo indirection ($0)"\n    exit 1\nfi\nexport RECURSION_PROTECTION=1\n\n. /opt/conda/etc/profile.d/conda.sh\nconda activate /opt/conda/envs/cryolo_env\ncryolo_predict.py "$@"' > /opt/conda/envs/services_env/bin/cryolo_predict.py && \
-    chmod +x /opt/conda/envs/services_env/bin/cryolo_predict.py
+RUN echo '#!/bin/bash\n\nif [ ! -z ${RECURSION_PROTECTION} ]; then\n    echo "Unintended recursion detected in zocalo indirection ($0)"\n    exit 1\nfi\nexport RECURSION_PROTECTION=1\n\nexport PATH="/install/venv_cryolo/bin:${PATH}"\ncryolo_predict.py "$@"' > /install/venv_services/bin/cryolo_predict.py && \
+    chmod +x /install/venv_services/bin/cryolo_predict.py
 
-ENV PATH="/opt/conda/envs/services_env/bin:${PATH}"
+ENV PATH="/install/venv_services/bin:${PATH}"
 
