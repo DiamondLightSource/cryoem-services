@@ -23,7 +23,6 @@ def offline_transport(mocker):
 @mock.patch("cryoemservices.services.denoise.subprocess.run")
 def test_denoise_local_service(
     mock_subprocess,
-    mock_environment,
     offline_transport,
     tmp_path,
 ):
@@ -74,7 +73,7 @@ def test_denoise_local_service(
     output_relion_options = dict(RelionServiceOptions())
 
     # Set up the mock service
-    service = denoise.Denoise(environment=mock_environment)
+    service = denoise.Denoise()
     service.transport = offline_transport
     service.start()
 
