@@ -6,9 +6,7 @@ import logging
 
 from backports.entry_points_selectable import entry_points
 from workflows.recipe.wrapper import RecipeWrapper
-from workflows.services import common_service
 from workflows.transport.pika_transport import PikaTransport
-from zocalo.wrapper import StatusNotifications
 
 from cryoemservices.util.config import config_from_file
 
@@ -64,25 +62,16 @@ def run():
     transport = PikaTransport()
     transport.load_configuration_file(service_config.rabbitmq_credentials)
     transport.connect()
-    st = StatusNotifications(transport.broadcast_status, args.wrapper)
 
     # Instantiate chosen wrapper
     instance = known_wrappers[args.wrapper]()()
-    instance.status_thread = st
 
     # If specified, read in a serialized recipewrapper
     with open(args.recipewrapper) as fh:
         recwrap = RecipeWrapper(message=json.load(fh), transport=transport)
     instance.set_recipe_wrapper(recwrap)
 
-    if recwrap.recipe_step.get("wrapper", {}).get("task_information"):
-        # Add any extra task_information field to the status display
-        st.taskname += (
-            " (" + str(recwrap.recipe_step["wrapper"]["task_information"]) + ")"
-        )
-
     instance.prepare("Starting processing")
-    st.set_status(common_service.Status.PROCESSING)
     log.info("Setup complete, starting processing")
 
     try:
@@ -92,17 +81,12 @@ def run():
         else:
             log.info("processing failed")
             instance.failure("Processing failed")
-        st.set_status(common_service.Status.END)
     except KeyboardInterrupt:
         log.info("Shutdown via Ctrl+C")
-        st.set_status(common_service.Status.END)
     except Exception as e:
         log.error(str(e), exc_info=True)
         instance.failure(e)
-        st.set_status(common_service.Status.ERROR)
 
     instance.done("Finished processing")
-    st.shutdown()
-    st.join()
     log.info("Terminating")
     transport.disconnect()

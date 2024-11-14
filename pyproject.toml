@@ -71,7 +71,7 @@ dev = [
     "cryoemservices.reextract" = "cryoemservices.pipeliner_plugins.reextract:run"
     "cryoemservices.resubmit_wrapper" = "cryoemservices.cli.resubmit_wrapper:run"
     "cryoemservices.service" = "cryoemservices.cli.start_service:run"
-    "cryoemservices.wrap" = "cryoemservices.cli.wrap:run"
+    "cryoemservices.wrap" = "cryoemservices.cli.run_wrapper:run"
     "relipy.link" = "cryoemservices.cli.project_linker:run"
 [project.entry-points."ccpem_pipeliner.jobs"]
     "combine_star_files_job" = "cryoemservices.pipeliner_plugins.combine_star_job:ProcessStarFiles"
