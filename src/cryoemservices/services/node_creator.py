@@ -571,6 +571,9 @@ class NodeCreator(CommonService):
             "relion.select.class2dauto",
             "icebreaker.micrograph_analysis.particles",
         ]:
+            if job_info.alias:
+                # Unlink the alias again as it will be recreated
+                (job_dir.parent / job_info.alias).unlink(missing_ok=True)
             # Set up a "short_pipeline.star" for SPA which excludes the 2D batches
             with CachedProjectGraph(
                 read_only=False,
