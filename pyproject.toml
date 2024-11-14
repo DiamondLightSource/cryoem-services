@@ -33,6 +33,7 @@ dependencies = [
     "backports.entry_points_selectable",
     "defusedxml", # CLEM workflow
     "gemmi==0.6.5",
+    "graypy",
     "healpy",
     "icebreaker-em",
     "importlib-metadata",

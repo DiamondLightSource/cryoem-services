@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Optional
 
 import yaml
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 
 
 class ServiceConfig(BaseModel):
@@ -13,7 +13,16 @@ class ServiceConfig(BaseModel):
     transport_type: str = "PikaTransport"
     ispyb_credentials: Optional[Path] = None
     slurm_credentials: Optional[Path] = None
-    slurm_cluster: Optional[str] = ""
+    slurm_cluster: str = ""
+    graylog_host: str = ""
+    graylog_port: Optional[int] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def check_port_present_if_host_is(cls, values: dict) -> Optional[dict]:
+        if values["graylog_host"] and values["graylog_port"] is None:
+            raise ValueError("The Graylog port must be set if the Graylog host is")
+        return values
 
     model_config = ConfigDict(extra="allow")
 

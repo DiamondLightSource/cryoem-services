@@ -4,6 +4,7 @@ import argparse
 import json
 import logging
 
+import graypy
 from backports.entry_points_selectable import entry_points
 from workflows.recipe.wrapper import RecipeWrapper
 from workflows.transport.pika_transport import PikaTransport
@@ -44,19 +45,25 @@ def run():
     )
     args = parser.parse_args()
 
+    service_config = config_from_file(args.config_file)
+
     # Initialize logging
     console = logging.StreamHandler()
     console.setLevel(logging.INFO)
     logging.getLogger().addHandler(console)
+    if service_config.graylog_host:
+        graylog_handler = graypy.GELFUDPHandler(
+            service_config.graylog_host, service_config.graylog_port, level_names=True
+        )
+        logging.getLogger().addHandler(graylog_handler)
     logging.getLogger().setLevel(logging.INFO)
+    logging.getLogger("pika").setLevel(logging.WARN)
     log = logging.getLogger("cryoemservices.wrap")
 
     log.info(
         f"Starting wrapper for {args.wrapper} "
         f"with recipewrapper file {args.recipewrapper}",
     )
-
-    service_config = config_from_file(args.config_file)
 
     # Connect to transport and start sending notifications
     transport = PikaTransport()
