@@ -23,7 +23,7 @@ RUN curl -L -O "https://github.com/conda-forge/miniforge/releases/latest/downloa
 RUN bash Mambaforge-$(uname)-$(uname -m).sh -b -p "conda"
 
 RUN source "/conda/etc/profile.d/conda.sh" && conda install -c conda-forge conda-pack
-RUN source "/conda/etc/profile.d/conda.sh" && source "/conda/etc/profile.d/mamba.sh" && mamba create -c conda-forge -p /install/pythonenv python=3.9 pip libtiff=4.4.0 pytorch-cpu=1.10.0 numpy=1.25.2 --override-channels -y
+RUN source "/conda/etc/profile.d/conda.sh" && source "/conda/etc/profile.d/mamba.sh" && mamba create -c conda-forge -p /install/pythonenv python=3.10 pip libtiff=4.4.0 pytorch-cpu=1.10.0 numpy=1.25.2 --override-channels -y
 
 # Install cryoem-services and pipeliner
 RUN mkdir /install/cryoem-services
