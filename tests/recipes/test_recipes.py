@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from cryoemservices.services.bfactor_setup import BFactorParameters
 from cryoemservices.services.cryolo import CryoloParameters
 from cryoemservices.services.ctffind import CTFParameters
-from cryoemservices.services.denoise_slurm import DenoiseParameters
+from cryoemservices.services.denoise import DenoiseParameters
 from cryoemservices.services.extract import ExtractParameters
 from cryoemservices.services.extract_class import ExtractClassParameters
 from cryoemservices.services.icebreaker import IceBreakerParameters

@@ -9,282 +9,297 @@ bfactor_setup:
   image: gcr.io/image/path
   command: zocalo.service -s service-name -e environment
   extraVolumes:
-  - name: home
-    hostPath:
-      path: /home
-      type: Directory
+    - name: home
+      hostPath:
+        path: /home
+        type: Directory
   extraVolumeMounts:
-  - mountPath: /home
-    name: home
-    mountPropagation: HostToContainer
-    readOnly: true
+    - mountPath: /home
+      name: home
+      mountPropagation: HostToContainer
+      readOnly: true
 
 cluster_submission:
   replicas: 1
   image: gcr.io/image/path
   command: zocalo.service -s service-name -e environment
   extraVolumes:
-  - name: home
-    hostPath:
-      path: /home
-      type: Directory
+    - name: home
+      hostPath:
+        path: /home
+        type: Directory
   extraVolumeMounts:
-  - mountPath: /home
-    name: home
-    mountPropagation: HostToContainer
-    readOnly: true
+    - mountPath: /home
+      name: home
+      mountPropagation: HostToContainer
+      readOnly: true
 
 cryolo:
   replicas: 1
   image: gcr.io/image/path
   command: zocalo.service -s service-name -e environment
   extraVolumes:
-  - name: home
-    hostPath:
-      path: /home
-      type: Directory
+    - name: home
+      hostPath:
+        path: /home
+        type: Directory
   extraVolumeMounts:
-  - mountPath: /home
-    name: home
-    mountPropagation: HostToContainer
-    readOnly: true
+    - mountPath: /home
+      name: home
+      mountPropagation: HostToContainer
+      readOnly: true
 
 ctffind:
   replicas: 1
   image: gcr.io/image/path
   command: zocalo.service -s service-name -e environment
   extraVolumes:
-  - name: home
-    hostPath:
-      path: /home
-      type: Directory
+    - name: home
+      hostPath:
+        path: /home
+        type: Directory
   extraVolumeMounts:
-  - mountPath: /home
-    name: home
-    mountPropagation: HostToContainer
-    readOnly: true
+    - mountPath: /home
+      name: home
+      mountPropagation: HostToContainer
+      readOnly: true
+
+denoise:
+  replicas: 1
+  image: gcr.io/image/path
+  command: zocalo.service -s service-name -e environment
+  extraVolumes:
+    - name: dls
+      hostPath:
+        path: /dls
+        type: Directory
+  extraVolumeMounts:
+    - mountPath: /dls
+      name: dls
+      mountPropagation: HostToContainer
+      readOnly: true
 
 denoise_slurm:
   replicas: 1
   image: gcr.io/image/path
   command: zocalo.service -s service-name -e environment
   extraVolumes:
-  - name: dls
-    hostPath:
-      path: /dls
-      type: Directory
+    - name: dls
+      hostPath:
+        path: /dls
+        type: Directory
   extraVolumeMounts:
-  - mountPath: /dls
-    name: dls
-    mountPropagation: HostToContainer
-    readOnly: true
+    - mountPath: /dls
+      name: dls
+      mountPropagation: HostToContainer
+      readOnly: true
 
 dispatcher:
   replicas: 1
   image: gcr.io/image/path
   command: zocalo.service -s service-name -e environment
   extraVolumes:
-  - name: home
-    hostPath:
-      path: /home
-      type: Directory
+    - name: home
+      hostPath:
+        path: /home
+        type: Directory
   extraVolumeMounts:
-  - mountPath: /home
-    name: home
-    mountPropagation: HostToContainer
-    readOnly: true
+    - mountPath: /home
+      name: home
+      mountPropagation: HostToContainer
+      readOnly: true
 
 extract:
   replicas: 1
   image: gcr.io/image/path
   command: zocalo.service -s service-name -e environment
   extraVolumes:
-  - name: home
-    hostPath:
-      path: /home
-      type: Directory
+    - name: home
+      hostPath:
+        path: /home
+        type: Directory
   extraVolumeMounts:
-  - mountPath: /home
-    name: home
-    mountPropagation: HostToContainer
-    readOnly: true
+    - mountPath: /home
+      name: home
+      mountPropagation: HostToContainer
+      readOnly: true
 
 extract_class:
   replicas: 1
   image: gcr.io/image/path
   command: zocalo.service -s service-name -e environment
   extraVolumes:
-  - name: home
-    hostPath:
-      path: /home
-      type: Directory
+    - name: home
+      hostPath:
+        path: /home
+        type: Directory
   extraVolumeMounts:
-  - mountPath: /home
-    name: home
-    mountPropagation: HostToContainer
-    readOnly: true
+    - mountPath: /home
+      name: home
+      mountPropagation: HostToContainer
+      readOnly: true
 
 icebreaker:
   replicas: 1
   image: gcr.io/image/path
   command: zocalo.service -s service-name -e environment
   extraVolumes:
-  - name: home
-    hostPath:
-      path: /home
-      type: Directory
+    - name: home
+      hostPath:
+        path: /home
+        type: Directory
   extraVolumeMounts:
-  - mountPath: /home
-    name: home
-    mountPropagation: HostToContainer
-    readOnly: true
+    - mountPath: /home
+      name: home
+      mountPropagation: HostToContainer
+      readOnly: true
 
 images:
   replicas: 2
   image: gcr.io/image/path
   command: zocalo.service -s service-name -e environment
   extraVolumes:
-  - name: home
-    hostPath:
-      path: /home
-      type: Directory
+    - name: home
+      hostPath:
+        path: /home
+        type: Directory
   extraVolumeMounts:
-  - mountPath: /home
-    name: home
-    mountPropagation: HostToContainer
-    readOnly: true
+    - mountPath: /home
+      name: home
+      mountPropagation: HostToContainer
+      readOnly: true
 
 ispyb:
   replicas: 1
   image: gcr.io/image/path
   command: zocalo.service -s service-name -e environment
   extraVolumes:
-  - name: home
-    hostPath:
-      path: /home
-      type: Directory
+    - name: home
+      hostPath:
+        path: /home
+        type: Directory
   extraVolumeMounts:
-  - mountPath: /home
-    name: home
-    mountPropagation: HostToContainer
-    readOnly: true
+    - mountPath: /home
+      name: home
+      mountPropagation: HostToContainer
+      readOnly: true
 
 membrain_seg:
   replicas: 1
   image: gcr.io/image/path
   command: zocalo.service -s service-name -e environment
   extraVolumes:
-  - name: home
-    hostPath:
-      path: /home
-      type: Directory
+    - name: home
+      hostPath:
+        path: /home
+        type: Directory
   extraVolumeMounts:
-  - mountPath: /home
-    name: home
-    mountPropagation: HostToContainer
-    readOnly: true
+    - mountPath: /home
+      name: home
+      mountPropagation: HostToContainer
+      readOnly: true
 
 motioncorr:
   replicas: 1
   image: gcr.io/image/path
   command: zocalo.service -s service-name -e environment
   extraVolumes:
-  - name: home
-    hostPath:
-      path: /home
-      type: Directory
+    - name: home
+      hostPath:
+        path: /home
+        type: Directory
   extraVolumeMounts:
-  - mountPath: /home
-    name: home
-    mountPropagation: HostToContainer
-    readOnly: true
+    - mountPath: /home
+      name: home
+      mountPropagation: HostToContainer
+      readOnly: true
 
 node_creator:
   replicas: 1
   image: gcr.io/image/path
   command: zocalo.service -s service-name -e environment
   extraVolumes:
-  - name: home
-    hostPath:
-      path: /home
-      type: Directory
+    - name: home
+      hostPath:
+        path: /home
+        type: Directory
   extraVolumeMounts:
-  - mountPath: /home
-    name: home
-    mountPropagation: HostToContainer
-    readOnly: true
+    - mountPath: /home
+      name: home
+      mountPropagation: HostToContainer
+      readOnly: true
 
 postprocess:
   replicas: 1
   image: gcr.io/image/path
   command: zocalo.service -s service-name -e environment
   extraVolumes:
-  - name: home
-    hostPath:
-      path: /home
-      type: Directory
+    - name: home
+      hostPath:
+        path: /home
+        type: Directory
   extraVolumeMounts:
-  - mountPath: /home
-    name: home
-    mountPropagation: HostToContainer
-    readOnly: true
+    - mountPath: /home
+      name: home
+      mountPropagation: HostToContainer
+      readOnly: true
 
 select_classes:
   replicas: 1
   image: gcr.io/image/path
   command: zocalo.service -s service-name -e environment
   extraVolumes:
-  - name: home
-    hostPath:
-      path: /home
-      type: Directory
+    - name: home
+      hostPath:
+        path: /home
+        type: Directory
   extraVolumeMounts:
-  - mountPath: /home
-    name: home
-    mountPropagation: HostToContainer
-    readOnly: true
+    - mountPath: /home
+      name: home
+      mountPropagation: HostToContainer
+      readOnly: true
 
 select_particles:
   replicas: 1
   image: gcr.io/image/path
   command: zocalo.service -s service-name -e environment
   extraVolumes:
-  - name: home
-    hostPath:
-      path: /home
-      type: Directory
+    - name: home
+      hostPath:
+        path: /home
+        type: Directory
   extraVolumeMounts:
-  - mountPath: /home
-    name: home
-    mountPropagation: HostToContainer
-    readOnly: true
+    - mountPath: /home
+      name: home
+      mountPropagation: HostToContainer
+      readOnly: true
 
 tomo_align:
   replicas: 1
   image: gcr.io/image/path
   command: zocalo.service -s service-name -e environment
   extraVolumes:
-  - name: dls
-    hostPath:
-      path: /dls
-      type: Directory
+    - name: dls
+      hostPath:
+        path: /dls
+        type: Directory
   extraVolumeMounts:
-  - mountPath: /dls
-    name: dls
-    mountPropagation: HostToContainer
-    readOnly: true
+    - mountPath: /dls
+      name: dls
+      mountPropagation: HostToContainer
+      readOnly: true
 
 tomo_align_slurm:
   replicas: 1
   image: gcr.io/image/path
   command: zocalo.service -s service-name -e environment
   extraVolumes:
-  - name: dls
-    hostPath:
-      path: /dls
-      type: Directory
+    - name: dls
+      hostPath:
+        path: /dls
+        type: Directory
   extraVolumeMounts:
-  - mountPath: /dls
-    name: dls
-    mountPropagation: HostToContainer
-    readOnly: true
+    - mountPath: /dls
+      name: dls
+      mountPropagation: HostToContainer
+      readOnly: true

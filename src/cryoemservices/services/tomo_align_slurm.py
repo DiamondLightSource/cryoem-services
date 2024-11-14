@@ -32,6 +32,10 @@ def retrieve_files(job_directory: Path, files_to_skip: List[Path], basepath: str
             if dls_item not in files_to_skip:
                 shutil.copy(iris_item, dls_item)
             iris_item.unlink()
+    for extra_dls_item in files_to_skip:
+        extra_iris_item = Path("/iris") / extra_dls_item.relative_to("/dls")
+        if extra_iris_item.is_file():
+            extra_iris_item.unlink()
 
 
 def transfer_files(file_list: List[Path]):
@@ -141,15 +145,18 @@ class TomoAlignSlurm(TomoAlign, CommonService):
                 "Unable to transfer files: "
                 f"desired {items_to_transfer}, done {transfer_status}"
             )
-            return subprocess.CompletedProcess(
-                args="",
-                returncode=1,
-                stdout="".encode("utf8"),
-                stderr="Failed transfer".encode("utf8"),
+            return (
+                subprocess.CompletedProcess(
+                    args="",
+                    returncode=1,
+                    stdout="".encode("utf8"),
+                    stderr="Failed transfer".encode("utf8"),
+                ),
+                command,
             )
         self.log.info("All files transferred")
-        self.log.info(f"Running AreTomo2 with command: {command}")
 
+        self.log.info(f"Running AreTomo2 with command: {command}")
         slurm_outcome = slurm_submission(
             log=self.log,
             job_name="AreTomo2",
@@ -173,6 +180,17 @@ class TomoAlignSlurm(TomoAlign, CommonService):
             basepath=str(Path(tomo_parameters.stack_file).stem),
         )
         self.log.info("All output files retrieved")
+
+        if not aretomo_output_path.is_file():
+            return (
+                subprocess.CompletedProcess(
+                    args="",
+                    returncode=1,
+                    stdout="".encode("utf8"),
+                    stderr=f"Output {aretomo_output_path} not found".encode("utf8"),
+                ),
+                command,
+            )
 
         slurm_output_file = f"{aretomo_output_path}.out"
         slurm_error_file = f"{aretomo_output_path}.out"

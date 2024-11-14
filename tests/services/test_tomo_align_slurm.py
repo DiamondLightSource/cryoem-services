@@ -122,6 +122,7 @@ def test_tomo_align_slurm_service(
         token.write("token_key")
 
     # Touch the expected output files
+    (tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo.mrc").touch()
     (tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo.mrc.out").touch()
     (tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo.mrc.err").touch()
 

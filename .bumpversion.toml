@@ -39,6 +39,11 @@ search = 'version: {current_version}'
 replace = 'version: {new_version}'
 
 [[tool.bumpversion.files]]
+filename = "Helm/charts/denoise/Chart.yaml"
+search = 'version: {current_version}'
+replace = 'version: {new_version}'
+
+[[tool.bumpversion.files]]
 filename = "Helm/charts/denoise_slurm/Chart.yaml"
 search = 'version: {current_version}'
 replace = 'version: {new_version}'

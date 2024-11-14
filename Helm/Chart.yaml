@@ -7,6 +7,7 @@ dependencies:
   - name: cluster_submission
   - name: cryolo
   - name: ctffind
+  - name: denoise
   - name: denoise_slurm
   - name: dispatcher
   - name: extract

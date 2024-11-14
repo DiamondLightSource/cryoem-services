@@ -202,6 +202,7 @@ class MotionCorr(CommonService):
             use_gpu=True,
             use_singularity=True,
             cif_name=os.environ["MOTIONCOR2_SIF"],
+            extra_singularity_directories=["/lib64"],
         )
 
         if not slurm_outcome.returncode:

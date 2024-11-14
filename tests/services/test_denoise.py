@@ -8,7 +8,7 @@ from unittest import mock
 import pytest
 from workflows.transport.offline_transport import OfflineTransport
 
-from cryoemservices.services import denoise_slurm
+from cryoemservices.services import denoise, denoise_slurm
 from cryoemservices.util.relion_service_options import RelionServiceOptions
 
 
@@ -20,21 +20,19 @@ def offline_transport(mocker):
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-@mock.patch("cryoemservices.util.slurm_submission.subprocess.run")
-def test_denoise_slurm_service(
+@mock.patch("cryoemservices.services.denoise.subprocess.run")
+def test_denoise_local_service(
     mock_subprocess,
     offline_transport,
     tmp_path,
 ):
     """
-    Send a test message to Denoising for the slurm submission version
+    Send a test message to Denoising for the locally-running version
     This should call the mock subprocess then send messages on to
     the membrain-seg and images services.
     """
     mock_subprocess().returncode = 0
-    mock_subprocess().stdout = (
-        '{"job_id": "1", "jobs": [{"job_state": ["COMPLETED"]}]}'.encode("ascii")
-    )
+    mock_subprocess().stdout = "stdout".encode("ascii")
     mock_subprocess().stderr = "stderr".encode("ascii")
 
     header = {
@@ -68,6 +66,157 @@ def test_denoise_slurm_service(
             "patch_size": 96,
             "patch_padding": 48,
             "device": "-2",
+            "relion_options": {},
+        },
+        "content": "dummy",
+    }
+    output_relion_options = dict(RelionServiceOptions())
+
+    # Set up the mock service
+    service = denoise.Denoise()
+    service.transport = offline_transport
+    service.start()
+
+    # Send a message to the service
+    service.denoise(None, header=header, message=denoise_test_message)
+
+    # Check the denoising command
+    denoise_command = [
+        "topaz",
+        "denoise3d",
+        f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
+        "-o",
+        f"{tmp_path}/Denoise/job007/denoised",
+        "--suffix",
+        ".denoised",
+        "-m",
+        "unet-3d",
+        "--N-train",
+        "1000",
+        "--N-test",
+        "200",
+        "-c",
+        "96",
+        "--base-kernel-width",
+        "11",
+        "--optim",
+        "adagrad",
+        "--lr",
+        "0.001",
+        "--criteria",
+        "L2",
+        "--momentum",
+        "0.8",
+        "--batch-size",
+        "10",
+        "--num-epochs",
+        "500",
+        "-w",
+        "0",
+        "--save-interval",
+        "10",
+        "--save-prefix",
+        "prefix",
+        "--num-workers",
+        "1",
+        "-j",
+        "0",
+        "-g",
+        "0",
+        "-s",
+        "96",
+        "-p",
+        "48",
+        "-d",
+        "-2",
+    ]
+    mock_subprocess.assert_any_call(denoise_command, capture_output=True)
+
+    # Check the images service request
+    assert offline_transport.send.call_count == 5
+    offline_transport.send.assert_any_call(
+        destination="node_creator",
+        message={
+            "parameters": {
+                "experiment_type": "tomography",
+                "job_type": "relion.denoisetomo",
+                "input_file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
+                "output_file": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
+                "relion_options": output_relion_options,
+                "command": " ".join(denoise_command),
+                "stdout": "stdout",
+                "stderr": "stderr",
+                "success": True,
+            },
+            "content": "dummy",
+        },
+    )
+    offline_transport.send.assert_any_call(
+        destination="images",
+        message={
+            "image_command": "mrc_central_slice",
+            "file": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
+        },
+    )
+    offline_transport.send.assert_any_call(
+        destination="movie",
+        message={
+            "image_command": "mrc_to_apng",
+            "file": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
+        },
+    )
+    offline_transport.send.assert_any_call(
+        destination="ispyb_connector",
+        message={
+            "parameters": {
+                "ispyb_command": "insert_processed_tomogram",
+                "file_path": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
+                "processing_type": "Denoised",
+            },
+            "content": {"dummy": "dummy"},
+        },
+    )
+    offline_transport.send.assert_any_call(
+        destination="segmentation",
+        message={
+            "tomogram": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
+            "output_dir": f"{tmp_path}/Segmentation/job008/tomograms",
+        },
+    )
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+@mock.patch("cryoemservices.util.slurm_submission.subprocess.run")
+@mock.patch("cryoemservices.services.denoise_slurm.transfer_files")
+@mock.patch("cryoemservices.services.denoise_slurm.retrieve_files")
+def test_denoise_slurm_service(
+    mock_retrieve,
+    mock_transfer,
+    mock_subprocess,
+    offline_transport,
+    tmp_path,
+):
+    """
+    Send a test message to Denoising for the slurm submission version
+    This should call the mock subprocess then send messages on to
+    the membrain-seg and images services.
+    """
+    mock_subprocess().returncode = 0
+    mock_subprocess().stdout = (
+        '{"job_id": "1", "jobs": [{"job_state": ["COMPLETED"]}]}'.encode("ascii")
+    )
+    mock_subprocess().stderr = "stderr".encode("ascii")
+
+    mock_transfer.return_value = ["test_stack_aretomo.mrc"]
+
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+    denoise_test_message = {
+        "parameters": {
+            "volume": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
+            "output_dir": f"{tmp_path}/Denoise/job007/denoised",
             "cleanup_output": False,
             "relion_options": {},
         },
@@ -100,6 +249,7 @@ def test_denoise_slurm_service(
 
     # Touch the expected output files
     (tmp_path / "Denoise/job007/denoised").mkdir(parents=True)
+    (tmp_path / "Denoise/job007/denoised/test_stack_aretomo.denoised.mrc").touch()
     (tmp_path / "Denoise/job007/denoised/test_stack_aretomo.denoised.mrc.out").touch()
     (tmp_path / "Denoise/job007/denoised/test_stack_aretomo.denoised.mrc.err").touch()
 
@@ -126,14 +276,16 @@ def test_denoise_slurm_service(
     )
 
     # Check file transfer and retrieval
-    # assert mock_transfer.call_count == 1
-    # mock_transfer.assert_any_call([f"{tmp_path}/test_stack_aretomo.mrc"])
-    # assert mock_retrieve.call_count == 1
-    # mock_retrieve.assert_any_call(
-    #    job_directory=tmp_path,
-    #    files_to_skip=[tmp_path / "test_stack_aretomo.mrc"],
-    #    basepath="test_stack_aretomo",
-    # )
+    assert mock_transfer.call_count == 1
+    mock_transfer.assert_any_call(
+        [tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo.mrc"]
+    )
+    assert mock_retrieve.call_count == 1
+    mock_retrieve.assert_any_call(
+        job_directory=tmp_path / "Denoise/job007/denoised",
+        files_to_skip=[tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo.mrc"],
+        basepath="test_stack_aretomo",
+    )
     assert mock_subprocess.call_count == 5
 
     # Check the denoising command
@@ -141,8 +293,18 @@ def test_denoise_slurm_service(
         tmp_path / "Denoise/job007/denoised/test_stack_aretomo.denoised.mrc.json", "r"
     ) as script_file:
         script_json = json.load(script_file)
-    topaz_command = script_json["script"].split("\n")[-1]
+    topaz_command = script_json["script"].split("\n")[-2]
 
+    singularity_command = [
+        "singularity",
+        "exec",
+        "--nv",
+        "--bind",
+        "/tmp/tmp_$SLURM_JOB_ID:/tmp,directory1,directory2",
+        "--home",
+        "/home",
+        "topaz.sif",
+    ]
     denoise_command = [
         "topaz",
         "denoise3d",
@@ -151,47 +313,9 @@ def test_denoise_slurm_service(
         f"{tmp_path}/Denoise/job007/denoised",
         "--suffix",
         ".denoised",
-        "-m",
-        "unet-3d",
-        "--N-train",
-        "1000",
-        "--N-test",
-        "200",
-        "-c",
-        "96",
-        "--base-kernel-width",
-        "11",
-        "--optim adagrad",
-        "--lr",
-        "0.001",
-        "--criteria",
-        "L2",
-        "--momentum",
-        "0.8",
-        "--batch-size",
-        "10",
-        "--num-epochs",
-        "500",
-        "-w",
-        "0",
-        "--save-interval",
-        "10",
-        "--save-prefix",
-        "prefix",
-        "--num-workers",
-        "1",
-        "-j",
-        "0",
-        "-g",
-        "0",
-        "-s",
-        "96",
-        "-p",
-        "48",
-        "-d",
-        "-2",
     ]
-    assert topaz_command == " ".join(denoise_command)
+    singularity_command.extend(denoise_command)
+    assert topaz_command == " ".join(singularity_command)
 
     # Check the images service request
     assert offline_transport.send.call_count == 5
