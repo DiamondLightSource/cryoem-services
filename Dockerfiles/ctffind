@@ -1,5 +1,5 @@
 # This Dockerfile is used for CTFFind4
-FROM python:3.10
+FROM python:3.11
 
 ENV VIRTUAL_ENV=/venv
 RUN python3 -m venv $VIRTUAL_ENV

@@ -19,11 +19,14 @@ RUN make --directory=/install/relion_src/build/ install
 FROM rockylinux:8 AS conda-build
 
 # Set up conda environment
-RUN curl -L -O "https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-$(uname)-$(uname -m).sh"
-RUN bash Mambaforge-$(uname)-$(uname -m).sh -b -p "conda"
+RUN curl -L -O "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-$(uname)-$(uname -m).sh"
+RUN bash Miniforge3-$(uname)-$(uname -m).sh -b -p "conda"
 
 RUN source "/conda/etc/profile.d/conda.sh" && conda install -c conda-forge conda-pack
-RUN source "/conda/etc/profile.d/conda.sh" && source "/conda/etc/profile.d/mamba.sh" && mamba create -c conda-forge -p /install/pythonenv python=3.9 pip libtiff=4.4.0 pytorch-cpu=1.10.0 numpy=1.25.2 --override-channels -y
+RUN source "/conda/etc/profile.d/conda.sh" && source "/conda/etc/profile.d/mamba.sh" && \
+    mamba create -c conda-forge -p /install/pythonenv python=3.11 pip libtiff=4.4.0 --override-channels -y
+RUN source "/conda/etc/profile.d/conda.sh" && conda activate /install/pythonenv && \
+    pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
 
 # Install cryoem-services and pipeliner
 RUN mkdir /install/cryoem-services
@@ -52,13 +55,9 @@ RUN groupadd -r -g "${groupid}" "${groupname}" && useradd -r -M "${groupname}" -
 RUN yum install openmpi fftw-devel libtiff-devel libpng-devel libjpeg-devel zlib-devel -y
 
 # Copy Relion
-RUN mkdir -p /install/relion4.0
-COPY --from=relion-build /install/relion4.0 /install/relion4.0
+COPY --from=relion-build --chown="${userid}":"${groupid}" /install/relion4.0 /install/relion4.0
 ENV PATH="/install/relion4.0/bin:${PATH}"
 
 # Copy python environment
-COPY --from=conda-build /install/venv /install/venv
+COPY --from=conda-build --chown="${userid}":"${groupid}" /install/venv /install/venv
 ENV PATH="/install/venv/bin:${PATH}"
-
-# Change permissions
-RUN chown -R "${userid}":"${groupid}" install
