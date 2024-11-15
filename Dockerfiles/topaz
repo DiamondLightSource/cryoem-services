@@ -1,4 +1,4 @@
-FROM python:3.10
+FROM python:3.11
 
 ENV VIRTUAL_ENV=/venv
 RUN python3 -m venv $VIRTUAL_ENV
@@ -12,7 +12,7 @@ COPY --chown="${userid}":"${groupid}" packages/cryoem-services ./cryoem-services
 RUN python -m pip install ./cryoem-services
 
 # Install topaz
-RUN python -m pip install topaz-em
+RUN python -m pip install topaz-em==0.2.5
 
 # Create EM user
 RUN groupadd -r -g "${groupid}" "${groupname}" && useradd -r -M "${groupname}" -u "${userid}" -g "${groupname}"

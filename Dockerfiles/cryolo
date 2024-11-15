@@ -2,8 +2,8 @@
 FROM rockylinux:8 AS conda-build
 
 # Set up conda environment
-RUN curl -L -O "https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-$(uname)-$(uname -m).sh"
-RUN bash Mambaforge-$(uname)-$(uname -m).sh -b -p "conda"
+RUN curl -L -O "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-$(uname)-$(uname -m).sh"
+RUN bash Miniforge3-$(uname)-$(uname -m).sh -b -p "conda"
 
 # Create different conda environments for cryoem-services and cryolo
 RUN source "/conda/etc/profile.d/conda.sh" && conda install -c conda-forge conda-pack
@@ -14,7 +14,8 @@ RUN source "/conda/etc/profile.d/conda.sh" && source "/conda/etc/profile.d/mamba
 # Install cryoem-services and Cryolo in their own environments
 RUN mkdir /install/cryoem-services
 COPY packages/cryoem-services /install/cryoem-services
-RUN source "/conda/etc/profile.d/conda.sh" && conda activate /install/services_env && pip install --cache-dir /tmp /install/cryoem-services
+RUN source "/conda/etc/profile.d/conda.sh" && conda activate /install/services_env && \
+    pip install --cache-dir /tmp /install/cryoem-services
 RUN source "/conda/etc/profile.d/conda.sh" && conda activate /install/cryolo_env && pip install cryolo[cpu]
 
 # Pack the environments

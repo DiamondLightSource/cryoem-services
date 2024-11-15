@@ -2,11 +2,12 @@
 FROM rockylinux:8 AS conda-build
 
 # Set up conda environment
-RUN curl -L -O "https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-$(uname)-$(uname -m).sh"
-RUN bash Mambaforge-$(uname)-$(uname -m).sh -b -p "conda"
+RUN curl -L -O "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-$(uname)-$(uname -m).sh"
+RUN bash Miniforge3-$(uname)-$(uname -m).sh -b -p "conda"
 
 RUN source "/conda/etc/profile.d/conda.sh" && conda install -c conda-forge conda-pack
-RUN source "/conda/etc/profile.d/conda.sh" && source "/conda/etc/profile.d/mamba.sh" && mamba create -c conda-forge -p /install/pythonenv python=3.11 pip libtiff=4.4.0 numpy=1.26.4 --override-channels -y
+RUN source "/conda/etc/profile.d/conda.sh" && source "/conda/etc/profile.d/mamba.sh" && \
+    mamba create -c conda-forge -p /install/pythonenv python=3.11 pip libtiff=4.4.0 numpy=1.26.4 --override-channels -y
 
 # Install cryoem-services
 RUN mkdir /install/cryoem-services
