@@ -22,9 +22,7 @@ def offline_transport(mocker):
 @mock.patch("workflows.recipe.Recipe")
 def test_process_recipe_service(mock_recipe, mock_rw, offline_transport, tmp_path):
     """
-    Send a test message to CTFFind
-    This should call the mock subprocess then send messages on to the
-    cryolo, node_creator, ispyb_connector and images services
+    Send a test message to ProcessRecipe to start recipes
     """
     # Create a config file
     config_file = tmp_path / "config.yaml"
