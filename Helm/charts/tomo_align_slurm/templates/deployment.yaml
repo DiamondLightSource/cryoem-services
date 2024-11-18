@@ -32,23 +32,21 @@ spec:
           - >-
               {{ .Values.command }}
         env:
-        - name: KUBERNETES
-          value: "1"
-        - name: ZOCALO_CONFIG
-          value: "/zocalo/config/{{ .Values.global.configFileName }}"
-        - name: ISPYB_CREDENTIALS
-          value: "/zocalo/secrets/{{ .Values.global.dbFileName }}"
+        - name: ARETOMO2_EXECUTABLE
+          value: "{{ .Values.aretomoExecutable }}"
+        - name: EXTRA_LIBRARIES
+          value: "{{ .Values.extraLibraries }}"
+        - name: SLURM_RESTAPI_CONFIG
+          value: "{{ .Values.slurmCredentials }}"
         - name: LD_LIBRARY_PATH
           value: "/IMOD/4.11.1/IMOD/lib:/IMOD/4.11.1/IMOD/qtlib"
         - name: IMOD_DIR
           value: "/IMOD/4.11.1/IMOD"
-        - name: CONDOR_CONFIG
-          value: "ONLY_ENV"
         volumeMounts:
         - name: config-file
-          mountPath: /zocalo/config
+          mountPath: /cryoemservices/config
         - name: secrets
-          mountPath: /zocalo/secrets
+          mountPath: /cryoemservices/secrets
 {{- if .Values.extraVolumeMounts }}
 {{ toYaml .Values.extraVolumeMounts | indent 8 }}
 {{ end }}
@@ -60,8 +58,6 @@ spec:
         projected:
           defaultMode: 0444
           sources:
-          - secret: 
-              name: {{ .Values.global.dbSecretName }}
           - secret:
               name: {{ .Values.global.rmqSecretName }}
           - secret:
