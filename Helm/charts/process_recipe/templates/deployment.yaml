@@ -1,23 +1,23 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: dispatcher
+  name: process-recipe
   namespace: {{ .Values.global.namespace }}
 spec:
   replicas: {{ .Values.replicas }}
   selector:
     matchLabels:
-      app: dispatcher
+      app: process-recipe
   template:
     metadata:
       labels:
-        app: dispatcher
+        app: process-recipe
     spec:
       securityContext:
         runAsUser: {{ .Values.global.runAsUser }}
         runAsGroup: {{ .Values.global.runAsGroup }}
       containers:
-      - name: dispatcher-runner
+      - name: process-recipe-runner
         image: {{ .Values.image }}
         imagePullPolicy: Always
         resources:
@@ -78,11 +78,11 @@ spec:
 apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
 metadata:
-  name: dispatcher
+  name: process-recipe
   namespace: {{ .Values.global.namespace }}
 spec:
   scaleTargetRef:
-    name: dispatcher
+    name: process-recipe
   triggers:
     - type: rabbitmq
       metadata:

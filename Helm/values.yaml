@@ -94,21 +94,6 @@ denoise_slurm:
       mountPropagation: HostToContainer
       readOnly: true
 
-dispatcher:
-  replicas: 1
-  image: gcr.io/image/path
-  command: cryoemservices.service -s service-name -c config-file
-  extraVolumes:
-    - name: home
-      hostPath:
-        path: /home
-        type: Directory
-  extraVolumeMounts:
-    - mountPath: /home
-      name: home
-      mountPropagation: HostToContainer
-      readOnly: true
-
 extract:
   replicas: 1
   image: gcr.io/image/path
@@ -230,6 +215,21 @@ node_creator:
       readOnly: true
 
 postprocess:
+  replicas: 1
+  image: gcr.io/image/path
+  command: cryoemservices.service -s service-name -c config-file
+  extraVolumes:
+    - name: home
+      hostPath:
+        path: /home
+        type: Directory
+  extraVolumeMounts:
+    - mountPath: /home
+      name: home
+      mountPropagation: HostToContainer
+      readOnly: true
+
+process_recipe:
   replicas: 1
   image: gcr.io/image/path
   command: cryoemservices.service -s service-name -c config-file

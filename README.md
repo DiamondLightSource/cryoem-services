@@ -55,10 +55,10 @@ The following services are provided for running the pipelines:
 
 - Utility services:
   - **ClusterSubmission**: Submits wrapper scripts to an HPC cluster
-  - **Dispatcher**: Converts recipes into messages suitable for processing services
   - **Images**: Creates thumbnail images for viewing processing outcomes
   - **ISPyB**: Inserts results into an ISPyB database
   - **NodeCreator**: Creates Relion project files for the services run
+  - **ProcessRecipe**: Converts recipes into messages suitable for processing services
 - Processing services:
   - **BFactor**: Performs the setup for 3D refinement with varying particle count
   - **CrYOLO**: Particle picking on micrographs using [crYOLO](https://cryolo.readthedocs.io)
@@ -104,7 +104,7 @@ Recipes for the current processing pipelines are provided in the `recipes` folde
 To run a recipe in python a dictionary needs to be provided consisting of
 the recipe name and the parameters expected by the recipe.
 The following snippet shows an example of the setup needed.
-This will send a message to a running **Dispatcher** service which
+This will send a message to a running **ProcessRecipe** service which
 prepares the recipe for the processing services.
 
 ```python

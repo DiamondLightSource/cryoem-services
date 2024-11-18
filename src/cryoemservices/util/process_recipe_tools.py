@@ -12,7 +12,7 @@ import sqlalchemy
 from marshmallow_sqlalchemy import SQLAlchemyAutoSchema
 from sqlalchemy.orm import selectinload, sessionmaker
 
-logger = logging.getLogger("cryoemservices.services.dispatcher_tools")
+logger = logging.getLogger("cryoemservices.services.process_recipe_tools")
 
 re_visit_base = re.compile(r"^(.*/([a-z][a-z][0-9]+-[0-9]+))/")
 

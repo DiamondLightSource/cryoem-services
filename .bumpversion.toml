@@ -49,11 +49,6 @@ search = 'version: {current_version}'
 replace = 'version: {new_version}'
 
 [[tool.bumpversion.files]]
-filename = "Helm/charts/dispatcher/Chart.yaml"
-search = 'version: {current_version}'
-replace = 'version: {new_version}'
-
-[[tool.bumpversion.files]]
 filename = "Helm/charts/extract/Chart.yaml"
 search = 'version: {current_version}'
 replace = 'version: {new_version}'
@@ -95,6 +90,11 @@ replace = 'version: {new_version}'
 
 [[tool.bumpversion.files]]
 filename = "Helm/charts/postprocess/Chart.yaml"
+search = 'version: {current_version}'
+replace = 'version: {new_version}'
+
+[[tool.bumpversion.files]]
+filename = "Helm/charts/process_recipe/Chart.yaml"
 search = 'version: {current_version}'
 replace = 'version: {new_version}'
 
