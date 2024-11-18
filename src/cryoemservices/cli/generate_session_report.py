@@ -134,6 +134,7 @@ class SessionResults:
         )
         doc.preamble.append(pylatex.NoEscape(r"\setlength{\parindent}{0pt}"))
         doc.preamble.append(pylatex.NoEscape(r"\usepackage[T1]{fontenc}"))
+        doc.preamble.append(pylatex.NoEscape(r"\usepackage{float}"))
         doc.preamble.append(pylatex.NoEscape(r"\usepackage{palatino}"))
         doc.preamble.append(
             pylatex.Command(
@@ -163,7 +164,7 @@ class SessionResults:
             if self.supervisor_name:
                 doc.append(f"This dataset was named {self.supervisor_name}. ")
             doc.append(
-                f"The raw data for this collection is in \n{self.image_directory}\n"
+                f"The raw data for this collection is in {self.image_directory}\n"
                 f"In this, a total of {self.micrograph_count} micrographs were "
                 f"collected across {self.number_of_grid_squares} grid squares."
             )
@@ -222,7 +223,7 @@ class SessionResults:
                 pylatex.NoEscape(
                     rf"The median motion was {self.median_motion} $\AA$ and "
                     "the median resolution from CTF correction was "
-                    rf"{self.median_ctf_resolution} $\AA$"
+                    rf"{self.median_ctf_resolution} $\AA$."
                 )
             )
             doc.append(pylatex.NoEscape("\n"))
@@ -234,30 +235,30 @@ class SessionResults:
                 )
             )
 
-            with doc.create(pylatex.Figure(position="h!")) as micrograph_image:
-                if len(self.example_micrographs):
-                    micrograph_image.add_image(
+            if len(self.example_micrographs) and len(self.example_picks):
+                with doc.create(pylatex.Figure(position="H")) as micrograph_1_image:
+                    micrograph_1_image.add_image(
                         self.example_micrographs[0], width="200px"
                     )
-                micrograph_image.append(pylatex.NoEscape(r"\hspace{20px}"))
-                if len(self.example_micrographs) > 1:
-                    micrograph_image.add_image(
+                    micrograph_1_image.append(pylatex.NoEscape(r"\hspace{20px}"))
+                    micrograph_1_image.add_image(self.example_picks[0], width="200px")
+
+                    micrograph_1_image.add_caption(
+                        "The motion corrected micrograph and pick locations for the "
+                        "micrograph with the most picked particles"
+                    )
+
+            if len(self.example_micrographs) > 1 and len(self.example_picks) > 1:
+                with doc.create(pylatex.Figure(position="H")) as micrograph_2_image:
+                    micrograph_2_image.add_image(
                         self.example_micrographs[1], width="200px"
                     )
-                micrograph_image.add_caption(
-                    "The motion corrected micrographs with the most picked particles"
-                )
-
-            with doc.create(pylatex.Figure(position="h!")) as pick_image:
-                if len(self.example_picks):
-                    pick_image.add_image(self.example_picks[0], width="200px")
-                pick_image.append(pylatex.NoEscape(r"\hspace{20px}"))
-                if len(self.example_picks) > 1:
-                    pick_image.add_image(self.example_picks[1], width="200px")
-                pick_image.add_caption(
-                    "The motion corrected micrographs with the most picked particles, "
-                    "with the particle locations overlaid"
-                )
+                    micrograph_2_image.append(pylatex.NoEscape(r"\hspace{20px}"))
+                    micrograph_2_image.add_image(self.example_picks[1], width="200px")
+                    micrograph_2_image.add_caption(
+                        "The motion corrected micrograph and pick locations for the "
+                        "micrograph with the second most picked particles"
+                    )
 
         with doc.create(pylatex.Section("Particle classification")):
             doc.append(
@@ -279,7 +280,7 @@ class SessionResults:
             )
             doc.append(pylatex.NoEscape("\n"))
 
-            with doc.create(pylatex.Figure(position="h!")) as class2d_image:
+            with doc.create(pylatex.Figure(position="H")) as class2d_image:
                 for i in range(min(len(self.example_class2d), 18)):
                     # Display up to 18 examples of 2d classes
                     class2d_image.add_image(self.example_class2d[i], width="50px")
@@ -350,7 +351,7 @@ class SessionResults:
                         "which should indicate how many orientations are present."
                     )
                 )
-                with doc.create(pylatex.Figure(position="h!")) as angdist_image:
+                with doc.create(pylatex.Figure(position="H")) as angdist_image:
                     angdist_image.add_image(self.class3d_angdist, width="200px")
                     angdist_image.add_caption(
                         "The distribution of particle angles for the 3D class "
@@ -362,9 +363,9 @@ class SessionResults:
                 doc.append(pylatex.NoEscape("\n\n"))
                 doc.append(
                     pylatex.NoEscape(
-                        r"Refinement of the 3D structure was run using "
-                        rf"a pixel size of {self.pixel_size * 20} $\AA$ "
-                        f"and {self.refined_batch} particles."
+                        r"3D structural refinement was run using "
+                        f"{self.refined_batch} particles "
+                        rf"and a pixel size of {self.pixel_size * 20} $\AA$."
                     )
                 )
                 doc.append(pylatex.NoEscape("\n"))
@@ -380,13 +381,14 @@ class SessionResults:
                     )
                 )
                 doc.append(pylatex.NoEscape("\n"))
-                doc.append(
-                    f"An estimated B-factor is {round(2 / self.bfactor[refine1])}, "
-                    f"but we caution that masks are not optimised and "
-                    f"the performance of earlier automated processing steps "
-                    f"will affect the results, "
-                    f"so you should be able to improve upon this.\n"
-                )
+                if self.bfactor[refine1]:
+                    doc.append(
+                        f"The estimated B-factor is {round(2 / self.bfactor[refine1])}, "
+                        f"but we caution that masks are not optimised and "
+                        f"the performance of earlier automated processing steps "
+                        f"will affect the results, "
+                        f"so you should be able to improve upon this.\n"
+                    )
 
                 if len(self.refined_symmetry) == 2:
                     sym_refine = 1 - refine1
