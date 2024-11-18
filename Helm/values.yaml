@@ -9,6 +9,16 @@ global:
   dbFileName: ispyb.cfg
   rmqSecretName: rmq-creds-k8s
   rmqApiSecretName: rmq-api-reader-k8s
+  extraGlobalVolumes:
+    - name: home
+      hostPath:
+        path: /home
+        type: Directory
+  extraGlobalVolumeMounts:
+    - mountPath: /home
+      name: home
+      mountPropagation: HostToContainer
+      readOnly: true
 
 bfactor_setup:
   replicas: 1
@@ -17,16 +27,6 @@ bfactor_setup:
   cpuRequest: "0.5"
   cpuLimit: "1"
   memoryLimit: 4Gi
-  extraVolumes:
-    - name: home
-      hostPath:
-        path: /home
-        type: Directory
-  extraVolumeMounts:
-    - mountPath: /home
-      name: home
-      mountPropagation: HostToContainer
-      readOnly: true
 
 cluster_submission:
   replicas: 1
@@ -35,16 +35,6 @@ cluster_submission:
   cpuRequest: "0.25"
   cpuLimit: "0.25"
   memoryLimit: 256Mi
-  extraVolumes:
-    - name: home
-      hostPath:
-        path: /home
-        type: Directory
-  extraVolumeMounts:
-    - mountPath: /home
-      name: home
-      mountPropagation: HostToContainer
-      readOnly: true
 
 cryolo:
   replicas: 1
@@ -53,16 +43,6 @@ cryolo:
   cpuRequest: "0.5"
   cpuLimit: "1"
   memoryLimit: 4Gi
-  extraVolumes:
-    - name: home
-      hostPath:
-        path: /home
-        type: Directory
-  extraVolumeMounts:
-    - mountPath: /home
-      name: home
-      mountPropagation: HostToContainer
-      readOnly: true
 
 ctffind:
   replicas: 1
@@ -71,16 +51,6 @@ ctffind:
   cpuRequest: "0.25"
   cpuLimit: "1"
   memoryLimit: 2Gi
-  extraVolumes:
-    - name: home
-      hostPath:
-        path: /home
-        type: Directory
-  extraVolumeMounts:
-    - mountPath: /home
-      name: home
-      mountPropagation: HostToContainer
-      readOnly: true
 
 denoise:
   replicas: 1
@@ -89,36 +59,16 @@ denoise:
   cpuRequest: "1"
   cpuLimit: "1"
   memoryLimit: 15Gi
-  extraVolumes:
-    - name: home
-      hostPath:
-        path: /home
-        type: Directory
-  extraVolumeMounts:
-    - mountPath: /home
-      name: home
-      mountPropagation: HostToContainer
-      readOnly: true
-  denoisingSIF: topaz.sif
-  slurmCredentials: slurm_credentials.yaml
 
 denoise_slurm:
+  denoisingSIF: topaz.sif
+  slurmCredentials: slurm_credentials.yaml
   replicas: 1
   image: gcr.io/image/path
   command: cryoemservices.service -s DenoiseSlurm -c /cryoemservices/config/cryoemservices_config.yaml
   cpuRequest: "0.25"
   cpuLimit: "1"
   memoryLimit: 1Gi
-  extraVolumes:
-    - name: home
-      hostPath:
-        path: /home
-        type: Directory
-  extraVolumeMounts:
-    - mountPath: /home
-      name: home
-      mountPropagation: HostToContainer
-      readOnly: true
 
 extract:
   replicas: 1
@@ -127,54 +77,24 @@ extract:
   cpuRequest: "0.5"
   cpuLimit: "1"
   memoryLimit: 4Gi
-  extraVolumes:
-    - name: home
-      hostPath:
-        path: /home
-        type: Directory
-  extraVolumeMounts:
-    - mountPath: /home
-      name: home
-      mountPropagation: HostToContainer
-      readOnly: true
 
 extract_class:
+  slurmCredentials: slurm_credentials.yaml
   replicas: 1
   image: gcr.io/image/path
   command: cryoemservices.service -s ExtractClass -c /cryoemservices/config/cryoemservices_config.yaml
   cpuRequest: "1"
   cpuLimit: "4"
   memoryLimit: 4Gi
-  extraVolumes:
-    - name: home
-      hostPath:
-        path: /home
-        type: Directory
-  extraVolumeMounts:
-    - mountPath: /home
-      name: home
-      mountPropagation: HostToContainer
-      readOnly: true
-  slurmCredentials: slurm_credentials.yaml
 
 icebreaker:
+  slurmCredentials: slurm_credentials.yaml
   replicas: 1
   image: gcr.io/image/path
   command: cryoemservices.service -s IceBreaker -c /cryoemservices/config/cryoemservices_config.yaml
   cpuRequest: "0.5"
   cpuLimit: "1"
   memoryLimit: 4Gi
-  extraVolumes:
-    - name: home
-      hostPath:
-        path: /home
-        type: Directory
-  extraVolumeMounts:
-    - mountPath: /home
-      name: home
-      mountPropagation: HostToContainer
-      readOnly: true
-  slurmCredentials: slurm_credentials.yaml
 
 images:
   replicas: 2
@@ -183,16 +103,6 @@ images:
   cpuRequest: "0.25"
   cpuLimit: "1"
   memoryLimit: 8Gi
-  extraVolumes:
-    - name: home
-      hostPath:
-        path: /home
-        type: Directory
-  extraVolumeMounts:
-    - mountPath: /home
-      name: home
-      mountPropagation: HostToContainer
-      readOnly: true
 
 ispyb:
   replicas: 1
@@ -201,55 +111,25 @@ ispyb:
   cpuRequest: "0.25"
   cpuLimit: "1"
   memoryLimit: 256Mi
-  extraVolumes:
-    - name: home
-      hostPath:
-        path: /home
-        type: Directory
-  extraVolumeMounts:
-    - mountPath: /home
-      name: home
-      mountPropagation: HostToContainer
-      readOnly: true
 
 membrain_seg:
+  slurmCredentials: slurm_credentials.yaml
   replicas: 1
   image: gcr.io/image/path
   command: cryoemservices.service -s MembrainSeg -c /cryoemservices/config/cryoemservices_config.yaml
   cpuRequest: "0.25"
   cpuLimit: "0.5"
   memoryLimit: 1Gi
-  extraVolumes:
-    - name: home
-      hostPath:
-        path: /home
-        type: Directory
-  extraVolumeMounts:
-    - mountPath: /home
-      name: home
-      mountPropagation: HostToContainer
-      readOnly: true
-  slurmCredentials: slurm_credentials.yaml
 
 motioncorr:
+  motioncorSIF: motioncor2.sif
+  slurmCredentials: slurm_credentials.yaml
   replicas: 1
   image: gcr.io/image/path
   command: cryoemservices.service -s MotionCorr -c /cryoemservices/config/cryoemservices_config.yaml
   cpuRequest: "4"
   cpuLimit: "4"
   memoryLimit: 15Gi
-  extraVolumes:
-    - name: home
-      hostPath:
-        path: /home
-        type: Directory
-  extraVolumeMounts:
-    - mountPath: /home
-      name: home
-      mountPropagation: HostToContainer
-      readOnly: true
-  motioncorSIF: motioncor2.sif
-  slurmCredentials: slurm_credentials.yaml
 
 node_creator:
   replicas: 1
@@ -258,16 +138,6 @@ node_creator:
   cpuRequest: "0.25"
   cpuLimit: "1"
   memoryLimit: 4Gi
-  extraVolumes:
-    - name: home
-      hostPath:
-        path: /home
-        type: Directory
-  extraVolumeMounts:
-    - mountPath: /home
-      name: home
-      mountPropagation: HostToContainer
-      readOnly: true
 
 postprocess:
   replicas: 1
@@ -276,16 +146,6 @@ postprocess:
   cpuRequest: "0.5"
   cpuLimit: "1"
   memoryLimit: 4Gi
-  extraVolumes:
-    - name: home
-      hostPath:
-        path: /home
-        type: Directory
-  extraVolumeMounts:
-    - mountPath: /home
-      name: home
-      mountPropagation: HostToContainer
-      readOnly: true
 
 process_recipe:
   replicas: 1
@@ -294,16 +154,6 @@ process_recipe:
   cpuRequest: "0.5"
   cpuLimit: "1"
   memoryLimit: 256Mi
-  extraVolumes:
-    - name: home
-      hostPath:
-        path: /home
-        type: Directory
-  extraVolumeMounts:
-    - mountPath: /home
-      name: home
-      mountPropagation: HostToContainer
-      readOnly: true
 
 select_classes:
   replicas: 1
@@ -312,16 +162,6 @@ select_classes:
   cpuRequest: "1"
   cpuLimit: "1"
   memoryLimit: 4Gi
-  extraVolumes:
-    - name: home
-      hostPath:
-        path: /home
-        type: Directory
-  extraVolumeMounts:
-    - mountPath: /home
-      name: home
-      mountPropagation: HostToContainer
-      readOnly: true
 
 select_particles:
   replicas: 1
@@ -330,50 +170,20 @@ select_particles:
   cpuRequest: "0.5"
   cpuLimit: "1"
   memoryLimit: 1Gi
-  extraVolumes:
-    - name: home
-      hostPath:
-        path: /home
-        type: Directory
-  extraVolumeMounts:
-    - mountPath: /home
-      name: home
-      mountPropagation: HostToContainer
-      readOnly: true
 
 tomo_align:
   replicas: 1
   image: gcr.io/image/path
   command: cryoemservices.service -s TomoAlign -c /cryoemservices/config/cryoemservices_config.yaml
   memoryLimit: 20Gi
-  extraVolumes:
-    - name: home
-      hostPath:
-        path: /home
-        type: Directory
-  extraVolumeMounts:
-    - mountPath: /home
-      name: home
-      mountPropagation: HostToContainer
-      readOnly: true
 
 tomo_align_slurm:
+  aretomoExectable: /path/to/AreTomo2
+  extraLibraries: /path/to/aretomo/lib
+  slurmCredentials: slurm_credentials.yaml
   replicas: 1
   image: gcr.io/image/path
   command: cryoemservices.service -s TomoAlignSlurm -c /cryoemservices/config/cryoemservices_config.yaml
   cpuRequest: "0.75"
   cpuLimit: "1"
   memoryLimit: 4Gi
-  extraVolumes:
-    - name: home
-      hostPath:
-        path: /home
-        type: Directory
-  extraVolumeMounts:
-    - mountPath: /home
-      name: home
-      mountPropagation: HostToContainer
-      readOnly: true
-  aretomoExectable: /path/to/AreTomo2
-  extraLibraries: /path/to/aretomo/lib
-  slurmCredentials: slurm_credentials.yaml
