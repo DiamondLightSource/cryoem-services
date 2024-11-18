@@ -6,12 +6,12 @@ FROM rockylinux:8 AS relion-build
 RUN yum install gcc gcc-c++ cmake openmpi -y
 RUN yum install fftw-devel libtiff-devel libpng-devel libjpeg-devel zlib-devel -y
 
-# Build Relion - need to be on the ver4.0 tag
-RUN mkdir -p /install/relion4.0
+# Build Relion - need to be on the ver5.0-mc-devolve branch
+RUN mkdir -p /install/relion5.0
 COPY packages/relion_fork /install/relion_src
 RUN mkdir /install/relion_src/build
 
-RUN cmake -DCMAKE_INSTALL_PREFIX=/install/relion4.0 -DCMAKE_C_COMPILER=/usr/bin/gcc -DCMAKE_CXX_COMPILER=/usr/bin/g++ -DMPI_C_COMPILER=/usr/lib64/openmpi/bin/mpicc -DMPI_CXX_COMPILER=/usr/lib64/openmpi/bin/mpicxx -DMPI_C_LIBRARIES=/usr/lib64/openmpi/lib/libmpi.so -DMPI_CXX_LIBRARIES=/usr/lib64/openmpi/lib/libmpi.so -DGUI=OFF -DALTCPU=ON -DDoublePrec_CPU=OFF -DFORCE_OWN_FFTW=ON -DAMDFFTW=ON -B/install/relion_src/build -S/install/relion_src
+RUN cmake -DCMAKE_INSTALL_PREFIX=/install/relion5.0 -DCMAKE_C_COMPILER=/usr/bin/gcc -DCMAKE_CXX_COMPILER=/usr/bin/g++ -DMPI_C_COMPILER=/usr/lib64/openmpi/bin/mpicc -DMPI_CXX_COMPILER=/usr/lib64/openmpi/bin/mpicxx -DMPI_C_LIBRARIES=/usr/lib64/openmpi/lib/libmpi.so -DMPI_CXX_LIBRARIES=/usr/lib64/openmpi/lib/libmpi.so -DGUI=OFF -DALTCPU=ON -DDoublePrec_CPU=OFF -DFORCE_OWN_FFTW=ON -DAMDFFTW=ON -B/install/relion_src/build -S/install/relion_src
 RUN make --directory=/install/relion_src/build/ install
 
 
@@ -28,8 +28,8 @@ RUN groupadd -r -g "${groupid}" "${groupname}" && useradd -r -M "${groupname}" -
 RUN yum install openmpi fftw-devel libtiff-devel libpng-devel libjpeg-devel python3.11 zlib-devel -y
 
 # Copy Relion
-COPY --from=relion-build --chown="${userid}":"${groupid}" /install/relion4.0 /install/relion4.0
-ENV PATH="/install/relion4.0/bin:${PATH}"
+COPY --from=relion-build --chown="${userid}":"${groupid}" /install/relion5.0 /install/relion5.0
+ENV PATH="/install/relion5.0/bin:${PATH}"
 
 # Make the python virtual environment and install cryoem-services
 ENV VIRTUAL_ENV=/venv
