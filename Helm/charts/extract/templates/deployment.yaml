@@ -32,12 +32,12 @@ spec:
           - >-
               {{ .Values.command }}
         env:
-          - name: MKL_NUM_THREADS
-            value: "1"
-          - name: NUMEXPR_NUM_THREADS
-            value: "1"
-          - name: OMP_NUM_THREADS
-            value: "1"
+        - name: MKL_NUM_THREADS
+          value: "1"
+        - name: NUMEXPR_NUM_THREADS
+          value: "1"
+        - name: OMP_NUM_THREADS
+          value: "1"
         volumeMounts:
         - name: config-file
           mountPath: /cryoemservices/config

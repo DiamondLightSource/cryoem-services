@@ -13,7 +13,7 @@ global:
 bfactor_setup:
   replicas: 1
   image: gcr.io/image/path
-  command: cryoemservices.service -s BFactor -c config-file
+  command: cryoemservices.service -s BFactor -c /cryoemservices/config/cryoemservices_config.yaml
   cpuRequest: "0.5"
   cpuLimit: "1"
   memoryLimit: 4Gi
@@ -31,7 +31,7 @@ bfactor_setup:
 cluster_submission:
   replicas: 1
   image: gcr.io/image/path
-  command: cryoemservices.service -s ClusterSubmission -c config-file
+  command: cryoemservices.service -s ClusterSubmission -c /cryoemservices/config/cryoemservices_config.yaml
   cpuRequest: "0.25"
   cpuLimit: "0.25"
   memoryLimit: 256Mi
@@ -49,7 +49,7 @@ cluster_submission:
 cryolo:
   replicas: 1
   image: gcr.io/image/path
-  command: cryoemservices.service -s CrYOLO -c config-file
+  command: cryoemservices.service -s CrYOLO -c /cryoemservices/config/cryoemservices_config.yaml
   cpuRequest: "0.5"
   cpuLimit: "1"
   memoryLimit: 4Gi
@@ -67,7 +67,7 @@ cryolo:
 ctffind:
   replicas: 1
   image: gcr.io/image/path
-  command: cryoemservices.service -s CTFFind -c config-file
+  command: cryoemservices.service -s CTFFind -c /cryoemservices/config/cryoemservices_config.yaml
   cpuRequest: "0.25"
   cpuLimit: "1"
   memoryLimit: 2Gi
@@ -85,7 +85,7 @@ ctffind:
 denoise:
   replicas: 1
   image: gcr.io/image/path
-  command: cryoemservices.service -s Denoise -c config-file
+  command: cryoemservices.service -s Denoise -c /cryoemservices/config/cryoemservices_config.yaml
   cpuRequest: "1"
   cpuLimit: "1"
   memoryLimit: 15Gi
@@ -105,7 +105,7 @@ denoise:
 denoise_slurm:
   replicas: 1
   image: gcr.io/image/path
-  command: cryoemservices.service -s DenoiseSlurm -c config-file
+  command: cryoemservices.service -s DenoiseSlurm -c /cryoemservices/config/cryoemservices_config.yaml
   cpuRequest: "0.25"
   cpuLimit: "1"
   memoryLimit: 1Gi
@@ -123,7 +123,7 @@ denoise_slurm:
 extract:
   replicas: 1
   image: gcr.io/image/path
-  command: cryoemservices.service -s Extract -c config-file
+  command: cryoemservices.service -s Extract -c /cryoemservices/config/cryoemservices_config.yaml
   cpuRequest: "0.5"
   cpuLimit: "1"
   memoryLimit: 4Gi
@@ -141,7 +141,7 @@ extract:
 extract_class:
   replicas: 1
   image: gcr.io/image/path
-  command: cryoemservices.service -s ExtractClass -c config-file
+  command: cryoemservices.service -s ExtractClass -c /cryoemservices/config/cryoemservices_config.yaml
   cpuRequest: "1"
   cpuLimit: "4"
   memoryLimit: 4Gi
@@ -160,7 +160,7 @@ extract_class:
 icebreaker:
   replicas: 1
   image: gcr.io/image/path
-  command: cryoemservices.service -s IceBreaker -c config-file
+  command: cryoemservices.service -s IceBreaker -c /cryoemservices/config/cryoemservices_config.yaml
   cpuRequest: "0.5"
   cpuLimit: "1"
   memoryLimit: 4Gi
@@ -179,7 +179,7 @@ icebreaker:
 images:
   replicas: 2
   image: gcr.io/image/path
-  command: cryoemservices.service -s Images -c config-file
+  command: cryoemservices.service -s Images -c /cryoemservices/config/cryoemservices_config.yaml
   cpuRequest: "0.25"
   cpuLimit: "1"
   memoryLimit: 8Gi
@@ -197,7 +197,7 @@ images:
 ispyb:
   replicas: 1
   image: gcr.io/image/path
-  command: cryoemservices.service -s ISPyB -c config-file
+  command: cryoemservices.service -s ISPyB -c /cryoemservices/config/cryoemservices_config.yaml
   cpuRequest: "0.25"
   cpuLimit: "1"
   memoryLimit: 256Mi
@@ -215,7 +215,7 @@ ispyb:
 membrain_seg:
   replicas: 1
   image: gcr.io/image/path
-  command: cryoemservices.service -s MembrainSeg -c config-file
+  command: cryoemservices.service -s MembrainSeg -c /cryoemservices/config/cryoemservices_config.yaml
   cpuRequest: "0.25"
   cpuLimit: "0.5"
   memoryLimit: 1Gi
@@ -234,7 +234,7 @@ membrain_seg:
 motioncorr:
   replicas: 1
   image: gcr.io/image/path
-  command: cryoemservices.service -s MotionCorr -c config-file
+  command: cryoemservices.service -s MotionCorr -c /cryoemservices/config/cryoemservices_config.yaml
   cpuRequest: "4"
   cpuLimit: "4"
   memoryLimit: 15Gi
@@ -254,7 +254,7 @@ motioncorr:
 node_creator:
   replicas: 1
   image: gcr.io/image/path
-  command: cryoemservices.service -s NodeCreator -c config-file
+  command: cryoemservices.service -s NodeCreator -c /cryoemservices/config/cryoemservices_config.yaml
   cpuRequest: "0.25"
   cpuLimit: "1"
   memoryLimit: 4Gi
@@ -272,7 +272,7 @@ node_creator:
 postprocess:
   replicas: 1
   image: gcr.io/image/path
-  command: cryoemservices.service -s PostProcess -c config-file
+  command: cryoemservices.service -s PostProcess -c /cryoemservices/config/cryoemservices_config.yaml
   cpuRequest: "0.5"
   cpuLimit: "1"
   memoryLimit: 4Gi
@@ -290,7 +290,7 @@ postprocess:
 process_recipe:
   replicas: 1
   image: gcr.io/image/path
-  command: cryoemservices.service -s ProcessRecipe -c config-file
+  command: cryoemservices.service -s ProcessRecipe -c /cryoemservices/config/cryoemservices_config.yaml
   cpuRequest: "0.5"
   cpuLimit: "1"
   memoryLimit: 256Mi
@@ -308,7 +308,7 @@ process_recipe:
 select_classes:
   replicas: 1
   image: gcr.io/image/path
-  command: cryoemservices.service -s SelectClasses -c config-file
+  command: cryoemservices.service -s SelectClasses -c /cryoemservices/config/cryoemservices_config.yaml
   cpuRequest: "1"
   cpuLimit: "1"
   memoryLimit: 4Gi
@@ -326,7 +326,7 @@ select_classes:
 select_particles:
   replicas: 1
   image: gcr.io/image/path
-  command: cryoemservices.service -s SelectParticles -c config-file
+  command: cryoemservices.service -s SelectParticles -c /cryoemservices/config/cryoemservices_config.yaml
   cpuRequest: "0.5"
   cpuLimit: "1"
   memoryLimit: 1Gi
@@ -344,7 +344,7 @@ select_particles:
 tomo_align:
   replicas: 1
   image: gcr.io/image/path
-  command: cryoemservices.service -s TomoAlign -c config-file
+  command: cryoemservices.service -s TomoAlign -c /cryoemservices/config/cryoemservices_config.yaml
   memoryLimit: 20Gi
   extraVolumes:
     - name: home
@@ -360,7 +360,7 @@ tomo_align:
 tomo_align_slurm:
   replicas: 1
   image: gcr.io/image/path
-  command: cryoemservices.service -s TomoAlignSlurm -c config-file
+  command: cryoemservices.service -s TomoAlignSlurm -c /cryoemservices/config/cryoemservices_config.yaml
   cpuRequest: "0.75"
   cpuLimit: "1"
   memoryLimit: 4Gi
