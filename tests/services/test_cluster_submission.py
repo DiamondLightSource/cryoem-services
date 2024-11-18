@@ -61,12 +61,17 @@ def test_cluster_submission_recipeless(
             "cluster": {
                 "commands": "srun job",
                 "cpus_per_task": 3,
+                "gpus": 4,
+                "gpus_per_node": 4,
                 "job_name": "test_job",
+                "memory_per_node": 20,
+                "min_memory_per_cpu": 10,
                 "nodes": 1,
                 "partition": "part",
                 "prefer": "preferred_part",
                 "scheduler": "slurm",
                 "tasks": 2,
+                "time_limit": 300,
             },
         }
     }
@@ -84,15 +89,23 @@ def test_cluster_submission_recipeless(
         user_name="user",
         user_token="/path/to/token.txt",
     )
+    mock_restapi.models.Uint64NoVal.assert_any_call(number=10, set=True)
+    mock_restapi.models.Uint64NoVal.assert_called_with(number=20, set=True)
+    mock_restapi.models.Uint32NoVal.assert_called_with(number=5, set=True)
     mock_restapi.models.JobDescMsg.assert_called_with(
         cpus_per_task=3,
         current_working_directory=str(tmp_path),
         environment=["USER=user"],
+        memory_per_cpu=mock_restapi.models.Uint64NoVal(),
+        memory_per_node=mock_restapi.models.Uint64NoVal(),
         name="test_job",
         nodes="1",
         partition="part",
         prefer="preferred_part",
         tasks=2,
+        time_limit=mock_restapi.models.Uint32NoVal(),
+        tres_per_node="gres/gpu:4",
+        tres_per_job="gres/gpu:4",
     )
     mock_restapi.models.JobSubmitReq.assert_called_with(
         script="#!/bin/bash\n. /etc/profile.d/modules.sh\nsrun job",
