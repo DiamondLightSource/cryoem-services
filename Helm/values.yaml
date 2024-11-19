@@ -27,6 +27,10 @@ bfactor_setup:
   cpuRequest: "0.5"
   cpuLimit: "1"
   memoryLimit: 4Gi
+  scaleOnQueueLength: true
+  queueLengthTrigger: "10"
+  minReplicaCount: 0
+  maxReplicaCount: 1
 
 cluster_submission:
   replicas: 1
@@ -35,6 +39,7 @@ cluster_submission:
   cpuRequest: "0.25"
   cpuLimit: "0.25"
   memoryLimit: 256Mi
+  scaleOnQueueLength: false
 
 cryolo:
   replicas: 1
@@ -43,6 +48,10 @@ cryolo:
   cpuRequest: "0.5"
   cpuLimit: "1"
   memoryLimit: 4Gi
+  scaleOnQueueLength: true
+  queueLengthTrigger: "5"
+  minReplicaCount: 0
+  maxReplicaCount: 4
 
 ctffind:
   replicas: 1
@@ -51,6 +60,10 @@ ctffind:
   cpuRequest: "0.25"
   cpuLimit: "1"
   memoryLimit: 2Gi
+  scaleOnQueueLength: true
+  queueLengthTrigger: "10"
+  minReplicaCount: 0
+  maxReplicaCount: 4
 
 denoise:
   replicas: 1
@@ -59,6 +72,10 @@ denoise:
   cpuRequest: "1"
   cpuLimit: "1"
   memoryLimit: 15Gi
+  scaleOnQueueLength: false
+  queueLengthTrigger: "1"
+  minReplicaCount: 0
+  maxReplicaCount: 2
 
 denoise_slurm:
   denoisingSIF: topaz.sif
@@ -69,6 +86,10 @@ denoise_slurm:
   cpuRequest: "0.25"
   cpuLimit: "1"
   memoryLimit: 1Gi
+  scaleOnQueueLength: true
+  queueLengthTrigger: "1"
+  minReplicaCount: 0
+  maxReplicaCount: 2
 
 extract:
   replicas: 1
@@ -77,6 +98,10 @@ extract:
   cpuRequest: "0.5"
   cpuLimit: "1"
   memoryLimit: 4Gi
+  scaleOnQueueLength: true
+  queueLengthTrigger: "10"
+  minReplicaCount: 0
+  maxReplicaCount: 4
 
 extract_class:
   slurmCredentials: slurm_credentials.yaml
@@ -86,6 +111,10 @@ extract_class:
   cpuRequest: "1"
   cpuLimit: "4"
   memoryLimit: 4Gi
+  scaleOnQueueLength: true
+  queueLengthTrigger: "10"
+  minReplicaCount: 0
+  maxReplicaCount: 1
 
 icebreaker:
   slurmCredentials: slurm_credentials.yaml
@@ -95,6 +124,10 @@ icebreaker:
   cpuRequest: "0.5"
   cpuLimit: "1"
   memoryLimit: 4Gi
+  scaleOnQueueLength: true
+  queueLengthTrigger: "5"
+  minReplicaCount: 0
+  maxReplicaCount: 4
 
 images:
   replicas: 2
@@ -103,6 +136,10 @@ images:
   cpuRequest: "0.25"
   cpuLimit: "1"
   memoryLimit: 8Gi
+  scaleOnQueueLength: true
+  queueLengthTrigger: "50"
+  minReplicaCount: 0
+  maxReplicaCount: 4
 
 ispyb:
   replicas: 1
@@ -111,6 +148,10 @@ ispyb:
   cpuRequest: "0.25"
   cpuLimit: "1"
   memoryLimit: 256Mi
+  scaleOnQueueLength: true
+  queueLengthTrigger: "10"
+  minReplicaCount: 0
+  maxReplicaCount: 4
 
 membrain_seg:
   slurmCredentials: slurm_credentials.yaml
@@ -120,6 +161,10 @@ membrain_seg:
   cpuRequest: "0.25"
   cpuLimit: "0.5"
   memoryLimit: 1Gi
+  scaleOnQueueLength: true
+  queueLengthTrigger: "10"
+  minReplicaCount: 0
+  maxReplicaCount: 2
 
 motioncorr:
   motioncorSIF: motioncor2.sif
@@ -130,6 +175,10 @@ motioncorr:
   cpuRequest: "4"
   cpuLimit: "4"
   memoryLimit: 15Gi
+  scaleOnQueueLength: true
+  queueLengthTrigger: "5"
+  minReplicaCount: 0
+  maxReplicaCount: 10
 
 node_creator:
   replicas: 1
@@ -138,6 +187,7 @@ node_creator:
   cpuRequest: "0.25"
   cpuLimit: "1"
   memoryLimit: 4Gi
+  scaleOnQueueLength: false
 
 postprocess:
   replicas: 1
@@ -146,6 +196,10 @@ postprocess:
   cpuRequest: "0.5"
   cpuLimit: "1"
   memoryLimit: 4Gi
+  scaleOnQueueLength: true
+  queueLengthTrigger: "10"
+  minReplicaCount: 0
+  maxReplicaCount: 1
 
 process_recipe:
   replicas: 1
@@ -154,6 +208,10 @@ process_recipe:
   cpuRequest: "0.5"
   cpuLimit: "1"
   memoryLimit: 256Mi
+  scaleOnQueueLength: true
+  queueLengthTrigger: "10"
+  minReplicaCount: 1
+  maxReplicaCount: 4
 
 select_classes:
   replicas: 1
@@ -162,6 +220,7 @@ select_classes:
   cpuRequest: "1"
   cpuLimit: "1"
   memoryLimit: 4Gi
+  scaleOnQueueLength: false
 
 select_particles:
   replicas: 1
@@ -170,12 +229,17 @@ select_particles:
   cpuRequest: "0.5"
   cpuLimit: "1"
   memoryLimit: 1Gi
+  scaleOnQueueLength: false
 
 tomo_align:
   replicas: 1
   image: gcr.io/image/path
   command: cryoemservices.service -s TomoAlign -c /cryoemservices/config/cryoemservices_config.yaml
   memoryLimit: 20Gi
+  scaleOnQueueLength: false
+  queueLengthTrigger: "1"
+  minReplicaCount: 0
+  maxReplicaCount: 2
 
 tomo_align_slurm:
   aretomoExectable: /path/to/AreTomo2
@@ -187,3 +251,7 @@ tomo_align_slurm:
   cpuRequest: "0.75"
   cpuLimit: "1"
   memoryLimit: 4Gi
+  scaleOnQueueLength: true
+  queueLengthTrigger: "1"
+  minReplicaCount: 0
+  maxReplicaCount: 2
