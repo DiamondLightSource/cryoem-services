@@ -9,7 +9,32 @@ import workflows.recipe
 from backports.entry_points_selectable import entry_points
 from workflows.services.common_service import CommonService
 
-from cryoemservices.util.config import config_from_file
+from cryoemservices.util.config import ServiceConfig, config_from_file
+
+
+def filter_load_recipes_from_files(
+    message: dict, parameters: dict, config: ServiceConfig
+):
+    """Load named recipes from configured location"""
+    for recipefile in message.get("recipes", []):
+        recipe_location = config.recipe_directory / f"{recipefile}.json"
+        if not recipe_location.is_file():
+            raise ValueError(f"Cannot find recipe in location {recipe_location}")
+        with open(recipe_location, "r") as rcp:
+            named_recipe = workflows.recipe.Recipe(recipe=rcp.read())
+        try:
+            named_recipe.validate()
+        except workflows.Error as e:
+            raise ValueError(f"Named recipe {recipefile} failed validation. {e}")
+        message["recipe"] = message["recipe"].merge(named_recipe)
+    return message, parameters
+
+
+def filter_apply_parameters(message: dict, parameters: dict, config: ServiceConfig):
+    """Fill in any placeholders in the recipe of the form {name} using the
+    parameters data structure"""
+    message["recipe"].apply_parameters(parameters)
+    return message, parameters
 
 
 class ProcessRecipe(CommonService):
@@ -27,33 +52,9 @@ class ProcessRecipe(CommonService):
     recipe_basepath: Path = Path.cwd()
     message_filters: dict = {}
 
-    def filter_load_recipes_from_files(self, message: dict, parameters: dict):
-        """Load named recipes from configured location"""
-        for recipefile in message.get("recipes", []):
-            recipe_location = self.recipe_basepath / f"{recipefile}.json"
-            if not recipe_location.is_file():
-                raise ValueError(f"Cannot find recipe in location {recipe_location}")
-            with open(recipe_location, "r") as rcp:
-                named_recipe = workflows.recipe.Recipe(recipe=rcp.read())
-            try:
-                named_recipe.validate()
-            except workflows.Error as e:
-                raise ValueError(f"Named recipe {recipefile} failed validation. {e}")
-            message["recipe"] = message["recipe"].merge(named_recipe)
-        return message, parameters
-
-    def filter_apply_parameters(self, message: dict, parameters: dict):
-        """Fill in any placeholders in the recipe of the form {name} using the
-        parameters data structure"""
-        message["recipe"].apply_parameters(parameters)
-        return message, parameters
-
     def initializing(self):
         """Subscribe to the processing_recipe queue."""
         self.log.info("ProcessRecipe service starting")
-        service_config = config_from_file(Path(os.environ["CRYOEMSERVICES_CONFIG"]))
-        self.recipe_basepath = service_config.recipe_directory
-
         self.message_filters = {
             **{
                 f.name: f.load()
@@ -61,8 +62,8 @@ class ProcessRecipe(CommonService):
                     group="cryoemservices.services.process_recipe.filters"
                 )
             },
-            "load_recipes_from_files": self.filter_load_recipes_from_files,
-            "apply_parameters": self.filter_apply_parameters,
+            "load_recipes_from_files": filter_load_recipes_from_files,
+            "apply_parameters": filter_apply_parameters,
         }
 
         workflows.recipe.wrap_subscribe(
@@ -76,6 +77,9 @@ class ProcessRecipe(CommonService):
 
     def process(self, rw, header, message):
         """Process an incoming processing request."""
+        # Find config
+        service_config = config_from_file(Path(os.environ["CRYOEMSERVICES_CONFIG"]))
+
         # Load processing parameters
         parameters = message.get("parameters", {})
         if not isinstance(parameters, dict):
@@ -104,10 +108,12 @@ class ProcessRecipe(CommonService):
             for name, f in self.message_filters.items():
                 try:
                     filtered_message, filtered_parameters = f(
-                        message=filtered_message, parameters=filtered_parameters
+                        message=filtered_message,
+                        parameters=filtered_parameters,
+                        config=service_config,
                     )
                 except Exception as e:
-                    self.log.error(f"Rejected message due to filter {name} error: {e}")
+                    print(f"Rejected message due to filter {name} error: {e}")
                     self._transport.nack(header)
                     return
 

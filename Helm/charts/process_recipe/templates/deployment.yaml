@@ -32,8 +32,8 @@ spec:
           - >-
               {{ .Values.command }}
         env:
-        - name: ISPYB_CREDENTIALS
-          value: "/cryoemservices/secrets/{{ .Values.global.dbFileName }}"
+        - name: CRYOEMSERVICES_CONFIG
+          value: "/cryoemservices/config/{{ .Values.global.configFileName }}"
         volumeMounts:
         - name: config-file
           mountPath: /cryoemservices/config

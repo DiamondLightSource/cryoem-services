@@ -12,6 +12,8 @@ import sqlalchemy
 from marshmallow_sqlalchemy import SQLAlchemyAutoSchema
 from sqlalchemy.orm import selectinload, sessionmaker
 
+from cryoemservices.util.config import ServiceConfig
+
 logger = logging.getLogger("cryoemservices.services.process_recipe_tools")
 
 re_visit_base = re.compile(r"^(.*/([a-z][a-z][0-9]+-[0-9]+))/")
@@ -161,6 +163,7 @@ def dc_info_to_results_directory(dc_info):
 def ispyb_filter(
     message,
     parameters,
+    config: ServiceConfig,
     session: sqlalchemy.orm.session.Session | None = None,
 ):
     """Do something to work out what to do with this data..."""
@@ -174,7 +177,10 @@ def ispyb_filter(
 
     if session is None:
         session = sessionmaker(
-            bind=sqlalchemy.create_engine(models.url(), connect_args={"use_pure": True})
+            bind=sqlalchemy.create_engine(
+                models.url(credentials=config.ispyb_credentials),
+                connect_args={"use_pure": True},
+            )
         )()
 
     setup_marshmallow_schema(session)

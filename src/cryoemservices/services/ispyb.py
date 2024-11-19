@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import string
 import time
 from collections import ChainMap
@@ -16,6 +17,7 @@ from pydantic import BaseModel, validate_arguments
 from workflows.services.common_service import CommonService
 
 import cryoemservices.services.ispyb_buffer as buffer
+from cryoemservices.util.config import config_from_file
 from cryoemservices.util.models import MockRW
 
 
@@ -60,7 +62,8 @@ class EMISPyB(CommonService):
         """Subscribe the ISPyB connector queue. Received messages must be
         acknowledged. Prepare ISPyB database connection."""
         self.log.info(f"ISPyB connector using ispyb v{ispyb.__version__}")
-        self.ispyb = ispyb.open()
+        service_config = config_from_file(Path(os.environ["CRYOEMSERVICES_CONFIG"]))
+        self.ispyb = ispyb.open(credentials=service_config.ispyb_credentials)
         self._ispyb_sessionmaker = sqlalchemy.orm.sessionmaker(
             bind=sqlalchemy.create_engine(
                 ispyb.sqlalchemy.url(), connect_args={"use_pure": True}
