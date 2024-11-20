@@ -1,21 +1,5 @@
 # This Dockerfile is used for Relion class selection
-# First stage builds relion
-FROM rockylinux:8 AS relion-build
-
-# Get required build packages and libraries
-RUN yum install gcc gcc-c++ cmake openmpi -y
-RUN yum install fftw-devel libtiff-devel libpng-devel libjpeg-devel zlib-devel -y
-
-# Build Relion - need to be on the ver4.0 tag
-RUN mkdir -p /install/relion4.0
-COPY packages/relion_fork /install/relion_src
-RUN mkdir /install/relion_src/build
-
-RUN cmake -DCMAKE_INSTALL_PREFIX=/install/relion4.0 -DCMAKE_C_COMPILER=/usr/bin/gcc -DCMAKE_CXX_COMPILER=/usr/bin/g++ -DMPI_C_COMPILER=/usr/lib64/openmpi/bin/mpicc -DMPI_CXX_COMPILER=/usr/lib64/openmpi/bin/mpicxx -DMPI_C_LIBRARIES=/usr/lib64/openmpi/lib/libmpi.so -DMPI_CXX_LIBRARIES=/usr/lib64/openmpi/lib/libmpi.so -DGUI=OFF -DALTCPU=ON -B/install/relion_src/build -S/install/relion_src
-RUN make --directory=/install/relion_src/build/ install
-
-
-# Second stage creates the conda environment
+# First stage creates a conda environment
 FROM rockylinux:8 AS conda-build
 
 # Set up conda environment
@@ -26,20 +10,49 @@ RUN source "/conda/etc/profile.d/conda.sh" && conda install -c conda-forge conda
 RUN source "/conda/etc/profile.d/conda.sh" && source "/conda/etc/profile.d/mamba.sh" && \
     mamba create -c conda-forge -p /install/pythonenv python=3.11 pip libtiff=4.4.0 --override-channels -y
 RUN source "/conda/etc/profile.d/conda.sh" && conda activate /install/pythonenv && \
-    pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+    pip install torch==2.0.1 torchvision==0.15.2 --index-url https://download.pytorch.org/whl/cpu
 
 # Install cryoem-services and pipeliner
 RUN mkdir /install/cryoem-services
 COPY packages/cryoem-services /install/cryoem-services
 RUN mkdir /install/ccpem-pipeliner
 COPY packages/ccpem-pipeliner /install/ccpem-pipeliner
-RUN source "/conda/etc/profile.d/conda.sh" && conda activate /install/pythonenv && pip install /install/ccpem-pipeliner && pip install /install/cryoem-services
+RUN source "/conda/etc/profile.d/conda.sh" && conda activate /install/pythonenv && \
+    pip install /install/ccpem-pipeliner && pip install /install/cryoem-services
+
+# Install relion classranker
+RUN mkdir /install/relion-classranker
+COPY packages/relion-classranker /install/relion-classranker
+RUN source "/conda/etc/profile.d/conda.sh" && conda activate /install/pythonenv && \
+    pip install /install/relion-classranker
 
 # Pack the environment
 RUN /conda/bin/conda-pack -p /install/pythonenv -o /tmp/env.tar.gz
 RUN mkdir /install/venv
 RUN tar -xzf /tmp/env.tar.gz -C /install/venv
 RUN source "/conda/etc/profile.d/conda.sh" && conda activate /install/venv && /install/venv/bin/conda-unpack
+
+
+# Second stage builds relion
+FROM rockylinux:8 AS relion-build
+
+# Copy python environment
+COPY --from=conda-build --chown="${userid}":"${groupid}" /install/venv /install/venv
+ENV PATH="/install/venv/bin:${PATH}"
+
+# Get required build packages and libraries
+RUN yum install gcc gcc-c++ cmake openmpi -y
+RUN yum install fftw-devel libtiff-devel libpng-devel libjpeg-devel zlib-devel -y
+
+# Build Relion - need to be on the ver5.0-mc-devolve tag
+RUN mkdir -p /install/relion5.0
+COPY packages/relion_fork /install/relion_src
+RUN mkdir /install/relion_src/build
+
+RUN mkdir /torch_home
+
+RUN cmake -DCMAKE_INSTALL_PREFIX=/install/relion5.0 -DCMAKE_C_COMPILER=/usr/bin/gcc -DCMAKE_CXX_COMPILER=/usr/bin/g++ -DMPI_C_COMPILER=/usr/lib64/openmpi/bin/mpicc -DMPI_CXX_COMPILER=/usr/lib64/openmpi/bin/mpicxx -DMPI_C_LIBRARIES=/usr/lib64/openmpi/lib/libmpi.so -DMPI_CXX_LIBRARIES=/usr/lib64/openmpi/lib/libmpi.so -DGUI=OFF -DALTCPU=ON -DPYTHON_EXE_PATH=/install/venv/bin/python -DTORCH_HOME_PATH=/torch_home -B/install/relion_src/build -S/install/relion_src
+RUN make --directory=/install/relion_src/build/ install
 
 
 # Third stage combines the Relion and conda builds
@@ -55,9 +68,14 @@ RUN groupadd -r -g "${groupid}" "${groupname}" && useradd -r -M "${groupname}" -
 RUN yum install openmpi fftw-devel libtiff-devel libpng-devel libjpeg-devel zlib-devel -y
 
 # Copy Relion
-COPY --from=relion-build --chown="${userid}":"${groupid}" /install/relion4.0 /install/relion4.0
-ENV PATH="/install/relion4.0/bin:${PATH}"
+COPY --from=relion-build --chown="${userid}":"${groupid}" /install/relion5.0 /install/relion5.0
+ENV PATH="/install/relion5.0/bin:${PATH}"
 
-# Copy python environment
-COPY --from=conda-build --chown="${userid}":"${groupid}" /install/venv /install/venv
+# Copy python environment (from Relion build)
+COPY --from=relion-build --chown="${userid}":"${groupid}" /install/venv /install/venv
 ENV PATH="/install/venv/bin:${PATH}"
+
+# Copy Relion torch models
+COPY --from=relion-build --chown="${userid}":"${groupid}" /torch_home /torch_home
+ENV RELION_PYTHON_EXECUTABLE="/install/venv/bin/python"
+ENV TORCH_HOME="/torch_home"

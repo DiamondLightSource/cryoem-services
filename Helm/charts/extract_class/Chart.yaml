@@ -1,4 +1,4 @@
 apiVersion: v2
 name: extract_class
 description: A Helm chart for the extraction of particles for refinement
-version: 0.5.4
+version: 0.6.0
