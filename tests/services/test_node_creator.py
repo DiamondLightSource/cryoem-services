@@ -5,7 +5,6 @@ from pathlib import Path
 from unittest import mock
 
 import pytest
-import zocalo.configuration
 from gemmi import cif
 from workflows.transport.offline_transport import OfflineTransport
 
@@ -18,20 +17,6 @@ node_creator = pytest.importorskip(
 
 
 @pytest.fixture
-def mock_zocalo_configuration(tmp_path):
-    mock_zc = mock.MagicMock(zocalo.configuration.Configuration)
-    mock_zc.storage = {
-        "zocalo.recipe_directory": tmp_path,
-    }
-    return mock_zc
-
-
-@pytest.fixture
-def mock_environment(mock_zocalo_configuration):
-    return {"config": mock_zocalo_configuration}
-
-
-@pytest.fixture
 def offline_transport(mocker):
     transport = OfflineTransport()
     mocker.spy(transport, "send")
@@ -39,7 +24,6 @@ def offline_transport(mocker):
 
 
 def setup_and_run_node_creation(
-    environment: dict,
     relion_options: RelionServiceOptions,
     transport: OfflineTransport,
     project_dir: Path,
@@ -81,7 +65,7 @@ def setup_and_run_node_creation(
     }
 
     # set up the mock service and send the message to it
-    service = node_creator.NodeCreator(environment=environment)
+    service = node_creator.NodeCreator()
     service.transport = transport
     service.start()
     service.node_creator(None, header=header, message=test_message)
@@ -107,7 +91,7 @@ def setup_and_run_node_creation(
 
 # General tests
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-def test_node_creator_failed_job(mock_environment, offline_transport, tmp_path):
+def test_node_creator_failed_job(offline_transport, tmp_path):
     """
     Use motion correction to test that the node creator works for failed commands.
     This should set up the general pipeliner parts, and add a failure file to the job.
@@ -138,7 +122,7 @@ def test_node_creator_failed_job(mock_environment, offline_transport, tmp_path):
     }
 
     # set up the mock service and send the message to it
-    service = node_creator.NodeCreator(environment=mock_environment)
+    service = node_creator.NodeCreator()
     service.transport = offline_transport
     service.start()
     service.node_creator(None, header=header, message=test_message)
@@ -158,7 +142,7 @@ def test_node_creator_failed_job(mock_environment, offline_transport, tmp_path):
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-def test_node_creator_rerun_job(mock_environment, offline_transport, tmp_path):
+def test_node_creator_rerun_job(offline_transport, tmp_path):
     """
     Use motion correction to test that the node creator works for failed commands.
     This should set up the general pipeliner parts, and add a failure file to the job.
@@ -191,7 +175,7 @@ def test_node_creator_rerun_job(mock_environment, offline_transport, tmp_path):
     }
 
     # set up the mock service and send the message to it
-    service = node_creator.NodeCreator(environment=mock_environment)
+    service = node_creator.NodeCreator()
     service.transport = offline_transport
     service.start()
     service.node_creator(None, header=header, message=test_message)
@@ -212,7 +196,7 @@ def test_node_creator_rerun_job(mock_environment, offline_transport, tmp_path):
 
 # SPA tests
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-def test_node_creator_import(mock_environment, offline_transport, tmp_path):
+def test_node_creator_import(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
     relion.import.movies
@@ -223,7 +207,6 @@ def test_node_creator_import(mock_environment, offline_transport, tmp_path):
     relion_options = RelionServiceOptions()
 
     setup_and_run_node_creation(
-        mock_environment,
         relion_options,
         offline_transport,
         tmp_path,
@@ -264,7 +247,7 @@ def test_node_creator_import(mock_environment, offline_transport, tmp_path):
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-def test_node_creator_motioncorr(mock_environment, offline_transport, tmp_path):
+def test_node_creator_motioncorr(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
     relion.motioncorr.motioncor2
@@ -275,7 +258,6 @@ def test_node_creator_motioncorr(mock_environment, offline_transport, tmp_path):
     relion_options = RelionServiceOptions()
 
     setup_and_run_node_creation(
-        mock_environment,
         relion_options,
         offline_transport,
         tmp_path,
@@ -325,9 +307,7 @@ def test_node_creator_motioncorr(mock_environment, offline_transport, tmp_path):
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-def test_node_creator_icebreaker_micrographs(
-    mock_environment, offline_transport, tmp_path
-):
+def test_node_creator_icebreaker_micrographs(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
     icebreaker.micrograph_analysis.micrographs
@@ -339,7 +319,6 @@ def test_node_creator_icebreaker_micrographs(
     relion_options = RelionServiceOptions()
 
     setup_and_run_node_creation(
-        mock_environment,
         relion_options,
         offline_transport,
         tmp_path,
@@ -375,9 +354,7 @@ def test_node_creator_icebreaker_micrographs(
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-def test_node_creator_icebreaker_enhancecontrast(
-    mock_environment, offline_transport, tmp_path
-):
+def test_node_creator_icebreaker_enhancecontrast(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
     icebreaker.micrograph_analysis.enhancecontrast
@@ -389,7 +366,6 @@ def test_node_creator_icebreaker_enhancecontrast(
     relion_options = RelionServiceOptions()
 
     setup_and_run_node_creation(
-        mock_environment,
         relion_options,
         offline_transport,
         tmp_path,
@@ -425,7 +401,7 @@ def test_node_creator_icebreaker_enhancecontrast(
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-def test_node_creator_icebreaker_summary(mock_environment, offline_transport, tmp_path):
+def test_node_creator_icebreaker_summary(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
     icebreaker.micrograph_analysis.summary
@@ -439,7 +415,6 @@ def test_node_creator_icebreaker_summary(mock_environment, offline_transport, tm
     (output_file / "five_figs_test.csv").touch()
 
     setup_and_run_node_creation(
-        mock_environment,
         relion_options,
         offline_transport,
         tmp_path,
@@ -456,7 +431,7 @@ def test_node_creator_icebreaker_summary(mock_environment, offline_transport, tm
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-def test_node_creator_ctffind(mock_environment, offline_transport, tmp_path):
+def test_node_creator_ctffind(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
     relion.ctffind.ctffind4
@@ -475,7 +450,6 @@ def test_node_creator_ctffind(mock_environment, offline_transport, tmp_path):
         )
 
     setup_and_run_node_creation(
-        mock_environment,
         relion_options,
         offline_transport,
         tmp_path,
@@ -526,7 +500,7 @@ def test_node_creator_ctffind(mock_environment, offline_transport, tmp_path):
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-def test_node_creator_cryolo(mock_environment, offline_transport, tmp_path):
+def test_node_creator_cryolo(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
     cryolo.autopick
@@ -549,7 +523,6 @@ def test_node_creator_cryolo(mock_environment, offline_transport, tmp_path):
         f.write("Metric, Value\nMEAN, 1.0\nSD, 1.0\nQ25, 0.5\nQ50, 1.0\nQ75, 1.5")
 
     setup_and_run_node_creation(
-        mock_environment,
         relion_options,
         offline_transport,
         tmp_path,
@@ -573,7 +546,7 @@ def test_node_creator_cryolo(mock_environment, offline_transport, tmp_path):
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-def test_node_creator_extract(mock_environment, offline_transport, tmp_path):
+def test_node_creator_extract(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
     relion.extract
@@ -591,7 +564,6 @@ def test_node_creator_extract(mock_environment, offline_transport, tmp_path):
         f.write("data_particles\n\nloop_\n_rlnCoordinateX\n_rlnCoordinateY\n1.0 2.0")
 
     setup_and_run_node_creation(
-        mock_environment,
         relion_options,
         offline_transport,
         tmp_path,
@@ -634,7 +606,7 @@ def test_node_creator_extract(mock_environment, offline_transport, tmp_path):
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-def test_node_creator_select_particles(mock_environment, offline_transport, tmp_path):
+def test_node_creator_select_particles(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
     relion.select.split
@@ -649,7 +621,6 @@ def test_node_creator_select_particles(mock_environment, offline_transport, tmp_
     (tmp_path / job_dir / "particles_split2.star").touch()
 
     setup_and_run_node_creation(
-        mock_environment,
         relion_options,
         offline_transport,
         tmp_path,
@@ -669,9 +640,7 @@ def test_node_creator_select_particles(mock_environment, offline_transport, tmp_
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-def test_node_creator_icebreaker_particles(
-    mock_environment, offline_transport, tmp_path
-):
+def test_node_creator_icebreaker_particles(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
     icebreaker.micrograph_analysis.particles
@@ -689,7 +658,6 @@ def test_node_creator_icebreaker_particles(
     (tmp_path / ".Nodes").mkdir()
 
     setup_and_run_node_creation(
-        mock_environment,
         relion_options,
         offline_transport,
         tmp_path,
@@ -707,7 +675,7 @@ def test_node_creator_icebreaker_particles(
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-def test_node_creator_class2d_em(mock_environment, offline_transport, tmp_path):
+def test_node_creator_class2d_em(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
     relion.class2d.em
@@ -722,7 +690,6 @@ def test_node_creator_class2d_em(mock_environment, offline_transport, tmp_path):
     (tmp_path / ".Nodes").mkdir()
 
     setup_and_run_node_creation(
-        mock_environment,
         relion_options,
         offline_transport,
         tmp_path,
@@ -734,7 +701,7 @@ def test_node_creator_class2d_em(mock_environment, offline_transport, tmp_path):
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-def test_node_creator_class2d_vdam(mock_environment, offline_transport, tmp_path):
+def test_node_creator_class2d_vdam(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
     relion.class2d.vdam
@@ -749,7 +716,6 @@ def test_node_creator_class2d_vdam(mock_environment, offline_transport, tmp_path
     (tmp_path / ".Nodes").mkdir()
 
     setup_and_run_node_creation(
-        mock_environment,
         relion_options,
         offline_transport,
         tmp_path,
@@ -761,7 +727,7 @@ def test_node_creator_class2d_vdam(mock_environment, offline_transport, tmp_path
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-def test_node_creator_select_class(mock_environment, offline_transport, tmp_path):
+def test_node_creator_select_class(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
     relion.select.class2dauto
@@ -776,7 +742,6 @@ def test_node_creator_select_class(mock_environment, offline_transport, tmp_path
     (tmp_path / ".Nodes").mkdir()
 
     setup_and_run_node_creation(
-        mock_environment,
         relion_options,
         offline_transport,
         tmp_path,
@@ -788,7 +753,7 @@ def test_node_creator_select_class(mock_environment, offline_transport, tmp_path
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-def test_node_creator_split_star(mock_environment, offline_transport, tmp_path):
+def test_node_creator_split_star(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
     combine_star_files_job
@@ -813,7 +778,6 @@ def test_node_creator_split_star(mock_environment, offline_transport, tmp_path):
         )
 
     setup_and_run_node_creation(
-        mock_environment,
         relion_options,
         offline_transport,
         tmp_path,
@@ -829,7 +793,7 @@ def test_node_creator_split_star(mock_environment, offline_transport, tmp_path):
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-def test_node_creator_initial_model(mock_environment, offline_transport, tmp_path):
+def test_node_creator_initial_model(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
     relion.initialmodel
@@ -844,7 +808,6 @@ def test_node_creator_initial_model(mock_environment, offline_transport, tmp_pat
     (tmp_path / ".Nodes").mkdir()
 
     setup_and_run_node_creation(
-        mock_environment,
         relion_options,
         offline_transport,
         tmp_path,
@@ -856,7 +819,7 @@ def test_node_creator_initial_model(mock_environment, offline_transport, tmp_pat
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-def test_node_creator_class3d(mock_environment, offline_transport, tmp_path):
+def test_node_creator_class3d(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
     relion.class3d
@@ -874,7 +837,6 @@ def test_node_creator_class3d(mock_environment, offline_transport, tmp_path):
     (tmp_path / ".Nodes").mkdir()
 
     setup_and_run_node_creation(
-        mock_environment,
         relion_options,
         offline_transport,
         tmp_path,
@@ -886,7 +848,7 @@ def test_node_creator_class3d(mock_environment, offline_transport, tmp_path):
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-def test_node_creator_select_value(mock_environment, offline_transport, tmp_path):
+def test_node_creator_select_value(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
     relion.select.onvalue
@@ -901,7 +863,6 @@ def test_node_creator_select_value(mock_environment, offline_transport, tmp_path
     (tmp_path / ".Nodes").mkdir()
 
     setup_and_run_node_creation(
-        mock_environment,
         relion_options,
         offline_transport,
         tmp_path,
@@ -913,7 +874,7 @@ def test_node_creator_select_value(mock_environment, offline_transport, tmp_path
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-def test_node_creator_refine3d(mock_environment, offline_transport, tmp_path):
+def test_node_creator_refine3d(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
     relion.refine3d
@@ -931,7 +892,6 @@ def test_node_creator_refine3d(mock_environment, offline_transport, tmp_path):
     (tmp_path / ".Nodes").mkdir()
 
     setup_and_run_node_creation(
-        mock_environment,
         relion_options,
         offline_transport,
         tmp_path,
@@ -943,7 +903,7 @@ def test_node_creator_refine3d(mock_environment, offline_transport, tmp_path):
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-def test_node_creator_maskcreate(mock_environment, offline_transport, tmp_path):
+def test_node_creator_maskcreate(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
     relion.maskcreate
@@ -958,7 +918,6 @@ def test_node_creator_maskcreate(mock_environment, offline_transport, tmp_path):
     (tmp_path / ".Nodes").mkdir()
 
     setup_and_run_node_creation(
-        mock_environment,
         relion_options,
         offline_transport,
         tmp_path,
@@ -970,7 +929,7 @@ def test_node_creator_maskcreate(mock_environment, offline_transport, tmp_path):
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-def test_node_creator_postprocess(mock_environment, offline_transport, tmp_path):
+def test_node_creator_postprocess(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
     relion.postprocess
@@ -988,7 +947,6 @@ def test_node_creator_postprocess(mock_environment, offline_transport, tmp_path)
     (tmp_path / ".Nodes").mkdir()
 
     setup_and_run_node_creation(
-        mock_environment,
         relion_options,
         offline_transport,
         tmp_path,
@@ -1001,7 +959,7 @@ def test_node_creator_postprocess(mock_environment, offline_transport, tmp_path)
 
 # Tomography tests
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-def test_node_creator_import_tomo(mock_environment, offline_transport, tmp_path):
+def test_node_creator_import_tomo(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
     relion.importtomo
@@ -1015,7 +973,6 @@ def test_node_creator_import_tomo(mock_environment, offline_transport, tmp_path)
     relion_options = RelionServiceOptions()
 
     setup_and_run_node_creation(
-        mock_environment,
         relion_options,
         offline_transport,
         tmp_path,
@@ -1076,7 +1033,7 @@ def test_node_creator_import_tomo(mock_environment, offline_transport, tmp_path)
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-def test_node_creator_motioncorr_tomo(mock_environment, offline_transport, tmp_path):
+def test_node_creator_motioncorr_tomo(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
     relion.motioncorr.own
@@ -1090,7 +1047,6 @@ def test_node_creator_motioncorr_tomo(mock_environment, offline_transport, tmp_p
     (tmp_path / ".Nodes").mkdir()
 
     setup_and_run_node_creation(
-        mock_environment,
         relion_options,
         offline_transport,
         tmp_path,
@@ -1146,7 +1102,7 @@ def test_node_creator_motioncorr_tomo(mock_environment, offline_transport, tmp_p
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-def test_node_creator_ctffind_tomo(mock_environment, offline_transport, tmp_path):
+def test_node_creator_ctffind_tomo(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
     relion.ctffind.ctffind4
@@ -1170,7 +1126,6 @@ def test_node_creator_ctffind_tomo(mock_environment, offline_transport, tmp_path
     (tmp_path / ".Nodes").mkdir()
 
     setup_and_run_node_creation(
-        mock_environment,
         relion_options,
         offline_transport,
         tmp_path,
@@ -1224,7 +1179,7 @@ def test_node_creator_ctffind_tomo(mock_environment, offline_transport, tmp_path
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-def test_node_creator_excludetilts(mock_environment, offline_transport, tmp_path):
+def test_node_creator_excludetilts(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
     relion.excludetilts
@@ -1240,7 +1195,6 @@ def test_node_creator_excludetilts(mock_environment, offline_transport, tmp_path
     (tmp_path / ".Nodes").mkdir()
 
     setup_and_run_node_creation(
-        mock_environment,
         relion_options,
         offline_transport,
         tmp_path,
@@ -1286,7 +1240,7 @@ def test_node_creator_excludetilts(mock_environment, offline_transport, tmp_path
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-def test_node_creator_aligntiltseries(mock_environment, offline_transport, tmp_path):
+def test_node_creator_aligntiltseries(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
     relion.aligntiltseries
@@ -1314,7 +1268,6 @@ def test_node_creator_aligntiltseries(mock_environment, offline_transport, tmp_p
     (tmp_path / ".Nodes").mkdir()
 
     setup_and_run_node_creation(
-        mock_environment,
         relion_options,
         offline_transport,
         tmp_path,
@@ -1374,7 +1327,7 @@ def test_node_creator_aligntiltseries(mock_environment, offline_transport, tmp_p
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-def test_node_creator_tomograms(mock_environment, offline_transport, tmp_path):
+def test_node_creator_tomograms(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
     relion.reconstructtomograms
@@ -1390,7 +1343,6 @@ def test_node_creator_tomograms(mock_environment, offline_transport, tmp_path):
     (tmp_path / ".Nodes").mkdir()
 
     setup_and_run_node_creation(
-        mock_environment,
         relion_options,
         offline_transport,
         tmp_path,
@@ -1443,7 +1395,7 @@ def test_node_creator_tomograms(mock_environment, offline_transport, tmp_path):
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-def test_node_creator_denoisetomo(mock_environment, offline_transport, tmp_path):
+def test_node_creator_denoisetomo(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
     relion.denoisetomo
@@ -1459,7 +1411,6 @@ def test_node_creator_denoisetomo(mock_environment, offline_transport, tmp_path)
     (tmp_path / ".Nodes").mkdir()
 
     setup_and_run_node_creation(
-        mock_environment,
         relion_options,
         offline_transport,
         tmp_path,

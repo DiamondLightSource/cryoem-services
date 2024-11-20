@@ -6,24 +6,9 @@ from pathlib import Path
 from unittest import mock
 
 import pytest
-import zocalo.configuration
 from workflows.transport.offline_transport import OfflineTransport
 
 from cryoemservices.services import tomo_align_slurm
-
-
-@pytest.fixture
-def mock_zocalo_configuration(tmp_path):
-    mock_zc = mock.MagicMock(zocalo.configuration.Configuration)
-    mock_zc.storage = {
-        "zocalo.recipe_directory": tmp_path,
-    }
-    return mock_zc
-
-
-@pytest.fixture
-def mock_environment(mock_zocalo_configuration):
-    return {"config": mock_zocalo_configuration}
 
 
 @pytest.fixture
@@ -45,7 +30,6 @@ def test_tomo_align_slurm_service(
     mock_mrcfile,
     mock_plotly,
     mock_subprocess,
-    mock_environment,
     offline_transport,
     tmp_path,
 ):
@@ -103,7 +87,7 @@ def test_tomo_align_slurm_service(
     }
 
     # Set up the mock service
-    service = tomo_align_slurm.TomoAlignSlurm(environment=mock_environment)
+    service = tomo_align_slurm.TomoAlignSlurm()
     service.transport = offline_transport
     service.start()
 
@@ -138,6 +122,7 @@ def test_tomo_align_slurm_service(
         token.write("token_key")
 
     # Touch the expected output files
+    (tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo.mrc").touch()
     (tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo.mrc.out").touch()
     (tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo.mrc.err").touch()
 
@@ -190,12 +175,12 @@ def test_tomo_align_slurm_service(
     assert mock_subprocess.call_count == 6
 
 
-def test_parse_tomo_align_output(mock_environment, offline_transport, tmp_path):
+def test_parse_tomo_align_output(offline_transport, tmp_path):
     """
     Send test lines to the output parser
     to check the rotations and offsets are being read in
     """
-    service = tomo_align_slurm.TomoAlignSlurm(environment=mock_environment)
+    service = tomo_align_slurm.TomoAlignSlurm()
     service.transport = offline_transport
     service.start()
 

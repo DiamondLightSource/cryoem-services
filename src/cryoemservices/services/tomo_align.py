@@ -148,6 +148,9 @@ class TomoAlign(CommonService):
             if file_name in str(aln_file):
                 tomo_aln_file = aln_file
 
+        if not tomo_aln_file:
+            return None
+
         with open(tomo_aln_file) as f:
             lines = f.readlines()
             for line in lines:
@@ -330,7 +333,7 @@ class TomoAlign(CommonService):
             rw.send_to("node_creator", node_creator_parameters)
 
         # Stop here if the job failed
-        if aretomo_result.returncode:
+        if aretomo_result.returncode or not aretomo_output_path.is_file():
             self.log.error(
                 f"AreTomo2 failed with exitcode {aretomo_result.returncode}:\n"
                 + aretomo_result.stderr.decode("utf8", "replace")
@@ -382,7 +385,11 @@ class TomoAlign(CommonService):
         tomogram_movie_file = stack_name + "_aretomo_movie.png"
 
         # Extract results for ispyb
-        self.extract_from_aln(tomo_params)
+        aln_file = self.extract_from_aln(tomo_params)
+        if not aln_file:
+            self.log.error("Failed to read alignment file")
+            rw.transport.nack(header)
+            return
         if tomo_params.tilt_cor:
             try:
                 self.rot_centre_z = self.rot_centre_z_list[-1]

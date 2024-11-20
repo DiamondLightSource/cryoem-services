@@ -1,4 +1,27 @@
 # This Dockerfile is used for GPU AreTomo2 processing
+FROM rockylinux:8 AS conda-build
+
+# Set up conda environment
+RUN curl -L -O "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-$(uname)-$(uname -m).sh"
+RUN bash Miniforge3-$(uname)-$(uname -m).sh -b -p "conda"
+
+RUN source "/conda/etc/profile.d/conda.sh" && conda install -c conda-forge conda-pack
+RUN source "/conda/etc/profile.d/conda.sh" && source "/conda/etc/profile.d/mamba.sh" && \
+    mamba create -c conda-forge -p /install/pythonenv python=3.11 pip libtiff=4.4.0 numpy=1.26.4 --override-channels -y
+
+# Install cryoem-services
+RUN mkdir /install/cryoem-services
+COPY packages/cryoem-services /install/cryoem-services
+RUN source "/conda/etc/profile.d/conda.sh" && conda activate /install/pythonenv && pip install --cache-dir /tmp /install/cryoem-services
+
+# Pack the environment
+RUN /conda/bin/conda-pack -p /install/pythonenv -o /tmp/env.tar.gz
+RUN mkdir /install/venv
+RUN tar -xzf /tmp/env.tar.gz -C /install/venv
+RUN source "/conda/etc/profile.d/conda.sh" && conda activate /install/venv && /install/venv/bin/conda-unpack
+
+
+# Second stage extracts the conda environment
 FROM nvidia/cuda:12.4.1-runtime-rockylinux8
 
 # Create EM user
@@ -7,19 +30,9 @@ ARG userid
 ARG groupname
 RUN groupadd -r -g "${groupid}" "${groupname}" && useradd -r -M "${groupname}" -u "${userid}" -g "${groupname}"
 
-# Set up conda environment
-RUN curl -L -O "https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-$(uname)-$(uname -m).sh"
-RUN bash Mambaforge-$(uname)-$(uname -m).sh -b -p "conda"
-
-RUN source "/conda/etc/profile.d/conda.sh" && source "/conda/etc/profile.d/mamba.sh" && mamba create -c conda-forge -p /install/pythonenv python=3.10 pip libtiff=4.4.0 --override-channels -y
-RUN chmod -R a+x /install/pythonenv/bin
-
-# Install cryoem-services
-RUN mkdir /install/cryoem-services
-COPY packages/cryoem-services /install/cryoem-services
-RUN source "/conda/etc/profile.d/conda.sh" && conda activate /install/pythonenv && pip install /install/cryoem-services
-RUN chown -R "${userid}":"${groupid}" install
-ENV PATH=/install/pythonenv/bin:${PATH}
+# Copy python environment
+COPY --from=conda-build --chown="${userid}":"${groupid}" /install/venv /install/venv
+ENV PATH="/install/venv/bin:${PATH}"
 
 # Install IMOD
 COPY --chown="${userid}":"${groupid}" packages/imod-4.11.1 /IMOD/4.11.1

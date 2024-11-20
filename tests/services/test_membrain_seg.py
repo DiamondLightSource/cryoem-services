@@ -6,24 +6,9 @@ import sys
 from unittest import mock
 
 import pytest
-import zocalo.configuration
 from workflows.transport.offline_transport import OfflineTransport
 
 from cryoemservices.services import membrain_seg
-
-
-@pytest.fixture
-def mock_zocalo_configuration(tmp_path):
-    mock_zc = mock.MagicMock(zocalo.configuration.Configuration)
-    mock_zc.storage = {
-        "zocalo.recipe_directory": tmp_path,
-    }
-    return mock_zc
-
-
-@pytest.fixture
-def mock_environment(mock_zocalo_configuration):
-    return {"config": mock_zocalo_configuration}
 
 
 @pytest.fixture
@@ -37,7 +22,6 @@ def offline_transport(mocker):
 @mock.patch("cryoemservices.util.slurm_submission.subprocess.run")
 def test_membrain_seg_service(
     mock_subprocess,
-    mock_environment,
     offline_transport,
     tmp_path,
 ):
@@ -74,7 +58,7 @@ def test_membrain_seg_service(
     }
 
     # Set up the mock service
-    service = membrain_seg.MembrainSeg(environment=mock_environment)
+    service = membrain_seg.MembrainSeg()
     service.transport = offline_transport
     service.start()
 

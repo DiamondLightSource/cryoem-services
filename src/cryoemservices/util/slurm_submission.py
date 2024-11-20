@@ -78,6 +78,7 @@ def slurm_submission(
     script_extras: str = "",
     memory_request: int = 12000,
     external_filesystem: bool = False,
+    extra_singularity_directories: list[str] = [],
 ):
     """Submit jobs to a slurm cluster via the RestAPI"""
     try:
@@ -154,11 +155,13 @@ def slurm_submission(
             binding_dirs = "," + ",".join(slurm_rest["required_directories"])
         else:
             binding_dirs = ""
+        for extra_binding_dir in extra_singularity_directories:
+            binding_dirs += f",{extra_binding_dir}"
         job_command = (
             singularity_script_template
             + script_extras
             + "\n"
-            + "singularity exec --nv --bind /lib64,/tmp/tmp_$SLURM_JOB_ID:/tmp"
+            + "singularity exec --nv --bind /tmp/tmp_$SLURM_JOB_ID:/tmp"
             + f"{binding_dirs} --home {user_home} {cif_name} "
             + " ".join(command)
             + slurm_tmp_cleanup

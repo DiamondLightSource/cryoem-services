@@ -18,7 +18,7 @@ from pipeliner.api.manage_project import PipelinerProject
 from pipeliner.data_structure import FAIL_FILE, SUCCESS_FILE
 from pipeliner.job_factory import read_job
 from pipeliner.project_graph import ProjectGraph
-from pipeliner.utils import DirectoryBasedLock
+from pipeliner.utils import DirectoryBasedLock, update_jobinfo_file
 from pydantic import BaseModel, Field, ValidationError, field_validator
 from workflows.services.common_service import CommonService
 
@@ -55,9 +55,10 @@ def adjust_job_counter(pipeline_name: str, job_number: int):
                 break
     if job_count <= job_number:
         job_count = job_number + 1
-        with open(f"{pipeline_name}_pipeline.star", "r") as pipeline_file, open(
-            f"{pipeline_name}_pipeline.star.tmp", "w"
-        ) as new_pipeline:
+        with (
+            open(f"{pipeline_name}_pipeline.star", "r") as pipeline_file,
+            open(f"{pipeline_name}_pipeline.star.tmp", "w") as new_pipeline,
+        ):
             while True:
                 line = pipeline_file.readline()
                 if not line:
@@ -430,7 +431,7 @@ class NodeCreator(CommonService):
         # Load this job as a pipeliner job to create the nodes
         pipeliner_job = read_job(f"{job_dir}/job.star")
         pipeliner_job.output_dir = str(relative_job_dir) + "/"
-        relion_commands = [[], pipeliner_job.get_final_commands()]
+        relion_commands = pipeliner_job.get_final_commands()
 
         # These parts would normally happen in pipeliner_job.prepare_to_run
         pipeliner_job.create_input_nodes()
@@ -552,7 +553,10 @@ class NodeCreator(CommonService):
             )
             # Add the job commands to the process .CCPEM_pipeliner_jobinfo file
             if not (job_dir / ".CCPEM_pipeliner_jobinfo").exists():
-                process.update_jobinfo_file(action="Run", command_list=relion_commands)
+                for command in relion_commands:
+                    update_jobinfo_file(
+                        process.name, action="Run", command_list=command
+                    )
             # Generate the default_pipeline.star file
             project.check_process_completion()
             # Check the job count in the default_pipeline.star
@@ -571,6 +575,9 @@ class NodeCreator(CommonService):
             "relion.select.class2dauto",
             "icebreaker.micrograph_analysis.particles",
         ]:
+            if job_info.alias:
+                # Unlink the alias again as it will be recreated
+                (job_dir.parent / job_info.alias).unlink(missing_ok=True)
             # Set up a "short_pipeline.star" for SPA which excludes the 2D batches
             with CachedProjectGraph(
                 read_only=False,

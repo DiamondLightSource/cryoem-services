@@ -4,25 +4,10 @@ import sys
 from unittest import mock
 
 import pytest
-import zocalo.configuration
 from workflows.transport.offline_transport import OfflineTransport
 
 from cryoemservices.services import tomo_align
 from cryoemservices.util.relion_service_options import RelionServiceOptions
-
-
-@pytest.fixture
-def mock_zocalo_configuration(tmp_path):
-    mock_zc = mock.MagicMock(zocalo.configuration.Configuration)
-    mock_zc.storage = {
-        "zocalo.recipe_directory": tmp_path,
-    }
-    return mock_zc
-
-
-@pytest.fixture
-def mock_environment(mock_zocalo_configuration):
-    return {"config": mock_zocalo_configuration}
 
 
 @pytest.fixture
@@ -40,7 +25,6 @@ def test_tomo_align_service_file_list(
     mock_mrcfile,
     mock_plotly,
     mock_subprocess,
-    mock_environment,
     offline_transport,
     tmp_path,
 ):
@@ -104,7 +88,7 @@ def test_tomo_align_service_file_list(
     output_relion_options["tomo_size_y"] = 3000
 
     # Set up the mock service
-    service = tomo_align.TomoAlign(environment=mock_environment)
+    service = tomo_align.TomoAlign()
     service.transport = offline_transport
     service.start()
 
@@ -114,6 +98,7 @@ def test_tomo_align_service_file_list(
 
     # Set up outputs: stack_Imod file like AreTomo2, no exclusions but with space
     (tmp_path / "Tomograms/job006/tomograms/test_stack_Imod").mkdir(parents=True)
+    (tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo.mrc").touch()
     with open(
         tmp_path / "Tomograms/job006/tomograms/test_stack_Imod/tilt.com", "w"
     ) as dark_file:
@@ -310,7 +295,6 @@ def test_tomo_align_service_path_pattern(
     mock_mrcfile,
     mock_plotly,
     mock_subprocess,
-    mock_environment,
     offline_transport,
     tmp_path,
 ):
@@ -375,7 +359,7 @@ def test_tomo_align_service_path_pattern(
     output_relion_options["manual_tilt_offset"] = 10.5
 
     # Set up the mock service
-    service = tomo_align.TomoAlign(environment=mock_environment)
+    service = tomo_align.TomoAlign()
     service.transport = offline_transport
     service.start()
 
@@ -385,6 +369,7 @@ def test_tomo_align_service_path_pattern(
 
     # Set up outputs: stack_Imod file like AreTomo2, no exclusions without space
     (tmp_path / "Tomograms/job006/tomograms/test_stack_Imod").mkdir(parents=True)
+    (tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo.mrc").touch()
     with open(
         tmp_path / "Tomograms/job006/tomograms/test_stack_Imod/tilt.com", "w"
     ) as dark_file:
@@ -484,7 +469,6 @@ def test_tomo_align_service_dark_images(
     mock_mrcfile,
     mock_plotly,
     mock_subprocess,
-    mock_environment,
     offline_transport,
     tmp_path,
 ):
@@ -535,7 +519,7 @@ def test_tomo_align_service_dark_images(
     output_relion_options["tomo_size_y"] = 3000
 
     # Set up the mock service
-    service = tomo_align.TomoAlign(environment=mock_environment)
+    service = tomo_align.TomoAlign()
     service.transport = offline_transport
     service.start()
 
@@ -551,6 +535,7 @@ def test_tomo_align_service_dark_images(
     (tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo_Imod").mkdir(
         parents=True
     )
+    (tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo.mrc").touch()
     with open(
         tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo_Imod/tilt.com", "w"
     ) as dark_file:
@@ -675,7 +660,6 @@ def test_tomo_align_service_all_dark(
     mock_mrcfile,
     mock_plotly,
     mock_subprocess,
-    mock_environment,
     offline_transport,
     tmp_path,
 ):
@@ -717,7 +701,7 @@ def test_tomo_align_service_all_dark(
     }
 
     # Set up the mock service
-    service = tomo_align.TomoAlign(environment=mock_environment)
+    service = tomo_align.TomoAlign()
     service.transport = offline_transport
     service.start()
 
@@ -727,6 +711,7 @@ def test_tomo_align_service_all_dark(
 
     # Set up outputs: stack_Imod file like AreTomo2, with exclusions and no spaces
     (tmp_path / "Tomograms/job006/tomograms/test_stack_Imod").mkdir(parents=True)
+    (tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo.mrc").touch()
     with open(
         tmp_path / "Tomograms/job006/tomograms/test_stack_Imod/tilt.com", "w"
     ) as dark_file:
@@ -774,12 +759,12 @@ def test_tomo_align_service_all_dark(
     offline_transport.send.assert_any_call(destination="success", message="")
 
 
-def test_parse_tomo_align_output(mock_environment, offline_transport):
+def test_parse_tomo_align_output(offline_transport):
     """
     Send test lines to the output parser
     to check the rotations and offsets are being read in
     """
-    service = tomo_align.TomoAlign(environment=mock_environment)
+    service = tomo_align.TomoAlign()
     service.transport = offline_transport
     service.start()
 

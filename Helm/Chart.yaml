@@ -1,12 +1,13 @@
 apiVersion: v2
 name: cryoem-services
 description: An umbrella Helm chart for EM processing services
-version: 0.5.3
+version: 0.5.4
 dependencies:
   - name: bfactor_setup
   - name: cluster_submission
   - name: cryolo
   - name: ctffind
+  - name: denoise
   - name: denoise_slurm
   - name: dispatcher
   - name: extract
