@@ -143,7 +143,7 @@ class MembrainSeg(CommonService):
         self.log.info(f"Input: {membrain_seg_params.tomogram} Output: {segmented_path}")
         self.log.info(f"Running {command}")
 
-        # Submit the command to slurm
+        # Submit the command to slurm or run locally
         if membrain_seg_params.submit_to_slurm:
             result = slurm_submission(
                 log=self.log,
@@ -161,9 +161,6 @@ class MembrainSeg(CommonService):
             )
         else:
             result = subprocess.run(command, capture_output=True)
-
-        # Run the command
-        # result = subprocess.run(command, capture_output=True)
 
         # Stop here if the job failed
         if result.returncode:
