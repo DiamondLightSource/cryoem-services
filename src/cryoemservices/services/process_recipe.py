@@ -81,57 +81,48 @@ class ProcessRecipe(CommonService):
         service_config = config_from_file(Path(os.environ["CRYOEMSERVICES_CONFIG"]))
 
         # Load processing parameters
+        self.log.info("Received processing request: " + str(message))
         parameters = message.get("parameters", {})
         if not isinstance(parameters, dict):
             self.log.error("Rejected parameters not given as dictionary")
             self._transport.nack(header)
             return
 
-        # Unless 'guid' is already defined then generate a unique recipe IDs for
-        # this request, which is attached to all downstream log records and can
-        # be used to determine unique file paths.
+        # Unless 'guid' is already defined then generate a unique recipe ID
         recipe_id = parameters.get("guid") or str(uuid.uuid4())
         parameters["guid"] = recipe_id
 
-        # From here on add the global ID to all log messages
-        with self.extend_log("recipe_ID", recipe_id):
-            self.log.info("Received processing request:\n" + str(message))
-            self.log.info("Received processing parameters:\n" + str(parameters))
+        # Create message copy with empty recipe
+        filtered_message: dict = copy.deepcopy(message)
+        filtered_parameters: dict = copy.deepcopy(parameters)
+        filtered_message["recipe"] = workflows.recipe.Recipe()
 
-            filtered_message: dict = copy.deepcopy(message)
-            filtered_parameters: dict = copy.deepcopy(parameters)
+        # Apply all specified filters in order to message and parameters
+        for name, f in self.message_filters.items():
+            try:
+                filtered_message, filtered_parameters = f(
+                    message=filtered_message,
+                    parameters=filtered_parameters,
+                    config=service_config,
+                )
+            except Exception as e:
+                self.log.info(f"Rejected message due to filter {name} error: {e}")
+                self._transport.nack(header)
+                return
 
-            # Create empty recipe
-            filtered_message["recipe"] = workflows.recipe.Recipe()
+        self.log.info("Filtered processing request: " + str(filtered_message))
+        self.log.info("Filtered parameters: " + str(filtered_parameters))
 
-            # Apply all specified filters in order to message and parameters
-            for name, f in self.message_filters.items():
-                try:
-                    filtered_message, filtered_parameters = f(
-                        message=filtered_message,
-                        parameters=filtered_parameters,
-                        config=service_config,
-                    )
-                except Exception as e:
-                    self.log.info(f"Rejected message due to filter {name} error: {e}")
-                    self._transport.nack(header)
-                    return
+        # Conditionally acknowledge receipt of the message
+        txn = self._transport.transaction_begin(subscription_id=header["subscription"])
+        self._transport.ack(header, transaction=txn)
 
-            self.log.info("Mangled processing request:\n" + str(filtered_message))
-            self.log.info("Mangled processing parameters:\n" + str(filtered_parameters))
+        rw = workflows.recipe.RecipeWrapper(
+            recipe=filtered_message["recipe"], transport=self._transport
+        )
+        rw.environment = {"ID": recipe_id}
+        rw.start(transaction=txn)
 
-            # Conditionally acknowledge receipt of the message
-            txn = self._transport.transaction_begin(
-                subscription_id=header["subscription"]
-            )
-            self._transport.ack(header, transaction=txn)
-
-            rw = workflows.recipe.RecipeWrapper(
-                recipe=filtered_message["recipe"], transport=self._transport
-            )
-            rw.environment = {"ID": recipe_id}
-            rw.start(transaction=txn)
-
-            # Commit transaction
-            self._transport.transaction_commit(txn)
-            self.log.info("Processed incoming message")
+        # Commit transaction
+        self._transport.transaction_commit(txn)
+        self.log.info("Processed incoming message")
