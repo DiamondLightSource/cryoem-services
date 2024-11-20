@@ -16,7 +16,6 @@ def calculate_box_size(particle_size_pixels):
 
 def calculate_downscaled_box_size(box_size_pix, angpix):
     for small_box_pix in (
-        48,
         64,
         96,
         128,
@@ -41,9 +40,9 @@ def calculate_downscaled_box_size(box_size_pix, angpix):
         # Don't go larger than the original box
         if small_box_pix > box_size_pix:
             return box_size_pix
-        # If Nyquist freq. is better than 8.5 A, use this downscaled box, else step size
+        # If Nyquist freq. is better than 7.5 A, use this downscaled box, else step size
         small_box_angpix = angpix * box_size_pix / small_box_pix
-        if small_box_angpix < 4.25:
+        if small_box_angpix < 3.75:
             return small_box_pix
     # Fall back to a warning message
     return "Box size is too large!"
