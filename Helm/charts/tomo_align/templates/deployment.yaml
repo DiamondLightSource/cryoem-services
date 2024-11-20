@@ -41,8 +41,8 @@ spec:
           mountPath: /cryoemservices/config
         - name: secrets
           mountPath: /cryoemservices/secrets
-{{- if .Values.extraGlobalVolumeMounts }}
-{{ toYaml .Values.extraGlobalVolumeMounts | indent 8 }}
+{{- if .Values.global.extraGlobalVolumeMounts }}
+{{ toYaml .Values.global.extraGlobalVolumeMounts | indent 8 }}
 {{ end }}
 {{- if .Values.extraVolumeMounts }}
 {{ toYaml .Values.extraVolumeMounts | indent 8 }}
@@ -59,8 +59,8 @@ spec:
               name: {{ .Values.global.rmqSecretName }}
           - secret:
               name: {{ .Values.global.rmqApiSecretName }}
-{{- if .Values.extraGlobalVolumes }}
-{{ toYaml .Values.extraGlobalVolumes | indent 6 }}
+{{- if .Values.global.extraGlobalVolumes }}
+{{ toYaml .Values.global.extraGlobalVolumes | indent 6 }}
 {{ end }}
 {{- if .Values.extraVolumes }}
 {{ toYaml .Values.extraVolumes | indent 6 }}
