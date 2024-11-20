@@ -66,7 +66,8 @@ class EMISPyB(CommonService):
         self.ispyb = ispyb.open(credentials=service_config.ispyb_credentials)
         self._ispyb_sessionmaker = sqlalchemy.orm.sessionmaker(
             bind=sqlalchemy.create_engine(
-                ispyb.sqlalchemy.url(), connect_args={"use_pure": True}
+                ispyb.sqlalchemy.url(credentials=service_config.ispyb_credentials),
+                connect_args={"use_pure": True},
             )
         )
         try:
