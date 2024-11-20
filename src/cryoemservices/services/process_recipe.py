@@ -113,7 +113,7 @@ class ProcessRecipe(CommonService):
                         config=service_config,
                     )
                 except Exception as e:
-                    print(f"Rejected message due to filter {name} error: {e}")
+                    self.log.info(f"Rejected message due to filter {name} error: {e}")
                     self._transport.nack(header)
                     return
 
