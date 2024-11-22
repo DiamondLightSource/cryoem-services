@@ -240,6 +240,7 @@ class IceBreaker(CommonService):
                 # Run the icebreaker command and confirm it ran successfully
                 slurm_outcome = slurm_submission(
                     log=self.log,
+                    service_config_file=self._environment["config"],
                     job_name="IceBreaker",
                     command=command,
                     project_dir=project_dir,

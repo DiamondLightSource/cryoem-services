@@ -11,6 +11,33 @@ from workflows.transport.offline_transport import OfflineTransport
 from cryoemservices.services import membrain_seg
 
 
+def cluster_submission_configuration(tmp_path):
+    # Create a config file
+    config_file = tmp_path / "config.yaml"
+    with open(config_file, "w") as cf:
+        cf.write("rabbitmq_credentials: rmq_creds\n")
+        cf.write(f"recipe_directory: {tmp_path}/recipes\n")
+        cf.write("slurm_credentials:\n")
+        cf.write(f"  default: {tmp_path}/slurm_credentials.yaml\n")
+    os.environ["USER"] = "user"
+
+    # Create dummy slurm credentials files
+    with open(tmp_path / "slurm_credentials.yaml", "w") as slurm_creds:
+        slurm_creds.write(
+            "user: user\n"
+            "user_home: /home\n"
+            f"user_token: {tmp_path}/token.txt\n"
+            "required_directories: [directory1, directory2]\n"
+            "partition: partition\n"
+            "partition_preference: preference\n"
+            "cluster: cluster\n"
+            "url: /url/of/slurm/restapi\n"
+            "api_version: v0.0.40\n"
+        )
+    with open(tmp_path / "token.txt", "w") as token:
+        token.write("token_key")
+
+
 @pytest.fixture
 def offline_transport(mocker):
     transport = OfflineTransport()
@@ -57,28 +84,16 @@ def test_membrain_seg_service(
         "content": "dummy",
     }
 
-    # Set up the mock service
-    service = membrain_seg.MembrainSeg()
-    service.transport = offline_transport
-    service.start()
-
     # Construct the file which contains rest api submission information
     os.environ["DENOISING_SIF"] = "topaz.sif"
-    os.environ["SLURM_RESTAPI_CONFIG"] = str(tmp_path / "restapi.txt")
-    with open(tmp_path / "restapi.txt", "w") as restapi_config:
-        restapi_config.write(
-            "user: user\n"
-            "user_home: /home\n"
-            f"user_token: {tmp_path}/token.txt\n"
-            "required_directories: [directory1, directory2]\n"
-            "partition: partition\n"
-            "partition_preference: preference\n"
-            "cluster: cluster\n"
-            "url: /url/of/slurm/restapi\n"
-            "api_version: v0.0.40\n"
-        )
-    with open(tmp_path / "token.txt", "w") as token:
-        token.write("token_key")
+    cluster_submission_configuration(tmp_path)
+
+    # Set up the mock service
+    service = membrain_seg.MembrainSeg(
+        environment={"config": f"{tmp_path}/config.yaml"}
+    )
+    service.transport = offline_transport
+    service.start()
 
     # Touch the expected output files
     (tmp_path / "Segmentation/job008/tomograms").mkdir(parents=True)

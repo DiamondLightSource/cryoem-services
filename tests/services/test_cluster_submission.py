@@ -364,6 +364,8 @@ def test_cluster_submission_extra_cluster(
     service.start()
     service.run_submit_job(mock_rw, header=header, message={})
 
+    del os.environ["SLURM_CLUSTER"]
+
     # Check the calls to the job setup and submission
     mock_restapi.SlurmRestApi.assert_called_with(
         url="/slurm/extra/url",

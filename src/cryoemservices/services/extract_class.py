@@ -194,9 +194,10 @@ class ExtractClass(CommonService):
         self.log.info(f"Running {self.select_job_type} in {select_job_dir}")
         number_of_particles = 0
         class_number_row = 19  # usual location of Relion class number loop
-        with open(particles_data, "r") as classified_particles, open(
-            f"{select_job_dir}/particles.star", "w"
-        ) as selected_particles:
+        with (
+            open(particles_data, "r") as classified_particles,
+            open(f"{select_job_dir}/particles.star", "w") as selected_particles,
+        ):
             while True:
                 line = classified_particles.readline()
                 if not line:
@@ -270,6 +271,7 @@ class ExtractClass(CommonService):
 
         result = slurm_submission(
             log=self.log,
+            service_config_file=self._environment["config"],
             job_name="ReExtract",
             command=command,
             project_dir=extract_job_dir,

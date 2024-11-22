@@ -49,6 +49,7 @@ class DenoiseSlurm(Denoise):
         self.log.info(f"Running topaz denoising with command: {topaz_command}")
         slurm_outcome = slurm_submission(
             log=self.log,
+            service_config_file=self._environment["config"],
             job_name="Denoising",
             command=topaz_command,
             project_dir=alignment_output_dir,

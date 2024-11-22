@@ -12,6 +12,33 @@ from cryoemservices.services import motioncorr
 from cryoemservices.util.relion_service_options import RelionServiceOptions
 
 
+def cluster_submission_configuration(tmp_path):
+    # Create a config file
+    config_file = tmp_path / "config.yaml"
+    with open(config_file, "w") as cf:
+        cf.write("rabbitmq_credentials: rmq_creds\n")
+        cf.write(f"recipe_directory: {tmp_path}/recipes\n")
+        cf.write("slurm_credentials:\n")
+        cf.write(f"  default: {tmp_path}/slurm_credentials.yaml\n")
+    os.environ["USER"] = "user"
+
+    # Create dummy slurm credentials files
+    with open(tmp_path / "slurm_credentials.yaml", "w") as slurm_creds:
+        slurm_creds.write(
+            "user: user\n"
+            "user_home: /home\n"
+            f"user_token: {tmp_path}/token.txt\n"
+            "required_directories: [directory1, directory2]\n"
+            "partition: partition\n"
+            "partition_preference: preference\n"
+            "cluster: cluster\n"
+            "url: /url/of/slurm/restapi\n"
+            "api_version: v0.0.40\n"
+        )
+    with open(tmp_path / "token.txt", "w") as token:
+        token.write("token_key")
+
+
 @pytest.fixture
 def offline_transport(mocker):
     transport = OfflineTransport()
@@ -1145,8 +1172,12 @@ def test_motioncor2_slurm_service_spa(mock_subprocess, offline_transport, tmp_pa
     ]
     output_relion_options["eer_grouping"] = 0
 
+    # Construct the file which contains rest api submission information
+    os.environ["MOTIONCOR2_SIF"] = "MotionCor2_SIF"
+    cluster_submission_configuration(tmp_path)
+
     # Set up the mock service
-    service = motioncorr.MotionCorr()
+    service = motioncorr.MotionCorr(environment={"config": f"{tmp_path}/config.yaml"})
     service.transport = offline_transport
     service.start()
 
@@ -1157,24 +1188,6 @@ def test_motioncor2_slurm_service_spa(mock_subprocess, offline_transport, tmp_pa
     total_motion = 10.0
     early_motion = 10.0
     late_motion = 0.0
-
-    # Construct the file which contains rest api submission information
-    os.environ["MOTIONCOR2_SIF"] = "MotionCor2_SIF"
-    os.environ["SLURM_RESTAPI_CONFIG"] = str(tmp_path / "restapi.txt")
-    with open(tmp_path / "restapi.txt", "w") as restapi_config:
-        restapi_config.write(
-            "user: user\n"
-            "user_home: /home\n"
-            f"user_token: {tmp_path}/token.txt\n"
-            "required_directories: [directory1, directory2]\n"
-            "partition: partition\n"
-            "partition_preference: preference\n"
-            "cluster: cluster\n"
-            "url: /url/of/slurm/restapi\n"
-            "api_version: v0.0.40\n"
-        )
-    with open(tmp_path / "token.txt", "w") as token:
-        token.write("token_key")
 
     # Touch the expected output files
     (tmp_path / "MotionCorr/job002/Movies").mkdir(parents=True)
@@ -1286,7 +1299,7 @@ def test_motioncor2_slurm_parameters(mock_slurm, offline_transport, tmp_path):
     }
 
     # Set up the mock service
-    service = motioncorr.MotionCorr()
+    service = motioncorr.MotionCorr(environment={"config": f"{tmp_path}/config.yaml"})
     service.transport = offline_transport
     service.start()
 
@@ -1330,6 +1343,7 @@ def test_motioncor2_slurm_parameters(mock_slurm, offline_transport, tmp_path):
     assert mock_slurm.call_count == 4
     mock_slurm.assert_called_with(
         log=service.log,
+        service_config_file=f"{tmp_path}/config.yaml",
         job_name="MotionCor2",
         command=mc_command,
         project_dir=tmp_path / "MotionCorr/job002/Movies/",
@@ -1381,7 +1395,7 @@ def test_motioncor_relion_slurm_parameters(mock_slurm, offline_transport, tmp_pa
     }
 
     # Set up the mock service
-    service = motioncorr.MotionCorr()
+    service = motioncorr.MotionCorr(environment={"config": f"{tmp_path}/config.yaml"})
     service.transport = offline_transport
     service.start()
 
@@ -1429,6 +1443,7 @@ def test_motioncor_relion_slurm_parameters(mock_slurm, offline_transport, tmp_pa
     assert mock_slurm.call_count == 4
     mock_slurm.assert_called_with(
         log=service.log,
+        service_config_file=f"{tmp_path}/config.yaml",
         job_name="RelionMotionCorr",
         command=mc_command,
         project_dir=tmp_path / "MotionCorr/job002/Movies/",
