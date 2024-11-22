@@ -22,7 +22,6 @@ def offline_transport(mocker):
 @mock.patch("cryoemservices.util.slurm_submission.subprocess.run")
 def test_membrain_seg_service_local(
     mock_subprocess,
-    mock_environment,
     offline_transport,
     tmp_path,
 ):
@@ -54,7 +53,7 @@ def test_membrain_seg_service_local(
     }
 
     # Set up the mock service
-    service = membrain_seg.MembrainSeg(environment=mock_environment)
+    service = membrain_seg.MembrainSeg()
     service.transport = offline_transport
     service.start()
 
