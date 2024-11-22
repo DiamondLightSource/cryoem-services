@@ -34,8 +34,6 @@ spec:
         env:
         - name: MOTIONCOR2_SIF
           value: "{{ .Values.motioncorSIF }}"
-        - name: SLURM_RESTAPI_CONFIG
-          value: "{{ .Values.slurmCredentials }}"
         volumeMounts:
         - name: config-file
           mountPath: /cryoemservices/config

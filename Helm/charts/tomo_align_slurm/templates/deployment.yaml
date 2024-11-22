@@ -36,8 +36,6 @@ spec:
           value: "{{ .Values.aretomoExecutable }}"
         - name: EXTRA_LIBRARIES
           value: "{{ .Values.extraLibraries }}"
-        - name: SLURM_RESTAPI_CONFIG
-          value: "{{ .Values.slurmCredentials }}"
         - name: LD_LIBRARY_PATH
           value: "/IMOD/4.11.1/IMOD/lib:/IMOD/4.11.1/IMOD/qtlib"
         - name: IMOD_DIR

@@ -79,7 +79,6 @@ denoise:
 
 denoise_slurm:
   denoisingSIF: topaz.sif
-  slurmCredentials: slurm_credentials.yaml
   replicas: 1
   image: gcr.io/image/path
   command: cryoemservices.service -s DenoiseSlurm -c /cryoemservices/config/cryoemservices_config.yaml
@@ -104,7 +103,6 @@ extract:
   maxReplicaCount: 4
 
 extract_class:
-  slurmCredentials: slurm_credentials.yaml
   replicas: 1
   image: gcr.io/image/path
   command: cryoemservices.service -s ExtractClass -c /cryoemservices/config/cryoemservices_config.yaml
@@ -117,7 +115,6 @@ extract_class:
   maxReplicaCount: 1
 
 icebreaker:
-  slurmCredentials: slurm_credentials.yaml
   replicas: 1
   image: gcr.io/image/path
   command: cryoemservices.service -s IceBreaker -c /cryoemservices/config/cryoemservices_config.yaml
@@ -154,7 +151,6 @@ ispyb:
   maxReplicaCount: 4
 
 membrain_seg:
-  slurmCredentials: slurm_credentials.yaml
   replicas: 1
   image: gcr.io/image/path
   command: cryoemservices.service -s MembrainSeg -c /cryoemservices/config/cryoemservices_config.yaml
@@ -168,7 +164,6 @@ membrain_seg:
 
 motioncorr:
   motioncorSIF: motioncor2.sif
-  slurmCredentials: slurm_credentials.yaml
   replicas: 1
   image: gcr.io/image/path
   command: cryoemservices.service -s MotionCorr -c /cryoemservices/config/cryoemservices_config.yaml
@@ -244,7 +239,6 @@ tomo_align:
 tomo_align_slurm:
   aretomoExectable: /path/to/AreTomo2
   extraLibraries: /path/to/aretomo/lib
-  slurmCredentials: slurm_credentials.yaml
   replicas: 1
   image: gcr.io/image/path
   command: cryoemservices.service -s TomoAlignSlurm -c /cryoemservices/config/cryoemservices_config.yaml

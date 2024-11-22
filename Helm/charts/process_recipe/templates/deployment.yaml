@@ -31,9 +31,6 @@ spec:
           - -c
           - >-
               {{ .Values.command }}
-        env:
-        - name: CRYOEMSERVICES_CONFIG
-          value: "/cryoemservices/config/{{ .Values.global.configFileName }}"
         volumeMounts:
         - name: config-file
           mountPath: /cryoemservices/config

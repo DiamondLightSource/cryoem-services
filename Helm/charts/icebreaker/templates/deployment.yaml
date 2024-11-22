@@ -31,9 +31,6 @@ spec:
           - -c
           - >-
               {{ .Values.command }}
-        env:
-        - name: SLURM_RESTAPI_CONFIG
-          value: "{{ .Values.slurmCredentials }}"
         volumeMounts:
         - name: config-file
           mountPath: /cryoemservices/config

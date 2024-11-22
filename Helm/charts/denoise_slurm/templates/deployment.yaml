@@ -34,8 +34,6 @@ spec:
         env:
         - name: DENOISING_SIF
           value: "{{ .Values.denoisingSIF }}"
-        - name: SLURM_RESTAPI_CONFIG
-          value: "{{ .Values.slurmCredentials }}"
         volumeMounts:
         - name: config-file
           mountPath: /cryoemservices/config
