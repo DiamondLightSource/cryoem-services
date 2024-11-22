@@ -13,12 +13,12 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Literal, Optional, Union
+from typing import Any, Literal, Optional
 from xml.etree import ElementTree as ET
 
 import numpy as np
 from defusedxml.ElementTree import parse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, ValidationError
 from tifffile import TiffFile, imwrite
 from zocalo.wrapper import BaseWrapper
 
@@ -34,7 +34,7 @@ logger = logging.getLogger("cryoemservices.wrappers.clem_align_and_merge")
 
 
 def align_and_merge_stacks(
-    images: Union[Path, list[Path]],
+    images: Path | list[Path],
     metadata: Optional[Path] = None,
     align_self: Optional[str] = None,
     flatten: Optional[Literal["min", "max", "mean"]] = "mean",
@@ -42,7 +42,7 @@ def align_and_merge_stacks(
     # Print messages only if run as a CLI
     print_messages: bool = False,
     debug: bool = False,
-):
+) -> dict[str, Any]:
     """
     A cryoEM service (eventually) to create composite images from component image
     stacks in the series.
@@ -333,12 +333,68 @@ def align_and_merge_stacks(
     if print_messages is True:
         print(f"Composite image saved as {save_name}")
 
-    return composite_img
+    # Collect and return parameters and result
+    result: dict[str, Any] = {
+        "image_stacks": [str(file) for file in files],  # Convert Path to str
+        "align_self": align_self,
+        "align_across": align_across,
+        "flatten": flatten,
+        "composite_image": str(save_name.resolve()),
+    }
+    return result
 
 
 class AlignAndMergeParameters(BaseModel):
-    pass
+    series_name: str
+    images: Path | list[Path]
+    metadata: Optional[Path] = Field(default=None)
+    align_self: Optional[str] = Field(default=None)
+    flatten: Optional[Literal["min", "max", "mean"]] = Field(default="mean")
+    align_across: Optional[str] = Field(default=None)
 
 
 class AlignAndMergeWrapper(BaseWrapper):
-    pass
+    def run(self) -> bool:
+        """
+        Reads the Zocalo wrapper recipe, loads the parameters, and pass them to the
+        alignment and merging function. Upon collecting the results, it then passes
+        them back to Murfey for the next stage in the workflow.
+        """
+
+        assert hasattr(self, "recwrap"), "No RecipeWrapper object found"
+        params_dict = self.recwrap.recipe_step["job_parameters"]
+        try:
+            params = AlignAndMergeParameters(**params_dict)
+        except (ValidationError, TypeError) as error:
+            logger.error(
+                "AlignAndMergeParameters validation failed for parameters: "
+                f"{params_dict} with exception: {error}"
+            )
+            return False
+
+        # Process files and collect output
+        result = align_and_merge_stacks(
+            images=params.images,
+            metadata=params.metadata,
+            align_self=params.align_self,
+            flatten=params.flatten,
+            align_across=params.align_across,
+        )
+        if not result.keys():
+            logger.error(
+                "Failed to complete the aligning and merging process for "
+                f"{params.series_name!r}"
+            )
+            return False
+
+        # Send results to Murfey for registration
+        murfey_params = {
+            "register": "clem.register_align_and_merge_result",
+            "result": result,
+        }
+        self.recwrap.send_to("murfey_feedback", murfey_params)
+        logger.info(
+            f"Submitted alignment and merging results for {result['series_name']!r} "
+            "to Murfey for registration"
+        )
+        return True
