@@ -350,17 +350,18 @@ class LIFToStackWrapper(BaseWrapper):
         params_dict = self.recwrap.recipe_step["job_parameters"]
         try:
             params = LIFToStackParameters(**params_dict)
-        except (ValidationError, TypeError) as e:
+        except (ValidationError, TypeError) as error:
             logger.error(
-                f"LIFToStackParameters validation failed for parameters: {params_dict} with exception: {e}"
+                "LIFToStackParameters validation failed for parameters: "
+                f"{params_dict} with exception: {error}"
             )
             return False
 
         # Process files and collect output
         results = convert_lif_to_stack(
             file=params.lif_file,
-            root_folder=params.root_folder,  # Name of the folder under which LIF files are saved
-            number_of_processes=params.num_procs,  # Number of processing threads to run
+            root_folder=params.root_folder,
+            number_of_processes=params.num_procs,
         )
 
         # Return False and log error if the command fails to execute
@@ -378,7 +379,8 @@ class LIFToStackWrapper(BaseWrapper):
             }
             self.recwrap.send_to("murfey_feedback", murfey_params)
             logger.info(
-                f"Submitted {result['series_name']!r} {result['channel']!r} image stack and associated metadata for registration"
+                f"Submitted {result['series_name']!r} {result['channel']!r} "
+                "image stack and associated metadata to Murfey for registration"
             )
 
         return True
