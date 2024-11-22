@@ -45,10 +45,12 @@ def submit_to_slurm(
     logger: logging.Logger,
     service_config: ServiceConfig,
 ) -> int | None:
-    if not service_config.slurm_credentials:
+    slurm_cluster = os.environ.get("SLURM_CLUSTER", "default")
+    slurm_credentials = service_config.slurm_credentials.get(slurm_cluster)
+    if not slurm_credentials:
         logger.error("No slurm credentials have been provided, aborting")
         return None
-    with open(service_config.slurm_credentials, "r") as f:
+    with open(slurm_credentials, "r") as f:
         slurm_rest = yaml.safe_load(f)
     api = slurm.SlurmRestApi(
         url=slurm_rest["url"],
@@ -234,11 +236,12 @@ class ClusterSubmission(CommonService):
 
         submit_to_scheduler = self.schedulers.get(cluster_params.scheduler)
 
-        service_config = config_from_file(Path(os.environ["CRYOEMSERVICES_CONFIG"]))
+        service_config = config_from_file(self._environment["config"])
         jobnumber = submit_to_scheduler(
             cluster_params, working_directory, self.log, service_config=service_config
         )
         if not jobnumber:
+            self.log.error("Job was not submitted")
             self._transport.nack(header)
             return
 

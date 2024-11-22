@@ -61,8 +61,8 @@ def run():
         "transport": transport_factory,
         "transport_command_channel": "command",
         "verbose_service": True,
+        "environment": {"config": args.config_file},
     }
-    frontend_args.setdefault("environment", {})
 
     # Create and start workflows Frontend object
     log.info(f"Launching service {args.service}")

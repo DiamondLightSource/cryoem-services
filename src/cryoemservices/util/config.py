@@ -12,8 +12,7 @@ class ServiceConfig(BaseModel):
     recipe_directory: Path
     transport_type: str = "PikaTransport"
     ispyb_credentials: Optional[Path] = None
-    slurm_credentials: Optional[Path] = None
-    slurm_cluster: str = ""
+    slurm_credentials: dict[str, Path] = {}
     graylog_host: str = ""
     graylog_port: Optional[int] = None
 
