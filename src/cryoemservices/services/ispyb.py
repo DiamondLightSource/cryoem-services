@@ -1156,24 +1156,42 @@ class EMISPyB(CommonService):
             )
             return False
 
-    def do_update_processing_status(self, parameters, **kwargs):
-        ppid = parameters("program_id")
-        message = parameters("message")
-        status = parameters("status")
+    def do_update_processing_status(self, parameters, session, message=None, **kwargs):
+        if message is None:
+            message = {}
+
+        def full_parameters(param):
+            return message.get(param) or parameters(param)
+
+        ppid = full_parameters("program_id")
+        message = full_parameters("message")
         try:
-            result = self.ispyb.mx_processing.upsert_program_ex(
-                program_id=ppid,
-                status={"success": 1, "failure": 0}.get(status),
-                time_start=parameters("start_time"),
-                time_update=parameters("update_time"),
-                message=message,
+            values = models.AutoProcProgram(
+                autoProcProgramId=ppid,
+                processingStatus={"success": 1, "failure": 0}.get(
+                    full_parameters("status")
+                ),
+                processingMessage=message,
+                processingStartTime=full_parameters("start_time"),
+                processingEndTime=full_parameters("update_time"),
             )
+            # This is an update call, want it to throw an error if the row isn't present
+            session.query(models.AutoProcProgram).filter(
+                models.AutoProcProgram.autoProcProgramId == values.autoProcProgramId,
+            ).update(
+                {
+                    k: v
+                    for k, v in values.__dict__.items()
+                    if k not in ["_sa_instance_state", "autoProcProgramId"]
+                    and v is not None
+                }
+            )
+            session.commit()
             self.log.info(
                 f"Updating program {ppid} with status {message}",
             )
-            # result is just ppid
-            return {"success": True, "return_value": result}
-        except ispyb.ISPyBException as e:
+            return {"success": True, "return_value": values.autoProcProgramId}
+        except sqlalchemy.exc.SQLAlchemyError as e:
             self.log.error(
                 f"Updating program {ppid} status: {message} caused exception {e}.",
                 exc_info=True,
