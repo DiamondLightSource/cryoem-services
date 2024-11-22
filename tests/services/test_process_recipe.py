@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import sys
 from unittest import mock
 
@@ -29,7 +28,6 @@ def test_process_recipe_service(mock_recipe, mock_rw, offline_transport, tmp_pat
     with open(config_file, "w") as cf:
         cf.write("rabbitmq_credentials: rmq_creds\n")
         cf.write(f"recipe_directory: {tmp_path}/recipes\n")
-    os.environ["CRYOEMSERVICES_CONFIG"] = str(config_file)
 
     # Create a recipe
     (tmp_path / "recipes").mkdir()
@@ -50,7 +48,7 @@ def test_process_recipe_service(mock_recipe, mock_rw, offline_transport, tmp_pat
     }
 
     # Set up the mock service
-    service = process_recipe.ProcessRecipe()
+    service = process_recipe.ProcessRecipe(environment={"config": config_file})
     service.transport = offline_transport
     service.start()
     service.process(None, header=header, message=recipe_test_message)

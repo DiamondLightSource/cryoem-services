@@ -31,7 +31,7 @@ def test_start_service(mock_frontend, tmp_path):
             "transport": mock.ANY,
             "transport_command_channel": "command",
             "verbose_service": True,
-            "environment": {},
+            "environment": {"config": f"{tmp_path}/config.yaml"},
         }
     )
     mock_frontend().run.assert_called()
