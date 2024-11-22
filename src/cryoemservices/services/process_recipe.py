@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import copy
-import os
 import uuid
 from pathlib import Path
 
@@ -78,7 +77,7 @@ class ProcessRecipe(CommonService):
     def process(self, rw, header, message):
         """Process an incoming processing request."""
         # Find config
-        service_config = config_from_file(Path(os.environ["CRYOEMSERVICES_CONFIG"]))
+        service_config = config_from_file(self._environment["config"])
 
         # Load processing parameters
         self.log.info("Received processing request: " + str(message))

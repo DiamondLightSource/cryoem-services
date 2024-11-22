@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import string
 import time
 from collections import ChainMap
@@ -62,7 +61,7 @@ class EMISPyB(CommonService):
         """Subscribe the ISPyB connector queue. Received messages must be
         acknowledged. Prepare ISPyB database connection."""
         self.log.info(f"ISPyB connector using ispyb v{ispyb.__version__}")
-        service_config = config_from_file(Path(os.environ["CRYOEMSERVICES_CONFIG"]))
+        service_config = config_from_file(self._environment["config"])
         self.ispyb = ispyb.open(credentials=service_config.ispyb_credentials)
         self._ispyb_sessionmaker = sqlalchemy.orm.sessionmaker(
             bind=sqlalchemy.create_engine(
