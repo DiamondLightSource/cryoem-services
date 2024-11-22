@@ -272,6 +272,7 @@ class ExtractClass(CommonService):
         result = slurm_submission(
             log=self.log,
             service_config_file=self._environment["config"],
+            slurm_cluster=self._environment["slurm_cluster"],
             job_name="ReExtract",
             command=command,
             project_dir=extract_job_dir,

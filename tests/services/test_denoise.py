@@ -257,7 +257,7 @@ def test_denoise_slurm_service(
 
     # Set up the mock service
     service = denoise_slurm.DenoiseSlurm(
-        environment={"config": f"{tmp_path}/config.yaml"}
+        environment={"config": f"{tmp_path}/config.yaml", "slurm_cluster": "default"}
     )
     service.transport = offline_transport
     service.start()

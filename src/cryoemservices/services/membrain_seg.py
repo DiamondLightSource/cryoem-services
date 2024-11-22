@@ -145,6 +145,7 @@ class MembrainSeg(CommonService):
         result = slurm_submission(
             log=self.log,
             service_config_file=self._environment["config"],
+            slurm_cluster=self._environment["slurm_cluster"],
             job_name="membrain-seg",
             command=command,
             project_dir=segmented_output_dir,

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 import time
 from pathlib import Path
@@ -13,8 +12,6 @@ from cryoemservices.util.config import config_from_file
 
 """"
 This service submits jobs to a slurm cluster
-To do this it needs environment variables set for the following:
-    SLURM_RESTAPI_CONFIG: configuration yaml file for the slurm cluster
 
 The configuration has the following format:
     plugin: slurm
@@ -70,6 +67,7 @@ slurm_tmp_cleanup = "\nrm -rf /tmp/tmp_$SLURM_JOB_ID"
 def slurm_submission(
     log,
     service_config_file: Path,
+    slurm_cluster: str,
     job_name: str,
     command: list,
     project_dir: Path,
@@ -86,9 +84,7 @@ def slurm_submission(
     """Submit jobs to a slurm cluster via the RestAPI"""
     # Load the service config with slurm credentials
     service_config = config_from_file(service_config_file)
-    slurm_cluster = os.environ.get("SLURM_CLUSTER", "default")
     slurm_credentials = service_config.slurm_credentials.get(slurm_cluster)
-    print(service_config_file, slurm_credentials, slurm_cluster)
     if not slurm_credentials:
         log.error("No slurm credentials have been provided, aborting")
         return subprocess.CompletedProcess(

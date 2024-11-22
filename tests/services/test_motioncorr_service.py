@@ -1177,7 +1177,9 @@ def test_motioncor2_slurm_service_spa(mock_subprocess, offline_transport, tmp_pa
     cluster_submission_configuration(tmp_path)
 
     # Set up the mock service
-    service = motioncorr.MotionCorr(environment={"config": f"{tmp_path}/config.yaml"})
+    service = motioncorr.MotionCorr(
+        environment={"config": f"{tmp_path}/config.yaml", "slurm_cluster": "default"}
+    )
     service.transport = offline_transport
     service.start()
 
@@ -1299,7 +1301,9 @@ def test_motioncor2_slurm_parameters(mock_slurm, offline_transport, tmp_path):
     }
 
     # Set up the mock service
-    service = motioncorr.MotionCorr(environment={"config": f"{tmp_path}/config.yaml"})
+    service = motioncorr.MotionCorr(
+        environment={"config": f"{tmp_path}/config.yaml", "slurm_cluster": "default"}
+    )
     service.transport = offline_transport
     service.start()
 
@@ -1344,6 +1348,7 @@ def test_motioncor2_slurm_parameters(mock_slurm, offline_transport, tmp_path):
     mock_slurm.assert_called_with(
         log=service.log,
         service_config_file=f"{tmp_path}/config.yaml",
+        slurm_cluster="default",
         job_name="MotionCor2",
         command=mc_command,
         project_dir=tmp_path / "MotionCorr/job002/Movies/",
@@ -1395,7 +1400,9 @@ def test_motioncor_relion_slurm_parameters(mock_slurm, offline_transport, tmp_pa
     }
 
     # Set up the mock service
-    service = motioncorr.MotionCorr(environment={"config": f"{tmp_path}/config.yaml"})
+    service = motioncorr.MotionCorr(
+        environment={"config": f"{tmp_path}/config.yaml", "slurm_cluster": "default"}
+    )
     service.transport = offline_transport
     service.start()
 
@@ -1444,6 +1451,7 @@ def test_motioncor_relion_slurm_parameters(mock_slurm, offline_transport, tmp_pa
     mock_slurm.assert_called_with(
         log=service.log,
         service_config_file=f"{tmp_path}/config.yaml",
+        slurm_cluster="default",
         job_name="RelionMotionCorr",
         command=mc_command,
         project_dir=tmp_path / "MotionCorr/job002/Movies/",

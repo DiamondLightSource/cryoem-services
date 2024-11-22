@@ -84,7 +84,7 @@ def test_cluster_submission_recipeless(
 
     # Set up the mock service
     service = cluster_submission.ClusterSubmission(
-        environment={"config": f"{tmp_path}/config.yaml"}
+        environment={"config": f"{tmp_path}/config.yaml", "slurm_cluster": "default"}
     )
     service.transport = offline_transport
     service.start()
@@ -167,7 +167,7 @@ def test_cluster_submission_recipefile(
 
     # Set up the mock service
     service = cluster_submission.ClusterSubmission(
-        environment={"config": f"{tmp_path}/config.yaml"}
+        environment={"config": f"{tmp_path}/config.yaml", "slurm_cluster": "default"}
     )
     service.transport = offline_transport
     service.start()
@@ -225,7 +225,7 @@ def test_cluster_submission_recipeenvironment(
 
     # Set up the mock service
     service = cluster_submission.ClusterSubmission(
-        environment={"config": f"{tmp_path}/config.yaml"}
+        environment={"config": f"{tmp_path}/config.yaml", "slurm_cluster": "default"}
     )
     service.transport = offline_transport
     service.start()
@@ -287,7 +287,7 @@ def test_cluster_submission_recipewrapper(
 
     # Set up the mock service
     service = cluster_submission.ClusterSubmission(
-        environment={"config": f"{tmp_path}/config.yaml"}
+        environment={"config": f"{tmp_path}/config.yaml", "slurm_cluster": "default"}
     )
     service.transport = offline_transport
     service.start()
@@ -353,18 +353,13 @@ def test_cluster_submission_extra_cluster(
         }
     }
 
-    # Request the second cluster
-    os.environ["SLURM_CLUSTER"] = "extra"
-
     # Set up the mock service
     service = cluster_submission.ClusterSubmission(
-        environment={"config": f"{tmp_path}/config.yaml"}
+        environment={"config": f"{tmp_path}/config.yaml", "slurm_cluster": "extra"}
     )
     service.transport = offline_transport
     service.start()
     service.run_submit_job(mock_rw, header=header, message={})
-
-    del os.environ["SLURM_CLUSTER"]
 
     # Check the calls to the job setup and submission
     mock_restapi.SlurmRestApi.assert_called_with(

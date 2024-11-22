@@ -160,6 +160,7 @@ class TomoAlignSlurm(TomoAlign, CommonService):
         slurm_outcome = slurm_submission(
             log=self.log,
             service_config_file=self._environment["config"],
+            slurm_cluster=self._environment["slurm_cluster"],
             job_name="AreTomo2",
             command=command,
             project_dir=Path(self.alignment_output_dir),

@@ -44,9 +44,9 @@ def submit_to_slurm(
     working_directory: Path,
     logger: logging.Logger,
     service_config: ServiceConfig,
+    cluster_name: str,
 ) -> int | None:
-    slurm_cluster = os.environ.get("SLURM_CLUSTER", "default")
-    slurm_credentials = service_config.slurm_credentials.get(slurm_cluster)
+    slurm_credentials = service_config.slurm_credentials.get(cluster_name)
     if not slurm_credentials:
         logger.error("No slurm credentials have been provided, aborting")
         return None
@@ -238,7 +238,11 @@ class ClusterSubmission(CommonService):
 
         service_config = config_from_file(self._environment["config"])
         jobnumber = submit_to_scheduler(
-            cluster_params, working_directory, self.log, service_config=service_config
+            cluster_params,
+            working_directory,
+            self.log,
+            service_config=service_config,
+            cluster_name=self._environment["slurm_cluster"],
         )
         if not jobnumber:
             self.log.error("Job was not submitted")

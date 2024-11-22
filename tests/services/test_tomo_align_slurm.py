@@ -120,7 +120,7 @@ def test_tomo_align_slurm_service(
 
     # Set up the mock service
     service = tomo_align_slurm.TomoAlignSlurm(
-        environment={"config": f"{tmp_path}/config.yaml"}
+        environment={"config": f"{tmp_path}/config.yaml", "slurm_cluster": "default"}
     )
     service.transport = offline_transport
     service.start()

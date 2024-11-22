@@ -20,7 +20,6 @@ def run():
     parser.add_argument(
         "-s",
         "--service",
-        dest="service",
         required=True,
         choices=list(known_services),
         help="Name of the service to start. Known services: "
@@ -29,9 +28,14 @@ def run():
     parser.add_argument(
         "-c",
         "--config_file",
-        action="store",
         required=True,
         help="Config file specifying the location of other credentials to read",
+    )
+    parser.add_argument(
+        "--slurm",
+        required=False,
+        default="default",
+        help="Optional slurm cluster name, matching a key present in the config file",
     )
     args = parser.parse_args()
 
@@ -61,7 +65,7 @@ def run():
         "transport": transport_factory,
         "transport_command_channel": "command",
         "verbose_service": True,
-        "environment": {"config": args.config_file},
+        "environment": {"config": args.config_file, "slurm_cluster": args.slurm},
     }
 
     # Create and start workflows Frontend object

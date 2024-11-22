@@ -421,7 +421,9 @@ def test_icebreaker_particles_service_slurm(
     cluster_submission_configuration(tmp_path)
 
     # Set up the mock service and send a message to the service
-    service = icebreaker.IceBreaker(environment={"config": f"{tmp_path}/config.yaml"})
+    service = icebreaker.IceBreaker(
+        environment={"config": f"{tmp_path}/config.yaml", "slurm_cluster": "default"}
+    )
     service.transport = offline_transport
     service.start()
     service.icebreaker(None, header=header, message=icebreaker_test_message)

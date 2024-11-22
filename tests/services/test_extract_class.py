@@ -117,7 +117,7 @@ def test_extract_class_service(mock_subprocess, offline_transport, tmp_path):
 
     # Set up the mock service and call it
     service = extract_class.ExtractClass(
-        environment={"config": f"{tmp_path}/config.yaml"}
+        environment={"config": f"{tmp_path}/config.yaml", "slurm_cluster": "default"}
     )
     service.transport = offline_transport
     service.start()

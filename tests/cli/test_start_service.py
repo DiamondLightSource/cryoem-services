@@ -22,6 +22,8 @@ def test_start_service(mock_frontend, tmp_path):
         "MotionCorr",
         "--config_file",
         str(config_file),
+        "--slurm",
+        "extra",
     ]
     start_service.run()
 
@@ -31,7 +33,10 @@ def test_start_service(mock_frontend, tmp_path):
             "transport": mock.ANY,
             "transport_command_channel": "command",
             "verbose_service": True,
-            "environment": {"config": f"{tmp_path}/config.yaml"},
+            "environment": {
+                "config": f"{tmp_path}/config.yaml",
+                "slurm_cluster": "extra",
+            },
         }
     )
     mock_frontend().run.assert_called()
