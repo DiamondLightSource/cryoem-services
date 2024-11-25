@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import string
 import time
-from collections import ChainMap
 
 import ispyb.sqlalchemy
 import sqlalchemy.orm
@@ -11,19 +9,6 @@ from workflows.services.common_service import CommonService
 
 from cryoemservices.util import ispyb_commands
 from cryoemservices.util.models import MockRW
-
-
-class ChainMapWithReplacement(ChainMap):
-    def __init__(self, *maps, substitutions=None) -> None:
-        super().__init__(*maps)
-        self._substitutions = substitutions
-
-    def __getitem__(self, k):
-        v = super().__getitem__(k)
-        if self._substitutions and isinstance(v, str) and "$" in v:
-            template = string.Template(v)
-            return template.substitute(**self._substitutions)
-        return v
 
 
 class EMISPyB(CommonService):
@@ -104,12 +89,6 @@ class EMISPyB(CommonService):
         self.log.debug("Running ISPyB call %s", command)
         rw.set_default_channel("output")
 
-        parameter_map = ChainMapWithReplacement(
-            message if isinstance(message, dict) else {},
-            rw.recipe_step["parameters"],
-            substitutions=rw.environment,
-        )
-
         def parameters(parameter, replace_variables=True):
             if isinstance(message, dict):
                 base_value = message.get(
@@ -141,9 +120,7 @@ class EMISPyB(CommonService):
                     rw=rw,
                     message=message,
                     parameters=parameters,
-                    parameter_map=parameter_map,
                     session=session,
-                    header=header,
                 )
         except Exception as e:
             self.log.error(

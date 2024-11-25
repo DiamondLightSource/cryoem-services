@@ -4,12 +4,11 @@ import logging
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 import ispyb
 import ispyb.sqlalchemy as models
 import sqlalchemy.exc
-from pydantic import BaseModel, validate_arguments
+from pydantic import validate_arguments
 
 from cryoemservices.services import ispyb_buffer
 
@@ -17,7 +16,7 @@ logger = logging.getLogger("cryoemservices.services.ispyb_functions")
 logger.setLevel(logging.INFO)
 
 
-def multipart_message(rw, message, **kwargs):
+def multipart_message(rw, message, parameters, session):
     """The multipart_message command allows the recipe or client to specify a
     multi-stage operation. With this you can process a list of API calls.
     Each API call may have a return value that can be stored.
@@ -87,8 +86,6 @@ def multipart_message(rw, message, **kwargs):
                 base_value = base_value.replace(f"${key}", str(rw.environment[key]))
         return base_value
 
-    kwargs["parameters"] = step_parameters
-
     # If this step previously checkpointed then override the message passed
     # to the step.
     step_message = current_command
@@ -96,7 +93,9 @@ def multipart_message(rw, message, **kwargs):
         step_message = message.get("step_message", step_message)
 
     # Run the multipart step
-    result = command(rw=rw, message=step_message, **kwargs)
+    result = command(
+        rw=rw, message=step_message, parameters=step_parameters, session=session
+    )
 
     # Store step result if appropriate
     store_result = current_command.get("store_result")
@@ -152,7 +151,7 @@ def multipart_message(rw, message, **kwargs):
     return {"checkpoint": True, "return_value": checkpoint_dictionary}
 
 
-def buffer(rw, message, session, parameters, header, **kwargs):
+def buffer(rw, message, parameters, session):
     """The buffer command supports running buffer lookups before running
     a command, and optionally storing the result in a buffer after running
     the command. It also takes care of checkpointing in case a required
@@ -204,11 +203,6 @@ def buffer(rw, message, session, parameters, header, **kwargs):
         logger.error(f"Invalid buffer call: unknown command in {message}")
         return False
 
-    if ("buffer_expiry_time" not in message) or (
-        header.get("dlq-reinjected") in {True, "True", "true", 1}
-    ):
-        message["buffer_expiry_time"] = time.time() + 600
-
     # Prepare command: Resolve all references
     program_id = parameters("program_id")
     if message.get("buffer_lookup"):
@@ -235,14 +229,13 @@ def buffer(rw, message, session, parameters, header, **kwargs):
                 )
                 continue
 
-            if message["buffer_expiry_time"] < time.time():
-                logger.warning(
-                    f"Buffer call could not be resolved: entry {entry} not found for program {program_id}"
-                )
-                return False
-
-            # value can not yet be resolved, put request back in the queue
-            return {"checkpoint": True, "return_value": message, "delay": 20}
+            logger.warning(
+                "Buffer call could not be resolved: "
+                f"entry {entry} not found for program {program_id}. "
+                "Will wait 20 seconds before trying again"
+            )
+            time.sleep(20)
+            return False
 
     # Run the actual command
     result = command_function(
@@ -250,7 +243,6 @@ def buffer(rw, message, session, parameters, header, **kwargs):
         message=message["buffer_command"],
         session=session,
         parameters=parameters,
-        **kwargs,
     )
 
     # Store result if appropriate
@@ -293,13 +285,6 @@ def buffer(rw, message, session, parameters, header, **kwargs):
     return result
 
 
-class MovieParams(BaseModel):
-    dcid: int
-    movie_number: Optional[int] = None  # image number
-    movie_path: Optional[str] = None  # micrograph full path
-    timestamp: Optional[float] = None
-
-
 def _get_movie_id(
     full_path,
     data_collection_id,
@@ -328,24 +313,24 @@ def _get_movie_id(
 
 
 @validate_arguments(config={"arbitrary_types_allowed": True})
-def insert_movie(parameter_map: MovieParams, session, **kwargs):
+def insert_movie(rw, message, parameters, session):
     logger.info("Inserting Movie parameters.")
 
     try:
-        if parameter_map.timestamp:
+        if parameters.get("timestamp"):
             values = models.Movie(
-                dataCollectionId=parameter_map.dcid,
-                movieNumber=parameter_map.movie_number,
-                movieFullPath=parameter_map.movie_path,
+                dataCollectionId=parameters("dcid"),
+                movieNumber=parameters("movie_number"),
+                movieFullPath=parameters("movie_path"),
                 createdTimeStamp=datetime.fromtimestamp(
-                    parameter_map.timestamp
+                    parameters("timestamp")
                 ).strftime("%Y-%m-%d %H:%M:%S"),
             )
         else:
             values = models.Movie(
-                dataCollectionId=parameter_map.dcid,
-                movieNumber=parameter_map.movie_number,
-                movieFullPath=parameter_map.movie_path,
+                dataCollectionId=parameters("dcid"),
+                movieNumber=parameters("movie_number"),
+                movieFullPath=parameters("movie_path"),
             )
         session.add(values)
         session.commit()
@@ -360,7 +345,7 @@ def insert_movie(parameter_map: MovieParams, session, **kwargs):
         return False
 
 
-def insert_motion_correction(parameters, session, message=None, **kwargs):
+def insert_motion_correction(rw, message, parameters, session):
     if message is None:
         message = {}
     logger.info("Inserting Motion Correction parameters.")
@@ -372,12 +357,14 @@ def insert_motion_correction(parameters, session, message=None, **kwargs):
         movie_id = None
         if full_parameters("movie_id") is None:
             movie_values = insert_movie(
-                parameter_map=MovieParams(
-                    dcid=full_parameters("dcid"),
-                    movie_number=full_parameters("image_number"),
-                    movie_path=full_parameters("micrograph_full_path"),
-                    timestamp=full_parameters("created_time_stamp"),
-                ),
+                rw=rw,
+                message=message,
+                parameters={
+                    "dcid": full_parameters("dcid"),
+                    "movie_number": full_parameters("image_number"),
+                    "movie_path": full_parameters("micrograph_full_path"),
+                    "timestamp": full_parameters("created_time_stamp"),
+                },
                 session=session,
             )
             movie_id = movie_values["return_value"]
@@ -415,7 +402,7 @@ def insert_motion_correction(parameters, session, message=None, **kwargs):
         return False
 
 
-def insert_relative_ice_thickness(parameters, session, message=None, **kwargs):
+def insert_relative_ice_thickness(rw, message, parameters, session):
     if message is None:
         message = {}
     dcid = parameters("dcid")
@@ -446,7 +433,7 @@ def insert_relative_ice_thickness(parameters, session, message=None, **kwargs):
         return False
 
 
-def insert_ctf(parameters, session, message=None, **kwargs):
+def insert_ctf(rw, message, parameters, session):
     if message is None:
         message = {}
     dcid = parameters("dcid")
@@ -489,7 +476,7 @@ def insert_ctf(parameters, session, message=None, **kwargs):
         return False
 
 
-def insert_particle_picker(parameters, session, message=None, **kwargs):
+def insert_particle_picker(rw, message, parameters, session):
     if message is None:
         message = {}
     dcid = parameters("dcid")
@@ -524,7 +511,7 @@ def insert_particle_picker(parameters, session, message=None, **kwargs):
         return False
 
 
-def insert_particle_classification(parameters, session, message=None, **kwargs):
+def insert_particle_classification(rw, message, parameters, session):
     if message is None:
         message = {}
     dcid = parameters("dcid")
@@ -588,7 +575,7 @@ def insert_particle_classification(parameters, session, message=None, **kwargs):
         return False
 
 
-def insert_particle_classification_group(parameters, session, message=None, **kwargs):
+def insert_particle_classification_group(rw, message, parameters, session):
     if message is None:
         message = {}
     dcid = parameters("dcid")
@@ -650,7 +637,7 @@ def insert_particle_classification_group(parameters, session, message=None, **kw
         return False
 
 
-def insert_cryoem_initial_model(parameters, session, message=None, **kwargs):
+def insert_cryoem_initial_model(rw, message, parameters, session):
     if message is None:
         message = {}
     dcid = parameters("dcid")
@@ -691,7 +678,7 @@ def insert_cryoem_initial_model(parameters, session, message=None, **kwargs):
         return False
 
 
-def insert_bfactor_fit(parameters, session, message=None, **kwargs):
+def insert_bfactor_fit(rw, message, parameters, session):
     if message is None:
         message = {}
     dcid = parameters("dcid")
@@ -740,7 +727,7 @@ def insert_bfactor_fit(parameters, session, message=None, **kwargs):
         return False
 
 
-def insert_tomogram(parameters, session, message=None, **kwargs):
+def insert_tomogram(rw, message, parameters, session):
     if message is None:
         message = {}
     dcid = parameters("dcid")
@@ -805,7 +792,7 @@ def insert_tomogram(parameters, session, message=None, **kwargs):
         return False
 
 
-def insert_processed_tomogram(parameters, session, message=None, **kwargs):
+def insert_processed_tomogram(rw, message, parameters, session):
     if message is None:
         message = {}
     dcid = parameters("dcid")
@@ -832,7 +819,7 @@ def insert_processed_tomogram(parameters, session, message=None, **kwargs):
         return False
 
 
-def insert_tilt_image_alignment(parameters, session, message=None, **kwargs):
+def insert_tilt_image_alignment(rw, message, parameters, session):
     if message is None:
         message = {}
     dcid = parameters("dcid")
@@ -876,7 +863,7 @@ def insert_tilt_image_alignment(parameters, session, message=None, **kwargs):
         return False
 
 
-def update_processing_status(parameters, session, message=None, **kwargs):
+def update_processing_status(rw, message, parameters, session):
     if message is None:
         message = {}
 
@@ -920,7 +907,7 @@ def update_processing_status(parameters, session, message=None, **kwargs):
 
 
 # These are needed for the old relion-zocalo wrapper
-def do_add_program_attachment(parameters, **kwargs):
+def do_add_program_attachment(rw, message, parameters, session):
     ispyb_connection = ispyb.open()
     params = ispyb_connection.mx_processing.get_program_attachment_params()
     params["parentid"] = parameters("program_id")
@@ -958,7 +945,7 @@ def do_add_program_attachment(parameters, **kwargs):
     return {"success": True, "return_value": result}
 
 
-def do_register_processing(parameters, **kwargs):
+def do_register_processing(rw, message, parameters, session):
     ispyb_connection = ispyb.open()
     program = parameters("program")
     cmdline = parameters("cmdline")
