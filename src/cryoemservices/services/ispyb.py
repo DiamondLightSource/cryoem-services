@@ -102,7 +102,6 @@ class EMISPyB(CommonService):
             return
 
         self.log.debug("Running ISPyB call %s", command)
-        txn = rw.transport.transaction_begin(subscription_id=header["subscription"])
         rw.set_default_channel("output")
 
         parameter_map = ChainMapWithReplacement(
@@ -126,14 +125,14 @@ class EMISPyB(CommonService):
             ):
                 return base_value
             for key in sorted(rw.environment, key=len, reverse=True):
-                if "${" + key + "}" in base_value:
+                if "${" + str(key) + "}" in base_value:
                     base_value = base_value.replace(
-                        "${" + key + "}", str(rw.environment[key])
+                        "${" + str(key) + "}", str(rw.environment[key])
                     )
                 # Replace longest keys first, as the following replacement is
                 # not well-defined when one key is a prefix of another:
-                if "$" + key in base_value:
-                    base_value = base_value.replace("$" + key, str(rw.environment[key]))
+                if f"${key}" in base_value:
+                    base_value = base_value.replace(f"${key}", str(rw.environment[key]))
             return base_value
 
         try:
@@ -152,7 +151,6 @@ class EMISPyB(CommonService):
                 "quarantining message and shutting down instance.",
                 exc_info=True,
             )
-            rw.transport.transaction_abort(txn)
             rw.transport.nack(header)
             self._request_termination()
             return
@@ -165,6 +163,7 @@ class EMISPyB(CommonService):
                 result["return_value"],
                 store_result,
             )
+        txn = rw.transport.transaction_begin(subscription_id=header["subscription"])
         if result and result.get("success"):
             rw.send({"result": result.get("return_value")}, transaction=txn)
             rw.transport.ack(header, transaction=txn)
