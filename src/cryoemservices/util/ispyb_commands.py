@@ -8,11 +8,10 @@ from pathlib import Path
 import ispyb
 import ispyb.sqlalchemy as models
 import sqlalchemy.exc
-from pydantic import validate_arguments
 
 from cryoemservices.services import ispyb_buffer
 
-logger = logging.getLogger("cryoemservices.services.ispyb_functions")
+logger = logging.getLogger("cryoemservices.util.ispyb_commands")
 logger.setLevel(logging.INFO)
 
 
@@ -312,7 +311,6 @@ def _get_movie_id(
         return None
 
 
-@validate_arguments(config={"arbitrary_types_allowed": True})
 def insert_movie(rw, message, parameters, session):
     logger.info("Inserting Movie parameters.")
 
