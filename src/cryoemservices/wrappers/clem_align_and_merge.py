@@ -430,7 +430,7 @@ class AlignAndMergeWrapper(BaseWrapper):
         }
         self.recwrap.send_to("murfey_feedback", murfey_params)
         logger.info(
-            f"Submitted alignment and merging results for {result['series_name']!r} "
+            f"Submitted alignment and merging result for {result['series_name']!r} "
             "to Murfey for registration"
         )
         return True
