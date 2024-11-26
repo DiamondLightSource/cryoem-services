@@ -338,8 +338,8 @@ def align_and_merge_stacks(
     result: dict[str, Any] = {
         "image_stacks": [str(file) for file in files],  # Convert Path to str
         "align_self": align_self,
-        "align_across": align_across,
         "flatten": flatten,
+        "align_across": align_across,
         "composite_image": str(save_name.resolve()),
     }
     return result
