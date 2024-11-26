@@ -75,16 +75,13 @@ class EMISPyB(CommonService):
             rw.transport.nack(header)
             return
 
-        def parameters(parameter, replace_variables=True):
-            if isinstance(message, dict):
-                base_value = message.get(
-                    parameter, rw.recipe_step["parameters"].get(parameter)
-                )
+        def parameters(parameter):
+            if isinstance(message, dict) and parameter in message:
+                base_value = message[parameter]
             else:
                 base_value = rw.recipe_step["parameters"].get(parameter)
             if (
-                not replace_variables
-                or not base_value
+                not base_value
                 or not isinstance(base_value, str)
                 or "$" not in base_value
             ):

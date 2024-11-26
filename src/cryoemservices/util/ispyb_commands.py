@@ -53,7 +53,7 @@ def multipart_message(rw, message, parameters, session):
 
     # Create a parameter lookup function specific to this step of the
     # multipart message
-    def step_parameters(parameter, replace_variables=True):
+    def step_parameters(parameter):
         """Slight change in behaviour compared to 'parameters' in a direct call:
         If the value is defined in the command list item then this takes
         precedence. Otherwise we check the original message content. Finally,
@@ -62,26 +62,8 @@ def multipart_message(rw, message, parameters, session):
         String replacement rules apply as usual."""
         if parameter in current_command:
             base_value = current_command[parameter]
-        elif isinstance(message, dict) and parameter in message:
-            base_value = message[parameter]
         else:
-            base_value = rw.recipe_step["parameters"].get(parameter)
-        if (
-            not replace_variables
-            or not base_value
-            or not isinstance(base_value, str)
-            or "$" not in base_value
-        ):
-            return base_value
-        for key in sorted(rw.environment, key=len, reverse=True):
-            if "${" + str(key) + "}" in base_value:
-                base_value = base_value.replace(
-                    "${" + str(key) + "}", str(rw.environment[key])
-                )
-            # Replace longest keys first, as the following replacement is
-            # not well-defined when one key is a prefix of another:
-            if f"${key}" in base_value:
-                base_value = base_value.replace(f"${key}", str(rw.environment[key]))
+            base_value = parameters(parameter)
         return base_value
 
     # If this step previously checkpointed then override the message passed
@@ -152,36 +134,6 @@ def buffer(rw, message, parameters, session):
     a command, and optionally storing the result in a buffer after running
     the command. It also takes care of checkpointing in case a required
     buffer value is not yet available.
-
-    As an example, if you want to send this message to the ISPyB service:
-
-    {
-        "ispyb_command": "insert_thing",
-        "parent_id": "$ispyb_thing_parent_id",
-        "store_result": "ispyb_thing_id",
-        "parameter_a": ...,
-        "parameter_b": ...,
-    }
-
-    and want to look up the parent_id using the buffer with your unique
-    reference UUID1 you could write:
-
-    {
-        "ispyb_command": "buffer",
-        "program_id": "$ispyb_autoprocprogram_id",
-        "buffer_lookup": {
-            "parent_id": UUID1,
-        },
-        "buffer_command": {
-            "ispyb_command": "insert_thing",
-            "parameter_a": ...,
-            "parameter_b": ...,
-        },
-        "buffer_store": UUID2,
-        "store_result": "ispyb_thing_id",
-    }
-
-    which would also store the result under buffer reference UUID2.
     """
 
     if not isinstance(message, dict):
