@@ -27,7 +27,7 @@ try:
     from cryoemservices.services.node_creator import NodeCreatorParameters
 except ImportError:
 
-    class NodeCreatorParameters(BaseModel):
+    class NodeCreatorParameters(BaseModel):  # type: ignore
         job_type: str
         input_file: str
         output_file: str
@@ -86,7 +86,7 @@ known_services = {
     FIXTURE_DIR / "recipes/em-tomo-align.json",
     FIXTURE_DIR / "recipes/em-tomo-preprocess.json",
 )
-def test_spa_preprocess_recipe(datafiles):
+def test_em_recipes(datafiles):
     """Test for the service names and parameter keys in the recipes"""
     for recipe_name in datafiles.glob("em-*"):
         with open(recipe_name, "r") as json_data:

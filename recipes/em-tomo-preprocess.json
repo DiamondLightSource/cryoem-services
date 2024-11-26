@@ -27,7 +27,6 @@
       "mc_uuid": "{mc_uuid}",
       "motion_corr_binning": "{ft_bin}",
       "movie": "{movie}",
-      "movie_id": "$ispyb_movie_id",
       "mrc_out": "{mrc_out}",
       "picker_uuid": "-1",
       "pixel_size": "{pixel_size}",
