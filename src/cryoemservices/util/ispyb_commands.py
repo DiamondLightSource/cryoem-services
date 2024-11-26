@@ -5,7 +5,6 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-import ispyb
 import ispyb.sqlalchemy as models
 import sqlalchemy.exc
 
@@ -664,7 +663,7 @@ def insert_cryoem_initial_model(rw, message, parameters, session):
         )
         session.commit()
         return {"success": True, "return_value": initial_model_id}
-    except ispyb.ISPyBException as e:
+    except sqlalchemy.exc.SQLAlchemyError as e:
         logger.error(
             "Inserting CryoEM Initial Model entry caused exception '%s'.",
             e,
@@ -913,7 +912,6 @@ def do_add_program_attachment(rw, message, parameters, session):
 
 
 def do_register_processing(rw, message, parameters, session):
-    ispyb_connection = ispyb.open()
     program = parameters("program")
     cmdline = parameters("cmdline")
     environment = parameters("environment") or ""
@@ -925,19 +923,22 @@ def do_register_processing(rw, message, parameters, session):
         logger.error(f"Invalid processing id {rpid}")
         return False
     try:
-        result = ispyb_connection.mx_processing.upsert_program_ex(
-            job_id=rpid,
-            name=program,
-            command=cmdline,
-            environment=environment,
+
+        values = models.AutoProcProgram(
+            processingJobId=rpid,
+            processingPrograms=program,
+            processingCommandLine=cmdline,
+            processingEnvironment=environment,
         )
+
+        session.add(values)
+        session.commit()
         logger.info(
             f"Registered new program {program} for processing id {rpid} "
-            f"with command line {cmdline} and environment {environment} "
-            f"with result {result}."
+            f"with command line {cmdline} and environment {environment}."
         )
-        return {"success": True, "return_value": result}
-    except ispyb.ISPyBException as e:
+        return {"success": True, "return_value": values.autoProcProgramId}
+    except sqlalchemy.exc.SQLAlchemyError as e:
         logger.error(
             f"Registering new program {program} for processing id {rpid} "
             f"with command line {cmdline} and environment {environment} "
