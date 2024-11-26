@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import time
-
 import ispyb.sqlalchemy
 import sqlalchemy.orm
 import workflows.recipe
@@ -44,15 +42,6 @@ class EMISPyB(CommonService):
 
     def receive_msg(self, rw, header, message):
         """Do something with ISPyB."""
-
-        if header.get("redelivered") == "true":
-            # A redelivered message may just have been processed in a parallel instance,
-            # which was connected to a different database server in the DB cluster. If
-            # we were to process it immediately we may run into a DB synchronization
-            # fault. Avoid this by giving the DB cluster a bit of time to settle.
-            self.log.info("Received redelivered message, holding for a moment.")
-            time.sleep(0.5)
-
         if not rw:
             # Incoming message is not a recipe message. Simple messages can be valid
             self.log.info("Received a simple message")
@@ -131,6 +120,7 @@ class EMISPyB(CommonService):
             return
 
         store_result = rw.recipe_step["parameters"].get("store_result")
+        rw.set_default_channel("output")
         if store_result and result and "return_value" in result:
             rw.environment[store_result] = result["return_value"]
             self.log.info(
@@ -138,10 +128,7 @@ class EMISPyB(CommonService):
                 f"environment variable {store_result}.",
             )
         if result and result.get("success"):
-            if isinstance(rw, MockRW):
-                rw.transport.send("output", {"result": result.get("return_value")})
-            else:
-                rw.send_to("output", {"result": result.get("return_value")})
+            rw.send({"result": result.get("return_value")})
             rw.transport.ack(header)
         elif result and result.get("checkpoint"):
             rw.checkpoint(result.get("return_value"))
