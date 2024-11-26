@@ -12,13 +12,14 @@ generated from CLEM data. This service will include:
 from __future__ import annotations
 
 import logging
+from ast import literal_eval
 from pathlib import Path
 from typing import Any, Literal, Optional
 from xml.etree import ElementTree as ET
 
 import numpy as np
 from defusedxml.ElementTree import parse
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 from tifffile import TiffFile, imwrite
 from zocalo.wrapper import BaseWrapper
 
@@ -352,6 +353,40 @@ class AlignAndMergeParameters(BaseModel):
     flatten: Optional[Literal["min", "max", "mean"]] = Field(default="mean")
     align_across: Optional[str] = Field(default=None)
 
+    @field_validator("images", mode="before")
+    def parse_images(cls, value):
+        if isinstance(value, str):
+            # Check for stringified list
+            if value.startswith("[") and value.endswith("]"):
+                try:
+                    eval_images: list[str] = literal_eval(value)
+                    images = [Path(file) for file in eval_images]
+                    return images
+                except (SyntaxError, ValueError):
+                    logger.error("Unable to parse stringified list for file paths")
+                    raise ValueError
+        # Leave the value as-is; if it fails, it fails
+        return value
+
+    @model_validator(mode="after")
+    def wrap_images(cls, model: AlignAndMergeParameters):
+        """
+        Wrap single images in a list to standardise what's passed on to the align-and-
+        merge function.
+        """
+        if isinstance(model.images, Path):
+            model.images = [model.images]
+        return model
+
+    @field_validator("align_self", "flatten", "align_across", mode="before")
+    def parse_for_null(cls, value):
+        """
+        Convert incoming "null" keyword into None.
+        """
+        if value == "null":
+            return None
+        return value
+
 
 class AlignAndMergeWrapper(BaseWrapper):
     def run(self) -> bool:
@@ -388,6 +423,7 @@ class AlignAndMergeWrapper(BaseWrapper):
             return False
 
         # Send results to Murfey for registration
+        result["series_name"] = params.series_name
         murfey_params = {
             "register": "clem.register_align_and_merge_result",
             "result": result,
