@@ -14,17 +14,12 @@ logger = logging.getLogger("cryoemservices.util.ispyb_commands")
 logger.setLevel(logging.INFO)
 
 
-def multipart_message(rw, message, parameters, session):
+def multipart_message(message, parameters, session):
     """The multipart_message command allows the recipe or client to specify a
     multi-stage operation. With this you can process a list of API calls.
     Each API call may have a return value that can be stored.
     Multipart_message takes care of chaining and checkpointing to make the
     overall call near-ACID compliant."""
-
-    if not rw.environment.get("has_recipe_wrapper", True):
-        logger.error("Multipart message call can not be used with simple messages")
-        return False
-
     commands = parameters("ispyb_command_list")
     step = message.get("checkpoint", 0) + 1
     if not commands or not isinstance(commands, list):
@@ -65,22 +60,15 @@ def multipart_message(rw, message, parameters, session):
         step_message = message.get("step_message", step_message)
 
     # Run the multipart step
-    result = command(
-        rw=rw, message=step_message, parameters=step_parameters, session=session
-    )
+    result = command(message=step_message, parameters=step_parameters, session=session)
 
-    # Store step result if appropriate
-    store_result = current_command.get("store_result")
-    if store_result and result and "return_value" in result:
-        rw.environment[store_result] = result["return_value"]
-        logger.info(
-            "Storing result '%s' in environment variable '%s'",
-            result["return_value"],
-            store_result,
-        )
+    # If the step did not succeed then propagate failure
+    if not result or not result.get("success"):
+        logger.info("Multipart command failed")
+        return result
 
     # If the current step has checkpointed then need to manage this
-    if result and result.get("checkpoint"):
+    if result.get("checkpoint"):
         logger.info("Checkpointing for sub-command %s", command)
 
         if isinstance(message, dict):
@@ -90,15 +78,12 @@ def multipart_message(rw, message, parameters, session):
         checkpoint_dictionary["checkpoint"] = step - 1
         checkpoint_dictionary["ispyb_command_list"] = commands
         checkpoint_dictionary["step_message"] = result.get("return_value")
+        checkpoint_dictionary["store_result"] = current_command.get("store_result")
+        checkpoint_dictionary["store_value"] = result.get("return_value")
         return {
             "checkpoint": True,
             "return_value": checkpoint_dictionary,
         }
-
-    # If the step did not succeed then propagate failure
-    if not result or not result.get("success"):
-        logger.info("Multipart command failed")
-        return result
 
     # Step has completed, so remove from queue
     commands.pop(0)
@@ -106,6 +91,8 @@ def multipart_message(rw, message, parameters, session):
     # If the multipart command is finished then propagate success
     if not commands:
         logger.info("and done.")
+        result["store_result"] = current_command.get("store_result")
+        result["store_value"] = result.get("return_value")
         return result
 
     # If there are more steps then checkpoint the current state and re-queue it
@@ -116,12 +103,14 @@ def multipart_message(rw, message, parameters, session):
         checkpoint_dictionary = {}
     checkpoint_dictionary["checkpoint"] = step
     checkpoint_dictionary["ispyb_command_list"] = commands
+    checkpoint_dictionary["store_result"] = current_command.get("store_result")
+    checkpoint_dictionary["store_value"] = result.get("return_value")
     if "step_message" in checkpoint_dictionary:
         del checkpoint_dictionary["step_message"]
     return {"checkpoint": True, "return_value": checkpoint_dictionary}
 
 
-def buffer(rw, message, parameters, session):
+def buffer(message, parameters, session):
     """The buffer command supports running buffer lookups before running
     a command, and optionally storing the result in a buffer after running
     the command. It also takes care of checkpointing in case a required
@@ -179,35 +168,26 @@ def buffer(rw, message, parameters, session):
 
     # Run the actual command
     result = command_function(
-        rw=rw,
         message=message["buffer_command"],
         session=session,
         parameters=parameters,
     )
 
-    # Store result if appropriate
-    store_result = message.get("store_result")
-    if store_result and result and "return_value" in result:
-        rw.environment[store_result] = result["return_value"]
-        logger.info(
-            "Storing result '%s' in environment variable '%s'",
-            result["return_value"],
-            store_result,
-        )
-
-    # If the actual command has checkpointed then need to manage this
-    if result and result.get("checkpoint"):
-        logger.info("Checkpointing for buffered function")
-        message["buffer_command"] = result["return_value"]
-        return {
-            "checkpoint": True,
-            "return_value": message,
-        }
-
     # If the command did not succeed then propagate failure
     if not result or not result.get("success"):
         logger.warning("Buffered command failed")
         return result
+
+    # If the actual command has checkpointed then need to manage this
+    if result.get("checkpoint"):
+        logger.info("Checkpointing for buffered function")
+        message["buffer_command"] = result["return_value"]
+        message["store_result"] = message.get("store_result")
+        message["store_value"] = result.get("return_value")
+        return {
+            "checkpoint": True,
+            "return_value": message,
+        }
 
     # Optionally store a reference to the result in the buffer table
     if message.get("buffer_store"):
@@ -220,6 +200,8 @@ def buffer(rw, message, parameters, session):
         )
 
     # Finally, propagate result
+    result["store_result"] = message.get("store_result")
+    result["store_value"] = result.get("return_value")
     return result
 
 
@@ -250,7 +232,7 @@ def _get_movie_id(
         return None
 
 
-def insert_movie(rw, message, parameters, session):
+def insert_movie(message, parameters, session):
     logger.info("Inserting Movie parameters.")
 
     try:
@@ -282,7 +264,7 @@ def insert_movie(rw, message, parameters, session):
         return False
 
 
-def insert_motion_correction(rw, message, parameters, session):
+def insert_motion_correction(message, parameters, session):
     if message is None:
         message = {}
     logger.info("Inserting Motion Correction parameters.")
@@ -294,7 +276,6 @@ def insert_motion_correction(rw, message, parameters, session):
         movie_id = None
         if full_parameters("movie_id") is None:
             movie_values = insert_movie(
-                rw=rw,
                 message=message,
                 parameters={
                     "dcid": full_parameters("dcid"),
@@ -339,7 +320,7 @@ def insert_motion_correction(rw, message, parameters, session):
         return False
 
 
-def insert_relative_ice_thickness(rw, message, parameters, session):
+def insert_relative_ice_thickness(message, parameters, session):
     if message is None:
         message = {}
     dcid = parameters("dcid")
@@ -370,7 +351,7 @@ def insert_relative_ice_thickness(rw, message, parameters, session):
         return False
 
 
-def insert_ctf(rw, message, parameters, session):
+def insert_ctf(message, parameters, session):
     if message is None:
         message = {}
     dcid = parameters("dcid")
@@ -413,7 +394,7 @@ def insert_ctf(rw, message, parameters, session):
         return False
 
 
-def insert_particle_picker(rw, message, parameters, session):
+def insert_particle_picker(message, parameters, session):
     if message is None:
         message = {}
     dcid = parameters("dcid")
@@ -448,7 +429,7 @@ def insert_particle_picker(rw, message, parameters, session):
         return False
 
 
-def insert_particle_classification(rw, message, parameters, session):
+def insert_particle_classification(message, parameters, session):
     if message is None:
         message = {}
     dcid = parameters("dcid")
@@ -512,7 +493,7 @@ def insert_particle_classification(rw, message, parameters, session):
         return False
 
 
-def insert_particle_classification_group(rw, message, parameters, session):
+def insert_particle_classification_group(message, parameters, session):
     if message is None:
         message = {}
     dcid = parameters("dcid")
@@ -574,7 +555,7 @@ def insert_particle_classification_group(rw, message, parameters, session):
         return False
 
 
-def insert_cryoem_initial_model(rw, message, parameters, session):
+def insert_cryoem_initial_model(message, parameters, session):
     if message is None:
         message = {}
     dcid = parameters("dcid")
@@ -615,7 +596,7 @@ def insert_cryoem_initial_model(rw, message, parameters, session):
         return False
 
 
-def insert_bfactor_fit(rw, message, parameters, session):
+def insert_bfactor_fit(message, parameters, session):
     if message is None:
         message = {}
     dcid = parameters("dcid")
@@ -664,7 +645,7 @@ def insert_bfactor_fit(rw, message, parameters, session):
         return False
 
 
-def insert_tomogram(rw, message, parameters, session):
+def insert_tomogram(message, parameters, session):
     if message is None:
         message = {}
     dcid = parameters("dcid")
@@ -729,7 +710,7 @@ def insert_tomogram(rw, message, parameters, session):
         return False
 
 
-def insert_processed_tomogram(rw, message, parameters, session):
+def insert_processed_tomogram(message, parameters, session):
     if message is None:
         message = {}
     dcid = parameters("dcid")
@@ -756,7 +737,7 @@ def insert_processed_tomogram(rw, message, parameters, session):
         return False
 
 
-def insert_tilt_image_alignment(rw, message, parameters, session):
+def insert_tilt_image_alignment(message, parameters, session):
     if message is None:
         message = {}
     dcid = parameters("dcid")
@@ -800,7 +781,7 @@ def insert_tilt_image_alignment(rw, message, parameters, session):
         return False
 
 
-def update_processing_status(rw, message, parameters, session):
+def update_processing_status(message, parameters, session):
     if message is None:
         message = {}
 
@@ -844,7 +825,7 @@ def update_processing_status(rw, message, parameters, session):
 
 
 # These are needed for the old relion-zocalo wrapper
-def do_add_program_attachment(rw, message, parameters, session):
+def do_add_program_attachment(message, parameters, session):
     file_name = parameters.get("file_name")
     file_path = parameters.get("file_path")
     logger.error(
@@ -854,7 +835,7 @@ def do_add_program_attachment(rw, message, parameters, session):
     return {"success": True, "return_value": 0}
 
 
-def do_register_processing(rw, message, parameters, session):
+def do_register_processing(message, parameters, session):
     program = parameters("program")
     cmdline = parameters("cmdline")
     environment = parameters("environment") or ""

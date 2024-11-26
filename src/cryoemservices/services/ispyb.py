@@ -101,7 +101,6 @@ class EMISPyB(CommonService):
         try:
             with self._ispyb_sessionmaker() as session:
                 result = command_function(
-                    rw=rw,
                     message=message,
                     parameters=parameters,
                     session=session,
@@ -117,14 +116,24 @@ class EMISPyB(CommonService):
             return
 
         store_result = rw.recipe_step["parameters"].get("store_result")
-        rw.set_default_channel("output")
-        if store_result and result and "return_value" in result:
-            rw.environment[store_result] = result["return_value"]
-            self.log.info(
-                f"Storing {result['return_value']} in "
-                f"environment variable {store_result}.",
-            )
+        if result and "return_value" in result:
+            store_checkpointed_result = result["return_value"].get("store_result")
+            store_checkpoint_value = result["return_value"].get("store_value")
+            if store_result:
+                rw.environment[store_result] = result["return_value"]
+                self.log.info(
+                    f"Storing {result['return_value']} in "
+                    f"environment variable {store_result}.",
+                )
+            if store_checkpointed_result and store_checkpoint_value:
+                rw.environment[store_checkpointed_result] = store_checkpoint_value
+                self.log.info(
+                    f"Storing checkpointed value {store_checkpoint_value} in "
+                    f"environment variable {store_checkpointed_result}.",
+                )
+
         if result and result.get("success"):
+            rw.set_default_channel("output")
             rw.send({"result": result.get("return_value")})
             rw.transport.ack(header)
         elif result and result.get("checkpoint"):
