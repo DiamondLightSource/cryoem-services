@@ -50,7 +50,7 @@ class EMISPyB(CommonService):
             # which was connected to a different database server in the DB cluster. If
             # we were to process it immediately we may run into a DB synchronization
             # fault. Avoid this by giving the DB cluster a bit of time to settle.
-            self.log.debug("Received redelivered message, holding for a moment.")
+            self.log.info("Received redelivered message, holding for a moment.")
             time.sleep(0.5)
 
         if not rw:
@@ -86,9 +86,6 @@ class EMISPyB(CommonService):
             rw.transport.nack(header)
             return
 
-        self.log.debug("Running ISPyB call %s", command)
-        rw.set_default_channel("output")
-
         def parameters(parameter, replace_variables=True):
             if isinstance(message, dict):
                 base_value = message.get(
@@ -114,6 +111,7 @@ class EMISPyB(CommonService):
                     base_value = base_value.replace(f"${key}", str(rw.environment[key]))
             return base_value
 
+        self.log.info("Running ISPyB call %s", command)
         try:
             with self._ispyb_sessionmaker() as session:
                 result = command_function(
@@ -135,24 +133,22 @@ class EMISPyB(CommonService):
         store_result = rw.recipe_step["parameters"].get("store_result")
         if store_result and result and "return_value" in result:
             rw.environment[store_result] = result["return_value"]
-            self.log.debug(
-                "Storing result '%s' in environment variable '%s'",
-                result["return_value"],
-                store_result,
+            self.log.info(
+                f"Storing {result['return_value']} in "
+                f"environment variable {store_result}.",
             )
-        txn = rw.transport.transaction_begin(subscription_id=header["subscription"])
         if result and result.get("success"):
-            rw.send({"result": result.get("return_value")}, transaction=txn)
-            rw.transport.ack(header, transaction=txn)
+            if isinstance(rw, MockRW):
+                rw.transport.send("output", {"result": result.get("return_value")})
+            else:
+                rw.send_to("output", {"result": result.get("return_value")})
+            rw.transport.ack(header)
         elif result and result.get("checkpoint") and not result.get("delay"):
             rw.checkpoint(
                 result.get("return_value"),
                 delay=rw.recipe_step["parameters"].get("delay", result.get("delay")),
-                transaction=txn,
             )
-            rw.transport.ack(header, transaction=txn)
+            rw.transport.ack(header)
         else:
-            rw.transport.transaction_abort(txn)
             rw.transport.nack(header)
             return
-        rw.transport.transaction_commit(txn)
