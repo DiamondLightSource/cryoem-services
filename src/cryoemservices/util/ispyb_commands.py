@@ -8,7 +8,7 @@ from pathlib import Path
 import ispyb.sqlalchemy as models
 import sqlalchemy.exc
 
-from cryoemservices.services import ispyb_buffer
+from cryoemservices.util import ispyb_buffer
 
 logger = logging.getLogger("cryoemservices.util.ispyb_commands")
 logger.setLevel(logging.INFO)

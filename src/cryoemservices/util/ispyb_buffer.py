@@ -6,7 +6,7 @@ from typing import NamedTuple, Optional
 import ispyb.sqlalchemy
 import sqlalchemy.exc
 
-logger = logging.getLogger("cryoemservices.services.ispyb_buffer")
+logger = logging.getLogger("cryoemservices.util.ispyb_buffer")
 logger.setLevel(logging.INFO)
 
 
