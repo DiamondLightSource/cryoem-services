@@ -83,7 +83,6 @@ def test_motioncor2_service_spa(mock_subprocess, offline_transport, tmp_path):
             "arc_dir": "arc_dir",
             "in_fm_motion": 1,
             "split_sum": 1,
-            "movie_id": 1,
             "do_icebreaker_jobs": True,
             "relion_options": {
                 "pixel_size": 0.1,
@@ -389,7 +388,6 @@ def test_motioncor_relion_service_spa(mock_subprocess, offline_transport, tmp_pa
             "arc_dir": "arc_dir",
             "in_fm_motion": 1,
             "split_sum": 1,
-            "movie_id": 1,
             "do_icebreaker_jobs": True,
             "relion_options": {
                 "pixel_size": 0.1,
@@ -681,7 +679,6 @@ def test_motioncor2_service_tomo(mock_subprocess, offline_transport, tmp_path):
             "arc_dir": None,
             "in_fm_motion": None,
             "split_sum": None,
-            "movie_id": 1,
             "relion_options": {
                 "frame_count": 5,
                 "tilt_axis_angle": 83.0,
@@ -803,7 +800,6 @@ def test_motioncor2_service_tomo(mock_subprocess, offline_transport, tmp_path):
             "register": "motion_corrected",
             "movie": str(movie),
             "mrc_out": motioncorr_test_message["parameters"]["mrc_out"],
-            "movie_id": motioncorr_test_message["parameters"]["movie_id"],
         },
     )
     offline_transport.send.assert_any_call(
@@ -915,7 +911,6 @@ def test_motioncor_relion_service_tomo(mock_subprocess, offline_transport, tmp_p
             "arc_dir": None,
             "in_fm_motion": None,
             "split_sum": None,
-            "movie_id": 1,
             "relion_options": {
                 "frame_count": 5,
                 "tilt_axis_angle": 83.0,
@@ -1050,7 +1045,6 @@ def test_motioncor_relion_service_tomo(mock_subprocess, offline_transport, tmp_p
             "register": "motion_corrected",
             "movie": str(movie),
             "mrc_out": motioncorr_test_message["parameters"]["mrc_out"],
-            "movie_id": motioncorr_test_message["parameters"]["movie_id"],
         },
     )
     offline_transport.send.assert_any_call(
@@ -1129,7 +1123,6 @@ def test_motioncor2_slurm_service_spa(mock_subprocess, offline_transport, tmp_pa
             "use_motioncor2": True,
             "submit_to_slurm": True,
             "patch_sizes": {"x": 5, "y": 5},
-            "movie_id": 1,
             "mc_uuid": 0,
             "picker_uuid": 0,
             "relion_options": {},
@@ -1277,7 +1270,6 @@ def test_motioncor2_slurm_parameters(mock_slurm, offline_transport, tmp_path):
             "use_motioncor2": True,
             "submit_to_slurm": True,
             "patch_sizes": {"x": 5, "y": 5},
-            "movie_id": 1,
             "mc_uuid": 0,
             "picker_uuid": 0,
             "relion_options": {},
@@ -1372,7 +1364,6 @@ def test_motioncor_relion_slurm_parameters(mock_slurm, offline_transport, tmp_pa
             "use_motioncor2": False,
             "submit_to_slurm": True,
             "patch_sizes": {"x": 5, "y": 5},
-            "movie_id": 1,
             "mc_uuid": 0,
             "picker_uuid": 0,
             "relion_options": {},
