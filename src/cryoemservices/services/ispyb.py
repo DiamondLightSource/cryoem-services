@@ -143,11 +143,8 @@ class EMISPyB(CommonService):
             else:
                 rw.send_to("output", {"result": result.get("return_value")})
             rw.transport.ack(header)
-        elif result and result.get("checkpoint") and not result.get("delay"):
-            rw.checkpoint(
-                result.get("return_value"),
-                delay=rw.recipe_step["parameters"].get("delay", result.get("delay")),
-            )
+        elif result and result.get("checkpoint"):
+            rw.checkpoint(result.get("return_value"))
             rw.transport.ack(header)
         else:
             rw.transport.nack(header)

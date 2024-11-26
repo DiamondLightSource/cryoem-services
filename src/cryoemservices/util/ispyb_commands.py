@@ -120,7 +120,6 @@ def multipart_message(rw, message, parameters, session):
         return {
             "checkpoint": True,
             "return_value": checkpoint_dictionary,
-            "delay": result.get("delay"),
         }
 
     # If the step did not succeed then propagate failure
@@ -136,8 +135,7 @@ def multipart_message(rw, message, parameters, session):
         logger.debug("and done.")
         return result
 
-    # If there are more steps then checkpoint the current state
-    # and put it back on the queue (with no delay)
+    # If there are more steps then checkpoint the current state and re-queue it
     logger.debug("Checkpointing remaining %d steps", len(commands))
     if isinstance(message, dict):
         checkpoint_dictionary = message
@@ -261,7 +259,6 @@ def buffer(rw, message, parameters, session):
         return {
             "checkpoint": True,
             "return_value": message,
-            "delay": result.get("delay"),
         }
 
     # If the command did not succeed then propagate failure
