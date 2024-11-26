@@ -903,41 +903,13 @@ def update_processing_status(rw, message, parameters, session):
 
 # These are needed for the old relion-zocalo wrapper
 def do_add_program_attachment(rw, message, parameters, session):
-    ispyb_connection = ispyb.open()
-    params = ispyb_connection.mx_processing.get_program_attachment_params()
-    params["parentid"] = parameters("program_id")
-    try:
-        programid = int(params["parentid"])
-    except ValueError:
-        programid = None
-    if not programid:
-        logger.warning("Encountered invalid program ID '%s'", params["parentid"])
-        return False
-    params["file_name"] = parameters("file_name", replace_variables=False)
-    params["file_path"] = parameters("file_path", replace_variables=False)
-    params["importance_rank"] = parameters("importance_rank", replace_variables=False)
-    fqpn = Path(params["file_path"]) / params["file_name"]
-
-    if not fqpn.is_file():
-        logger.error(
-            "Not adding attachment '%s' to data processing: File does not exist",
-            str(fqpn),
-        )
-        return False
-
-    params["file_type"] = str(parameters("file_type")).lower()
-    if params["file_type"] not in ("log", "result", "graph"):
-        logger.warning(
-            "Attachment type '%s' unknown, defaulting to 'log'", params["file_type"]
-        )
-        params["file_type"] = "log"
-
-    logger.debug("Writing program attachment to database: %s", params)
-
-    result = ispyb_connection.mx_processing.upsert_program_attachment(
-        list(params.values())
+    file_name = parameters.get("file_name")
+    file_path = parameters.get("file_path")
+    logger.error(
+        f"Adding program attachments is no longer supported. "
+        f"Skipping file {file_name} in {file_path}."
     )
-    return {"success": True, "return_value": result}
+    return {"success": True, "return_value": 0}
 
 
 def do_register_processing(rw, message, parameters, session):
