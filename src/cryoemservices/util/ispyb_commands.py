@@ -43,7 +43,7 @@ def multipart_message(rw, message, parameters, session):
             "Multipart command %s is not a valid ISPyB command", current_command
         )
         return False
-    logger.debug(
+    logger.info(
         "Processing step %d of multipart message (%s) with %d further steps",
         step,
         command,
@@ -99,7 +99,7 @@ def multipart_message(rw, message, parameters, session):
     store_result = current_command.get("store_result")
     if store_result and result and "return_value" in result:
         rw.environment[store_result] = result["return_value"]
-        logger.debug(
+        logger.info(
             "Storing result '%s' in environment variable '%s'",
             result["return_value"],
             store_result,
@@ -107,7 +107,7 @@ def multipart_message(rw, message, parameters, session):
 
     # If the current step has checkpointed then need to manage this
     if result and result.get("checkpoint"):
-        logger.debug("Checkpointing for sub-command %s", command)
+        logger.info("Checkpointing for sub-command %s", command)
 
         if isinstance(message, dict):
             checkpoint_dictionary = message
@@ -123,7 +123,7 @@ def multipart_message(rw, message, parameters, session):
 
     # If the step did not succeed then propagate failure
     if not result or not result.get("success"):
-        logger.debug("Multipart command failed")
+        logger.info("Multipart command failed")
         return result
 
     # Step has completed, so remove from queue
@@ -131,11 +131,11 @@ def multipart_message(rw, message, parameters, session):
 
     # If the multipart command is finished then propagate success
     if not commands:
-        logger.debug("and done.")
+        logger.info("and done.")
         return result
 
     # If there are more steps then checkpoint the current state and re-queue it
-    logger.debug("Checkpointing remaining %d steps", len(commands))
+    logger.info("Checkpointing remaining %d steps", len(commands))
     if isinstance(message, dict):
         checkpoint_dictionary = message
     else:
@@ -220,7 +220,7 @@ def buffer(rw, message, parameters, session):
                 # resolve value and continue
                 message["buffer_command"][entry] = buffer_result.value
                 del message["buffer_lookup"][entry]
-                logger.debug(
+                logger.info(
                     f"Successfully resolved buffer reference {entry!r} to {buffer_result.value!r}"
                 )
                 continue
@@ -245,7 +245,7 @@ def buffer(rw, message, parameters, session):
     store_result = message.get("store_result")
     if store_result and result and "return_value" in result:
         rw.environment[store_result] = result["return_value"]
-        logger.debug(
+        logger.info(
             "Storing result '%s' in environment variable '%s'",
             result["return_value"],
             store_result,
@@ -253,7 +253,7 @@ def buffer(rw, message, parameters, session):
 
     # If the actual command has checkpointed then need to manage this
     if result and result.get("checkpoint"):
-        logger.debug("Checkpointing for buffered function")
+        logger.info("Checkpointing for buffered function")
         message["buffer_command"] = result["return_value"]
         return {
             "checkpoint": True,
@@ -263,12 +263,11 @@ def buffer(rw, message, parameters, session):
     # If the command did not succeed then propagate failure
     if not result or not result.get("success"):
         logger.warning("Buffered command failed")
-        # to become debug level eventually, the actual function will do the warning
         return result
 
     # Optionally store a reference to the result in the buffer table
     if message.get("buffer_store"):
-        logger.debug("Storing buffer result for UUID %r", message["buffer_store"])
+        logger.info("Storing buffer result for UUID %r", message["buffer_store"])
         ispyb_buffer.store(
             session=session,
             program=program_id,
