@@ -25,22 +25,17 @@ def multipart_message(rw, message, parameters, session):
         logger.error("Multipart message call can not be used with simple messages")
         return False
 
-    step = 1
-    commands = rw.recipe_step["parameters"].get("ispyb_command_list")
-    if isinstance(message, dict) and isinstance(
-        message.get("ispyb_command_list"), list
-    ):
-        commands = message["ispyb_command_list"]
-        step = message.get("checkpoint", 0) + 1
-    if not commands:
-        logger.error("Received multipart message containing no commands")
+    commands = parameters("ispyb_command_list")
+    step = message.get("checkpoint", 0) + 1
+    if not commands or not isinstance(commands, list):
+        logger.error("Received multipart message containing no command list")
         return False
 
     current_command = commands[0]
     command = current_command.get("ispyb_command")
     if not command:
         logger.error(
-            "Multipart command %s is not a valid ISPyB command", current_command
+            f"Multipart command {current_command} does not contain an ispyb_command"
         )
         return False
     logger.info(
@@ -51,15 +46,12 @@ def multipart_message(rw, message, parameters, session):
         extra={"ispyb-message-parts": len(commands)} if step == 1 else {},
     )
 
-    # Create a parameter lookup function specific to this step of the
-    # multipart message
+    # Create a parameter lookup function specific to this step
     def step_parameters(parameter):
         """Slight change in behaviour compared to 'parameters' in a direct call:
         If the value is defined in the command list item then this takes
-        precedence. Otherwise we check the original message content. Finally,
-        we look in the parameters dictionary of the recipe step for the
-        multipart_message command.
-        String replacement rules apply as usual."""
+        precedence.
+        """
         if parameter in current_command:
             base_value = current_command[parameter]
         else:
