@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import time
 from datetime import datetime
 from pathlib import Path
 
@@ -158,12 +157,7 @@ def buffer(message, parameters, session):
                 )
                 continue
 
-            logger.warning(
-                "Buffer call could not be resolved: "
-                f"entry {entry} not found for program {program_id}. "
-                "Will wait 20 seconds before trying again"
-            )
-            time.sleep(20)
+            logger.warning(f"Buffer entry {entry} not found for program {program_id}.")
             return False
 
     # Run the actual command
