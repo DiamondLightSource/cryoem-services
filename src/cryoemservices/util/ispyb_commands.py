@@ -230,7 +230,7 @@ def insert_movie(message, parameters, session):
     logger.info("Inserting Movie parameters.")
 
     try:
-        if parameters.get("timestamp"):
+        if parameters("timestamp"):
             values = models.Movie(
                 dataCollectionId=parameters("dcid"),
                 movieNumber=parameters("movie_number"),
