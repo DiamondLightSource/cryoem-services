@@ -116,7 +116,7 @@ class EMISPyB(CommonService):
             return
 
         store_result = rw.recipe_step["parameters"].get("store_result")
-        if result and result.get("return_value") is dict:
+        if result and isinstance(result.get("return_value"), dict):
             store_checkpointed_result = result["return_value"].get("store_result")
             store_checkpoint_value = result["return_value"].get("store_value")
             if store_result:
