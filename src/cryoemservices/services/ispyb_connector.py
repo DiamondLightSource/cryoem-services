@@ -34,13 +34,13 @@ class EMISPyB(CommonService):
         workflows.recipe.wrap_subscribe(
             self._transport,
             "ispyb_connector",
-            self.receive_msg,
+            self.insert_into_ispyb,
             acknowledgement=True,
             log_extender=self.extend_log,
             allow_non_recipe_messages=True,
         )
 
-    def receive_msg(self, rw, header, message):
+    def insert_into_ispyb(self, rw, header, message):
         """Do something with ISPyB."""
         if not rw:
             # Incoming message is not a recipe message. Simple messages can be valid
@@ -116,7 +116,7 @@ class EMISPyB(CommonService):
             return
 
         store_result = rw.recipe_step["parameters"].get("store_result")
-        if result and "return_value" in result:
+        if result and result.get("return_value") is dict:
             store_checkpointed_result = result["return_value"].get("store_result")
             store_checkpoint_value = result["return_value"].get("store_value")
             if store_result:
@@ -133,8 +133,16 @@ class EMISPyB(CommonService):
                 )
 
         if result and result.get("success"):
-            rw.set_default_channel("output")
-            rw.send({"result": result.get("return_value")})
+            if isinstance(rw, MockRW):
+                rw.transport.send(
+                    destination="output",
+                    message={"result": result.get("return_value")},
+                )
+            else:
+                rw.send_to(
+                    "output",
+                    {"result": result.get("return_value")},
+                )
             rw.transport.ack(header)
         elif result and result.get("checkpoint"):
             rw.checkpoint(result.get("return_value"))
