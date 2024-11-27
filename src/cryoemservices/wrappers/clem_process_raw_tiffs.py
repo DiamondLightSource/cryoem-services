@@ -133,7 +133,8 @@ def convert_tiff_to_stack(
             logger.info(f"Processing {color} channel")
 
             # Find TIFFs from relevant channel and series
-            # Replace " " with "_" when comparing file name against series name as found in metadata
+            #   Replace " " with "_" when comparing file name against series name as
+            #   found in metadata
             tiff_sublist = [
                 f
                 for f in tiff_list
@@ -150,7 +151,8 @@ def convert_tiff_to_stack(
             # Return error message if the list of TIFFs is empty for some reason
             if not tiff_sublist:
                 logger.error(
-                    f"Error processing {color} channel for {series_name_long}; no TIFF files found"
+                    f"Error processing {color!r} channel for {series_name_long!r}; "
+                    "no TIFF files found"
                 )
                 continue
 
@@ -372,7 +374,8 @@ class TIFFToStackWrapper(BaseWrapper):
             params = TIFFToStackParameters(**params_dict)
         except (ValidationError, TypeError) as e:
             logger.error(
-                f"TIFFToStackParameters validation failed for parameters: {params_dict} with exception: {e}"
+                "TIFFToStackParameters validation failed for parameters: "
+                f"{params_dict} with exception: {e}"
             )
             return False
 
@@ -388,7 +391,8 @@ class TIFFToStackWrapper(BaseWrapper):
             root_index = path_parts.index(params.root_folder)
         except ValueError:
             logger.error(
-                f"Subpath {params.root_folder!r} was not found in file path {str(ref_file.parent / ref_file.stem.split('--')[0])!r}"
+                f"Subpath {params.root_folder!r} was not found in file path "
+                f"{str(ref_file.parent / ref_file.stem.split('--')[0])!r}"
             )
             return False
         series_name = "--".join(
@@ -411,12 +415,13 @@ class TIFFToStackWrapper(BaseWrapper):
         for result in results:
             # Send results to Murfey's "feedback_callback" function
             murfey_params = {
-                "register": "register_tiff_preprocessing_result",
+                "register": "clem.register_tiff_preprocessing_result",
                 "result": result,
             }
             self.recwrap.send_to("murfey_feedback", murfey_params)
             logger.info(
-                f"Submitted {result['series_name']!r} {result['channel']!r} image stack and associated metadata for registration"
+                f"Submitted {result['series_name']!r} {result['channel']!r} "
+                "image stack and associated metadata for registration"
             )
 
         return True

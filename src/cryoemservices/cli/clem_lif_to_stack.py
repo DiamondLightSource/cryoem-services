@@ -3,13 +3,15 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from cryoemservices.cli import LineWrapHelpFormatter
 from cryoemservices.wrappers.clem_process_raw_lifs import convert_lif_to_stack
 
 
 def run():
     # Create argument parser and needed arguments
     parser = argparse.ArgumentParser(
-        description="Convert LIF files into TIFF image stacks"
+        description="Convert LIF files into TIFF image stacks",
+        formatter_class=LineWrapHelpFormatter,
     )
 
     parser.add_argument(

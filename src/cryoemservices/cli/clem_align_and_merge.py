@@ -10,7 +10,8 @@ import argparse
 from ast import literal_eval
 from pathlib import Path
 
-from cryoemservices.services.clem_align_and_merge import align_and_merge_stacks
+from cryoemservices.cli import LineWrapHelpFormatter
+from cryoemservices.wrappers.clem_align_and_merge import align_and_merge_stacks
 
 
 def run():
@@ -22,7 +23,8 @@ def run():
             "Takes image stacks of the colour channels from a CLEM dataset, processes "
             "them, and creates a colourised composite image or image stack for that "
             "dataset."
-        )
+        ),
+        formatter_class=LineWrapHelpFormatter,
     )
     # List of paths of files to merge (mandatory)
     parser.add_argument(
@@ -30,7 +32,7 @@ def run():
         type=str,
         nargs="+",  # Gather as list by default and raise warning if not provided
         help=(
-            "Full file paths to the image stacks to be processed in the format "
+            "Full file paths to the image stacks to be processed in the format \n"
             "'path/to/file_1' 'path/to/file_2' ... '/path/to/file_n'"
         ),
     )
@@ -40,20 +42,20 @@ def run():
         default=None,
         type=str,
         help=(
-            "Full file path to the metadata file associated with this dataset. If no "
-            "metadata file is provided, the function will attempt to find the matching "
-            "metadata file."
+            "Full file path to the metadata file associated with this dataset. "
+            "If no metadata file is provided, it will attempt to find a matching "
+            "metadata file at the expected default location "
+            "('./Metadata/metadata_file.xml)."
         ),
     )
     # Align image stacks before flattening
     parser.add_argument(
-        "--pre_align_stack",
+        "--align-self",
         default=None,
         type=str,
         help=(
-            "NOT IMPLEMENTED YET. \n"
-            "Choose whether to align the image stacks before flattening, and how. \n"
-            "DEFAULT: 'null'"
+            "Choose whether to align the image stacks individually before flattening. \n"
+            "NOT IMPLEMENTED YET."
         ),
     )
     # Determine how the image is flattened
@@ -62,20 +64,19 @@ def run():
         default="mean",
         type=str,
         help=(
-            "Choose whether to flatten the image stacks, and how. \n"
+            "Choose whether to flatten the image stacks. \n"
             "DEFAULT: 'mean' \n"
             "VALUES: ['null', 'min', and 'max']"
         ),
     )
     # Determine what image registration protocol to implement
     parser.add_argument(
-        "--align_stacks",
+        "--align-across",
         default=None,
         type=str,
         help=(
-            "NOT IMPLEMENTED YET. \n"
-            "Choose whether to align the image stacks before merging, and how. \n"
-            "DEFAULT: 'null'"
+            "Choose whether to align the image stacks to one another before merging. \n"
+            "NOT IMPLEMENTED YET."
         ),
     )
     # Add a debug statement
@@ -142,11 +143,9 @@ def run():
         raise TypeError("The metadata parameter is of an invalid type")
 
     # Resolve pre-flattening alignment parameter
-    if isinstance(args.pre_align_stack, str) or args.pre_align_stack is None:
+    if isinstance(args.align_self, str) or args.align_self is None:
         # Use "null" as a stand-in for None
-        pre_align_stack = (
-            None if args.pre_align_stack == "null" else args.pre_align_stack
-        )
+        align_self = None if args.align_self == "null" else args.align_self
     else:
         raise TypeError("Invalid type for pre-alignment parameter")
 
@@ -158,9 +157,9 @@ def run():
         raise TypeError("Invalid type for flattening parameter")
 
     # Resolve image registration parameter
-    if isinstance(args.align_stacks, str) or args.align_stacks is None:
+    if isinstance(args.align_across, str) or args.align_across is None:
         # Use "null" as a stand-in for None
-        align_stacks = None if args.align_stacks == "null" else args.align_stacks
+        align_across = None if args.align_across == "null" else args.align_across
     else:
         raise TypeError("Invalid type for image alignment parameter")
 
@@ -168,11 +167,11 @@ def run():
     Run function
     """
     composite_image = align_and_merge_stacks(
-        image_files=image_files,
-        metadata_file=metadata_file,
-        pre_align_stack=pre_align_stack,
+        images=image_files,
+        metadata=metadata_file,
+        align_self=align_self,
         flatten=flatten,
-        align_stacks=align_stacks,
+        align_across=align_across,
         print_messages=True,  # Print messages when used as a CLI
         debug=True,  # Print debug messages
     )
