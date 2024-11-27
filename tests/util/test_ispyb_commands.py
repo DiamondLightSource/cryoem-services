@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from unittest import mock
 
 from cryoemservices.util import ispyb_commands
@@ -51,7 +52,7 @@ def test_insert_movie_timestamp(mock_models):
         dataCollectionId=101,
         movieNumber=1,
         movieFullPath="/path/to/movie",
-        createdTimeStamp="1970-01-01 01:00:01",
+        createdTimeStamp=datetime.fromtimestamp(1).strftime("%Y-%m-%d %H:%M:%S"),
     )
 
     mock_session.add.assert_called()
