@@ -8,7 +8,7 @@ import textwrap
 class LineWrapHelpFormatter(argparse.RawDescriptionHelpFormatter):
     """
     A helper class for formatting the help messages the CLIs nicely. This implementation
-    will preserver indents at the start of a line and interpret new line metacharacters
+    will preserve indents at the start of a line and interpret newline metacharacters
     accordingly.
 
     Credits: https://stackoverflow.com/a/35925919
