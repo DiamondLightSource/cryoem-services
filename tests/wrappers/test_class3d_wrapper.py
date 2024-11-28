@@ -391,7 +391,7 @@ def test_class3d_wrapper_do_initial_model(
             "register": "done_3d_batch",
             "refine_dir": f"{tmp_path}/Refine3D/job",
             "class3d_dir": f"{tmp_path}/Class3D/job015",
-            "best_class": 2,
+            "best_class": 0,
             "do_refinement": False,
         },
     )
@@ -619,27 +619,46 @@ def test_class3d_wrapper_has_initial_model(
             "register": "done_3d_batch",
             "refine_dir": f"{tmp_path}/Refine3D/job",
             "class3d_dir": f"{tmp_path}/Class3D/job015",
-            "best_class": 2,
+            "best_class": 0,
             "do_refinement": False,
         },
     )
 
 
+best_class_test_matrix = (
+    # tuple of Fractions, Resolutions, Completenesses, Do refine?, Best class
+    ([0.1, 0.2, 0.3, 0.4], [8, 9, 10, 11], [0.95, 0.95, 0.95, 0.95], True, 1),
+    # ^ Pick best resolution
+    ([0.1, 0.2, 0.3, 0.4], [8, 9, 10, 11], [0.8, 0.95, 0.95, 0.95], True, 2),
+    # ^ Pick second best resolution due to completeness
+    ([0.1, 0.4, 0.3, 0.2], [8, 8, 8, 8], [0.95, 0.95, 0.95, 0.95], True, 2),
+    # ^ Pick highest particle count at best resolution
+    ([0.1, 0.2, 0.3, 0.4], [11, 12, 13, 14], [0.95, 0.95, 0.95, 0.95], False, 0),
+    # ^ Don't refine, bad resolution
+    ([0.1, 0.2, 0.3, 0.4], [8, 9, 8, 11], [0.9, 0.8, 0.7, 0.6], False, 0),
+    # ^ Don't refine, bad completeness
+)
+
+
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+@pytest.mark.parametrize("test_classes", best_class_test_matrix)
 @mock.patch("cryoemservices.wrappers.class3d_wrapper.subprocess.run")
 @mock.patch("workflows.recipe.wrapper.RecipeWrapper.send_to")
 def test_class3d_wrapper_for_refinement(
-    mock_recwrap_send, mock_subprocess, offline_transport, tmp_path
+    mock_recwrap_send,
+    mock_subprocess,
+    test_classes: tuple[list[float], list[float], list[float], bool, int],
+    offline_transport,
+    tmp_path,
 ):
     """
     Send a test message to the Class3D wrapper for a final round of 200000 particles,
     with a provided initial model.
     The 3D classification commands should be run,
     then cause ispyb, node_creator and murfey messages, requesting refinement.
+    Runs a variety of different cases to test the estimation of the best class
     """
     mock_subprocess().returncode = 0
-    mock_subprocess().stdout = "stdout".encode("utf8")
-    mock_subprocess().stderr = "stderr".encode("utf8")
 
     # Example recipe wrapper message to run the service with a few parameters varied
     class3d_test_message = {
@@ -648,11 +667,9 @@ def test_class3d_wrapper_for_refinement(
             "1": {
                 "job_parameters": {
                     "batch_size": "200000",
-                    "class_uuids": "{'0': 10, '1': 11}",
+                    "class_uuids": "{'0': 10, '1': 11, '2': 12, '3': 13}",
                     "class3d_dir": f"{tmp_path}/Class3D/job015",
                     "class3d_grp_uuid": "5",
-                    "class3d_nr_classes": "2",
-                    "do_initial_model": False,
                     "initial_model_file": f"{tmp_path}/initial_model.mrc",
                     "mask_diameter": "190.0",
                     "particle_diameter": "180",
@@ -661,10 +678,6 @@ def test_class3d_wrapper_for_refinement(
                     "relion_options": {},
                 },
                 "parameters": {
-                    "cluster": {
-                        "gpus": 4,
-                        "tasks": 9,
-                    },
                     "recipewrapper": f"{tmp_path}/Class3D/job015/.recipewrap",
                     "workingdir": f"{tmp_path}/Class3D/job015/",
                 },
@@ -675,8 +688,6 @@ def test_class3d_wrapper_for_refinement(
         },
         "recipe-pointer": 1,
         "environment": {"ID": "envID"},
-        "recipe-path": [],
-        "payload": [],
     }
 
     # Create the expected output files
@@ -693,8 +704,14 @@ def test_class3d_wrapper_for_refinement(
             "data_model_classes\nloop_\n"
             "_rlnReferenceImage\n_Fraction\n_Rotation\n_Translation\n"
             "_Resolution\n_Completeness\n_OffsetX\n_OffsetY\n"
-            "1@Class3D/job015/run_it020_classes.mrcs 0.4 30.3 33.3 12.2 1.0 0.6 0.01\n"
-            "2@Class3D/job015/run_it020_classes.mrcs 0.6 20.2 22.2 10.0 0.91 -0.5 -0.02"
+            f"1@Class3D {test_classes[0][0]} 0 0 "
+            f"{test_classes[1][0]} {test_classes[2][0]} 0 0\n"
+            f"2@Class3D {test_classes[0][1]} 0 0 "
+            f"{test_classes[1][1]} {test_classes[2][1]} 0 0\n"
+            f"3@Class3D {test_classes[0][2]} 0 0 "
+            f"{test_classes[1][2]} {test_classes[2][2]} 0 0\n"
+            f"4@Class3D {test_classes[0][3]} 0 0 "
+            f"{test_classes[1][3]} {test_classes[2][3]} 0 0\n"
         )
 
     # Create a recipe wrapper with the test message
@@ -716,7 +733,7 @@ def test_class3d_wrapper_for_refinement(
             "register": "done_3d_batch",
             "refine_dir": f"{tmp_path}/Refine3D/job",
             "class3d_dir": f"{tmp_path}/Class3D/job015",
-            "best_class": 2,
-            "do_refinement": True,
+            "best_class": test_classes[4],
+            "do_refinement": test_classes[3],
         },
     )
