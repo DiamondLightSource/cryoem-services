@@ -26,7 +26,7 @@ def multipart_message(message, parameters, session):
         return False
 
     current_command = commands[0]
-    command = current_command.get("ispyb_command")
+    command = globals().get(current_command.get("ispyb_command"))
     if not command:
         logger.error(
             f"Multipart command {current_command} does not contain an ispyb_command"
@@ -126,7 +126,7 @@ def buffer(message, parameters, session):
         logger.error(f"Invalid buffer call: no buffer command in {message}")
         return False
 
-    command_function = message["buffer_command"]["ispyb_command"]
+    command_function = globals().get(message["buffer_command"]["ispyb_command"])
     if not command_function:
         logger.error(f"Invalid buffer call: unknown command in {message}")
         return False

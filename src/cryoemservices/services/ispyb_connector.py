@@ -64,17 +64,6 @@ class EMISPyB(CommonService):
                 message["content"].update(message["parameters"])
             message = message["content"]
 
-        command = rw.recipe_step["parameters"].get("ispyb_command")
-        if not command:
-            self.log.error("Received message is not a valid ISPyB command")
-            rw.transport.nack(header)
-            return
-        command_function = getattr(ispyb_commands, command, None)
-        if not command_function:
-            self.log.error("Received unknown ISPyB command (%s)", command)
-            rw.transport.nack(header)
-            return
-
         def parameters(parameter):
             if isinstance(message, dict) and parameter in message:
                 base_value = message[parameter]
@@ -96,6 +85,17 @@ class EMISPyB(CommonService):
                 if f"${key}" in base_value:
                     base_value = base_value.replace(f"${key}", str(rw.environment[key]))
             return base_value
+
+        command = parameters("ispyb_command")
+        if not command:
+            self.log.error("Received message is not a valid ISPyB command")
+            rw.transport.nack(header)
+            return
+        command_function = getattr(ispyb_commands, command, None)
+        if not command_function:
+            self.log.error("Received unknown ISPyB command (%s)", command)
+            rw.transport.nack(header)
+            return
 
         self.log.info("Running ISPyB call %s", command)
         try:
