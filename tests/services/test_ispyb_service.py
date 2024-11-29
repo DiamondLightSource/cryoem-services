@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import sys
 from unittest import mock
 
@@ -87,10 +88,8 @@ def test_ispyb_service_store_result(
 
     mock_command.return_value = {
         "success": True,
-        "return_value": {
-            "store_result": "result_name",
-            "store_value": "result_value",
-        },
+        "return_value": "result_value",
+        "store_result": "result_name",
     }
 
     mock_rw = mock.MagicMock()
@@ -107,19 +106,11 @@ def test_ispyb_service_store_result(
     mock_command.assert_called()
     mock_rw.send_to.assert_called_with(
         "output",
-        {
-            "result": {
-                "store_result": "result_name",
-                "store_value": "result_value",
-            }
-        },
+        {"result": "result_value"},
     )
 
     # Check the results were stored in the environment
-    assert mock_rw.environment["full_result"] == {
-        "store_result": "result_name",
-        "store_value": "result_value",
-    }
+    assert mock_rw.environment["full_result"] == "result_value"
     assert mock_rw.environment["result_name"] == "result_value"
 
 
@@ -144,7 +135,11 @@ def test_ispyb_service_checkpoint(
         "content": "dummy",
     }
 
-    mock_command.return_value = {"checkpoint": True, "return_value": "dummy_result"}
+    mock_command.return_value = {
+        "checkpoint": True,
+        "return_value": "dummy_result",
+        "checkpoint_dict": {"checkpoint": 1},
+    }
 
     mock_rw = mock.MagicMock()
     mock_rw.recipe_step = {"parameters": ispyb_test_message["parameters"]}
@@ -158,7 +153,7 @@ def test_ispyb_service_checkpoint(
     # Check that the correct messages were sent - this checkpoints but does not send
     mock_rw.send_to.assert_not_called()
     offline_transport.send.assert_not_called()
-    mock_rw.checkpoint.assert_called_with("dummy_result")
+    mock_rw.checkpoint.assert_called_with({"checkpoint": 1})
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
@@ -167,8 +162,19 @@ def test_ispyb_service_checkpoint(
 @mock.patch(
     "cryoemservices.services.ispyb_connector.ispyb_commands.insert_particle_classification_group"
 )
+@mock.patch(
+    "cryoemservices.services.ispyb_connector.ispyb_commands.insert_particle_classification"
+)
+@mock.patch(
+    "cryoemservices.services.ispyb_connector.ispyb_commands.insert_cryoem_initial_model"
+)
 def test_ispyb_multipart_message(
-    mock_command, mock_sqlalchemy, mock_ispyb_api, offline_transport
+    mock_insert_model,
+    mock_insert_class,
+    mock_insert_group,
+    mock_sqlalchemy,
+    mock_ispyb_api,
+    offline_transport,
 ):
     """
     Test that multipart message calls run reinjection.
@@ -226,11 +232,25 @@ def test_ispyb_multipart_message(
         },
     }
 
+    # The output will be the input, but without the first command as that has run
+    output_commands = copy.deepcopy(ispyb_test_message["content"]["ispyb_command_list"])
+    output_commands.pop(0)
+
+    # After a second run two commands will have been removed
+    second_output_commands = copy.deepcopy(
+        ispyb_test_message["content"]["ispyb_command_list"]
+    )
+    second_output_commands.pop(0)
+    second_output_commands.pop(0)
+
     # Mock up the individual insert command
-    mock_command.return_value = {"success": True, "return_value": "dummy_result"}
+    mock_insert_group.return_value = {"success": True, "return_value": "dummy_group"}
+    mock_insert_class.return_value = {"success": True, "return_value": "dummy_class"}
+    mock_insert_model.return_value = {"success": True, "return_value": "dummy_model"}
 
     mock_rw = mock.MagicMock()
     mock_rw.recipe_step = {"parameters": ispyb_test_message["parameters"]}
+    mock_rw.environment = {}
 
     # Set up the mock service and call it
     service = ispyb_connector.EMISPyB()
@@ -240,20 +260,14 @@ def test_ispyb_multipart_message(
         rw=mock_rw, header=header, message=ispyb_test_message["content"]
     )
 
-    # The output will be the input, but without the first command as that has run
-    output_commands = ispyb_test_message["content"]["ispyb_command_list"]
-    output_commands.pop(0)
-
     # Check that the correct messages were sent - this checkpoints but does not send
     mock_rw.send_to.assert_not_called()
     offline_transport.send.assert_not_called()
-    mock_rw.checkpoint.assert_called_with(
+    mock_rw.checkpoint.assert_any_call(
         {
             "checkpoint": 1,
             "ispyb_command": "multipart_message",
             "ispyb_command_list": output_commands,
-            "store_result": None,
-            "store_value": "dummy_result",
         }
     )
 
@@ -261,7 +275,44 @@ def test_ispyb_multipart_message(
     mock_ispyb_api.ZcZocaloBuffer.assert_called_with(
         AutoProcProgramID=100,
         UUID=5,
-        Reference="dummy_result",
+        Reference="dummy_group",
     )
     mock_sqlalchemy.orm.sessionmaker()().__enter__().merge.assert_called()
     mock_sqlalchemy.orm.sessionmaker()().__enter__().commit.assert_called()
+
+    # It should then do lookups and another checkpoint on resubmission
+    service.insert_into_ispyb(
+        rw=mock_rw,
+        header=header,
+        message={
+            "checkpoint": 1,
+            "ispyb_command": "multipart_message",
+            "ispyb_command_list": output_commands,
+        },
+    )
+    mock_rw.checkpoint.assert_called_with(
+        {
+            "checkpoint": 2,
+            "ispyb_command": "multipart_message",
+            "ispyb_command_list": second_output_commands,
+        }
+    )
+    mock_sqlalchemy.orm.sessionmaker()().__enter__().query.assert_called()
+    mock_sqlalchemy.orm.sessionmaker()().__enter__().query().filter.assert_called()
+    mock_sqlalchemy.orm.sessionmaker()().__enter__().query().filter().filter.assert_called()
+
+    # Then a final round of submission should store the result and return success
+    service.insert_into_ispyb(
+        rw=mock_rw,
+        header=header,
+        message={
+            "checkpoint": 2,
+            "ispyb_command": "multipart_message",
+            "ispyb_command_list": second_output_commands,
+        },
+    )
+    mock_rw.send_to.assert_called_with(
+        "output",
+        {"result": "dummy_model"},
+    )
+    assert mock_rw.environment["ispyb_initial_model_id"] == "dummy_model"

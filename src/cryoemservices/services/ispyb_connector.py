@@ -65,7 +65,7 @@ class EMISPyB(CommonService):
             message = message["content"]
 
         def parameters(parameter):
-            if isinstance(message, dict) and parameter in message:
+            if isinstance(message, dict) and message.get(parameter):
                 base_value = message[parameter]
             else:
                 base_value = rw.recipe_step["parameters"].get(parameter)
@@ -115,22 +115,18 @@ class EMISPyB(CommonService):
             self._request_termination()
             return
 
-        store_result = rw.recipe_step["parameters"].get("store_result")
-        if result and isinstance(result.get("return_value"), dict):
-            store_checkpointed_result = result["return_value"].get("store_result")
-            store_checkpoint_value = result["return_value"].get("store_value")
-            if store_result:
-                rw.environment[store_result] = result["return_value"]
-                self.log.info(
-                    f"Storing {result['return_value']} in "
-                    f"environment variable {store_result}.",
-                )
-            if store_checkpointed_result and store_checkpoint_value:
-                rw.environment[store_checkpointed_result] = store_checkpoint_value
-                self.log.info(
-                    f"Storing checkpointed value {store_checkpoint_value} in "
-                    f"environment variable {store_checkpointed_result}.",
-                )
+        # Store results if they are requested in the parameters or in the command
+        if result:
+            store_result_global = parameters("store_result")
+            store_result_local = result.get("store_result")
+            if store_result_local:
+                rw.environment[store_result_local] = result["return_value"]
+            if store_result_global:
+                rw.environment[store_result_global] = result["return_value"]
+            self.log.info(
+                f"Storing {result['return_value']} in "
+                f"environment variables {store_result_global} {store_result_local}.",
+            )
 
         if result and result.get("success"):
             if isinstance(rw, MockRW):
@@ -145,7 +141,7 @@ class EMISPyB(CommonService):
                 )
             rw.transport.ack(header)
         elif result and result.get("checkpoint"):
-            rw.checkpoint(result.get("return_value"))
+            rw.checkpoint(result.get("checkpoint_dict"))
             rw.transport.ack(header)
         else:
             rw.transport.nack(header)

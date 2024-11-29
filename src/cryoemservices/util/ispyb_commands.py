@@ -69,19 +69,18 @@ def multipart_message(message, parameters, session):
     # If the current step has checkpointed then need to manage this
     if result.get("checkpoint"):
         logger.info("Checkpointing for sub-command %s", command)
-
         if isinstance(message, dict):
             checkpoint_dictionary = message
         else:
             checkpoint_dictionary = {}
         checkpoint_dictionary["checkpoint"] = step - 1
         checkpoint_dictionary["ispyb_command_list"] = commands
-        checkpoint_dictionary["step_message"] = result.get("return_value")
-        checkpoint_dictionary["store_result"] = current_command.get("store_result")
-        checkpoint_dictionary["store_value"] = result.get("return_value")
+        checkpoint_dictionary["step_message"] = result.get("checkpoint_dict")
         return {
             "checkpoint": True,
-            "return_value": checkpoint_dictionary,
+            "checkpoint_dict": checkpoint_dictionary,
+            "store_result": current_command.get("store_result"),
+            "return_value": result.get("return_value"),
         }
 
     # Step has completed, so remove from queue
@@ -91,7 +90,6 @@ def multipart_message(message, parameters, session):
     if not commands:
         logger.info("and done.")
         result["store_result"] = current_command.get("store_result")
-        result["store_value"] = result.get("return_value")
         return result
 
     # If there are more steps then checkpoint the current state and re-queue it
@@ -102,11 +100,14 @@ def multipart_message(message, parameters, session):
         checkpoint_dictionary = {}
     checkpoint_dictionary["checkpoint"] = step
     checkpoint_dictionary["ispyb_command_list"] = commands
-    checkpoint_dictionary["store_result"] = current_command.get("store_result")
-    checkpoint_dictionary["store_value"] = result.get("return_value")
     if "step_message" in checkpoint_dictionary:
         del checkpoint_dictionary["step_message"]
-    return {"checkpoint": True, "return_value": checkpoint_dictionary}
+    return {
+        "checkpoint": True,
+        "checkpoint_dict": checkpoint_dictionary,
+        "store_result": current_command.get("store_result"),
+        "return_value": result.get("return_value"),
+    }
 
 
 def buffer(message, parameters, session):
@@ -176,11 +177,11 @@ def buffer(message, parameters, session):
     if result.get("checkpoint"):
         logger.info("Checkpointing for buffered function")
         message["buffer_command"] = result["return_value"]
-        message["store_result"] = message.get("store_result")
-        message["store_value"] = result.get("return_value")
         return {
             "checkpoint": True,
-            "return_value": message,
+            "checkpoint_dict": message,
+            "store_result": message.get("store_result"),
+            "return_value": result.get("return_value"),
         }
 
     # Optionally store a reference to the result in the buffer table
@@ -195,7 +196,6 @@ def buffer(message, parameters, session):
 
     # Finally, propagate result
     result["store_result"] = message.get("store_result")
-    result["store_value"] = result.get("return_value")
     return result
 
 
