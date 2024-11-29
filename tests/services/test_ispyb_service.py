@@ -35,7 +35,7 @@ def test_ispyb_service_run(
         "parameters": {
             "ispyb_command": "insert_movie",
         },
-        "content": "dummy",
+        "content": {"dummy": "dummy"},
     }
 
     mock_command.return_value = {"success": True, "return_value": "dummy_result"}
@@ -52,7 +52,11 @@ def test_ispyb_service_run(
     mock_sqlalchemy.orm.sessionmaker()().__enter__.assert_called()
 
     mock_command.assert_called_with(
-        message="dummy",
+        message={
+            "dummy": "dummy",
+            "expiry_time": mock.ANY,
+            "ispyb_command": "insert_movie",
+        },
         parameters=mock.ANY,
         session=mock_sqlalchemy.orm.sessionmaker()().__enter__(),
     )
@@ -266,6 +270,7 @@ def test_ispyb_multipart_message(
     mock_rw.checkpoint.assert_any_call(
         {
             "checkpoint": 1,
+            "expiry_time": mock.ANY,
             "ispyb_command": "multipart_message",
             "ispyb_command_list": output_commands,
         }
@@ -286,6 +291,7 @@ def test_ispyb_multipart_message(
         header=header,
         message={
             "checkpoint": 1,
+            "expiry_time": mock.ANY,
             "ispyb_command": "multipart_message",
             "ispyb_command_list": output_commands,
         },
@@ -293,6 +299,7 @@ def test_ispyb_multipart_message(
     mock_rw.checkpoint.assert_called_with(
         {
             "checkpoint": 2,
+            "expiry_time": mock.ANY,
             "ispyb_command": "multipart_message",
             "ispyb_command_list": second_output_commands,
         }
@@ -307,6 +314,7 @@ def test_ispyb_multipart_message(
         header=header,
         message={
             "checkpoint": 2,
+            "expiry_time": mock.ANY,
             "ispyb_command": "multipart_message",
             "ispyb_command_list": second_output_commands,
         },
@@ -316,3 +324,42 @@ def test_ispyb_multipart_message(
         {"result": "dummy_model"},
     )
     assert mock_rw.environment["ispyb_initial_model_id"] == "dummy_model"
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+@mock.patch("cryoemservices.services.ispyb_connector.ispyb.sqlalchemy")
+@mock.patch("cryoemservices.services.ispyb_connector.sqlalchemy")
+@mock.patch("cryoemservices.services.ispyb_connector.ispyb_commands.insert_movie")
+def test_ispyb_service_failed_lookup(
+    mock_command, mock_sqlalchemy, mock_ispyb_api, offline_transport, tmp_path
+):
+    """
+    Send a test message to the ispyb service for a command which fails
+    This should checkpoint ready for rerunning
+    """
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+    ispyb_test_message = {
+        "parameters": {
+            "ispyb_command": "insert_movie",
+        },
+        "content": "dummy",
+    }
+
+    mock_command.return_value = False
+
+    mock_rw = mock.MagicMock()
+    mock_rw.recipe_step = {"parameters": ispyb_test_message["parameters"]}
+
+    # Set up the mock service and call it
+    service = ispyb_connector.EMISPyB()
+    service.transport = offline_transport
+    service.start()
+    service.insert_into_ispyb(rw=mock_rw, header=header, message=ispyb_test_message)
+
+    # Check that the correct messages were sent - this checkpoints but does not send
+    mock_rw.send_to.assert_not_called()
+    offline_transport.send.assert_not_called()
+    mock_rw.checkpoint.assert_called_with(ispyb_test_message, delay=20)

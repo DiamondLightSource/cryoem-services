@@ -66,23 +66,6 @@ def multipart_message(message, parameters, session):
         logger.info("Multipart command failed")
         return result
 
-    # If the current step has checkpointed then need to manage this
-    if result.get("checkpoint"):
-        logger.info("Checkpointing for sub-command %s", command)
-        if isinstance(message, dict):
-            checkpoint_dictionary = message
-        else:
-            checkpoint_dictionary = {}
-        checkpoint_dictionary["checkpoint"] = step - 1
-        checkpoint_dictionary["ispyb_command_list"] = commands
-        checkpoint_dictionary["step_message"] = result.get("checkpoint_dict")
-        return {
-            "checkpoint": True,
-            "checkpoint_dict": checkpoint_dictionary,
-            "store_result": current_command.get("store_result"),
-            "return_value": result.get("return_value"),
-        }
-
     # Step has completed, so remove from queue
     commands.pop(0)
 
@@ -172,17 +155,6 @@ def buffer(message, parameters, session):
     if not result or not result.get("success"):
         logger.warning("Buffered command failed")
         return result
-
-    # If the actual command has checkpointed then need to manage this
-    if result.get("checkpoint"):
-        logger.info("Checkpointing for buffered function")
-        message["buffer_command"] = result["return_value"]
-        return {
-            "checkpoint": True,
-            "checkpoint_dict": message,
-            "store_result": message.get("store_result"),
-            "return_value": result.get("return_value"),
-        }
 
     # Optionally store a reference to the result in the buffer table
     if message.get("buffer_store"):

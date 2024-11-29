@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+
 import ispyb.sqlalchemy
 import sqlalchemy.orm
 import workflows.recipe
@@ -97,6 +99,10 @@ class EMISPyB(CommonService):
             rw.transport.nack(header)
             return
 
+        # Set an expiry time for this message, for delays on database synchronisation
+        if not message.get("expiry_time") or header.get("dlq-reinjected"):
+            message["expiry_time"] = time.time() + 600
+
         self.log.info("Running ISPyB call %s", command)
         try:
             with self._ispyb_sessionmaker() as session:
@@ -143,6 +149,12 @@ class EMISPyB(CommonService):
         elif result and result.get("checkpoint"):
             rw.checkpoint(result.get("checkpoint_dict"))
             rw.transport.ack(header)
+        elif message["expiry_time"] > time.time():
+            self.log.warning(
+                f"Failed call {command}. Checkpointing for delayed resubmission"
+            )
+            rw.checkpoint(message, delay=20)
+            rw.transport.ack(header)
         else:
+            self.log.error(f"ISPyB request for {command} failed")
             rw.transport.nack(header)
-            return
