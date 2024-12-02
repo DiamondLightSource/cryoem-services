@@ -66,8 +66,11 @@ class EMISPyB(CommonService):
                 message["content"].update(message["parameters"])
             message = message["content"]
 
+        if message is None:
+            message = {}
+
         def parameters(parameter):
-            if isinstance(message, dict) and message.get(parameter):
+            if message.get(parameter):
                 base_value = message[parameter]
             else:
                 base_value = rw.recipe_step["parameters"].get(parameter)

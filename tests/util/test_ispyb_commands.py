@@ -869,3 +869,84 @@ def test_insert_tilts_without_movie(mock_models):
     )
     mock_session.add.assert_called()
     mock_session.commit.assert_called()
+
+
+def test_update_processing_status():
+    def mock_processing_parameters(p):
+        processing_parameters = {
+            "program_id": 1,
+            "message": "successful",
+            "status": "success",
+            "start_time": 1,
+            "update_time": 2,
+        }
+        return processing_parameters[p]
+
+    mock_session = mock.MagicMock()
+    return_value = ispyb_commands.update_processing_status(
+        {}, mock_processing_parameters, mock_session
+    )
+    assert return_value.get("success")
+    assert return_value["return_value"]
+
+    mock_session.query.assert_called_once()
+    mock_session.query().filter.assert_called_once()
+
+    # Don't check the model call here, instead look at the update
+    mock_session.query().filter().update.assert_called_with(
+        {
+            "processingStatus": 1,
+            "processingMessage": "successful",
+            "processingStartTime": 1,
+            "processingEndTime": 2,
+        }
+    )
+    mock_session.add.assert_not_called()
+    mock_session.commit.assert_called()
+
+
+def test_add_program_attachment():
+    def mock_program_values(p):
+        program_parameters = {
+            "file_name": "name",
+            "file_path": "/path/to/file",
+        }
+        return program_parameters[p]
+
+    mock_session = mock.MagicMock()
+    return_value = ispyb_commands.add_program_attachment(
+        {}, mock_program_values, mock_session
+    )
+    assert return_value.get("success")
+    assert return_value["return_value"] == 0
+
+    # This should do nothing
+    mock_session.assert_not_called()
+
+
+@mock.patch("cryoemservices.util.ispyb_commands.models")
+def test_register_processing(mock_models):
+    def mock_processing_parameters(p):
+        processing_parameters = {
+            "program": "program_name",
+            "cmdline": "run program",
+            "environment": {"key1": "env1", "key2": "env2"},
+            "rpid": 1001,
+        }
+        return processing_parameters[p]
+
+    mock_session = mock.MagicMock()
+    return_value = ispyb_commands.register_processing(
+        {}, mock_processing_parameters, mock_session
+    )
+    assert return_value.get("success")
+    assert return_value["return_value"]
+
+    mock_models.AutoProcProgram.assert_called_with(
+        processingJobId=1001,
+        processingPrograms="program_name",
+        processingCommandLine="run program",
+        processingEnvironment="key1=env1, key2=env2",
+    )
+    mock_session.add.assert_called()
+    mock_session.commit.assert_called()

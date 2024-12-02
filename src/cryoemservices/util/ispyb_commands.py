@@ -756,14 +756,14 @@ def update_processing_status(message, parameters, session):
         return message.get(param) or parameters(param)
 
     ppid = full_parameters("program_id")
-    message = full_parameters("message")
+    status_message = full_parameters("message")
     try:
         values = models.AutoProcProgram(
             autoProcProgramId=ppid,
             processingStatus={"success": 1, "failure": 0}.get(
                 full_parameters("status")
             ),
-            processingMessage=message,
+            processingMessage=status_message,
             processingStartTime=full_parameters("start_time"),
             processingEndTime=full_parameters("update_time"),
         )
@@ -792,9 +792,9 @@ def update_processing_status(message, parameters, session):
 
 
 # These are needed for the old relion-zocalo wrapper
-def do_add_program_attachment(message, parameters, session):
-    file_name = parameters.get("file_name")
-    file_path = parameters.get("file_path")
+def add_program_attachment(message, parameters, session):
+    file_name = parameters("file_name")
+    file_path = parameters("file_path")
     logger.error(
         f"Adding program attachments is no longer supported. "
         f"Skipping file {file_name} in {file_path}."
@@ -802,7 +802,7 @@ def do_add_program_attachment(message, parameters, session):
     return {"success": True, "return_value": 0}
 
 
-def do_register_processing(message, parameters, session):
+def register_processing(message, parameters, session):
     program = parameters("program")
     cmdline = parameters("cmdline")
     environment = parameters("environment") or ""
@@ -810,7 +810,7 @@ def do_register_processing(message, parameters, session):
         environment = ", ".join(f"{key}={value}" for key, value in environment.items())
     environment = environment[: min(255, len(environment))]
     rpid = parameters("rpid")
-    if rpid and not rpid.isdigit():
+    if rpid and not str(rpid).isdigit():
         logger.error(f"Invalid processing id {rpid}")
         return False
     try:
