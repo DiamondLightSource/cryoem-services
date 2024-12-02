@@ -267,3 +267,205 @@ def test_insert_particle_picker(mock_models):
     )
     mock_session.add.assert_called()
     mock_session.commit.assert_called()
+
+
+@mock.patch("cryoemservices.util.ispyb_commands.models")
+def test_insert_particle_classification_new(mock_models):
+    def mock_class_parameters(p):
+        class_parameters = {
+            "dcid": 10,
+            "particle_classification_id": 401,
+            "particle_classification_group_id": 501,
+            "class_number": 1,
+            "class_image_full_path": "/path/to/class/image",
+            "particles_per_class": 72,
+            "rotation_accuracy": 7.4,
+            "translation_accuracy": 6.5,
+            "estimated_resolution": 8.5,
+            "overall_fourier_completeness": 0.95,
+            "class_distribution": 0.25,
+            "selected": 1,
+            "bfactor_fit_intercept": 0.2,
+            "bfactor_fit_linear": 50,
+            "bfactor_fit_quadratic": 0,
+        }
+        return class_parameters[p]
+
+    # Mock which returns None for existing objects
+    mock_session = mock.MagicMock()
+    mock_session.query().filter().first.return_value = None
+
+    return_value = ispyb_commands.insert_particle_classification(
+        {}, mock_class_parameters, mock_session
+    )
+    assert return_value.get("success")
+    assert return_value["return_value"]
+
+    assert mock_session.query.call_count == 2
+    assert mock_session.query().filter.call_count == 2
+    assert mock_session.query().filter().first.call_count == 1
+
+    mock_models.ParticleClassification.assert_called_with(
+        particleClassificationId=401,
+        particleClassificationGroupId=501,
+        classNumber=1,
+        classImageFullPath="/path/to/class/image",
+        particlesPerClass=72,
+        rotationAccuracy=7.4,
+        translationAccuracy=6.5,
+        estimatedResolution=8.5,
+        overallFourierCompleteness=0.95,
+        classDistribution=0.25,
+        selected=1,
+        bFactorFitIntercept=0.2,
+        bFactorFitLinear=50,
+        bFactorFitQuadratic=0,
+    )
+    mock_session.add.assert_called()
+    mock_session.commit.assert_called()
+
+
+def test_insert_particle_classification_update():
+    def mock_class_parameters(p):
+        class_parameters = {
+            "dcid": 10,
+            "particle_classification_id": 401,
+            "particle_classification_group_id": 501,
+            "class_number": 1,
+            "class_image_full_path": "/path/to/class/image",
+            "particles_per_class": 72,
+            "rotation_accuracy": 7.4,
+            "translation_accuracy": 6.5,
+            "estimated_resolution": 8.5,
+            "overall_fourier_completeness": 0.95,
+            "class_distribution": 0.25,
+            "selected": 1,
+            "bfactor_fit_intercept": 0.2,
+            "bfactor_fit_linear": 50,
+            "bfactor_fit_quadratic": 0,
+        }
+        return class_parameters[p]
+
+    # Mock which returns an existing object
+    mock_session = mock.MagicMock()
+    mock_session.query().filter().first.return_value = 1
+
+    return_value = ispyb_commands.insert_particle_classification(
+        {}, mock_class_parameters, mock_session
+    )
+    assert return_value.get("success")
+    assert return_value["return_value"]
+
+    assert mock_session.query.call_count == 3
+    assert mock_session.query().filter.call_count == 3
+    assert mock_session.query().filter().first.call_count == 1
+
+    # Don't check the model call here, instead look at the update
+    mock_session.query().filter().update.assert_called_with(
+        {
+            "particleClassificationGroupId": 501,
+            "classNumber": 1,
+            "classImageFullPath": "/path/to/class/image",
+            "particlesPerClass": 72,
+            "rotationAccuracy": 7.4,
+            "translationAccuracy": 6.5,
+            "estimatedResolution": 8.5,
+            "overallFourierCompleteness": 0.95,
+            "classDistribution": 0.25,
+            "selected": 1,
+            "bFactorFitIntercept": 0.2,
+            "bFactorFitLinear": 50,
+            "bFactorFitQuadratic": 0,
+        }
+    )
+    mock_session.add.assert_not_called()
+    mock_session.commit.assert_called()
+
+
+@mock.patch("cryoemservices.util.ispyb_commands.models")
+def test_insert_particle_classification_group_new(mock_models):
+    def mock_group_parameters(p):
+        group_parameters = {
+            "dcid": 10,
+            "particle_picker_id": 301,
+            "particle_classification_group_id": 501,
+            "program_id": 1,
+            "type": "2D",
+            "batch_number": 2,
+            "number_of_particles_per_batch": 50000,
+            "number_of_classes_per_batch": 50,
+            "symmetry": "C1",
+        }
+        return group_parameters[p]
+
+    # Mock which returns None for existing objects
+    mock_session = mock.MagicMock()
+    mock_session.query().filter().first.return_value = None
+
+    return_value = ispyb_commands.insert_particle_classification_group(
+        {}, mock_group_parameters, mock_session
+    )
+    assert return_value.get("success")
+    assert return_value["return_value"]
+
+    assert mock_session.query.call_count == 2
+    assert mock_session.query().filter.call_count == 2
+    assert mock_session.query().filter().first.call_count == 1
+
+    mock_models.ParticleClassificationGroup.assert_called_with(
+        particleClassificationGroupId=501,
+        particlePickerId=301,
+        programId=1,
+        type="2D",
+        batchNumber=2,
+        numberOfParticlesPerBatch=50000,
+        numberOfClassesPerBatch=50,
+        symmetry="C1",
+    )
+    mock_session.add.assert_called()
+    mock_session.commit.assert_called()
+
+
+def test_insert_particle_classification_group_update():
+    def mock_group_parameters(p):
+        group_parameters = {
+            "dcid": 10,
+            "particle_picker_id": 301,
+            "particle_classification_group_id": 501,
+            "program_id": 1,
+            "type": "2D",
+            "batch_number": 2,
+            "number_of_particles_per_batch": 50000,
+            "number_of_classes_per_batch": 50,
+            "symmetry": "C1",
+        }
+        return group_parameters[p]
+
+    # Mock which returns an existing object
+    mock_session = mock.MagicMock()
+    mock_session.query().filter().first.return_value = 1
+
+    return_value = ispyb_commands.insert_particle_classification_group(
+        {}, mock_group_parameters, mock_session
+    )
+    assert return_value.get("success")
+    assert return_value["return_value"]
+
+    assert mock_session.query.call_count == 3
+    assert mock_session.query().filter.call_count == 3
+    assert mock_session.query().filter().first.call_count == 1
+
+    # Don't check the model call here, instead look at the update
+    mock_session.query().filter().update.assert_called_with(
+        {
+            "particlePickerId": 301,
+            "programId": 1,
+            "type": "2D",
+            "batchNumber": 2,
+            "numberOfParticlesPerBatch": 50000,
+            "numberOfClassesPerBatch": 50,
+            "symmetry": "C1",
+        }
+    )
+    mock_session.add.assert_not_called()
+    mock_session.commit.assert_called()
