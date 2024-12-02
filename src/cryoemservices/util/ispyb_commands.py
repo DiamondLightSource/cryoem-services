@@ -14,11 +14,11 @@ logger.setLevel(logging.INFO)
 
 
 def multipart_message(message, parameters, session):
-    """The multipart_message command allows the recipe or client to specify a
-    multi-stage operation. With this you can process a list of API calls.
-    Each API call may have a return value that can be stored.
-    Multipart_message takes care of chaining and checkpointing to make the
-    overall call near-ACID compliant."""
+    """
+    The multipart_message command allows the recipe or client to specify a
+    list of API calls to run.
+    Each API call may have a return value that can be stored and passed on.
+    """
     commands = parameters("ispyb_command_list")
     step = message.get("checkpoint", 0) + 1
     if not commands or not isinstance(commands, list):
@@ -33,11 +33,8 @@ def multipart_message(message, parameters, session):
         )
         return False
     logger.info(
-        "Processing step %d of multipart message (%s) with %d further steps",
-        step,
-        command,
-        len(commands) - 1,
-        extra={"ispyb-message-parts": len(commands)} if step == 1 else {},
+        f"Processing step {step} of multipart message ({command}) "
+        f"with {len(commands)-1} further steps",
     )
 
     # Create a parameter lookup function specific to this step
@@ -76,7 +73,7 @@ def multipart_message(message, parameters, session):
         return result
 
     # If there are more steps then checkpoint the current state and re-queue it
-    logger.info("Checkpointing remaining %d steps", len(commands))
+    logger.info(f"Checkpointing remaining {len(commands)} steps")
     if isinstance(message, dict):
         checkpoint_dictionary = message
     else:
@@ -94,10 +91,9 @@ def multipart_message(message, parameters, session):
 
 
 def buffer(message, parameters, session):
-    """The buffer command supports running buffer lookups before running
-    a command, and optionally storing the result in a buffer after running
-    the command. It also takes care of checkpointing in case a required
-    buffer value is not yet available.
+    """
+    The buffer command supports running buffer lookups before running
+    a command, and storing the result in a buffer after running the command.
     """
 
     if not isinstance(message, dict):
