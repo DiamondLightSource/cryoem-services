@@ -3,9 +3,11 @@ from __future__ import annotations
 import logging
 from datetime import datetime
 from pathlib import Path
+from typing import Callable
 
 import ispyb.sqlalchemy as models
 import sqlalchemy.exc
+import sqlalchemy.orm
 
 from cryoemservices.util import ispyb_buffer
 
@@ -13,7 +15,9 @@ logger = logging.getLogger("cryoemservices.util.ispyb_commands")
 logger.setLevel(logging.INFO)
 
 
-def multipart_message(message, parameters, session):
+def multipart_message(
+    message: dict, parameters: Callable, session: sqlalchemy.orm.Session
+):
     """
     The multipart_message command allows the recipe or client to specify a
     list of API calls to run.
@@ -51,9 +55,7 @@ def multipart_message(message, parameters, session):
 
     # If this step previously checkpointed then override the message passed
     # to the step.
-    step_message = current_command
-    if isinstance(message, dict):
-        step_message = message.get("step_message", step_message)
+    step_message = message.get("step_message", current_command)
 
     # Run the multipart step
     result = command(message=step_message, parameters=step_parameters, session=session)
@@ -74,10 +76,7 @@ def multipart_message(message, parameters, session):
 
     # If there are more steps then checkpoint the current state and re-queue it
     logger.info(f"Checkpointing remaining {len(commands)} steps")
-    if isinstance(message, dict):
-        checkpoint_dictionary = message
-    else:
-        checkpoint_dictionary = {}
+    checkpoint_dictionary = message
     checkpoint_dictionary["checkpoint"] = step
     checkpoint_dictionary["ispyb_command_list"] = commands
     if "step_message" in checkpoint_dictionary:
@@ -90,16 +89,11 @@ def multipart_message(message, parameters, session):
     }
 
 
-def buffer(message, parameters, session):
+def buffer(message: dict, parameters: Callable, session: sqlalchemy.orm.Session):
     """
     The buffer command supports running buffer lookups before running
     a command, and storing the result in a buffer after running the command.
     """
-
-    if not isinstance(message, dict):
-        logger.error(f"Invalid buffer call: {message} is not a dictionary")
-        return False
-
     if not isinstance(message.get("buffer_command"), dict) or not message[
         "buffer_command"
     ].get("ispyb_command"):
@@ -143,8 +137,8 @@ def buffer(message, parameters, session):
     # Run the actual command
     result = command_function(
         message=message["buffer_command"],
-        session=session,
         parameters=parameters,
+        session=session,
     )
 
     # If the command did not succeed then propagate failure
@@ -194,7 +188,7 @@ def _get_movie_id(
         return None
 
 
-def insert_movie(message, parameters, session):
+def insert_movie(message: dict, parameters: Callable, session: sqlalchemy.orm.Session):
     logger.info("Inserting Movie parameters.")
 
     try:
@@ -226,9 +220,9 @@ def insert_movie(message, parameters, session):
         return False
 
 
-def insert_motion_correction(message, parameters, session):
-    if message is None:
-        message = {}
+def insert_motion_correction(
+    message: dict, parameters: Callable, session: sqlalchemy.orm.Session
+):
     logger.info("Inserting Motion Correction parameters.")
 
     def full_parameters(param):
@@ -287,9 +281,9 @@ def insert_motion_correction(message, parameters, session):
         return False
 
 
-def insert_relative_ice_thickness(message, parameters, session):
-    if message is None:
-        message = {}
+def insert_relative_ice_thickness(
+    message: dict, parameters: Callable, session: sqlalchemy.orm.Session
+):
     dcid = parameters("dcid")
     logger.info(f"Inserting Relative Ice Thickness parameters. DCID: {dcid}")
 
@@ -318,9 +312,7 @@ def insert_relative_ice_thickness(message, parameters, session):
         return False
 
 
-def insert_ctf(message, parameters, session):
-    if message is None:
-        message = {}
+def insert_ctf(message: dict, parameters: Callable, session: sqlalchemy.orm.Session):
     dcid = parameters("dcid")
     logger.info(f"Inserting CTF parameters. DCID: {dcid}")
 
@@ -361,9 +353,9 @@ def insert_ctf(message, parameters, session):
         return False
 
 
-def insert_particle_picker(message, parameters, session):
-    if message is None:
-        message = {}
+def insert_particle_picker(
+    message: dict, parameters: Callable, session: sqlalchemy.orm.Session
+):
     dcid = parameters("dcid")
     logger.info(f"Inserting Particle Picker parameters. DCID: {dcid}")
 
@@ -396,9 +388,9 @@ def insert_particle_picker(message, parameters, session):
         return False
 
 
-def insert_particle_classification(message, parameters, session):
-    if message is None:
-        message = {}
+def insert_particle_classification(
+    message: dict, parameters: Callable, session: sqlalchemy.orm.Session
+):
     dcid = parameters("dcid")
 
     def full_parameters(param):
@@ -460,9 +452,9 @@ def insert_particle_classification(message, parameters, session):
         return False
 
 
-def insert_particle_classification_group(message, parameters, session):
-    if message is None:
-        message = {}
+def insert_particle_classification_group(
+    message: dict, parameters: Callable, session: sqlalchemy.orm.Session
+):
     dcid = parameters("dcid")
 
     def full_parameters(param):
@@ -522,9 +514,9 @@ def insert_particle_classification_group(message, parameters, session):
         return False
 
 
-def insert_cryoem_initial_model(message, parameters, session):
-    if message is None:
-        message = {}
+def insert_cryoem_initial_model(
+    message: dict, parameters: Callable, session: sqlalchemy.orm.Session
+):
     dcid = parameters("dcid")
 
     def full_parameters(param):
@@ -563,9 +555,9 @@ def insert_cryoem_initial_model(message, parameters, session):
         return False
 
 
-def insert_bfactor_fit(message, parameters, session):
-    if message is None:
-        message = {}
+def insert_bfactor_fit(
+    message: dict, parameters: Callable, session: sqlalchemy.orm.Session
+):
     dcid = parameters("dcid")
 
     def full_parameters(param):
@@ -612,9 +604,9 @@ def insert_bfactor_fit(message, parameters, session):
         return False
 
 
-def insert_tomogram(message, parameters, session):
-    if message is None:
-        message = {}
+def insert_tomogram(
+    message: dict, parameters: Callable, session: sqlalchemy.orm.Session
+):
     dcid = parameters("dcid")
     logger.info(f"Inserting Tomogram parameters. DCID: {dcid}")
     if not message:
@@ -677,9 +669,9 @@ def insert_tomogram(message, parameters, session):
         return False
 
 
-def insert_processed_tomogram(message, parameters, session):
-    if message is None:
-        message = {}
+def insert_processed_tomogram(
+    message: dict, parameters: Callable, session: sqlalchemy.orm.Session
+):
     dcid = parameters("dcid")
     logger.info(f"Inserting Processed Tomogram parameters. DCID: {dcid}")
 
@@ -704,9 +696,9 @@ def insert_processed_tomogram(message, parameters, session):
         return False
 
 
-def insert_tilt_image_alignment(message, parameters, session):
-    if message is None:
-        message = {}
+def insert_tilt_image_alignment(
+    message: dict, parameters: Callable, session: sqlalchemy.orm.Session
+):
     dcid = parameters("dcid")
     logger.info(f"Inserting Tilt Image Alignment parameters. DCID: {dcid}")
 
@@ -748,10 +740,9 @@ def insert_tilt_image_alignment(message, parameters, session):
         return False
 
 
-def update_processing_status(message, parameters, session):
-    if message is None:
-        message = {}
-
+def update_processing_status(
+    message: dict, parameters: Callable, session: sqlalchemy.orm.Session
+):
     def full_parameters(param):
         return message.get(param) or parameters(param)
 
@@ -792,7 +783,9 @@ def update_processing_status(message, parameters, session):
 
 
 # These are needed for the old relion-zocalo wrapper
-def add_program_attachment(message, parameters, session):
+def add_program_attachment(
+    message: dict, parameters: Callable, session: sqlalchemy.orm.Session
+):
     file_name = parameters("file_name")
     file_path = parameters("file_path")
     logger.error(
@@ -802,7 +795,9 @@ def add_program_attachment(message, parameters, session):
     return {"success": True, "return_value": 0}
 
 
-def register_processing(message, parameters, session):
+def register_processing(
+    message: dict, parameters: Callable, session: sqlalchemy.orm.Session
+):
     program = parameters("program")
     cmdline = parameters("cmdline")
     environment = parameters("environment") or ""
