@@ -237,14 +237,19 @@ def insert_motion_correction(message, parameters, session):
     try:
         movie_id = None
         if full_parameters("movie_id") is None:
-            movie_values = insert_movie(
-                message=message,
-                parameters={
+
+            def movie_parameters(p):
+                mv_param = {
                     "dcid": full_parameters("dcid"),
                     "movie_number": full_parameters("image_number"),
                     "movie_path": full_parameters("micrograph_full_path"),
                     "timestamp": full_parameters("created_time_stamp"),
-                },
+                }
+                return mv_param[p]
+
+            movie_values = insert_movie(
+                message=message,
+                parameters=movie_parameters,
                 session=session,
             )
             movie_id = movie_values["return_value"]
