@@ -33,7 +33,7 @@ def multipart_message(
     command = globals().get(current_command.get("ispyb_command"))
     if not command:
         logger.error(
-            f"Multipart command {current_command} does not contain an ispyb_command"
+            f"Multipart command {current_command} does not have a valid ispyb_command"
         )
         return False
     logger.info(
@@ -70,7 +70,7 @@ def multipart_message(
 
     # If the multipart command is finished then propagate success
     if not commands:
-        logger.info("and done.")
+        logger.info("Multipart message done")
         result["store_result"] = current_command.get("store_result")
         return result
 
@@ -105,16 +105,15 @@ def buffer(message: dict, parameters: Callable, session: sqlalchemy.orm.Session)
         logger.error(f"Invalid buffer call: unknown command in {message}")
         return False
 
-    # Prepare command: Resolve all references
     program_id = parameters("program_id")
+    if not program_id:
+        logger.error("Invalid buffer call: program_id is undefined")
+        return False
+
+    # Prepare command: Resolve all references
     if message.get("buffer_lookup"):
         if not isinstance(message["buffer_lookup"], dict):
-            logger.error(
-                "Invalid buffer call: buffer_lookup dictionary is not a dictionary"
-            )
-            return False
-        if not program_id:
-            logger.error("Invalid buffer call: program_id is undefined")
+            logger.error("Invalid buffer call: buffer_lookup is not a dictionary")
             return False
         for entry in list(message["buffer_lookup"]):
             buffer_result = ispyb_buffer.load(
@@ -126,9 +125,7 @@ def buffer(message: dict, parameters: Callable, session: sqlalchemy.orm.Session)
                 # resolve value and continue
                 message["buffer_command"][entry] = buffer_result.value
                 del message["buffer_lookup"][entry]
-                logger.info(
-                    f"Successfully resolved buffer reference {entry!r} to {buffer_result.value!r}"
-                )
+                logger.info(f"Buffer entry {entry!r} found: {buffer_result.value!r}")
                 continue
 
             logger.warning(f"Buffer entry {entry} not found for program {program_id}.")
@@ -169,7 +166,7 @@ def _get_movie_id(
     logger.info(
         f"Looking for Movie ID. Movie name: {full_path} DCID: {data_collection_id}"
     )
-    movie_name = str(Path(full_path).stem).replace("_motion_corrected", "")
+    movie_name = Path(full_path).stem.replace("_motion_corrected", "")
     mv_query = db_session.query(models.Movie).filter(
         models.Movie.dataCollectionId == data_collection_id,
     )
@@ -189,8 +186,6 @@ def _get_movie_id(
 
 
 def insert_movie(message: dict, parameters: Callable, session: sqlalchemy.orm.Session):
-    logger.info("Inserting Movie parameters.")
-
     try:
         if parameters("timestamp"):
             values = models.Movie(
@@ -213,8 +208,7 @@ def insert_movie(message: dict, parameters: Callable, session: sqlalchemy.orm.Se
         return {"success": True, "return_value": values.movieId}
     except sqlalchemy.exc.SQLAlchemyError as e:
         logger.error(
-            "Inserting movie entry caused exception '%s'.",
-            e,
+            f"Inserting movie entry caused exception {e}",
             exc_info=True,
         )
         return False
@@ -223,8 +217,6 @@ def insert_movie(message: dict, parameters: Callable, session: sqlalchemy.orm.Se
 def insert_motion_correction(
     message: dict, parameters: Callable, session: sqlalchemy.orm.Session
 ):
-    logger.info("Inserting Motion Correction parameters.")
-
     def full_parameters(param):
         return message.get(param) or parameters(param)
 
@@ -274,8 +266,7 @@ def insert_motion_correction(
         return {"success": True, "return_value": values.motionCorrectionId}
     except sqlalchemy.exc.SQLAlchemyError as e:
         logger.error(
-            "Inserting motion correction entry caused exception '%s'.",
-            e,
+            f"Inserting motion correction entry caused exception {e}",
             exc_info=True,
         )
         return False
@@ -284,9 +275,6 @@ def insert_motion_correction(
 def insert_relative_ice_thickness(
     message: dict, parameters: Callable, session: sqlalchemy.orm.Session
 ):
-    dcid = parameters("dcid")
-    logger.info(f"Inserting Relative Ice Thickness parameters. DCID: {dcid}")
-
     def full_parameters(param):
         return message.get(param) or parameters(param)
 
@@ -302,20 +290,17 @@ def insert_relative_ice_thickness(
         )
         session.add(values)
         session.commit()
+        logger.info(f"Created Ice Thickness record {values.relativeIceThicknessId}")
         return {"success": True, "return_value": values.relativeIceThicknessId}
     except sqlalchemy.exc.SQLAlchemyError as e:
         logger.error(
-            "Inserting relative ice thickness entry caused exception '%s'.",
-            e,
+            f"Inserting relative ice thickness entry caused exception {e}",
             exc_info=True,
         )
         return False
 
 
 def insert_ctf(message: dict, parameters: Callable, session: sqlalchemy.orm.Session):
-    dcid = parameters("dcid")
-    logger.info(f"Inserting CTF parameters. DCID: {dcid}")
-
     def full_parameters(param):
         return message.get(param) or parameters(param)
 
@@ -342,12 +327,11 @@ def insert_ctf(message: dict, parameters: Callable, session: sqlalchemy.orm.Sess
         )
         session.add(values)
         session.commit()
-        logger.info(f"Created CTF record {values.ctfId} for DCID {dcid}")
+        logger.info(f"Created CTF record {values.ctfId}")
         return {"success": True, "return_value": values.ctfId}
     except sqlalchemy.exc.SQLAlchemyError as e:
         logger.error(
-            "Inserting CTF entry caused exception '%s'.",
-            e,
+            f"Inserting CTF entry caused exception {e}",
             exc_info=True,
         )
         return False
@@ -356,9 +340,6 @@ def insert_ctf(message: dict, parameters: Callable, session: sqlalchemy.orm.Sess
 def insert_particle_picker(
     message: dict, parameters: Callable, session: sqlalchemy.orm.Session
 ):
-    dcid = parameters("dcid")
-    logger.info(f"Inserting Particle Picker parameters. DCID: {dcid}")
-
     def full_parameters(param):
         return message.get(param) or parameters(param)
 
@@ -374,15 +355,11 @@ def insert_particle_picker(
         )
         session.add(values)
         session.commit()
-        logger.info(
-            f"Created ParticlePicker record {values.particlePickerId} "
-            f"for DCID {dcid}"
-        )
+        logger.info(f"Created ParticlePicker record {values.particlePickerId}")
         return {"success": True, "return_value": values.particlePickerId}
     except sqlalchemy.exc.SQLAlchemyError as e:
         logger.error(
-            "Inserting Particle Picker entry caused exception '%s'.",
-            e,
+            f"Inserting Particle Picker entry caused exception {e}",
             exc_info=True,
         )
         return False
@@ -391,8 +368,6 @@ def insert_particle_picker(
 def insert_particle_classification(
     message: dict, parameters: Callable, session: sqlalchemy.orm.Session
 ):
-    dcid = parameters("dcid")
-
     def full_parameters(param):
         return message.get(param) or parameters(param)
 
@@ -439,14 +414,12 @@ def insert_particle_classification(
             session.add(values)
         session.commit()
         logger.info(
-            "Created ParticleClassification record "
-            f"{values.particleClassificationId} for DCID {dcid}"
+            f"Created ParticleClassification record {values.particleClassificationId}"
         )
         return {"success": True, "return_value": values.particleClassificationId}
     except sqlalchemy.exc.SQLAlchemyError as e:
         logger.error(
-            "Inserting particle classification entry caused exception '%s'.",
-            e,
+            f"Inserting particle classification entry caused exception {e}",
             exc_info=True,
         )
         return False
@@ -455,12 +428,9 @@ def insert_particle_classification(
 def insert_particle_classification_group(
     message: dict, parameters: Callable, session: sqlalchemy.orm.Session
 ):
-    dcid = parameters("dcid")
-
     def full_parameters(param):
         return message.get(param) or parameters(param)
 
-    logger.info(f"Inserting particle classification parameters. DCID: {dcid}")
     try:
         values = models.ParticleClassificationGroup(
             particleClassificationGroupId=full_parameters(
@@ -499,7 +469,7 @@ def insert_particle_classification_group(
         session.commit()
         logger.info(
             "Created particle classification group record "
-            f"{values.particleClassificationGroupId} for DCID {dcid}"
+            f"{values.particleClassificationGroupId}"
         )
         return {
             "success": True,
@@ -507,8 +477,7 @@ def insert_particle_classification_group(
         }
     except sqlalchemy.exc.SQLAlchemyError as e:
         logger.error(
-            "Inserting particle classification group entry caused exception '%s'.",
-            e,
+            f"Inserting particle classification group entry caused exception {e}",
             exc_info=True,
         )
         return False
@@ -517,12 +486,9 @@ def insert_particle_classification_group(
 def insert_cryoem_initial_model(
     message: dict, parameters: Callable, session: sqlalchemy.orm.Session
 ):
-    dcid = parameters("dcid")
-
     def full_parameters(param):
         return message.get(param) or parameters(param)
 
-    logger.info(f"Inserting CryoEM Initial Model parameters. DCID: {dcid}")
     try:
         if not full_parameters("cryoem_initial_model_id"):
             values_im = models.CryoemInitialModel(
@@ -531,10 +497,6 @@ def insert_cryoem_initial_model(
             )
             session.add(values_im)
             session.commit()
-            logger.info(
-                "Created CryoEM Initial Model record "
-                f"{values_im.cryoemInitialModelId} for DCID {dcid}"
-            )
             initial_model_id = values_im.cryoemInitialModelId
         else:
             initial_model_id = full_parameters("cryoem_initial_model_id")
@@ -545,11 +507,11 @@ def insert_cryoem_initial_model(
             )
         )
         session.commit()
+        logger.info(f"Created CryoEM Initial Model record {initial_model_id}")
         return {"success": True, "return_value": initial_model_id}
     except sqlalchemy.exc.SQLAlchemyError as e:
         logger.error(
-            "Inserting CryoEM Initial Model entry caused exception '%s'.",
-            e,
+            f"Inserting CryoEM Initial Model entry caused exception {e}",
             exc_info=True,
         )
         return False
@@ -558,12 +520,9 @@ def insert_cryoem_initial_model(
 def insert_bfactor_fit(
     message: dict, parameters: Callable, session: sqlalchemy.orm.Session
 ):
-    dcid = parameters("dcid")
-
     def full_parameters(param):
         return message.get(param) or parameters(param)
 
-    logger.info(f"Inserting bfactor calculation parameters. DCID: {dcid}")
     try:
         values = models.BFactorFit(
             bFactorFitId=full_parameters("bfactor_id"),
@@ -590,15 +549,14 @@ def insert_bfactor_fit(
         else:
             session.add(values)
         session.commit()
-        logger.info(f"Created bfactor record {values.bFactorFitId} for DCID {dcid}")
+        logger.info(f"Created bfactor record {values.bFactorFitId}")
         return {
             "success": True,
             "return_value": values.bFactorFitId,
         }
     except sqlalchemy.exc.SQLAlchemyError as e:
         logger.error(
-            "Inserting bfactor entry caused exception '%s'.",
-            e,
+            f"Inserting bfactor entry caused exception {e}",
             exc_info=True,
         )
         return False
@@ -607,8 +565,6 @@ def insert_bfactor_fit(
 def insert_tomogram(
     message: dict, parameters: Callable, session: sqlalchemy.orm.Session
 ):
-    dcid = parameters("dcid")
-    logger.info(f"Inserting Tomogram parameters. DCID: {dcid}")
     if not message:
         message = {}
 
@@ -659,11 +615,11 @@ def insert_tomogram(
         else:
             session.add(values)
         session.commit()
+        logger.info(f"Created tomogram record {values.tomogramId}")
         return {"success": True, "return_value": values.tomogramId}
     except sqlalchemy.exc.SQLAlchemyError as e:
         logger.error(
-            "Inserting Tomogram entry caused exception '%s'.",
-            e,
+            f"Inserting Tomogram entry caused exception {e}",
             exc_info=True,
         )
         return False
@@ -672,9 +628,6 @@ def insert_tomogram(
 def insert_processed_tomogram(
     message: dict, parameters: Callable, session: sqlalchemy.orm.Session
 ):
-    dcid = parameters("dcid")
-    logger.info(f"Inserting Processed Tomogram parameters. DCID: {dcid}")
-
     def full_parameters(param):
         return message.get(param) or parameters(param)
 
@@ -686,11 +639,11 @@ def insert_processed_tomogram(
         )
         session.add(values)
         session.commit()
+        logger.info(f"Created processed tomogram record {values.processedTomogramId}")
         return {"success": True, "return_value": values.processedTomogramId}
     except sqlalchemy.exc.SQLAlchemyError as e:
         logger.error(
-            "Inserting Processed Tomogram entry caused exception '%s'.",
-            e,
+            f"Inserting Processed Tomogram entry caused exception {e}",
             exc_info=True,
         )
         return False
@@ -699,16 +652,13 @@ def insert_processed_tomogram(
 def insert_tilt_image_alignment(
     message: dict, parameters: Callable, session: sqlalchemy.orm.Session
 ):
-    dcid = parameters("dcid")
-    logger.info(f"Inserting Tilt Image Alignment parameters. DCID: {dcid}")
-
     def full_parameters(param):
         return message.get(param) or parameters(param)
 
     if full_parameters("movie_id"):
         mvid = full_parameters("movie_id")
     else:
-        mvid = _get_movie_id(full_parameters("path"), dcid, session)
+        mvid = _get_movie_id(full_parameters("path"), full_parameters("dcid"), session)
 
     if not mvid:
         logger.error("No movie ID for tilt image alignment")
@@ -730,11 +680,11 @@ def insert_tilt_image_alignment(
         )
         session.add(values)
         session.commit()
+        logger.info(f"Created tilt image alignment record for {values.tomogramId}")
         return {"success": True, "return_value": values.tomogramId}
     except sqlalchemy.exc.SQLAlchemyError as e:
         logger.error(
-            "Inserting Tilt Image Alignment entry caused exception '%s'.",
-            e,
+            f"Inserting Tilt Image Alignment entry caused exception {e}",
             exc_info=True,
         )
         return False
@@ -770,9 +720,7 @@ def update_processing_status(
             }
         )
         session.commit()
-        logger.info(
-            f"Updating program {ppid} with status {message}",
-        )
+        logger.info(f"Updating program {ppid} with status {message}")
         return {"success": True, "return_value": values.autoProcProgramId}
     except sqlalchemy.exc.SQLAlchemyError as e:
         logger.error(

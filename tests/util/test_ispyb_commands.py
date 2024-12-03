@@ -148,7 +148,6 @@ def test_insert_motion_correction_without_movie(mock_models):
 def test_insert_ice_thickness(mock_models):
     def mock_ice_parameters(p):
         ice_parameters = {
-            "dcid": 10,
             "motion_correction_id": 101,
             "program_id": 1,
             "minimum": 5.1,
@@ -183,7 +182,6 @@ def test_insert_ice_thickness(mock_models):
 def test_insert_ctf(mock_models):
     def mock_ctf_parameters(p):
         ctf_parameters = {
-            "dcid": 10,
             "ctf_id": 201,
             "motion_correction_id": 101,
             "program_id": 1,
@@ -238,7 +236,6 @@ def test_insert_ctf(mock_models):
 def test_insert_particle_picker(mock_models):
     def mock_picker_parameters(p):
         picker_parameters = {
-            "dcid": 10,
             "particle_picker_id": 301,
             "motion_correction_id": 101,
             "program_id": 1,
@@ -273,7 +270,6 @@ def test_insert_particle_picker(mock_models):
 def test_insert_particle_classification_new(mock_models):
     def mock_class_parameters(p):
         class_parameters = {
-            "dcid": 10,
             "particle_classification_id": 401,
             "particle_classification_group_id": 501,
             "class_number": 1,
@@ -328,7 +324,6 @@ def test_insert_particle_classification_new(mock_models):
 def test_insert_particle_classification_update():
     def mock_class_parameters(p):
         class_parameters = {
-            "dcid": 10,
             "particle_classification_id": 401,
             "particle_classification_group_id": 501,
             "class_number": 1,
@@ -386,7 +381,6 @@ def test_insert_particle_classification_update():
 def test_insert_particle_classification_group_new(mock_models):
     def mock_group_parameters(p):
         group_parameters = {
-            "dcid": 10,
             "particle_picker_id": 301,
             "particle_classification_group_id": 501,
             "program_id": 1,
@@ -429,7 +423,6 @@ def test_insert_particle_classification_group_new(mock_models):
 def test_insert_particle_classification_group_update():
     def mock_group_parameters(p):
         group_parameters = {
-            "dcid": 10,
             "particle_picker_id": 301,
             "particle_classification_group_id": 501,
             "program_id": 1,
@@ -475,7 +468,6 @@ def test_insert_particle_classification_group_update():
 def test_insert_initial_model_new(mock_models):
     def mock_model_parameters(p):
         model_parameters = {
-            "dcid": 10,
             "cryoem_initial_model_id": None,
             "particle_classification_id": 401,
             "resolution": 15.1,
@@ -507,7 +499,6 @@ def test_insert_initial_model_new(mock_models):
 def test_insert_initial_model_with_id(mock_models):
     def mock_model_parameters(p):
         model_parameters = {
-            "dcid": 10,
             "cryoem_initial_model_id": 601,
             "particle_classification_id": 401,
         }
@@ -534,7 +525,6 @@ def test_insert_initial_model_with_id(mock_models):
 def test_insert_bfactor_new(mock_models):
     def mock_bfactor_parameters(p):
         bfactor_parameters = {
-            "dcid": 10,
             "bfactor_id": 701,
             "particle_classification_id": 401,
             "resolution": 5.2,
@@ -571,7 +561,6 @@ def test_insert_bfactor_new(mock_models):
 def test_insert_bfactor_update():
     def mock_bfactor_parameters(p):
         bfactor_parameters = {
-            "dcid": 10,
             "bfactor_id": 701,
             "particle_classification_id": 401,
             "resolution": 5.2,
@@ -750,7 +739,6 @@ def test_insert_tomogram_update():
 def test_insert_processed_tomogram(mock_models):
     def mock_tomogram_parameters(p):
         tomogram_parameters = {
-            "dcid": 10,
             "tomogram_id": 801,
             "file_path": "/path/to/processed/tomogram",
             "processing_type": "Denoised",
