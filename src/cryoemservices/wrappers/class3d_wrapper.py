@@ -297,7 +297,9 @@ class Class3DWrapper(BaseWrapper):
         """
         Run the 3D classification and register results
         """
-        assert hasattr(self, "recwrap"), "No recipewrapper object found"
+        if not hasattr(self, "recwrap"):
+            logger.error("No recipewrapper object found")
+            return False
         params_dict = self.recwrap.recipe_step["job_parameters"]
         try:
             class3d_params = Class3DParameters(**params_dict)

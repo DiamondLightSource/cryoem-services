@@ -106,7 +106,9 @@ class Refine3DWrapper(zocalo.wrapper.BaseWrapper):
         """
         Run 3D refinement and postprocessing
         """
-        assert hasattr(self, "recwrap"), "No recipewrapper object found"
+        if not hasattr(self, "recwrap"):
+            logger.error("No recipewrapper object found")
+            return False
         params_dict = self.recwrap.recipe_step["job_parameters"]
         params_dict.update(self.recwrap.payload)
         try:
