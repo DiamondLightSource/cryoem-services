@@ -509,10 +509,10 @@ class Class3DWrapper(BaseWrapper):
         classes_block = class_star_file.find_block("model_classes")
         classes_loop = classes_block.find_loop("_rlnReferenceImage").get_loop()
 
-        best_class = 0
-        best_class_resolution = 100
-        best_class_completeness = 0
-        best_class_particles = 0
+        class_ids = []
+        class_resolutions = []
+        class_completenesses = []
+        class_sort_criteria = []
 
         for class_id in range(class3d_params.class3d_nr_classes):
             # Add an ispyb insert for each class
@@ -561,19 +561,19 @@ class Class3DWrapper(BaseWrapper):
             else:
                 class_ispyb_parameters["overall_fourier_completeness"] = 0.0
 
-            # Compare this class to the previous best class
-            if class_ispyb_parameters[
-                "estimated_resolution"
-            ] < best_class_resolution or (
-                class_ispyb_parameters["estimated_resolution"] == best_class_resolution
-                and class_ispyb_parameters["particles_per_class"] > best_class_particles
-            ):
-                best_class = class_id + 1
-                best_class_resolution = class_ispyb_parameters["estimated_resolution"]
-                best_class_completeness = class_ispyb_parameters[
-                    "overall_fourier_completeness"
-                ]
-                best_class_particles = class_ispyb_parameters["particles_per_class"]
+            # Add this class to the list of resolutions
+            class_ids.append(class_id + 1)
+            class_resolutions.append(class_ispyb_parameters["estimated_resolution"])
+            class_completenesses.append(
+                class_ispyb_parameters["overall_fourier_completeness"]
+            )
+            class_sort_criteria.append(
+                (
+                    class_ispyb_parameters["estimated_resolution"],
+                    class3d_params.batch_size
+                    - class_ispyb_parameters["particles_per_class"],
+                )
+            )
 
             # Add the ispyb command to the command list
             ispyb_parameters.append(class_ispyb_parameters)
@@ -591,21 +591,33 @@ class Class3DWrapper(BaseWrapper):
             },
         )
 
-        # Tell Murfey the batch has finished
+        # Prepare a message to tell Murfey this wrapper is done
         murfey_params = {
             "register": "done_3d_batch",
             "refine_dir": f"{project_dir}/Refine3D/job",
             "class3d_dir": class3d_params.class3d_dir,
-            "best_class": best_class,
+            "best_class": 0,
+            "do_refinement": False,
         }
-        if (
-            class3d_params.batch_size == 200000
-            and best_class_resolution < 11
-            and best_class_completeness > 0.9
-        ):
-            murfey_params["do_refinement"] = True
-        else:
-            murfey_params["do_refinement"] = False
+
+        # Work out the best class and request refinement if it meets the target criteria
+        class_sorting_array = np.array(
+            class_sort_criteria, dtype=[("resolutions", "<i"), ("particles", "<i")]
+        )
+        class_sorting = np.argsort(
+            class_sorting_array, order=("resolutions", "particles")
+        )
+        for cid in class_sorting:
+            if (
+                class3d_params.batch_size == 200000
+                and class_resolutions[cid] < 11
+                and class_completenesses[cid] > 0.9
+            ):
+                murfey_params["do_refinement"] = True
+                murfey_params["best_class"] = class_ids[cid]
+                break
+
+        # Tell Murfey the batch has finished
         self.recwrap.send_to("murfey_feedback", murfey_params)
 
         (job_dir / "RELION_JOB_EXIT_SUCCESS").touch(exist_ok=True)
