@@ -1307,27 +1307,15 @@ def test_motioncor_superres_does_slurm(mock_subprocess, offline_transport, tmp_p
     output_relion_options["eer_grouping"] = 0
 
     # Set up the mock service
-    service = motioncorr.MotionCorr()
+    service = motioncorr.MotionCorr(
+        environment={"config": f"{tmp_path}/config.yaml", "slurm_cluster": "default"}
+    )
     service.transport = offline_transport
     service.start()
 
     # Construct the file which contains rest api submission information
     os.environ["MOTIONCOR2_SIF"] = "MotionCor2_SIF"
-    os.environ["SLURM_RESTAPI_CONFIG"] = str(tmp_path / "restapi.txt")
-    with open(tmp_path / "restapi.txt", "w") as restapi_config:
-        restapi_config.write(
-            "user: user\n"
-            "user_home: /home\n"
-            f"user_token: {tmp_path}/token.txt\n"
-            "required_directories: [directory1, directory2]\n"
-            "partition: partition\n"
-            "partition_preference: preference\n"
-            "cluster: cluster\n"
-            "url: /url/of/slurm/restapi\n"
-            "api_version: v0.0.40\n"
-        )
-    with open(tmp_path / "token.txt", "w") as token:
-        token.write("token_key")
+    cluster_submission_configuration(tmp_path)
 
     # Send a message to the service
     service.motion_correction(None, header=header, message=motioncorr_test_message)
