@@ -346,7 +346,9 @@ class LIFToStackWrapper(BaseWrapper):
         back to Murfey for the next stage in the workflow.
         """
 
-        assert hasattr(self, "recwrap"), "No RecipeWrapper object found"
+        if not hasattr(self, "recwrap"):
+            logger.error("No RecipeWrapper object found")
+            return False
         params_dict = self.recwrap.recipe_step["job_parameters"]
         try:
             params = LIFToStackParameters(**params_dict)

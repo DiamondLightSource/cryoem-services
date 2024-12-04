@@ -368,7 +368,9 @@ class TIFFToStackWrapper(BaseWrapper):
         TIFF file processing function. Upon collecting the results, it sends them back
         to Murfey for the next stage of the workflow.
         """
-        assert hasattr(self, "recwrap"), "No RecipeWrapper object found"
+        if not hasattr(self, "recwrap"):
+            logger.error("No RecipeWrapper object found")
+            return False
         params_dict = self.recwrap.recipe_step["job_parameters"]
         try:
             params = TIFFToStackParameters(**params_dict)
