@@ -75,7 +75,7 @@ class MotionCorrParameters(BaseModel):
             raise ValueError("Specify an experiment type of spa or tomography.")
         return experiment
 
-    model_config = ConfigDict(ignore_extra=True)
+    model_config = ConfigDict(extra="allow")
 
 
 class ChainMapWithReplacement(ChainMap):
@@ -328,6 +328,11 @@ class MotionCorr(CommonService):
                     eer_grouping = int(eer_values.split()[1])
                 except ValueError:
                     self.log.warning("Cannot read eer grouping")
+
+        # Submit all super-resolution jobs to slurm using MotionCor2
+        if mc_params.motion_corr_binning == 2:
+            mc_params.use_motioncor2 = True
+            mc_params.submit_to_slurm = True
 
         # Update the relion options
         mc_params.relion_options = update_relion_options(
