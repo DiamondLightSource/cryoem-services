@@ -3,13 +3,15 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from cryoemservices.cli import LineWrapHelpFormatter
 from cryoemservices.wrappers.clem_process_raw_tiffs import convert_tiff_to_stack
 
 
 def run():
     # Create an argument parser
     parser = argparse.ArgumentParser(
-        description="Convert individual TIFF files into image stacks"
+        description="Convert individual TIFF files into image stacks",
+        formatter_class=LineWrapHelpFormatter,
     )
     # Path to single TIFF file from series (Mandatory)
     parser.add_argument(
