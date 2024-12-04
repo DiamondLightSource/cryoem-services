@@ -99,7 +99,7 @@ def test_motioncor2_service_spa(mock_subprocess, offline_transport, tmp_path):
             "use_motioncor2": True,
             "fm_int_file": "fm_int_file",
             "mag": {"mag1": "mag1", "mag2": "mag2"},
-            "motion_corr_binning": 2,
+            "motion_corr_binning": 1,
             "serial": 1,
             "in_suffix": "mrc",
             "eer_sampling": 1,
@@ -110,7 +110,6 @@ def test_motioncor2_service_spa(mock_subprocess, offline_transport, tmp_path):
             "arc_dir": "arc_dir",
             "in_fm_motion": 1,
             "split_sum": 1,
-            "movie_id": 1,
             "do_icebreaker_jobs": True,
             "relion_options": {
                 "pixel_size": 0.1,
@@ -138,7 +137,9 @@ def test_motioncor2_service_spa(mock_subprocess, offline_transport, tmp_path):
     output_relion_options.update(
         motioncorr_test_message["parameters"]["relion_options"]
     )
-    output_relion_options["pixel_size"] = 0.2
+    output_relion_options["pixel_size"] = motioncorr_test_message["parameters"][
+        "pixel_size"
+    ]
     output_relion_options["eer_grouping"] = 0
 
     # Set up the mock service
@@ -201,7 +202,7 @@ def test_motioncor2_service_spa(mock_subprocess, offline_transport, tmp_path):
         "-Mag",
         "mag1 mag2",
         "-FtBin",
-        "2.0",
+        "1.0",
         "-Serial",
         "1",
         "-InSuffix",
@@ -272,7 +273,7 @@ def test_motioncor2_service_spa(mock_subprocess, offline_transport, tmp_path):
                 "amplitude_contrast": output_relion_options["ampl_contrast"],
                 "experiment_type": "spa",
                 "output_image": f"{tmp_path}/CtfFind/job006/Movies/sample.ctf",
-                "pixel_size": motioncorr_test_message["parameters"]["pixel_size"] * 2,
+                "pixel_size": motioncorr_test_message["parameters"]["pixel_size"],
             },
             "content": "dummy",
         },
@@ -405,7 +406,7 @@ def test_motioncor_relion_service_spa(mock_subprocess, offline_transport, tmp_pa
             "use_motioncor2": False,
             "fm_int_file": f"{tmp_path}/fm_int_file.txt",
             "mag": {"mag1": "mag1", "mag2": "mag2"},
-            "motion_corr_binning": 2,
+            "motion_corr_binning": 1,
             "serial": 1,
             "in_suffix": "mrc",
             "eer_sampling": 1,
@@ -416,7 +417,6 @@ def test_motioncor_relion_service_spa(mock_subprocess, offline_transport, tmp_pa
             "arc_dir": "arc_dir",
             "in_fm_motion": 1,
             "split_sum": 1,
-            "movie_id": 1,
             "do_icebreaker_jobs": True,
             "relion_options": {
                 "pixel_size": 0.1,
@@ -444,7 +444,9 @@ def test_motioncor_relion_service_spa(mock_subprocess, offline_transport, tmp_pa
     output_relion_options.update(
         motioncorr_test_message["parameters"]["relion_options"]
     )
-    output_relion_options["pixel_size"] = 0.2
+    output_relion_options["pixel_size"] = motioncorr_test_message["parameters"][
+        "pixel_size"
+    ]
     output_relion_options["eer_grouping"] = 10
 
     # Write sample eer frame file
@@ -503,7 +505,7 @@ def test_motioncor_relion_service_spa(mock_subprocess, offline_transport, tmp_pa
         "--preexposure",
         "1.0",
         "--bin_factor",
-        "2.0",
+        "1.0",
         "--eer_upsampling",
         "1",
         "--bfactor",
@@ -565,7 +567,7 @@ def test_motioncor_relion_service_spa(mock_subprocess, offline_transport, tmp_pa
                 "amplitude_contrast": output_relion_options["ampl_contrast"],
                 "experiment_type": "spa",
                 "output_image": f"{tmp_path}/CtfFind/job006/Movies/sample.ctf",
-                "pixel_size": motioncorr_test_message["parameters"]["pixel_size"] * 2,
+                "pixel_size": motioncorr_test_message["parameters"]["pixel_size"],
             },
             "content": "dummy",
         },
@@ -708,7 +710,6 @@ def test_motioncor2_service_tomo(mock_subprocess, offline_transport, tmp_path):
             "arc_dir": None,
             "in_fm_motion": None,
             "split_sum": None,
-            "movie_id": 1,
             "relion_options": {
                 "frame_count": 5,
                 "tilt_axis_angle": 83.0,
@@ -830,7 +831,6 @@ def test_motioncor2_service_tomo(mock_subprocess, offline_transport, tmp_path):
             "register": "motion_corrected",
             "movie": str(movie),
             "mrc_out": motioncorr_test_message["parameters"]["mrc_out"],
-            "movie_id": motioncorr_test_message["parameters"]["movie_id"],
         },
     )
     offline_transport.send.assert_any_call(
@@ -942,7 +942,6 @@ def test_motioncor_relion_service_tomo(mock_subprocess, offline_transport, tmp_p
             "arc_dir": None,
             "in_fm_motion": None,
             "split_sum": None,
-            "movie_id": 1,
             "relion_options": {
                 "frame_count": 5,
                 "tilt_axis_angle": 83.0,
@@ -1077,7 +1076,6 @@ def test_motioncor_relion_service_tomo(mock_subprocess, offline_transport, tmp_p
             "register": "motion_corrected",
             "movie": str(movie),
             "mrc_out": motioncorr_test_message["parameters"]["mrc_out"],
-            "movie_id": motioncorr_test_message["parameters"]["movie_id"],
         },
     )
     offline_transport.send.assert_any_call(
@@ -1156,7 +1154,6 @@ def test_motioncor2_slurm_service_spa(mock_subprocess, offline_transport, tmp_pa
             "use_motioncor2": True,
             "submit_to_slurm": True,
             "patch_sizes": {"x": 5, "y": 5},
-            "movie_id": 1,
             "mc_uuid": 0,
             "picker_uuid": 0,
             "relion_options": {},
@@ -1263,6 +1260,132 @@ def test_motioncor2_slurm_service_spa(mock_subprocess, offline_transport, tmp_pa
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+@mock.patch("cryoemservices.util.slurm_submission.subprocess.run")
+def test_motioncor_superres_does_slurm(mock_subprocess, offline_transport, tmp_path):
+    """
+    Send a test message to MotionCorr requesting super-resolution binning.
+    This should submit to slurm as a MotionCor2 job.
+    The job is set to be marked as a failure for some variety
+    """
+    mock_subprocess().returncode = 0
+    mock_subprocess().stdout = '{"job_state": ["FAILED"]}'.encode("ascii")
+    mock_subprocess().stderr = "stderr".encode("ascii")
+
+    movie = Path(f"{tmp_path}/Movies/sample.tiff")
+    movie.parent.mkdir(parents=True)
+    movie.touch()
+
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+    motioncorr_test_message = {
+        "parameters": {
+            "movie": str(movie),
+            "mrc_out": f"{tmp_path}/MotionCorr/job002/Movies/sample.mrc",
+            "use_motioncor2": False,
+            "submit_to_slurm": False,
+            "experiment_type": "spa",
+            "pixel_size": 0.1,
+            "dose_per_frame": 1,
+            "motion_corr_binning": 2,
+            "movie_id": 1,
+            "mc_uuid": 0,
+            "picker_uuid": 0,
+            "relion_options": {},
+        },
+        "content": "dummy",
+    }
+    output_relion_options = dict(RelionServiceOptions())
+    output_relion_options["pixel_size"] = 0.2
+    output_relion_options["dose_per_frame"] = motioncorr_test_message["parameters"][
+        "dose_per_frame"
+    ]
+    output_relion_options["motion_corr_binning"] = motioncorr_test_message[
+        "parameters"
+    ]["motion_corr_binning"]
+    output_relion_options["eer_grouping"] = 0
+
+    # Set up the mock service
+    service = motioncorr.MotionCorr()
+    service.transport = offline_transport
+    service.start()
+
+    # Construct the file which contains rest api submission information
+    os.environ["MOTIONCOR2_SIF"] = "MotionCor2_SIF"
+    os.environ["SLURM_RESTAPI_CONFIG"] = str(tmp_path / "restapi.txt")
+    with open(tmp_path / "restapi.txt", "w") as restapi_config:
+        restapi_config.write(
+            "user: user\n"
+            "user_home: /home\n"
+            f"user_token: {tmp_path}/token.txt\n"
+            "required_directories: [directory1, directory2]\n"
+            "partition: partition\n"
+            "partition_preference: preference\n"
+            "cluster: cluster\n"
+            "url: /url/of/slurm/restapi\n"
+            "api_version: v0.0.40\n"
+        )
+    with open(tmp_path / "token.txt", "w") as token:
+        token.write("token_key")
+
+    # Send a message to the service
+    service.motion_correction(None, header=header, message=motioncorr_test_message)
+
+    # Get the expected motion correction command
+    mc_command = [
+        "MotionCor2",
+        "-InTiff",
+        str(movie),
+        "-OutMrc",
+        motioncorr_test_message["parameters"]["mrc_out"],
+        "-PixSize",
+        str(motioncorr_test_message["parameters"]["pixel_size"]),
+        "-FmDose",
+        "1.0",
+        "-Patch",
+        "5 5",
+        "-Gpu",
+        "0",
+        "-FmRef",
+        "0",
+        "-FtBin",
+        "2.0",
+    ]
+
+    # Check the slurm commands were run
+    slurm_submit_command = (
+        f'curl -H "X-SLURM-USER-NAME:user" -H "X-SLURM-USER-TOKEN:token_key" '
+        '-H "Content-Type: application/json" -X POST '
+        "/url/of/slurm/restapi/slurm/v0.0.40/job/submit "
+        f"-d @{tmp_path}/MotionCorr/job002/Movies/sample.mrc.json"
+    )
+    assert mock_subprocess.call_count == 4
+    mock_subprocess.assert_any_call(
+        slurm_submit_command, capture_output=True, shell=True
+    )
+
+    # Just check the node creator send to make sure all ran correctly
+    offline_transport.send.assert_any_call(
+        destination="node_creator",
+        message={
+            "parameters": {
+                "experiment_type": "spa",
+                "job_type": "relion.motioncorr.motioncor2",
+                "input_file": motioncorr_test_message["parameters"]["mrc_out"],
+                "output_file": motioncorr_test_message["parameters"]["mrc_out"],
+                "relion_options": output_relion_options,
+                "command": " ".join(mc_command),
+                "stdout": '{"job_state": ["FAILED"]}',
+                "stderr": "stderr",
+                "success": False,
+            },
+            "content": "dummy",
+        },
+    )
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.motioncorr.slurm_submission")
 def test_motioncor2_slurm_parameters(mock_slurm, offline_transport, tmp_path):
     """
@@ -1292,7 +1415,6 @@ def test_motioncor2_slurm_parameters(mock_slurm, offline_transport, tmp_path):
             "use_motioncor2": True,
             "submit_to_slurm": True,
             "patch_sizes": {"x": 5, "y": 5},
-            "movie_id": 1,
             "mc_uuid": 0,
             "picker_uuid": 0,
             "relion_options": {},
@@ -1391,7 +1513,6 @@ def test_motioncor_relion_slurm_parameters(mock_slurm, offline_transport, tmp_pa
             "use_motioncor2": False,
             "submit_to_slurm": True,
             "patch_sizes": {"x": 5, "y": 5},
-            "movie_id": 1,
             "mc_uuid": 0,
             "picker_uuid": 0,
             "relion_options": {},

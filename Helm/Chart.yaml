@@ -1,7 +1,7 @@
 apiVersion: v2
 name: cryoem-services
 description: An umbrella Helm chart for EM processing services
-version: 0.6.0
+version: 0.6.2
 dependencies:
   - name: bfactor_setup
   - name: cluster_submission
@@ -13,7 +13,7 @@ dependencies:
   - name: extract_class
   - name: icebreaker
   - name: images
-  - name: ispyb
+  - name: ispyb_connector
   - name: membrain_seg
   - name: motioncorr
   - name: node_creator

@@ -62,7 +62,6 @@ class MotionCorrParameters(BaseModel):
     split_sum: Optional[int] = None
     dose_motionstats_cutoff: float = 4.0
     do_icebreaker_jobs: bool = True
-    movie_id: int
     mc_uuid: int
     picker_uuid: int
     relion_options: RelionServiceOptions
@@ -75,7 +74,7 @@ class MotionCorrParameters(BaseModel):
             raise ValueError("Specify an experiment type of spa or tomography.")
         return experiment
 
-    model_config = ConfigDict(ignore_extra=True)
+    model_config = ConfigDict(extra="allow")
 
 
 class ChainMapWithReplacement(ChainMap):
@@ -332,6 +331,11 @@ class MotionCorr(CommonService):
                     eer_grouping = int(eer_values.split()[1])
                 except ValueError:
                     self.log.warning("Cannot read eer grouping")
+
+        # Submit all super-resolution jobs to slurm using MotionCor2
+        if mc_params.motion_corr_binning == 2:
+            mc_params.use_motioncor2 = True
+            mc_params.submit_to_slurm = True
 
         # Update the relion options
         mc_params.relion_options = update_relion_options(
@@ -767,7 +771,6 @@ class MotionCorr(CommonService):
                         "register": "motion_corrected",
                         "movie": mc_params.movie,
                         "mrc_out": mc_params.mrc_out,
-                        "movie_id": mc_params.movie_id,
                     },
                 )
             else:
@@ -777,7 +780,6 @@ class MotionCorr(CommonService):
                         "register": "motion_corrected",
                         "movie": mc_params.movie,
                         "mrc_out": mc_params.mrc_out,
-                        "movie_id": mc_params.movie_id,
                     },
                 )
 

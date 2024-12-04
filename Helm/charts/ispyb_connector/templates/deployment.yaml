@@ -1,23 +1,23 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: ispyb
+  name: ispyb-connector
   namespace: {{ .Values.global.namespace }}
 spec:
   replicas: {{ .Values.replicas }}
   selector:
     matchLabels:
-      app: ispyb
+      app: ispyb-connector
   template:
     metadata:
       labels:
-        app: ispyb
+        app: ispyb-connector
     spec:
       securityContext:
         runAsUser: {{ .Values.global.runAsUser }}
         runAsGroup: {{ .Values.global.runAsGroup }}
       containers:
-      - name: ispyb-runner
+      - name: ispyb-connector-runner
         image: {{ .Values.image }}
         imagePullPolicy: Always
         resources:
@@ -77,11 +77,11 @@ spec:
 apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
 metadata:
-  name: ispyb
+  name: ispyb-connector
   namespace: {{ .Values.global.namespace }}
 spec:
   scaleTargetRef:
-    name: ispyb
+    name: ispyb-connector
   triggers:
     - type: rabbitmq
       metadata:

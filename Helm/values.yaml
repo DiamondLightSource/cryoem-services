@@ -138,7 +138,7 @@ images:
   minReplicaCount: 0
   maxReplicaCount: 4
 
-ispyb:
+ispyb_connector:
   replicas: 1
   image: gcr.io/image/path
   command: cryoemservices.service -s ISPyB -c /cryoemservices/config/cryoemservices_config.yaml

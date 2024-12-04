@@ -1,4 +1,0 @@
-apiVersion: v2
-name: ispyb
-description: A Helm chart for the ISPyB service
-version: 0.6.0

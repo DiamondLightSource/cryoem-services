@@ -1,4 +1,4 @@
 apiVersion: v2
 name: bfactor_setup
 description: A Helm chart for the service selecting particles to use for bfactors
-version: 0.6.0
+version: 0.6.2

@@ -7,7 +7,7 @@ requires = [
 
 [project]
 name = "cryoemservices"
-version = "0.6.0"
+version = "0.6.2"
 description = "Services for CryoEM processing"
 readme = "README.md"
 keywords = [
@@ -97,9 +97,9 @@ dev = [
     CrYOLO = "cryoemservices.services.cryolo:CrYOLO"
     Denoise = "cryoemservices.services.denoise:Denoise"
     DenoiseSlurm = "cryoemservices.services.denoise_slurm:DenoiseSlurm"
+    EMISPyB = "cryoemservices.services.ispyb_connector:EMISPyB"
     Extract = "cryoemservices.services.extract:Extract"
     ExtractClass = "cryoemservices.services.extract_class:ExtractClass"
-    ISPyB = "cryoemservices.services.ispyb:EMISPyB"
     IceBreaker = "cryoemservices.services.icebreaker:IceBreaker"
     Images = "cryoemservices.services.images:Images"
     MembrainSeg = "cryoemservices.services.membrain_seg:MembrainSeg"
@@ -168,4 +168,4 @@ max-line-length = "88"
 [tool.pyproject-fmt]
 indent = 4
 keep_full_version = true
-max_supported_python = "3.11"
+max_supported_python = "3.12"

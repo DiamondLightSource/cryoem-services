@@ -12,13 +12,16 @@ generated from CLEM data. This service will include:
 from __future__ import annotations
 
 import logging
+from ast import literal_eval
 from pathlib import Path
-from typing import Literal, Optional, Union
+from typing import Any, Literal, Optional
 from xml.etree import ElementTree as ET
 
 import numpy as np
 from defusedxml.ElementTree import parse
+from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 from tifffile import TiffFile, imwrite
+from zocalo.wrapper import BaseWrapper
 
 from cryoemservices.util.clem_array_functions import (
     convert_to_rgb,
@@ -28,19 +31,19 @@ from cryoemservices.util.clem_array_functions import (
 )
 
 # Create logger object to output messages with
-logger = logging.getLogger("cryoemservices.services.clem_align_and_merge")
+logger = logging.getLogger("cryoemservices.wrappers.clem_align_and_merge")
 
 
 def align_and_merge_stacks(
-    image_files: Union[Path, list[Path]],
-    metadata_file: Optional[Path] = None,
-    pre_align_stack: Optional[str] = None,
+    images: Path | list[Path],
+    metadata: Optional[Path] = None,
+    align_self: Optional[str] = None,
     flatten: Optional[Literal["min", "max", "mean"]] = "mean",
-    align_stacks: Optional[str] = None,
+    align_across: Optional[str] = None,
     # Print messages only if run as a CLI
     print_messages: bool = False,
     debug: bool = False,
-):
+) -> dict[str, Any]:
     """
     A cryoEM service (eventually) to create composite images from component image
     stacks in the series.
@@ -63,7 +66,7 @@ def align_and_merge_stacks(
         raise ValueError
 
     # Use shorter inputs in function
-    files = image_files
+    files = images
 
     # Turn single entry into a list
     if isinstance(files, Path):
@@ -87,7 +90,7 @@ def align_and_merge_stacks(
         print(f"Setting {parent_dir!r} as the working directory")
 
     # Find metadata file if none was provided
-    if metadata_file is None:
+    if metadata is None:
         # Raise error if no files found
         if len(list((parent_dir / "metadata").glob("*.xml"))) == 0:
             logger.error("No metadata file was found at the default directory")
@@ -99,15 +102,15 @@ def align_and_merge_stacks(
             )
             raise Exception
         # Load metadata file
-        metadata_file = list((parent_dir / "metadata").glob("*.xml"))[0]
+        metadata = list((parent_dir / "metadata").glob("*.xml"))[0]
         if print_messages is True:
-            print(f"Using metadata from {metadata_file!r}")
+            print(f"Using metadata from {metadata!r}")
 
     # Load metadata for series from XML file
-    metadata: ET.ElementTree = parse(metadata_file).getroot()
+    xml_metadata: ET.ElementTree = parse(metadata).getroot()
 
     # Get order of colors as shown in metadata
-    channels = metadata.findall(
+    channels = xml_metadata.findall(
         "Data/Image/ImageDescription/Channels/ChannelDescription"
     )
     colors: list[str] = [
@@ -331,4 +334,105 @@ def align_and_merge_stacks(
     if print_messages is True:
         print(f"Composite image saved as {save_name}")
 
-    return composite_img
+    # Collect and return parameters and result
+    result: dict[str, Any] = {
+        "image_stacks": [str(file) for file in files],  # Convert Path to str
+        "align_self": align_self,
+        "flatten": flatten,
+        "align_across": align_across,
+        "composite_image": str(save_name.resolve()),
+    }
+    return result
+
+
+class AlignAndMergeParameters(BaseModel):
+    series_name: str
+    images: Path | list[Path]
+    metadata: Optional[Path] = Field(default=None)
+    align_self: Optional[str] = Field(default=None)
+    flatten: Optional[Literal["min", "max", "mean"]] = Field(default="mean")
+    align_across: Optional[str] = Field(default=None)
+
+    @field_validator("images", mode="before")
+    def parse_images(cls, value):
+        if isinstance(value, str):
+            # Check for stringified list
+            if value.startswith("[") and value.endswith("]"):
+                try:
+                    eval_images: list[str] = literal_eval(value)
+                    images = [Path(file) for file in eval_images]
+                    return images
+                except (SyntaxError, ValueError):
+                    logger.error("Unable to parse stringified list for file paths")
+                    raise ValueError
+        # Leave the value as-is; if it fails, it fails
+        return value
+
+    @model_validator(mode="after")
+    def wrap_images(cls, model: AlignAndMergeParameters):
+        """
+        Wrap single images in a list to standardise what's passed on to the align-and-
+        merge function.
+        """
+        if isinstance(model.images, Path):
+            model.images = [model.images]
+        return model
+
+    @field_validator("align_self", "flatten", "align_across", mode="before")
+    def parse_for_null(cls, value):
+        """
+        Convert incoming "null" keyword into None.
+        """
+        if value == "null":
+            return None
+        return value
+
+
+class AlignAndMergeWrapper(BaseWrapper):
+    def run(self) -> bool:
+        """
+        Reads the Zocalo wrapper recipe, loads the parameters, and pass them to the
+        alignment and merging function. Upon collecting the results, it then passes
+        them back to Murfey for the next stage in the workflow.
+        """
+
+        if not hasattr(self, "recwrap"):
+            logger.error("No RecipeWrapper object found")
+            return False
+        params_dict = self.recwrap.recipe_step["job_parameters"]
+        try:
+            params = AlignAndMergeParameters(**params_dict)
+        except (ValidationError, TypeError) as error:
+            logger.error(
+                "AlignAndMergeParameters validation failed for parameters: "
+                f"{params_dict} with exception: {error}"
+            )
+            return False
+
+        # Process files and collect output
+        result = align_and_merge_stacks(
+            images=params.images,
+            metadata=params.metadata,
+            align_self=params.align_self,
+            flatten=params.flatten,
+            align_across=params.align_across,
+        )
+        if not result.keys():
+            logger.error(
+                "Failed to complete the aligning and merging process for "
+                f"{params.series_name!r}"
+            )
+            return False
+
+        # Send results to Murfey for registration
+        result["series_name"] = params.series_name
+        murfey_params = {
+            "register": "clem.register_align_and_merge_result",
+            "result": result,
+        }
+        self.recwrap.send_to("murfey_feedback", murfey_params)
+        logger.info(
+            f"Submitted alignment and merging result for {result['series_name']!r} "
+            "to Murfey for registration"
+        )
+        return True

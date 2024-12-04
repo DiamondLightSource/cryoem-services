@@ -83,7 +83,9 @@ class Class2DWrapper(BaseWrapper):
         """
         Run the 2D classification and register results
         """
-        assert hasattr(self, "recwrap"), "No recipewrapper object found"
+        if not hasattr(self, "recwrap"):
+            logger.error("No recipewrapper object found")
+            return False
         params_dict = self.recwrap.recipe_step["job_parameters"]
         try:
             class2d_params = Class2DParameters(**params_dict)
