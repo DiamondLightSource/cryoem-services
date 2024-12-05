@@ -2,10 +2,71 @@ from __future__ import annotations
 
 from unittest import mock
 
+import ispyb.sqlalchemy as models
 from workflows.recipe import Recipe
 
 from cryoemservices.util import process_recipe_tools
 from cryoemservices.util.config import ServiceConfig
+
+
+def test_get_processing_info():
+    """Test the lookup calls for processing parameters"""
+
+    class MockParameters:
+        recipe = "example"
+        dataCollectionId = 10
+        parameterKey = "parameter_a"
+        parameterValue = "A"
+
+    # A mock for the query results
+    mock_session = mock.MagicMock()
+    mock_session.query().filter().first.return_value = MockParameters()
+    mock_session.query().filter().all.return_value = [MockParameters()]
+
+    output_parameters = process_recipe_tools.get_processing_info(1, mock_session)
+
+    # Check the sqlalchemy calls
+    assert mock_session.query.call_count == 4
+    mock_session.query.assert_any_call(models.ProcessingJob)
+    mock_session.query.assert_any_call(models.ProcessingJobParameter)
+    assert mock_session.query().filter.call_count == 4
+    mock_session.query().filter().first.assert_called_once()
+    mock_session.query().filter().all.assert_called_once()
+
+    # Check the return value
+    assert list(output_parameters.keys()) == [
+        "recipe",
+        "ispyb_dcid",
+        "ispyb_reprocessing_parameters",
+    ]
+    assert output_parameters["recipe"] == "example"
+    assert output_parameters["ispyb_dcid"] == 10
+    assert output_parameters["ispyb_reprocessing_parameters"] == {"parameter_a": "A"}
+
+
+def test_get_dc_info():
+    """Test the lookup calls for data collections"""
+
+    class MockParameters:
+        imageDirectory = "/path/to/images/"
+        fileTemplate = "template_*/for/*.tiff"
+
+    # A mock for the query results
+    mock_session = mock.MagicMock()
+    mock_session.query().filter().first.return_value = MockParameters()
+
+    output_parameters = process_recipe_tools.get_dc_info(1, mock_session)
+
+    # Check the sqlalchemy calls
+    assert mock_session.query.call_count == 2
+    mock_session.query.assert_any_call(models.DataCollection)
+    assert mock_session.query().filter.call_count == 2
+    mock_session.query().filter().first.assert_called_once()
+
+    # Check the return value
+    assert list(output_parameters.keys()) == ["imageDirectory", "fileTemplate"]
+    assert output_parameters["imageDirectory"] == "/path/to/images/"
+    assert output_parameters["fileTemplate"] == "template_*/for/*.tiff"
 
 
 @mock.patch("cryoemservices.util.process_recipe_tools.models")
@@ -21,7 +82,7 @@ def test_ispyb_filter(
     mock_ispyb_api,
     tmp_path,
 ):
-
+    """Test the filter returns the expected parameters and message"""
     config = ServiceConfig(
         rabbitmq_credentials=tmp_path / "rmq_creds",
         recipe_directory=tmp_path / "recipes",
@@ -53,14 +114,17 @@ def test_ispyb_filter(
         message=sample_message, parameters=sample_message["parameters"], config=config
     )
 
+    # Check the sqlalchemy calls
     mock_ispyb_api.url.assert_called_with(credentials=tmp_path / "ispyb.cfg")
     mock_engine.assert_called()
     mock_sessionmaker.assert_called()
     mock_sessionmaker()().__enter__.assert_called()
 
+    # Check the calls for the mocked functions
     mock_processing_info.assert_called_with("dummy_process", mock.ANY)
     mock_dc_info.assert_called_with(10, mock.ANY)
 
+    # Check the outputs
     assert list(output_message.keys()) == ["parameters", "recipe", "recipes"]
     assert output_message["recipes"] == ["ispyb-example"]
 
