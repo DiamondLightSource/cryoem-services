@@ -863,7 +863,7 @@ def test_update_processing_status():
     def mock_processing_parameters(p):
         processing_parameters = {
             "program_id": 1,
-            "message": "successful",
+            "status_message": "successful",
             "status": "success",
             "start_time": 1,
             "update_time": 2,

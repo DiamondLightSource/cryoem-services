@@ -37,7 +37,7 @@ class ISPyBParameters(BaseModel):
     dcid: int
     image_number: int
     ispyb_command: str
-    message: str
+    status_message: str
     movie_id: int
     movie_number: int
     movie_path: str

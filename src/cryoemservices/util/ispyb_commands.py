@@ -697,7 +697,7 @@ def update_processing_status(
         return message.get(param) or parameters(param)
 
     ppid = full_parameters("program_id")
-    status_message = full_parameters("message")
+    status_message = full_parameters("status_message")
     try:
         values = models.AutoProcProgram(
             autoProcProgramId=ppid,
@@ -720,11 +720,11 @@ def update_processing_status(
             }
         )
         session.commit()
-        logger.info(f"Updating program {ppid} with status {message}")
+        logger.info(f"Updating program {ppid} with status {status_message}")
         return {"success": True, "return_value": values.autoProcProgramId}
     except sqlalchemy.exc.SQLAlchemyError as e:
         logger.error(
-            f"Updating program {ppid} status: {message} caused exception {e}.",
+            f"Updating program {ppid} status: {status_message} caused exception {e}.",
             exc_info=True,
         )
         return False

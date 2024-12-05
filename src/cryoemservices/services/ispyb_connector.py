@@ -69,7 +69,8 @@ class EMISPyB(CommonService):
                 message["content"].update(message["parameters"])
             message = message["content"]
 
-        if message is None:
+        if not message:
+            # Message must be a dictionary, but at this point it could be None or ""
             message = {}
 
         def parameters(parameter):
