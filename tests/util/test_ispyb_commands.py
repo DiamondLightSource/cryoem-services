@@ -859,14 +859,12 @@ def test_insert_tilts_without_movie(mock_models):
     mock_session.commit.assert_called()
 
 
-def test_update_processing_status():
+def test_update_processing_status_success():
     def mock_processing_parameters(p):
         processing_parameters = {
             "program_id": 1,
             "status_message": "successful",
             "status": "success",
-            "start_time": 1,
-            "update_time": 2,
         }
         return processing_parameters[p]
 
@@ -885,8 +883,37 @@ def test_update_processing_status():
         {
             "processingStatus": 1,
             "processingMessage": "successful",
-            "processingStartTime": 1,
-            "processingEndTime": 2,
+            "processingEndTime": mock.ANY,
+        }
+    )
+    mock_session.add.assert_not_called()
+    mock_session.commit.assert_called()
+
+
+def test_update_processing_status_starting():
+    def mock_processing_parameters(p):
+        processing_parameters = {
+            "program_id": 1,
+            "status_message": "starting up",
+            "status": "starting",
+        }
+        return processing_parameters[p]
+
+    mock_session = mock.MagicMock()
+    return_value = ispyb_commands.update_processing_status(
+        {}, mock_processing_parameters, mock_session
+    )
+    assert return_value.get("success")
+    assert return_value["return_value"]
+
+    mock_session.query.assert_called_once()
+    mock_session.query().filter.assert_called_once()
+
+    # Don't check the model call here, instead look at the update
+    mock_session.query().filter().update.assert_called_with(
+        {
+            "processingMessage": "starting up",
+            "processingStartTime": mock.ANY,
         }
     )
     mock_session.add.assert_not_called()
