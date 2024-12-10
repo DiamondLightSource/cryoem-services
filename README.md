@@ -55,8 +55,8 @@ The following services are provided for running the pipelines:
 
 - Utility services:
   - **ClusterSubmission**: Submits wrapper scripts to an HPC cluster
+  - **EMISPyB**: Inserts results into an ISPyB database
   - **Images**: Creates thumbnail images for viewing processing outcomes
-  - **ISPyB**: Inserts results into an ISPyB database
   - **NodeCreator**: Creates Relion project files for the services run
   - **ProcessRecipe**: Converts recipes into messages suitable for processing services
 - Processing services:
