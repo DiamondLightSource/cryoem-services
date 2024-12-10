@@ -37,7 +37,7 @@ def multipart_message(
         )
         return False
     logger.info(
-        f"Processing step {step} of multipart message ({command}) "
+        f"Processing step {step} of multipart message ({current_command}) "
         f"with {len(commands)-1} further steps",
     )
 

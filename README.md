@@ -56,8 +56,8 @@ The following services are provided for running the pipelines:
 - Utility services:
   - **ClusterSubmission**: Submits zocalo wrappers to an HPC cluster
   - **Dispatcher**: Converts recipes into messages suitable for processing services
+  - **EMISPyB**: Inserts results into an ISPyB database
   - **Images**: Creates thumbnail images for viewing processing outcomes
-  - **ISPyB**: Inserts results into an ISPyB database
   - **NodeCreator**: Creates Relion project files for the services run
 - Processing services:
   - **BFactor**: Performs the setup for 3D refinement with varying particle count

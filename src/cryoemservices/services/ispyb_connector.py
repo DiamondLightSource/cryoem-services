@@ -18,7 +18,7 @@ class EMISPyB(CommonService):
     _service_name = "EMISPyB"
 
     # Logger name
-    _logger_name = "cryoemservices.services.ispyb"
+    _logger_name = "cryoemservices.services.ispyb_connector"
 
     # ispyb connection details
     ispyb = None
