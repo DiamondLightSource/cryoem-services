@@ -5,7 +5,6 @@ import sys
 from pathlib import Path
 from unittest import mock
 
-import mrcfile
 import pytest
 from workflows.transport.offline_transport import OfflineTransport
 
@@ -24,10 +23,7 @@ def offline_transport(mocker):
 
 def icebreaker_group_output_file(*args):
     input_file = Path(args[0])
-    with mrcfile.new(
-        input_file.parent / f"grouped/{input_file.stem}_grouped.mrc"
-    ) as mrc:
-        mrc.set_data = [[1.0006, 2.5465647, 3.4646547, 4.442434]]
+    (input_file.parent / f"grouped/{input_file.stem}_grouped.mrc").touch()
 
 
 def icebreaker_flatten_output_file(*args):
