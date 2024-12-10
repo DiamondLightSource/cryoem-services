@@ -24,7 +24,7 @@ class IceBreakerParameters(BaseModel):
     output_path: str = Field(..., min_length=1)
     icebreaker_type: str = Literal[
         "micrographs", "enhancecontrast", "summary", "particles"
-    ]
+    ]  # type: ignore
     cpus: int = 10
     total_motion: float = 0
     early_motion: float = 0
@@ -157,6 +157,11 @@ class IceBreaker(CommonService):
                     / "flattened"
                     / f"{micrograph_name.stem}_flattened.mrc"
                 ).rename(f"{mic_dir_from_job}/{micrograph_name.stem}_flattened.mrc")
+
+                # The flattened micrograph is not currently used, so remove it
+                Path(
+                    f"{mic_dir_from_job}/{micrograph_name.stem}_flattened.mrc"
+                ).unlink()
             shutil.rmtree(icebreaker_tmp_dir)
 
             # Create the command this replicates
@@ -206,7 +211,11 @@ class IceBreaker(CommonService):
                 "--in_mics",
                 str(mic_from_project),
                 "--in_parts",
-                str(Path(icebreaker_params.input_particles).relative_to(project_dir)),
+                str(
+                    Path(icebreaker_params.input_particles or "").relative_to(
+                        project_dir
+                    )
+                ),
                 "--o",
                 icebreaker_params.output_path,
             ]
@@ -365,7 +374,8 @@ class IceBreaker(CommonService):
         # Create symlink for the particle grouping jobs
         if (
             icebreaker_params.icebreaker_type == "particles"
-            and Path(icebreaker_params.input_particles).name == "particles_split1.star"
+            and Path(icebreaker_params.input_particles or "").name
+            == "particles_split1.star"
         ):
             Path(project_dir / "IceBreaker/Icebreaker_group_batch_1").unlink(
                 missing_ok=True
