@@ -6,6 +6,8 @@ import shutil
 from pathlib import Path
 from typing import Any, Literal, Optional
 
+import mrcfile
+import numpy as np
 import workflows.recipe
 from gemmi import cif
 from icebreaker import ice_groups, icebreaker_equalize_multi, icebreaker_icegroups_multi
@@ -142,11 +144,18 @@ class IceBreaker(CommonService):
                 icebreaker_icegroups_multi.multigroup(
                     icebreaker_tmp_dir / mic_from_project.name
                 )
-                (
+                # Convert this to a 16-bit integer to make it smaller
+                with mrcfile.open(
                     icebreaker_tmp_dir
                     / "grouped"
-                    / f"{micrograph_name.stem}_grouped.mrc"
-                ).rename(f"{mic_dir_from_job}/{micrograph_name.stem}_grouped.mrc")
+                    / f"{micrograph_name.stem}_grouped.mrc",
+                    "r",
+                ) as mrc:
+                    ib_data = mrc.data
+                with mrcfile.new(
+                    f"{mic_dir_from_job}/{micrograph_name.stem}_grouped.mrc"
+                ) as new_mrc:
+                    new_mrc.set_data((ib_data * 1000).astype(np.int16))
             else:
                 (icebreaker_tmp_dir / "flattened").mkdir()
                 icebreaker_equalize_multi.multigroup(
