@@ -131,12 +131,14 @@ class EMISPyB(CommonService):
             store_result_local = result.get("store_result")
             if store_result_local:
                 rw.environment[store_result_local] = result["return_value"]
+                self.log.info(
+                    f"Storing {result['return_value']} in {store_result_local}"
+                )
             if store_result_global:
                 rw.environment[store_result_global] = result["return_value"]
-            self.log.info(
-                f"Storing {result['return_value']} in "
-                f"environment variables {store_result_global} {store_result_local}.",
-            )
+                self.log.info(
+                    f"Storing {result['return_value']} in {store_result_global}"
+                )
 
         if result and result.get("success"):
             rw.set_default_channel("output")
