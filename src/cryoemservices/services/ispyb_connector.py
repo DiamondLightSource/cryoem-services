@@ -139,16 +139,8 @@ class EMISPyB(CommonService):
             )
 
         if result and result.get("success"):
-            if isinstance(rw, MockRW):
-                rw.transport.send(
-                    destination="output",
-                    message={"result": result.get("return_value")},
-                )
-            else:
-                rw.send_to(
-                    "output",
-                    {"result": result.get("return_value")},
-                )
+            rw.set_default_channel("output")
+            rw.send({"result": result.get("return_value")})
             rw.transport.ack(header)
         elif result and result.get("checkpoint"):
             rw.checkpoint(result.get("checkpoint_dict"))
