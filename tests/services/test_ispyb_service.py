@@ -18,11 +18,12 @@ def offline_transport(mocker):
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+@mock.patch("cryoemservices.services.ispyb_connector.MockRW")
 @mock.patch("cryoemservices.services.ispyb_connector.ispyb.sqlalchemy")
 @mock.patch("cryoemservices.services.ispyb_connector.sqlalchemy")
 @mock.patch("cryoemservices.services.ispyb_connector.ispyb_commands.insert_movie")
 def test_ispyb_service_run(
-    mock_command, mock_sqlalchemy, mock_ispyb_api, offline_transport, tmp_path
+    mock_command, mock_sqlalchemy, mock_ispyb_api, mock_rw, offline_transport, tmp_path
 ):
     """
     Send a test message to the ispyb service
@@ -62,10 +63,9 @@ def test_ispyb_service_run(
     )
 
     # Check that the correct messages were sent
-    offline_transport.send.assert_any_call(
-        destination="output",
-        message={"result": "dummy_result"},
-    )
+    mock_rw.assert_called_with(offline_transport)
+    mock_rw().set_default_channel.assert_called_with("output")
+    mock_rw().send.assert_called_with({"result": "dummy_result"})
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
@@ -108,10 +108,8 @@ def test_ispyb_service_store_result(
 
     # Check that the correct messages were sent
     mock_command.assert_called()
-    mock_rw.send_to.assert_called_with(
-        "output",
-        {"result": "result_value"},
-    )
+    mock_rw.set_default_channel.assert_called_with("output")
+    mock_rw.send.assert_called_with({"result": "result_value"})
 
     # Check the results were stored in the environment
     assert mock_rw.environment["full_result"] == "result_value"
@@ -159,10 +157,8 @@ def test_ispyb_service_env_keys(
 
     # Check that the correct messages were sent
     mock_command.assert_called()
-    mock_rw.send_to.assert_called_with(
-        "output",
-        {"result": "result_value"},
-    )
+    mock_rw.set_default_channel.assert_called_with("output")
+    mock_rw.send.assert_called_with({"result": "result_value"})
 
     # Check the results were stored in the environment
     assert mock_rw.environment["full_result"] == "result_value"
@@ -206,8 +202,8 @@ def test_ispyb_service_checkpoint(
     service.insert_into_ispyb(rw=mock_rw, header=header, message=ispyb_test_message)
 
     # Check that the correct messages were sent - this checkpoints but does not send
-    mock_rw.send_to.assert_not_called()
-    offline_transport.send.assert_not_called()
+    mock_rw.set_default_channel.assert_not_called()
+    mock_rw.send.assert_not_called()
     mock_rw.checkpoint.assert_called_with({"checkpoint": 1})
 
 
@@ -316,8 +312,7 @@ def test_ispyb_multipart_message(
     )
 
     # Check that the correct messages were sent - this checkpoints but does not send
-    mock_rw.send_to.assert_not_called()
-    offline_transport.send.assert_not_called()
+    mock_rw.send.assert_not_called()
     mock_rw.checkpoint.assert_any_call(
         {
             "checkpoint": 1,
@@ -370,10 +365,8 @@ def test_ispyb_multipart_message(
             "ispyb_command_list": second_output_commands,
         },
     )
-    mock_rw.send_to.assert_called_with(
-        "output",
-        {"result": "dummy_model"},
-    )
+    mock_rw.set_default_channel.assert_called_with("output")
+    mock_rw.send.assert_called_with({"result": "dummy_model"})
     assert mock_rw.environment["ispyb_initial_model_id"] == "dummy_model"
 
 
@@ -411,6 +404,6 @@ def test_ispyb_service_failed_lookup(
     service.insert_into_ispyb(rw=mock_rw, header=header, message=ispyb_test_message)
 
     # Check that the correct messages were sent - this checkpoints but does not send
-    mock_rw.send_to.assert_not_called()
-    offline_transport.send.assert_not_called()
+    mock_rw.set_default_channel.assert_not_called()
+    mock_rw.send.assert_not_called()
     mock_rw.checkpoint.assert_called_with(ispyb_test_message, delay=20)
