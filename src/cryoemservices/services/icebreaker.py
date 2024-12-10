@@ -161,15 +161,13 @@ class IceBreaker(CommonService):
                 icebreaker_equalize_multi.multigroup(
                     icebreaker_tmp_dir / mic_from_project.name
                 )
-                (
+                # The flattened micrograph is not currently used, so remove it
+                # If it was used it should be renamed to
+                # f"{mic_dir_from_job}/{micrograph_name.stem}_flattened.mrc"
+                Path(
                     icebreaker_tmp_dir
                     / "flattened"
                     / f"{micrograph_name.stem}_flattened.mrc"
-                ).rename(f"{mic_dir_from_job}/{micrograph_name.stem}_flattened.mrc")
-
-                # The flattened micrograph is not currently used, so remove it
-                Path(
-                    f"{mic_dir_from_job}/{micrograph_name.stem}_flattened.mrc"
                 ).unlink()
             shutil.rmtree(icebreaker_tmp_dir)
 
