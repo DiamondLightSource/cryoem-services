@@ -13,7 +13,9 @@ from pathlib import Path
 from typing import Literal, Optional
 
 import numpy as np
+import SimpleITK as sitk
 from pystackreg import StackReg
+from SimpleITK.SimpleITK import Image
 from tifffile import imwrite
 
 # Create logger object to output messages with
@@ -615,6 +617,76 @@ def align_image_to_self(
             percentile_range=(0, 100),
             target_dtype=dtype,
         ).astype(dtype)
+
+    return aligned
+
+
+def align_image_to_reference(
+    reference_array: np.ndarray,
+    moving_array: np.ndarray,
+):
+    # Get initial dtype
+    if str(reference_array.dtype) != str(moving_array.dtype):
+        logger.error("The image stacks provided do not have the same dtype")
+        raise ValueError
+    dtype = str(reference_array.dtype)
+
+    # Check array shape
+    if reference_array.shape != moving_array.shape:
+        logger.error("The image stacks provided do not have the same dimensions")
+        raise ValueError
+    shape = reference_array.shape
+
+    # Convert arrays to 32-bit SimpleITK Image objects
+    fixed: Image = sitk.Cast(sitk.GetImageFromArray(reference_array), sitk.sitkFloat32)
+    moving: Image = sitk.Cast(sitk.GetImageFromArray(moving_array), sitk.sitkFloat32)
+
+    # Iterate through stacks, aligning corresponding frames
+    aligned_frames: list[Image] = []
+    for f in range(shape[0]):
+        fixed_frame: Image = fixed[:, :, f]
+        moving_frame: Image = moving[:, :, f]
+
+        # Initialise a rigid-body transform
+        initial_transform = sitk.CenteredTransformInitializer(
+            fixed_frame,
+            moving_frame,
+            sitk.Euler2DTransform(),  # Restricted to in-plane translation and rotation
+            sitk.CenteredTransformInitializerFilter.GEOMETRY,
+        )
+
+        # Set up the registration parameters
+        registration = sitk.ImageRegistrationMethod()
+        registration.SetMetricAsMattesMutualInformation(numberOfHistogramBins=100)
+        registration.SetInterpolator(sitk.sitkLinear)
+        registration.SetOptimizerAsGradientDescent(
+            learningRate=0.5, numberOfIterations=200
+        )
+        registration.SetOptimizerScalesFromIndexShift()
+        registration.SetInitialTransform(initial_transform, inPlace=False)
+
+        # Register the frame
+        final_transform = registration.Execute(fixed_frame, moving_frame)
+
+        # Transform the moving frame
+        aligned_frame: Image = sitk.Resample(
+            moving_frame,
+            fixed_frame,
+            transform=final_transform,
+            interpolater=sitk.sitkLinear,
+            defaultPixelValue=0.0,
+            outputPixelType=moving_frame.GetPixelID(),
+            useNearestNeighborExtrapolator=True,
+        )
+        aligned_frames.append(aligned_frame)
+
+    # Recombine as a single image stack
+    aligned: np.ndarray = sitk.GetArrayFromImage(sitk.JoinSeries(aligned_frames))
+    aligned = stretch_image_contrast(
+        aligned,
+        percentile_range=(0, 100),
+        target_dtype=dtype,
+    ).astype(dtype)
 
     return aligned
 
