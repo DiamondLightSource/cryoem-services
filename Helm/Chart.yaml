@@ -14,7 +14,7 @@ dependencies:
   - name: extract_class
   - name: icebreaker
   - name: images
-  - name: ispyb
+  - name: ispyb_connector
   - name: membrain_seg
   - name: motioncorr
   - name: node_creator

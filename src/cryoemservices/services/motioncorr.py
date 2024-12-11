@@ -62,7 +62,6 @@ class MotionCorrParameters(BaseModel):
     split_sum: Optional[int] = None
     dose_motionstats_cutoff: float = 4.0
     do_icebreaker_jobs: bool = True
-    movie_id: int
     mc_uuid: int
     picker_uuid: int
     relion_options: RelionServiceOptions
@@ -768,7 +767,6 @@ class MotionCorr(CommonService):
                         "register": "motion_corrected",
                         "movie": mc_params.movie,
                         "mrc_out": mc_params.mrc_out,
-                        "movie_id": mc_params.movie_id,
                     },
                 )
             else:
@@ -778,7 +776,6 @@ class MotionCorr(CommonService):
                         "register": "motion_corrected",
                         "movie": mc_params.movie,
                         "mrc_out": mc_params.mrc_out,
-                        "movie_id": mc_params.movie_id,
                     },
                 )
 

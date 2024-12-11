@@ -4,6 +4,7 @@
     "parameters": {
       "dcid": "{dcid}",
       "ispyb_command": "insert_movie",
+      "movie_number": "{image_number}",
       "movie_path": "{movie}",
       "store_result": "ispyb_movie_id"
     },
@@ -27,7 +28,6 @@
       "mc_uuid": "{mc_uuid}",
       "motion_corr_binning": "{ft_bin}",
       "movie": "{movie}",
-      "movie_id": "$ispyb_movie_id",
       "mrc_out": "{mrc_out}",
       "picker_uuid": "-1",
       "pixel_size": "{pixel_size}",

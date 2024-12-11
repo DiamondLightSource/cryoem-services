@@ -169,7 +169,7 @@ images:
       mountPropagation: HostToContainer
       readOnly: true
 
-ispyb:
+ispyb_connector:
   replicas: 1
   image: gcr.io/image/path
   command: zocalo.service -s service-name -e environment

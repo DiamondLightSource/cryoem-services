@@ -36,7 +36,7 @@
   "3": {
     "parameters": {
       "ispyb_command": "update_processing_status",
-      "message": "processing failure",
+      "status_message": "processing failure",
       "program_id": "{appid}",
       "status": "failure"
     },
@@ -71,7 +71,7 @@
   "7": {
     "parameters": {
       "ispyb_command": "update_processing_status",
-      "message": "processing successful",
+      "status_message": "processing successful",
       "program_id": "{appid}",
       "status": "success"
     },

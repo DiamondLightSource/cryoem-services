@@ -74,7 +74,7 @@ search = 'version: {current_version}'
 replace = 'version: {new_version}'
 
 [[tool.bumpversion.files]]
-filename = "Helm/charts/ispyb/Chart.yaml"
+filename = "Helm/charts/ispyb_connector/Chart.yaml"
 search = 'version: {current_version}'
 replace = 'version: {new_version}'
 
