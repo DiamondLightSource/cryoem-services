@@ -1,5 +1,21 @@
 # cryoem-services
 
+.. image:: https://img.shields.io/pypi/v/cryoemservices.svg
+        :target: https://pypi.python.org/pypi/cryoemservuces
+        :alt: PyPI release
+
+.. image:: https://img.shields.io/pypi/pyversions/cryoemservices.svg
+        :target: https://pypi.python.org/pypi/cryoemservices
+        :alt: Supported Python versions
+
+.. image:: https://codecov.io/gh/DiamondLightSource/cryoem-services/branch/main/graph/badge.svg
+        :target: https://codecov.io/gh/DiamondLightSource/cryoem-services
+        :alt: Test coverage
+
+.. image:: https://img.shields.io/badge/code%20style-black-000000.svg
+        :target: https://github.com/ambv/black
+        :alt: Code style: black
+
 Services and configuration for cryo-EM pipelines.
 
 This package consists of a number of services to process cryo-EM micrographs,
