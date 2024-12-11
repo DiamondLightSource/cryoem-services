@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 from ast import literal_eval
+from multiprocessing import Pool
 from pathlib import Path
 from typing import Any, Literal, Optional
 from xml.etree import ElementTree as ET
@@ -24,6 +25,7 @@ from tifffile import TiffFile, imwrite
 from zocalo.wrapper import BaseWrapper
 
 from cryoemservices.util.clem_array_functions import (
+    align_image_to_self,
     convert_to_rgb,
     flatten_image,
     merge_images,
@@ -69,23 +71,28 @@ def align_and_merge_stacks(
     files = images
 
     # Turn single entry into a list
-    if isinstance(files, Path):
+    if isinstance(files, (Path, str)):
         files = [files]
+
     # Check that a value has been provided
     if len(files) == 0:
         logger.error("No image stack file paths have been provided")
         raise ValueError
 
+    # Convert to Path object if a string was provided
+    files = [Path(file) if isinstance(file, str) else file for file in files]
+
     # Check that files have the same parent directories
     if len({file.parents[0] for file in files}) > 1:
-        raise Exception(
+        logger.error(
             "The files provided come from different directories, and might not "
             "be part of the same series"
         )
+        raise ValueError
+
     # Get parent directory
     parent_dir = list({file.parents[0] for file in files})[0]
     # Validate parent directory
-    ## TO DO
     if print_messages is True:
         print(f"Setting {parent_dir!r} as the working directory")
 
@@ -116,11 +123,21 @@ def align_and_merge_stacks(
     colors: list[str] = [
         channels[c].attrib["LUTName"].lower() for c in range(len(channels))
     ]
+    # Use grey image as reference and put that first in the list
+    # If a grey image is not present, the first image will be used as reference
+    colors = sorted(
+        colors, key=lambda c: (0, c) if c.lower() in ("gray", "grey") else (1, c)
+    )
     if print_messages is True:
         print("Loaded metadata from file")
 
     # Load image stacks according to their order in the XML file
     arrays: list[np.ndarray] = []
+
+    # ImageJ metadata to load and pass on
+    resolution_list: list[tuple[float, float]] = []
+    spacing_list: list[float] = []
+    units_list: list[str] = []
     for c in range(len(colors)):
         color = colors[c]
         file_search = [file for file in files if color in file.stem]
@@ -134,7 +151,6 @@ def align_and_merge_stacks(
         file = file_search[0]
 
         with TiffFile(file) as tiff_file:
-
             # Check that there aren't multiple series in the image stack
             if len(tiff_file.series) > 1:
                 raise ValueError(
@@ -146,15 +162,35 @@ def align_and_merge_stacks(
             if print_messages is True:
                 print(f"Loaded {file!r}")
 
+            # Load and append ImageJ metadata
+            ij_metadata = tiff_file.imagej_metadata
+
+            resolution_list.append(tiff_file.series[0][0].resolution)
+            spacing_list.append(ij_metadata.get("spacing", float(0)))
+            units_list.append(ij_metadata.get("unit", ""))
+
+    # Check that images have the same pixel calibration
+    if len(set(resolution_list)) > 1:
+        logger.error("The image stacks provided do not have the same resolution")
+        raise ValueError
+
+    if len(set(spacing_list)) > 1:
+        logger.error("The image stacks provided do not have the same z-spacing")
+        raise ValueError
+
+    if len(set(units_list)) > 1:
+        logger.error("The image stacks provided do not have the same units")
+        raise ValueError
+
     # Validate that the stacks provided are of the same shape
     if len({arr.shape for arr in arrays}) > 1:
         logger.error("The image stacks provided do not have the same shape")
-        raise Exception
+        raise ValueError
 
     # Get the dtype of the image
     if len({str(arr.dtype) for arr in arrays}) > 1:
-        logger.error("The image stacks do not have the same dtype")
-        raise Exception
+        logger.error("The image stacks provided do not have the same dtype")
+        raise ValueError
 
     # Debug
     if debug and print_messages:
@@ -178,6 +214,11 @@ def align_and_merge_stacks(
     #    NOTE: This could potentially be a separate cluster submission job.
     #    Image alignment could potentially take a while, which is not ideal
     #    for a container service.
+    with Pool(len(arrays)) as pool:
+        arrays = pool.starmap(
+            align_image_to_self,
+            [(arr, "middle") for arr in arrays],
+        )
 
     # Flatten images if the option is selected
     if flatten is not None:
@@ -222,7 +263,7 @@ def align_and_merge_stacks(
     if print_messages is True:
         print("Done")
 
-    # # Debug
+    # Debug
     if debug and print_messages:
         print(
             "Properties of array after colourising: \n",
@@ -295,13 +336,14 @@ def align_and_merge_stacks(
 
     # Set up metadata properties
     final_shape = composite_img.shape
-    units = "micron"
+    resolution = resolution_list[0]
+    units = units_list[0]
     extended_metadata = ""
     # image_labels = None
 
     if flatten is None:
         axes = "ZYXS"
-        z_size = 1
+        z_size = spacing_list[0]
     else:
         axes = "YXS"
         z_size = None
@@ -313,7 +355,7 @@ def align_and_merge_stacks(
         # Array properties
         shape=final_shape,
         dtype=str(composite_img.dtype),
-        resolution=None,
+        resolution=resolution,
         resolutionunit=None,
         # Colour properties
         photometric="rgb",
