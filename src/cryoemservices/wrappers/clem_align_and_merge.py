@@ -121,6 +121,11 @@ def align_and_merge_stacks(
 
     # Load image stacks according to their order in the XML file
     arrays: list[np.ndarray] = []
+
+    # ImageJ metadata to load and pass on
+    resolution_list: list[tuple[float, float]] = []
+    spacing_list: list[float] = []
+    units_list: list[str] = []
     for c in range(len(colors)):
         color = colors[c]
         file_search = [file for file in files if color in file.stem]
@@ -146,15 +151,35 @@ def align_and_merge_stacks(
             if print_messages is True:
                 print(f"Loaded {file!r}")
 
+            # Load and append ImageJ metadata
+            ij_metadata = tiff_file.imagej_metadata
+
+            resolution_list.append(tiff_file.series[0][0].resolution)
+            spacing_list.append(ij_metadata.get("spacing", float(0)))
+            units_list.append(ij_metadata.get("unit", ""))
+
+    # Check that images have the same pixel calibration
+    if len(set(resolution_list)) > 1:
+        logger.error("The image stacks provided do not have the same resolution")
+        raise ValueError
+
+    if len(set(spacing_list)) > 1:
+        logger.error("The image stacks provided do not have the same z-spacing")
+        raise ValueError
+
+    if len(set(units_list)) > 1:
+        logger.error("The image stacks provided do not have the same units")
+        raise ValueError
+
     # Validate that the stacks provided are of the same shape
     if len({arr.shape for arr in arrays}) > 1:
         logger.error("The image stacks provided do not have the same shape")
-        raise Exception
+        raise ValueError
 
     # Get the dtype of the image
     if len({str(arr.dtype) for arr in arrays}) > 1:
-        logger.error("The image stacks do not have the same dtype")
-        raise Exception
+        logger.error("The image stacks provided do not have the same dtype")
+        raise ValueError
 
     # Debug
     if debug and print_messages:
@@ -295,13 +320,14 @@ def align_and_merge_stacks(
 
     # Set up metadata properties
     final_shape = composite_img.shape
-    units = "micron"
+    resolution = resolution_list[0]
+    units = units_list[0]
     extended_metadata = ""
     # image_labels = None
 
     if flatten is None:
         axes = "ZYXS"
-        z_size = 1
+        z_size = spacing_list[0]
     else:
         axes = "YXS"
         z_size = None
@@ -313,7 +339,7 @@ def align_and_merge_stacks(
         # Array properties
         shape=final_shape,
         dtype=str(composite_img.dtype),
-        resolution=None,
+        resolution=resolution,
         resolutionunit=None,
         # Colour properties
         photometric="rgb",
