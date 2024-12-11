@@ -10,9 +10,10 @@ import logging
 import re
 from enum import Enum
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 
 import numpy as np
+from pystackreg import StackReg
 from tifffile import imwrite
 
 # Create logger object to output messages with
@@ -559,6 +560,63 @@ def stretch_image_contrast(
             arr_new = np.append(arr_new, [frame], axis=0)
 
     return arr_new
+
+
+def align_image_to_self(
+    array: np.ndarray,
+    start_from: Literal["beginning", "middle", "end"] = "beginning",
+):
+    """
+    Uses PyStackReg to correct for drift in an image stack.
+    """
+    dtype = str(array.dtype)  # Record initial dtype
+
+    # Set up StackReg object to facilitate image processing
+    sr = StackReg(StackReg.RIGID_BODY)
+
+    # Standard method for aligning images
+    if start_from == "beginning":
+        aligned = np.array(sr.register_transform_stack(array, reference="previous"))
+
+    # Align from the middle
+    #   NOTE: Useful for aligning defocus series, where the plane of focus is
+    #   somewhere in the middle of the stack
+    elif start_from == "middle":
+
+        # Align both halves independently
+        idx = len(array) // 2  # Floor division
+        aligned_front = np.flip(
+            sr.register_transform_stack(
+                np.flip(array[: idx + 1], axis=0), reference="previous"
+            ),
+            axis=0,
+        )
+        aligned_back = np.array(
+            sr.register_transform_stack(array[idx:], reference="previous")
+        )
+
+        # Rejoin halves
+        aligned = np.concatenate((aligned_front[:idx], aligned_back), axis=0)
+
+    # Align from the end
+    elif start_from == "end":
+        aligned = np.flip(
+            sr.register_transform_stack(np.flip(array, axis=0), reference="previous"),
+            axis=0,
+        )
+    else:
+        logger.error(f"Invalid parameter {start_from!r} provided")
+        raise ValueError
+
+    # Rescale intensities of integer arrays to prevent overflow
+    if dtype.startswith(("int", "uint")) and str(aligned.dtype) != dtype:
+        aligned = stretch_image_contrast(
+            aligned,
+            percentile_range=(0, 100),
+            target_dtype=dtype,
+        ).astype(dtype)
+
+    return aligned
 
 
 class LUT(Enum):
