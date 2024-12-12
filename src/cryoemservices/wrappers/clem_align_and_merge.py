@@ -25,6 +25,7 @@ from tifffile import TiffFile, imwrite
 from zocalo.wrapper import BaseWrapper
 
 from cryoemservices.util.clem_array_functions import (
+    align_image_to_reference,
     align_image_to_self,
     convert_to_rgb,
     flatten_image,
@@ -210,25 +211,28 @@ def align_and_merge_stacks(
     )
 
     # Align frames within each image stack
-    #    TO DO
-    #    NOTE: This could potentially be a separate cluster submission job.
-    #    Image alignment could potentially take a while, which is not ideal
-    #    for a container service.
-    with Pool(len(arrays)) as pool:
-        arrays = pool.starmap(
-            align_image_to_self,
-            [(arr, "middle") for arr in arrays],
-        )
+    if align_self is not None:
+        if print_messages is True:
+            print("Correcting for drift in images...")
+        with Pool(len(arrays)) as pool:
+            arrays = pool.starmap(
+                align_image_to_self,
+                [(arr, "middle") for arr in arrays],
+            )
 
     # Flatten images if the option is selected
     if flatten is not None:
         if print_messages is True:
             print("Flattening image stacks...")
-        arrays = [flatten_image(arr, mode=flatten) for arr in arrays]
+        with Pool(len(arrays)) as pool:
+            arrays = pool.starmap(
+                flatten_image,
+                [(arr, flatten) for arr in arrays],
+            )
         # Validate that image flattening was done correctly
         if len({arr.shape for arr in arrays}) > 1:
             logger.error("The flattened arrays do not have the same shape")
-            raise Exception
+            raise ValueError
         if print_messages is True:
             print("Done")
 
@@ -250,16 +254,24 @@ def align_and_merge_stacks(
         )
 
     # Align other stacks to reference stack
-    ## TO DO
-    ## NOTE: This could also potentially be a separate cluster submission job
-    ## as well due to how long image alignment could take
-    ## NOTE: Having this step after the flattening step could potentially save on compute
-    ## if only 2D images are required
+    if align_across is not None:
+        if print_messages is True:
+            print("Aligning images to reference image...")
+        reference = arrays[0]  # First image in list is the reference image
+        to_align = arrays[1:]
+        with Pool(len(to_align)) as pool:
+            aligned = pool.starmap(
+                align_image_to_reference, [(reference, moving) for moving in to_align]
+            )
+        arrays = [reference, *aligned]
 
     # Colourise images
     if print_messages is True:
         print("Converting images from grayscale to RGB...")
-    arrays = [convert_to_rgb(arrays[c], colors[c]) for c in range(len(colors))]
+    with Pool(len(arrays)) as pool:
+        arrays = pool.starmap(
+            convert_to_rgb, [(arrays[c], colors[c]) for c in range(len(colors))]
+        )
     if print_messages is True:
         print("Done")
 
@@ -267,17 +279,17 @@ def align_and_merge_stacks(
     if debug and print_messages:
         print(
             "Properties of array after colourising: \n",
-            f"Shape: {arrays[0].shape} \n",
-            f"dtype: {arrays[0].dtype} \n",
-            f"Min: {np.min(arrays)} \n",
-            f"Max: {np.max(arrays)} \n",
+            f"Shape: {[arr.shape for arr in arrays]} \n",
+            f"dtype: {[arr.dtype for arr in arrays]} \n",
+            f"Min: {[np.min(arr) for arr in arrays]} \n",
+            f"Max: {[np.max(arr) for arr in arrays]} \n",
         )
     logger.debug(
         "Properties of array after colourising: \n",
-        f"Shape: {arrays[0].shape} \n",
-        f"dtype: {arrays[0].dtype} \n",
-        f"Min: {np.min(arrays)} \n",
-        f"Max: {np.max(arrays)} \n",
+        f"Shape: {[arr.shape for arr in arrays]} \n",
+        f"dtype: {[arr.dtype for arr in arrays]} \n",
+        f"Min: {[np.min(arr) for arr in arrays]} \n",
+        f"Max: {[np.max(arr) for arr in arrays]} \n",
     )
 
     # Convert to a composite image
