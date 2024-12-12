@@ -567,11 +567,23 @@ def stretch_image_contrast(
 def align_image_to_self(
     array: np.ndarray,
     start_from: Literal["beginning", "middle", "end"] = "beginning",
-):
+) -> np.ndarray:
     """
-    Uses PyStackReg to correct for drift in an image stack.
+    Use PyStackReg to correct for drift in an image stack.
     """
-    dtype = str(array.dtype)  # Record initial dtype
+    # Record initial dtype
+    dtype = str(array.dtype)
+
+    # Check if an image or a stack has been passed to the function
+    shape = array.shape
+    if len(shape) <= 2 or (
+        len(shape) == 3 and shape[-1] in (3, 4)  # Check for 2D RGB or RGBA images
+    ):
+        logger.warning(
+            f"Image provided likely not an image stack (has dimensions {shape});"
+            "returning original array"
+        )
+        return array
 
     # Set up StackReg object to facilitate image processing
     sr = StackReg(StackReg.RIGID_BODY)
@@ -581,8 +593,7 @@ def align_image_to_self(
         aligned = np.array(sr.register_transform_stack(array, reference="previous"))
 
     # Align from the middle
-    #   NOTE: Useful for aligning defocus series, where the plane of focus is
-    #   somewhere in the middle of the stack
+    # Useful for aligning defocus series, where the plane of focus is in the middle
     elif start_from == "middle":
 
         # Align both halves independently
@@ -624,7 +635,14 @@ def align_image_to_self(
 def align_image_to_reference(
     reference_array: np.ndarray,
     moving_array: np.ndarray,
-):
+) -> np.ndarray:
+    """
+    Uses SimpleITK's image registration methods to align images to a reference.
+
+    Currently, this method works poorly for defocused images, which can lead to a
+    lot of jitter in the beginning and tail frames if the images being aligned are
+    a defocus series.
+    """
     # Get initial dtype
     if str(reference_array.dtype) != str(moving_array.dtype):
         logger.error("The image stacks provided do not have the same dtype")
@@ -635,17 +653,28 @@ def align_image_to_reference(
     if reference_array.shape != moving_array.shape:
         logger.error("The image stacks provided do not have the same dimensions")
         raise ValueError
-    shape = reference_array.shape
 
-    # Convert arrays to 32-bit SimpleITK Image objects
-    fixed: Image = sitk.Cast(sitk.GetImageFromArray(reference_array), sitk.sitkFloat32)
-    moving: Image = sitk.Cast(sitk.GetImageFromArray(moving_array), sitk.sitkFloat32)
+    # SimpleITK's image registration prefers to work with floats
+    fixed: Image = sitk.Cast(sitk.GetImageFromArray(reference_array), sitk.sitkFloat64)
+    moving: Image = sitk.Cast(sitk.GetImageFromArray(moving_array), sitk.sitkFloat64)
+
+    # Check if an image or a stack has been passed to the function, and handle accordingly
+    shape: tuple[int, ...] = (
+        fixed.GetSize()
+    )  # In (x, y, z) order; SITK's Size object omits the RGB dimension, if present
+    num_frames = 1 if len(shape) == 2 else shape[-1]
 
     # Iterate through stacks, aligning corresponding frames
     aligned_frames: list[Image] = []
-    for f in range(shape[0]):
-        fixed_frame: Image = fixed[:, :, f]
-        moving_frame: Image = moving[:, :, f]
+    for f in range(num_frames):
+        fixed_frame: Image
+        moving_frame: Image
+        if len(shape) == 2:
+            fixed_frame = fixed
+            moving_frame = moving
+        else:
+            fixed_frame = fixed[:, :, f]
+            moving_frame = moving[:, :, f]
 
         # Initialise a rigid-body transform
         initial_transform = sitk.CenteredTransformInitializer(
@@ -673,7 +702,7 @@ def align_image_to_reference(
             moving_frame,
             fixed_frame,
             transform=final_transform,
-            interpolater=sitk.sitkLinear,
+            interpolator=sitk.sitkLinear,
             defaultPixelValue=0.0,
             outputPixelType=moving_frame.GetPixelID(),
             useNearestNeighborExtrapolator=True,
@@ -681,7 +710,11 @@ def align_image_to_reference(
         aligned_frames.append(aligned_frame)
 
     # Recombine as a single image stack
-    aligned: np.ndarray = sitk.GetArrayFromImage(sitk.JoinSeries(aligned_frames))
+    aligned: np.ndarray = (
+        sitk.GetArrayFromImage(aligned_frames[0])
+        if len(aligned_frames) == 1
+        else sitk.GetArrayFromImage(sitk.JoinSeries(aligned_frames))
+    )
     aligned = stretch_image_contrast(
         aligned,
         percentile_range=(0, 100),
