@@ -1,5 +1,10 @@
 # cryoem-services
 
+[![PyPI release](https://img.shields.io/pypi/v/cryoemservices.svg)](https://pypi.python.org/pypi/cryoemservices)
+[![Supported Python versions](https://img.shields.io/pypi/pyversions/cryoemservices.svg)](https://pypi.python.org/pypi/cryoemservices)
+[![Test coverage](https://codecov.io/gh/DiamondLightSource/cryoem-services/branch/main/graph/badge.svg)](https://codecov.io/gh/DiamondLightSource/cryoem-services)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/ambv/black)
+
 Services and configuration for cryo-EM pipelines.
 
 This package consists of a number of services to process cryo-EM micrographs,
@@ -55,8 +60,8 @@ The following services are provided for running the pipelines:
 
 - Utility services:
   - **ClusterSubmission**: Submits wrapper scripts to an HPC cluster
+  - **EMISPyB**: Inserts results into an ISPyB database
   - **Images**: Creates thumbnail images for viewing processing outcomes
-  - **ISPyB**: Inserts results into an ISPyB database
   - **NodeCreator**: Creates Relion project files for the services run
   - **ProcessRecipe**: Converts recipes into messages suitable for processing services
 - Processing services:
