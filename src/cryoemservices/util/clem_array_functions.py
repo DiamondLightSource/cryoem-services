@@ -676,6 +676,52 @@ def align_image_to_reference(
             fixed_frame = fixed[:, :, f]
             moving_frame = moving[:, :, f]
 
+        # Set up the registration parameters
+        registration = sitk.ImageRegistrationMethod()
+
+        # Choose the metric
+        registration.SetMetricAsMattesMutualInformation(numberOfHistogramBins=64)
+
+        # Choose the type of interpolation to use
+        registration.SetInterpolator(sitk.sitkLinear)
+
+        # Register over a multi-resolution pyramid
+        registration.SetShrinkFactorsPerLevel([4, 2, 1])
+        registration.SetSmoothingSigmasPerLevel([2, 1, 0])
+        # registration.SmoothingSigmasAreSpecifiedInPhysicalUnitsOn()
+
+        # Choose the type of optimiser to use
+        # registration.SetOptimizerAsGradientDescent(
+        #     learningRate=0.5,
+        #     numberOfIterations=300,
+        #     convergenceMinimumValue=1e-6,
+        #     convergenceWindowSize=10,
+        # )
+        registration.SetOptimizerAsGradientDescentLineSearch(
+            learningRate=1.0,
+            numberOfIterations=300,
+            lineSearchLowerLimit=0.5,
+            lineSearchUpperLimit=2.0,
+            lineSearchMaximumIterations=10,
+            convergenceMinimumValue=1e-6,
+            convergenceWindowSize=10,
+        )
+        # registration.SetOptimizerAsAmoeba(
+        #     simplexDelta=1.0,
+        #     numberOfIterations=300,
+        #     parametersConvergenceTolerance=1e-8,
+        #     functionConvergenceTolerance=1e-4,
+        #     withRestarts=False,
+        # )
+        # registration.SetOptimizerAsOnePlusOneEvolutionary(
+        #     epsilon=1e-6,
+        #     initialRadius=1.0,
+        #     numberOfIterations=300,
+        #     growthFactor=-1.0,
+        #     shrinkFactor=-1.0,
+        # )
+        registration.SetOptimizerScalesFromIndexShift()
+
         # Initialise a rigid-body transform
         initial_transform = sitk.CenteredTransformInitializer(
             fixed_frame,
@@ -683,15 +729,6 @@ def align_image_to_reference(
             sitk.Euler2DTransform(),  # Restricted to in-plane translation and rotation
             sitk.CenteredTransformInitializerFilter.GEOMETRY,
         )
-
-        # Set up the registration parameters
-        registration = sitk.ImageRegistrationMethod()
-        registration.SetMetricAsMattesMutualInformation(numberOfHistogramBins=100)
-        registration.SetInterpolator(sitk.sitkLinear)
-        registration.SetOptimizerAsGradientDescent(
-            learningRate=0.5, numberOfIterations=200
-        )
-        registration.SetOptimizerScalesFromIndexShift()
         registration.SetInitialTransform(initial_transform, inPlace=False)
 
         # Register the frame
