@@ -97,7 +97,7 @@ def align_and_merge_stacks(
     parent_dir = list({file.parents[0] for file in files})[0]
     # Validate parent directory
     if print_messages is True:
-        print(f"Setting {parent_dir!r} as the working directory")
+        print(f"Setting {str(parent_dir)!r} as the working directory")
 
     # Find metadata file if none was provided
     if metadata is None:
@@ -114,7 +114,7 @@ def align_and_merge_stacks(
         # Load metadata file
         metadata = list((parent_dir / "metadata").glob("*.xml"))[0]
         if print_messages is True:
-            print(f"Using metadata from {metadata!r}")
+            print(f"Using metadata from {str(metadata)!r}")
 
     # Load metadata for series from XML file
     xml_metadata: ET.ElementTree = parse(metadata).getroot()
@@ -183,7 +183,7 @@ def align_and_merge_stacks(
 
             arrays.append(array)
             if print_messages is True:
-                print(f"Loaded {file!r}")
+                print(f"Loaded {str(file)!r}")
 
             # Load and append ImageJ metadata
             ij_metadata = tiff_file.imagej_metadata
@@ -242,7 +242,7 @@ def align_and_merge_stacks(
                 [(arr, "middle") for arr in arrays],
             )
         if print_messages is True:
-            print("Done")
+            print(" Done")
 
     # Flatten images if the option is selected
     if flatten is not None:
@@ -258,7 +258,7 @@ def align_and_merge_stacks(
             logger.error("The flattened arrays do not have the same shape")
             raise ValueError
         if print_messages is True:
-            print("Done")
+            print(" Done")
 
         # # Debug
         if debug and print_messages:
@@ -412,7 +412,7 @@ def align_and_merge_stacks(
         },
     )
     if print_messages is True:
-        print(f"Composite image saved as {save_name}")
+        print(f"Composite image saved as {str(save_name)!r}")
 
     # Collect and return parameters and result
     result: dict[str, Any] = {
