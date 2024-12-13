@@ -241,6 +241,8 @@ def align_and_merge_stacks(
                 align_image_to_self,
                 [(arr, "middle") for arr in arrays],
             )
+        if print_messages is True:
+            print("Done")
 
     # Flatten images if the option is selected
     if flatten is not None:
@@ -286,6 +288,8 @@ def align_and_merge_stacks(
                 align_image_to_reference, [(reference, moving) for moving in to_align]
             )
         arrays = [reference, *aligned]
+        if print_messages is True:
+            print(" Done")
 
     # Colourise images
     if print_messages is True:
@@ -295,7 +299,7 @@ def align_and_merge_stacks(
             convert_to_rgb, [(arrays[c], colors[c]) for c in range(len(colors))]
         )
     if print_messages is True:
-        print("Done")
+        print(" Done")
 
     # Debug
     if debug and print_messages:
@@ -319,7 +323,7 @@ def align_and_merge_stacks(
         print("Creating a composite image...")
     composite_img = merge_images(arrays)
     if print_messages is True:
-        print("Done")
+        print(" Done")
 
     # # Debug
     if debug and print_messages:
@@ -346,7 +350,7 @@ def align_and_merge_stacks(
         percentile_range=(0, 100),
     )
     if print_messages is True:
-        print("Done")
+        print(" Done")
 
     # Debug
     if debug and print_messages:
