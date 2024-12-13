@@ -40,6 +40,7 @@ logger = logging.getLogger("cryoemservices.wrappers.clem_align_and_merge")
 def align_and_merge_stacks(
     images: Path | list[Path],
     metadata: Optional[Path] = None,
+    crop_to_n_frames: Optional[int] = None,
     align_self: Optional[str] = None,
     flatten: Optional[Literal["min", "max", "mean"]] = "mean",
     align_across: Optional[str] = None,
@@ -48,14 +49,15 @@ def align_and_merge_stacks(
     debug: bool = False,
 ) -> dict[str, Any]:
     """
-    A cryoEM service (eventually) to create composite images from component image
-    stacks in the series.
+    A cryoemservices wrapper to create composite images from component image stack in
+    the series.
 
     This will (eventually) take a message (JSON dictionary) containing the image stack
     and metadata files associated with an image series, along with settings for how
     the stacks should be processed (a flattened 2D image or a 3D image stack).
 
     The order of processing will be as follows:
+    - Crop image stacks to the middle n frames
     - Align the images within a stack
     - Flatten the stack (depends on whether a 2D or 3D composite image is needed)
     - Align image stacks for a given position to one another
@@ -158,8 +160,27 @@ def align_and_merge_stacks(
                     "The image stack provided contains more than one series"
                 )
 
-            # Load array and apend it to stack
-            arrays.append(tiff_file.series[0].pages.asarray())
+            # Load array
+            array = tiff_file.series[0].pages.asarray()
+
+            # Crop array to middle n frames if selected and a stack is provided
+            if (
+                not len(array.shape) < 3  # 2D grayscale image
+                or not (
+                    len(array.shape) == 3  # 2D RGB/RGBA image
+                    and array.shape[-1] in (3, 4)
+                )
+            ) and isinstance(crop_to_n_frames, int):
+                print("Cropping image to chosen frames")
+                m = len(array) // 2
+                n1 = crop_to_n_frames // 2
+                n2 = n1 + 1 if crop_to_n_frames % 2 == 1 else n1
+                f1 = m - n1 if (m - n1) >= 0 else 0
+                f2 = m + n2 if (m + n2) <= len(array) else len(array)
+                array = array[f1:f2]
+                print(f"Array now has shape {array.shape}")
+
+            arrays.append(array)
             if print_messages is True:
                 print(f"Loaded {file!r}")
 
@@ -403,6 +424,7 @@ class AlignAndMergeParameters(BaseModel):
     series_name: str
     images: Path | list[Path]
     metadata: Optional[Path] = Field(default=None)
+    crop_to_n_frames: Optional[int] = Field(default=None)
     align_self: Optional[str] = Field(default=None)
     flatten: Optional[Literal["min", "max", "mean"]] = Field(default="mean")
     align_across: Optional[str] = Field(default=None)
@@ -432,12 +454,23 @@ class AlignAndMergeParameters(BaseModel):
             model.images = [model.images]
         return model
 
-    @field_validator("align_self", "flatten", "align_across", mode="before")
+    @field_validator(
+        "crop_to_n_frames", "align_self", "flatten", "align_across", mode="before"
+    )
     def parse_for_null(cls, value):
         """
         Convert incoming "null" keyword into None.
         """
         if value == "null":
+            return None
+        return value
+
+    @field_validator("crop_to_n_frames", mode="before")
+    def parse_for_None(cls, value):
+        """
+        Convert incoming "None" into None.
+        """
+        if value == "None":
             return None
         return value
 
@@ -467,6 +500,7 @@ class AlignAndMergeWrapper(BaseWrapper):
         result = align_and_merge_stacks(
             images=params.images,
             metadata=params.metadata,
+            crop_to_n_frames=params.crop_to_n_frames,
             align_self=params.align_self,
             flatten=params.flatten,
             align_across=params.align_across,
