@@ -850,9 +850,7 @@ def merge_images(
     # Calculate average across all arrays
     arr_new: np.ndarray = np.mean(arrays, axis=0)
 
-    # Preserve dtype of array
-    #   This is an averaging operation, so we can safely switch the dtype back from
-    #   float64 without encountering an overflow
+    # Revert to input array dtype
     arr_new = arr_new.round(0) if dtype.startswith(("int", "uint")) else arr_new
     arr_new = arr_new.astype(dtype)
 
