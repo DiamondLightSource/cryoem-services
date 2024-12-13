@@ -95,10 +95,10 @@ def mrc_to_jpeg(plugin_params):
 
 
 def picked_particles(plugin_params):
-    basefilename = plugin_params.parameters("file")
-    if basefilename.endswith(".jpeg"):
+    basefilename = Path(plugin_params.parameters("file"))
+    if basefilename.suffix == ".jpeg":
         logger.info(f"Replacing jpeg extension with mrc extension for {basefilename}")
-        basefilename = basefilename.replace(".jpeg", ".mrc")
+        basefilename = basefilename.with_suffix(".mrc")
     coords = plugin_params.parameters("coordinates")
     selected_coords = plugin_params.parameters("selected_coordinates")
     pixel_size = plugin_params.parameters("pixel_size")
@@ -111,7 +111,7 @@ def picked_particles(plugin_params):
     if not outfile:
         logger.error(f"Outfile incorrectly specified: {outfile}")
         return False
-    if not Path(basefilename).is_file():
+    if not basefilename.is_file():
         logger.error(f"File {basefilename} not found")
         return False
     radius = (diam / pixel_size) // 2
