@@ -14,6 +14,21 @@ from cryoemservices.cli import LineWrapHelpFormatter
 from cryoemservices.wrappers.clem_align_and_merge import align_and_merge_stacks
 
 
+def int_or_none(value: str):
+    """
+    Parses the command line input value, translating "null" to None and returning an
+    integer otherwise.
+    """
+    if value.lower() == "null":
+        return None
+    try:
+        return int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(
+            f"Invalid value provided: {value}. Input must be either an integer or 'null'"
+        )
+
+
 def run():
     """
     Create argument parser and add arguments
@@ -47,6 +62,13 @@ def run():
             "metadata file at the expected default location "
             "('./Metadata/metadata_file.xml)."
         ),
+    )
+    # Crop image stack to the centremost N frames
+    parser.add_argument(
+        "--crop-to-n-frames",
+        default=None,
+        type=int_or_none,
+        help="Crops the image stack to the centremost N frames.",
     )
     # Align image stacks before flattening
     parser.add_argument(
@@ -169,6 +191,7 @@ def run():
     composite_image = align_and_merge_stacks(
         images=image_files,
         metadata=metadata_file,
+        crop_to_n_frames=args.crop_to_n_frames,
         align_self=align_self,
         flatten=flatten,
         align_across=align_across,
