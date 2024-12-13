@@ -4,6 +4,7 @@
       "series_name": "{series_name}",
       "images": "{images}",
       "metadata": "{metadata}",
+      "crop_to_n_frames": "{crop_to_n_frames}",
       "align_self": "{align_self}",
       "flatten": "{flatten}",
       "align_across": "{align_across}"
@@ -30,7 +31,7 @@
         "scheduler": "slurm",
         "standard_error": "{session_dir}/tmp/run.err",
         "standard_output": "{session_dir}/tmp/run.out",
-        "tasks": 1,
+        "tasks": 8,
         "time_limit": "3:00:00"
       },
       "recipewrapper": "{session_dir}/tmp/.recipewrap--clem_align_and_merge--{job_name}",
