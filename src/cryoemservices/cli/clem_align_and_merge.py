@@ -25,8 +25,23 @@ def int_or_none(value: str):
         return int(value)
     except ValueError:
         raise argparse.ArgumentTypeError(
-            f"Invalid value provided: {value}. Input must be either an integer or 'null'"
+            f"Invalid value provided: {value}. "
+            "Input must be either an integer or 'null'"
         )
+
+
+def path_or_none(value: str):
+    # Accept "null" as a keyword for the metadata argument
+    if value == "null":
+        return None
+    elif Path(value).exists():
+        return Path(value)
+    else:
+        print(
+            "The provided file path doesn't exist. Will attempt to find file using "
+            "the default settings"
+        )
+        return None
 
 
 def run():
@@ -55,7 +70,7 @@ def run():
     parser.add_argument(
         "--metadata",
         default=None,
-        type=str,
+        type=path_or_none,
         help=(
             "Full file path to the metadata file associated with this dataset. "
             "If no metadata file is provided, it will attempt to find a matching "
@@ -146,24 +161,6 @@ def run():
     if args.debug:
         [print(file) for file in image_files]
 
-    # Resolve metadata parameter
-    if isinstance(args.metadata, str):
-        # Accept "null" as a keyword for the metadata argument
-        if args.metadata == "null":
-            metadata_file = None
-        elif Path(args.metadata).exists():
-            metadata_file = Path(args.metadata)
-        else:
-            print(
-                "The metadata file provided doesn't exist; will use the metadata file "
-                "found using the default settings"
-            )
-            metadata_file = None
-    elif args.metadata is None:
-        metadata_file = args.metadata
-    else:
-        raise TypeError("The metadata parameter is of an invalid type")
-
     # Resolve pre-flattening alignment parameter
     if isinstance(args.align_self, str) or args.align_self is None:
         # Use "null" as a stand-in for None
@@ -190,7 +187,7 @@ def run():
     """
     composite_image = align_and_merge_stacks(
         images=image_files,
-        metadata=metadata_file,
+        metadata=args.metadata,
         crop_to_n_frames=args.crop_to_n_frames,
         align_self=align_self,
         flatten=flatten,
