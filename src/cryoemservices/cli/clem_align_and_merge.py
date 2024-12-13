@@ -14,22 +14,6 @@ from cryoemservices.cli import LineWrapHelpFormatter
 from cryoemservices.wrappers.clem_align_and_merge import align_and_merge_stacks
 
 
-def int_or_none(value: str):
-    """
-    Parses the command line input, converting "null" into None and returning an
-    integer otherwise.
-    """
-    if value.lower() == "null":
-        return None
-    try:
-        return int(value)
-    except ValueError:
-        raise argparse.ArgumentTypeError(
-            f"Invalid value provided: {value}. "
-            "Input must be either an integer or 'null'"
-        )
-
-
 def path_or_none(value: str):
     """
     Parses the command line input, converting "null" into None, existing file paths
@@ -47,6 +31,22 @@ def path_or_none(value: str):
         return None
 
 
+def int_or_none(value: str):
+    """
+    Parses the command line input, converting "null" into None and returning an
+    integer otherwise.
+    """
+    if value.lower() == "null":
+        return None
+    try:
+        return int(value)
+    except ValueError:
+        raise argparse.ArgumentTypeError(
+            f"Invalid value provided: {value}. "
+            "Input must be either an integer or 'null'"
+        )
+
+
 def str_or_none(value: str):
     """
     Converts the "null" keyword into None, and returns the string as-is otherwise.
@@ -54,6 +54,29 @@ def str_or_none(value: str):
     if value == "null":
         return None
     return value
+
+
+def parse_list_of_paths(values: list[str]):
+    if any((not isinstance(file, str) for file in values)):
+        raise TypeError("One or more of the files provided are of an invalid type")
+
+    # Check if a stringified list has been provided (for submission in recipes)
+    if len(values) == 1 and values[0].startswith("[") and values[0].endswith("]"):
+        try:
+            file_list: list[Path] = [
+                Path(file) for file in literal_eval(values[0]) if Path(file).exists()
+            ]
+        except Exception:
+            raise Exception("Unable to evaluate stringified list")
+    # Evaluate normally as list of strings otherwise
+    else:
+        file_list = [Path(file) for file in values if Path(file).exists()]
+
+    # Check that files have been found correctly
+    if len(file_list) == 0:
+        raise FileNotFoundError("No valid file paths provided")
+
+    return file_list
 
 
 def run():
@@ -137,38 +160,8 @@ def run():
     # Parse the arguments
     args = parser.parse_args()
 
-    """
-    Parse arguments
-    """
-    # Resolve image stacks parameter
-    # Validate input
-    images_arg: list[str] = args.images
-    if any((not isinstance(file, str) for file in args.images)):
-        raise TypeError(
-            "One or more of the image files provided are of an invalid type"
-        )
-    # Check if a stringified list has been provided (for submission in recipes)
-    if (
-        len(images_arg) == 1
-        and images_arg[0].startswith(("['", '["'))
-        and images_arg[0].endswith(("']", '"]'))
-    ):
-        try:
-            image_files: list[Path] = [
-                Path(file)
-                for file in literal_eval(images_arg[0])
-                if Path(file).exists()
-            ]
-        except Exception:
-            raise Exception("Unable to evaluate stringified list")
-    # Evaluate normally as list of strings otherwise
-    else:
-        image_files = [Path(file) for file in images_arg if Path(file).exists()]
-    # Check that files have been found correctly
-    if len(image_files) == 0:
-        raise FileNotFoundError("No valid file paths provided")
-
-    # File list debugging
+    # Validate image stacks parameter
+    image_files: list[Path] = parse_list_of_paths(args.images)
     print("Found all provided image files")
     if args.debug:
         [print(file) for file in image_files]
@@ -184,7 +177,7 @@ def run():
         flatten=args.flatten,
         align_across=args.align_across,
         print_messages=True,  # Print messages when used as a CLI
-        debug=True,  # Print debug messages
+        debug=args.debug,  # Print debug messages
     )
 
     if composite_image is not None:
