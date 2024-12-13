@@ -171,14 +171,15 @@ def align_and_merge_stacks(
                     and array.shape[-1] in (3, 4)
                 )
             ) and isinstance(crop_to_n_frames, int):
-                print("Cropping image to chosen frames")
                 m = len(array) // 2
                 n1 = crop_to_n_frames // 2
                 n2 = n1 + 1 if crop_to_n_frames % 2 == 1 else n1
                 f1 = m - n1 if (m - n1) >= 0 else 0
                 f2 = m + n2 if (m + n2) <= len(array) else len(array)
                 array = array[f1:f2]
-                print(f"Array now has shape {array.shape}")
+                logger.debug(
+                    f"Image stack cropped to central {crop_to_n_frames} frames"
+                )
 
             arrays.append(array)
             if print_messages is True:
