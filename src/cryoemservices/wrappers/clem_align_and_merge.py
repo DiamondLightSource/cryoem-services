@@ -141,13 +141,14 @@ def align_and_merge_stacks(
     resolution_list: list[tuple[float, float]] = []
     spacing_list: list[float] = []
     units_list: list[str] = []
+    colors_to_process: list[str] = []
     for c in range(len(colors)):
         color = colors[c]
         file_search = [file for file in files if color in file.stem]
         # Handle exceptions in search results
         if len(file_search) == 0:
-            logger.error("No files provided that match this colour")
-            raise FileNotFoundError
+            logger.info(f"No file provided for {color!r} channel; omitting it")
+            continue
         if len(file_search) > 1:
             logger.error("More than one file provided that matches this colour")
             raise Exception
@@ -181,7 +182,9 @@ def align_and_merge_stacks(
                     f"Image stack cropped to central {crop_to_n_frames} frames"
                 )
 
+            # Append array and its corresponding colour
             arrays.append(array)
+            colors_to_process.append(color)
             if print_messages is True:
                 print(f"Loaded {str(file)!r}")
 
@@ -191,6 +194,20 @@ def align_and_merge_stacks(
             resolution_list.append(tiff_file.series[0][0].resolution)
             spacing_list.append(ij_metadata.get("spacing", float(0)))
             units_list.append(ij_metadata.get("unit", ""))
+
+    # Use shortened list for subsequent processing
+    if len(colors_to_process) == 0:
+        raise ValueError(
+            "No files corresponded to the colour channels present in this series"
+        )
+    colors = colors_to_process
+
+    # Add file name component to describe type of composite image being generated
+    img_type = (
+        "BF_FL"  # Bright field + fluorescent
+        if any(color in colors for color in ("gray", "grey"))
+        else "FL"  # Fluorescent only
+    )
 
     # Check that images have the same pixel calibration
     if len(set(resolution_list)) > 1:
@@ -368,7 +385,8 @@ def align_and_merge_stacks(
         f"Min: {np.min(composite_img)} \n",
         f"Max: {np.max(composite_img)} \n",
     )
-    # Save the image to a TIFF file
+
+    # Prepare to save image as a TIFF file
     if print_messages is True:
         print("Saving composite image...")
 
@@ -386,7 +404,8 @@ def align_and_merge_stacks(
         axes = "YXS"
         z_size = None
 
-    save_name = parent_dir / "composite.tiff"
+    # Save image as a TIFF file
+    save_name = parent_dir / f"composite_{img_type}.tiff"
     imwrite(
         save_name,
         composite_img,
