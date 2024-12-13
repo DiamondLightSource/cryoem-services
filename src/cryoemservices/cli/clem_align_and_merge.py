@@ -16,7 +16,7 @@ from cryoemservices.wrappers.clem_align_and_merge import align_and_merge_stacks
 
 def int_or_none(value: str):
     """
-    Parses the command line input value, translating "null" to None and returning an
+    Parses the command line input, converting "null" into None and returning an
     integer otherwise.
     """
     if value.lower() == "null":
@@ -31,7 +31,10 @@ def int_or_none(value: str):
 
 
 def path_or_none(value: str):
-    # Accept "null" as a keyword for the metadata argument
+    """
+    Parses the command line input, converting "null" into None, existing file paths
+    into Path objects, and returning None otherwise.
+    """
     if value == "null":
         return None
     elif Path(value).exists():
@@ -42,6 +45,15 @@ def path_or_none(value: str):
             "the default settings"
         )
         return None
+
+
+def str_or_none(value: str):
+    """
+    Converts the "null" keyword into None, and returns the string as-is otherwise.
+    """
+    if value == "null":
+        return None
+    return value
 
 
 def run():
@@ -89,7 +101,7 @@ def run():
     parser.add_argument(
         "--align-self",
         default=None,
-        type=str,
+        type=str_or_none,
         help=(
             "Choose whether to align the image stacks individually before flattening. \n"
             "NOT IMPLEMENTED YET."
@@ -99,7 +111,7 @@ def run():
     parser.add_argument(
         "--flatten",
         default="mean",
-        type=str,
+        type=str_or_none,
         help=(
             "Choose whether to flatten the image stacks. \n"
             "DEFAULT: 'mean' \n"
@@ -110,7 +122,7 @@ def run():
     parser.add_argument(
         "--align-across",
         default=None,
-        type=str,
+        type=str_or_none,
         help=(
             "Choose whether to align the image stacks to one another before merging. \n"
             "NOT IMPLEMENTED YET."
@@ -161,27 +173,6 @@ def run():
     if args.debug:
         [print(file) for file in image_files]
 
-    # Resolve pre-flattening alignment parameter
-    if isinstance(args.align_self, str) or args.align_self is None:
-        # Use "null" as a stand-in for None
-        align_self = None if args.align_self == "null" else args.align_self
-    else:
-        raise TypeError("Invalid type for pre-alignment parameter")
-
-    # Resolve image flattening parameter
-    if isinstance(args.flatten, str) or args.flatten is None:
-        # Use "null" as a stand-in for None
-        flatten = None if args.flatten == "null" else args.flatten
-    else:
-        raise TypeError("Invalid type for flattening parameter")
-
-    # Resolve image registration parameter
-    if isinstance(args.align_across, str) or args.align_across is None:
-        # Use "null" as a stand-in for None
-        align_across = None if args.align_across == "null" else args.align_across
-    else:
-        raise TypeError("Invalid type for image alignment parameter")
-
     """
     Run function
     """
@@ -189,9 +180,9 @@ def run():
         images=image_files,
         metadata=args.metadata,
         crop_to_n_frames=args.crop_to_n_frames,
-        align_self=align_self,
-        flatten=flatten,
-        align_across=align_across,
+        align_self=args.align_self,
+        flatten=args.flatten,
+        align_across=args.align_across,
         print_messages=True,  # Print messages when used as a CLI
         debug=True,  # Print debug messages
     )
