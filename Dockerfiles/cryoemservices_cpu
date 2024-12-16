@@ -8,11 +8,6 @@ ARG groupid
 ARG userid
 ARG groupname
 
-# Add cryolo files
-RUN mkdir -p /dls_sw/apps/EM/crYOLO/phosaurus_models
-COPY cryolo_models/* /dls_sw/apps/EM/crYOLO/phosaurus_models
-RUN chown -R "${userid}":"${groupid}" /dls_sw
-
 # Install cryoem-services and pipeliner
 COPY --chown="${userid}":"${groupid}" packages/cryoem-services ./cryoem-services
 COPY --chown="${userid}":"${groupid}" packages/ccpem-pipeliner ./ccpem-pipeliner
