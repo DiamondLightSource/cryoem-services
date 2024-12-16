@@ -163,6 +163,7 @@ def test_mrc_to_apng_works_with_3d(tmp_path):
 def test_picked_particles_3d_central_slice_fails_with_2d(tmp_path):
     tmp_mrc_path = tmp_path / "tmp.mrc"
     coords_file = tmp_path / "coords.cbox"
+    coords_file.touch()
     data_2d = np.linspace(-1000, 1000, 20, dtype=np.int16).reshape((5, 4))
     with mrcfile.new(tmp_mrc_path, overwrite=True) as mrc:
         mrc.set_data(data_2d)
@@ -252,6 +253,7 @@ def test_picked_particles_3d_central_slice_works_without_coords(tmp_path):
 def test_picked_particles_3d_apng_fails_with_2d(tmp_path):
     tmp_mrc_path = str(tmp_path / "tmp.mrc")
     coords_file = tmp_path / "coords.cbox"
+    coords_file.touch()
     data_2d = np.linspace(-1000, 1000, 20, dtype=np.int16).reshape((5, 4))
     with mrcfile.new(tmp_mrc_path, overwrite=True) as mrc:
         mrc.set_data(data_2d)
