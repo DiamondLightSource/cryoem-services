@@ -278,8 +278,8 @@ class Denoise(CommonService):
         else:
             rw.send_to("ispyb_connector", ispyb_parameters)
 
-        # Send to segmentation
-        self.log.info(f"Sending {denoised_full_path} for segmentation")
+        # Send to segmentation and picking
+        self.log.info(f"Sending {denoised_full_path} for segmentation and picking")
         if denoise_params.output_dir:
             project_dir_search = re.search(".+/job[0-9]+/", denoise_params.output_dir)
             job_num_search = re.search("/job[0-9]+", denoise_params.output_dir)
@@ -289,27 +289,36 @@ class Denoise(CommonService):
                 segmentation_dir = (
                     project_dir / f"Segmentation/job{job_number + 1:03}/tomograms"
                 )
+                cryolo_dir = project_dir / f"AutoPick/job{job_number + 2:03}/tomograms"
             else:
                 self.log.warning(f"No job number in {denoise_params.output_dir}")
                 segmentation_dir = Path(denoise_params.output_dir)
+                cryolo_dir = Path(denoise_params.output_dir)
         else:
             segmentation_dir = Path(denoise_params.volume).parent
+            cryolo_dir = Path(denoise_params.volume).parent
+        segmentation_parameters = {
+            "tomogram": str(denoised_full_path),
+            "output_dir": str(segmentation_dir),
+        }
+        cryolo_parameters = {
+            "tomogram": str(denoised_full_path),
+            "output_dir": str(cryolo_dir),
+            "experiment_type": "tomography",
+            "cryolo_box_size": 40,
+        }
         if isinstance(rw, MockRW):
             rw.transport.send(
                 destination="segmentation",
-                message={
-                    "tomogram": str(denoised_full_path),
-                    "output_dir": str(segmentation_dir),
-                },
+                message=segmentation_parameters,
+            )
+            rw.transport.send(
+                destination="cryolo",
+                message=cryolo_parameters,
             )
         else:
-            rw.send_to(
-                "segmentation",
-                {
-                    "tomogram": str(denoised_full_path),
-                    "output_dir": str(segmentation_dir),
-                },
-            )
+            rw.send_to("segmentation", segmentation_parameters)
+            rw.send_to("cryolo", cryolo_parameters)
 
         self.log.info(f"Done denoising for {denoise_params.volume}")
         rw.transport.ack(header)
