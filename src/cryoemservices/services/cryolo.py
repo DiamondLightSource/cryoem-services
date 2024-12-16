@@ -28,6 +28,8 @@ class CryoloParameters(BaseModel):
     min_particles: int = 30
     cryolo_command: str = "cryolo_predict.py"
     particle_diameter: Optional[float] = None
+    min_distance: float = 0
+    normalization_margin: float = 0
     tomo_tracing_min_frames: int = 5
     tomo_tracing_missing_frames: int = 0
     tomo_tracing_search_range: int = -1
@@ -152,11 +154,11 @@ class CrYOLO(CommonService):
 
         # Construct a command to run cryolo with the given parameters
         command = cryolo_params.cryolo_command.split()
-        command.extend((["--conf", str(job_dir / "config/cryolo_config.json")]))
+        command.extend((["--conf", str(job_dir / "cryolo_config.json")]))
         command.extend((["-o", str(job_dir)]))
         if cryolo_params.on_the_fly:
             command.extend((["--otf"]))
-        if cryolo_params.experiment_type == "tomo":
+        if cryolo_params.experiment_type == "tomography":
             command.extend(
                 (
                     [
@@ -176,6 +178,8 @@ class CrYOLO(CommonService):
             "input_path": "-i",
             "cryolo_threshold": "--threshold",
             "cryolo_gpus": "--gpu",
+            "min_distance": "--distance",
+            "normalization_margin": "--norm_margin",
         }
 
         for k, v in cryolo_params.model_dump().items():
@@ -187,6 +191,10 @@ class CrYOLO(CommonService):
             + f"Output: {cryolo_params.output_path}"
         )
 
+        # Create the config file
+        cryolo_params.relion_options.cryolo_config_file = str(
+            job_dir / "cryolo_config.json"
+        )
         config: dict = {
             "model": {
                 "architecture": "PhosaurusNet",
@@ -207,14 +215,58 @@ class CrYOLO(CommonService):
             with open(job_dir / "cryolo_config.json", "w") as config_file:
                 json.dump(config, config_file)
 
-        # Run cryolo
+        # Run cryolo prediction
         result = subprocess.run(command, cwd=job_dir, capture_output=True)
 
         # Remove cryosparc file to minimise crashes
         (job_dir / "CRYOSPARC/cryosparc.star").unlink(missing_ok=True)
 
+        # Read in the stdout from cryolo
+        self.parse_cryolo_output(result.stdout.decode("utf8", "replace"))
+        # Register the cryolo job with the node creator
+        self.log.info(f"Sending {self.job_type} to node creator")
+        node_creator_parameters: dict[str, Any] = {
+            "job_type": self.job_type,
+            "input_file": cryolo_params.input_path,
+            "output_file": cryolo_params.output_path,
+            "relion_options": dict(cryolo_params.relion_options),
+            "command": " ".join(command),
+            "stdout": result.stdout.decode("utf8", "replace"),
+            "stderr": result.stderr.decode("utf8", "replace"),
+        }
+        if (
+            result.returncode
+            and result.stderr.decode("utf8", "replace").split("\n")[-1]
+            == "IndexError: list index out of range"
+        ):
+            # If Cryolo failed because there are no picks then consider it a success
+            result.returncode = 0
+
+        if result.returncode:
+            node_creator_parameters["success"] = False
+        else:
+            node_creator_parameters["success"] = True
+        if not job_is_rerun:
+            # Only do the node creator inserts for new files
+            if isinstance(rw, MockRW):
+                rw.transport.send(
+                    destination="node_creator",
+                    message={"parameters": node_creator_parameters, "content": "dummy"},
+                )
+            else:
+                rw.send_to("node_creator", node_creator_parameters)
+
+        # End here if the command failed
+        if result.returncode:
+            self.log.error(
+                f"crYOLO failed with exitcode {result.returncode}:\n"
+                + result.stderr.decode("utf8", "replace")
+            )
+            rw.transport.nack(header)
+            return
+
         # If this is tomo then make an image and stop here
-        if cryolo_params.experiment_type == "tomo":
+        if cryolo_params.experiment_type == "tomography":
             # Forward results to images service
             self.log.info("Sending to images service")
             movie_parameters = {
@@ -253,9 +305,6 @@ class CrYOLO(CommonService):
             )
             rw.transport.ack(header)
             return
-
-        # Read in the stdout from cryolo
-        self.parse_cryolo_output(result.stdout.decode("utf8", "replace"))
 
         # Read in the cbox file for particle selection and finding sizes
         try:
@@ -331,6 +380,8 @@ class CrYOLO(CommonService):
                         )
             else:
                 cryolo_threshold = cryolo_params.cryolo_threshold
+
+            # Update the relion options, but this value is currently unusable
             cryolo_params.relion_options.cryolo_threshold = cryolo_threshold
 
             # Get the diameters of the particles in Angstroms for Murfey
@@ -340,48 +391,6 @@ class CrYOLO(CommonService):
             )
         except (FileNotFoundError, OSError, AttributeError):
             cryolo_particle_sizes = []
-
-        # Register the cryolo job with the node creator
-        self.log.info(f"Sending {self.job_type} to node creator")
-        node_creator_parameters: dict[str, Any] = {
-            "job_type": self.job_type,
-            "input_file": cryolo_params.input_path,
-            "output_file": cryolo_params.output_path,
-            "relion_options": dict(cryolo_params.relion_options),
-            "command": " ".join(command),
-            "stdout": result.stdout.decode("utf8", "replace"),
-            "stderr": result.stderr.decode("utf8", "replace"),
-        }
-        if (
-            result.returncode
-            and result.stderr.decode("utf8", "replace").split("\n")[-1]
-            == "IndexError: list index out of range"
-        ):
-            # If Cryolo failed because there are no picks then consider it a success
-            result.returncode = 0
-
-        if result.returncode:
-            node_creator_parameters["success"] = False
-        else:
-            node_creator_parameters["success"] = True
-        if not job_is_rerun:
-            # Only do the node creator inserts for new files
-            if isinstance(rw, MockRW):
-                rw.transport.send(
-                    destination="node_creator",
-                    message={"parameters": node_creator_parameters, "content": "dummy"},
-                )
-            else:
-                rw.send_to("node_creator", node_creator_parameters)
-
-        # End here if the command failed
-        if result.returncode:
-            self.log.error(
-                f"crYOLO failed with exitcode {result.returncode}:\n"
-                + result.stderr.decode("utf8", "replace")
-            )
-            rw.transport.nack(header)
-            return
 
         # Forward results to ISPyB
         ispyb_parameters = {
@@ -476,6 +485,12 @@ class CrYOLO(CommonService):
                     "extraction_parameters": extraction_params,
                 },
             )
+
+        # Remove unnecessary files
+        eman_file = (
+            job_dir / f"EMAN/{Path(cryolo_params.output_path).with_suffix('.box').name}"
+        )
+        eman_file.unlink(missing_ok=True)
 
         self.log.info(
             f"Done {self.job_type} {cryolo_params.experiment_type} "
