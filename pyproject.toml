@@ -37,7 +37,6 @@ dependencies = [
     "icebreaker-em",
     "importlib-metadata",
     "ispyb>=10.2.3",
-    "marshmallow-sqlalchemy",
     "mrcfile",
     "numpy<2",
     "pillow",
