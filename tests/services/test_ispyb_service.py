@@ -17,6 +17,15 @@ def offline_transport(mocker):
     return transport
 
 
+def write_config_file(tmp_path):
+    # Create a config file
+    config_file = tmp_path / "config.yaml"
+    with open(config_file, "w") as cf:
+        cf.write("rabbitmq_credentials: rmq_creds\n")
+        cf.write(f"recipe_directory: {tmp_path}/recipes\n")
+        cf.write(f"ispyb_credentials: {tmp_path}/ispyb.cfg")
+
+
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.ispyb_connector.MockRW")
 @mock.patch("cryoemservices.services.ispyb_connector.ispyb.sqlalchemy")
@@ -40,14 +49,15 @@ def test_ispyb_service_run(
     }
 
     mock_command.return_value = {"success": True, "return_value": "dummy_result"}
+    write_config_file(tmp_path)
 
     # Set up the mock service and call it
-    service = ispyb_connector.EMISPyB()
+    service = ispyb_connector.EMISPyB(environment={"config": f"{tmp_path}/config.yaml"})
     service.transport = offline_transport
     service.start()
     service.insert_into_ispyb(None, header=header, message=ispyb_test_message)
 
-    mock_ispyb_api.url.assert_called()
+    mock_ispyb_api.url.assert_called_with(credentials=tmp_path / "ispyb.cfg")
     mock_sqlalchemy.create_engine.assert_called()
     mock_sqlalchemy.orm.sessionmaker.assert_called()
     mock_sqlalchemy.orm.sessionmaker()().__enter__.assert_called()
@@ -99,9 +109,10 @@ def test_ispyb_service_store_result(
     mock_rw = mock.MagicMock()
     mock_rw.recipe_step = {"parameters": ispyb_test_message["parameters"]}
     mock_rw.environment = {}
+    write_config_file(tmp_path)
 
     # Set up the mock service and call it
-    service = ispyb_connector.EMISPyB()
+    service = ispyb_connector.EMISPyB(environment={"config": f"{tmp_path}/config.yaml"})
     service.transport = offline_transport
     service.start()
     service.insert_into_ispyb(rw=mock_rw, header=header, message=ispyb_test_message)
@@ -148,9 +159,10 @@ def test_ispyb_service_env_keys(
     mock_rw = mock.MagicMock()
     mock_rw.recipe_step = {"parameters": ispyb_test_message["parameters"]}
     mock_rw.environment = ispyb_test_environment
+    write_config_file(tmp_path)
 
     # Set up the mock service and call it
-    service = ispyb_connector.EMISPyB()
+    service = ispyb_connector.EMISPyB(environment={"config": f"{tmp_path}/config.yaml"})
     service.transport = offline_transport
     service.start()
     service.insert_into_ispyb(rw=mock_rw, header=header, message=ispyb_test_message)
@@ -194,9 +206,10 @@ def test_ispyb_service_checkpoint(
 
     mock_rw = mock.MagicMock()
     mock_rw.recipe_step = {"parameters": ispyb_test_message["parameters"]}
+    write_config_file(tmp_path)
 
     # Set up the mock service and call it
-    service = ispyb_connector.EMISPyB()
+    service = ispyb_connector.EMISPyB(environment={"config": f"{tmp_path}/config.yaml"})
     service.transport = offline_transport
     service.start()
     service.insert_into_ispyb(rw=mock_rw, header=header, message=ispyb_test_message)
@@ -226,6 +239,7 @@ def test_ispyb_multipart_message(
     mock_sqlalchemy,
     mock_ispyb_api,
     offline_transport,
+    tmp_path,
 ):
     """
     Test that multipart message calls run reinjection.
@@ -302,9 +316,10 @@ def test_ispyb_multipart_message(
     mock_rw = mock.MagicMock()
     mock_rw.recipe_step = {"parameters": ispyb_test_message["parameters"]}
     mock_rw.environment = {}
+    write_config_file(tmp_path)
 
     # Set up the mock service and call it
-    service = ispyb_connector.EMISPyB()
+    service = ispyb_connector.EMISPyB(environment={"config": f"{tmp_path}/config.yaml"})
     service.transport = offline_transport
     service.start()
     service.insert_into_ispyb(
@@ -394,11 +409,12 @@ def test_ispyb_service_failed_lookup(
 
     mock_command.return_value = False
 
-    mock_rw = mock.MagicMock()
+    mock_rw = mock.MagicMock(environment={"config": f"{tmp_path}/config.yaml"})
     mock_rw.recipe_step = {"parameters": ispyb_test_message["parameters"]}
+    write_config_file(tmp_path)
 
     # Set up the mock service and call it
-    service = ispyb_connector.EMISPyB()
+    service = ispyb_connector.EMISPyB(environment={"config": f"{tmp_path}/config.yaml"})
     service.transport = offline_transport
     service.start()
     service.insert_into_ispyb(rw=mock_rw, header=header, message=ispyb_test_message)

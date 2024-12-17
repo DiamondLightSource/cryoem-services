@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 import time
 from pathlib import Path
@@ -9,10 +8,10 @@ from typing import Any
 
 import yaml
 
+from cryoemservices.util.config import config_from_file
+
 """"
 This service submits jobs to a slurm cluster
-To do this it needs environment variables set for the following:
-    SLURM_RESTAPI_CONFIG: configuration yaml file for the slurm cluster
 
 The configuration has the following format:
     plugin: slurm
@@ -67,6 +66,8 @@ slurm_tmp_cleanup = "\nrm -rf /tmp/tmp_$SLURM_JOB_ID"
 
 def slurm_submission(
     log,
+    service_config_file: Path,
+    slurm_cluster: str,
     job_name: str,
     command: list,
     project_dir: Path,
@@ -81,9 +82,21 @@ def slurm_submission(
     extra_singularity_directories: list[str] = [],
 ):
     """Submit jobs to a slurm cluster via the RestAPI"""
+    # Load the service config with slurm credentials
+    service_config = config_from_file(service_config_file)
+    slurm_credentials = service_config.slurm_credentials.get(slurm_cluster)
+    if not slurm_credentials:
+        log.error("No slurm credentials have been provided, aborting")
+        return subprocess.CompletedProcess(
+            args="",
+            returncode=1,
+            stdout="".encode("utf8"),
+            stderr="No slurm credentials found".encode("utf8"),
+        )
+
     try:
         # Get the configuration and token for the restAPI
-        with open(os.environ["SLURM_RESTAPI_CONFIG"], "r") as f:
+        with open(slurm_credentials, "r") as f:
             slurm_rest = yaml.safe_load(f)
         user = slurm_rest["user"]
         user_home = slurm_rest["user_home"]

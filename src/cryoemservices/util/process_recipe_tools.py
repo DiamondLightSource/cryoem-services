@@ -12,11 +12,9 @@ import sqlalchemy
 from marshmallow_sqlalchemy import SQLAlchemyAutoSchema
 from sqlalchemy.orm import selectinload, sessionmaker
 
-logger = logging.getLogger("cryoemservices.services.dispatcher_tools")
+from cryoemservices.util.config import ServiceConfig
 
-Session = sessionmaker(
-    bind=sqlalchemy.create_engine(models.url(), connect_args={"use_pure": True})
-)
+logger = logging.getLogger("cryoemservices.services.process_recipe_tools")
 
 re_visit_base = re.compile(r"^(.*/([a-z][a-z][0-9]+-[0-9]+))/")
 
@@ -162,36 +160,28 @@ def dc_info_to_results_directory(dc_info):
     return os.path.join(visit, "processed", rest, collection_path, dc_info["uuid"])
 
 
-def ready_for_processing(
-    message, parameters, session: sqlalchemy.orm.session.Session | None = None
-):
-    """Check whether this message is ready for templatization."""
-
-    if session is None:
-        session = Session()
-
-    if not parameters.get("ispyb_wait_for_runstatus"):
-        return True
-
-    dcid = parameters.get("ispyb_dcid")
-    if not dcid:
-        return True
-
-    query = session.query(models.DataCollection.runStatus).filter(
-        models.DataCollection.dataCollectionId == dcid
-    )
-    return query.scalar() is not None
-
-
 def ispyb_filter(
     message,
     parameters,
+    config: ServiceConfig,
     session: sqlalchemy.orm.session.Session | None = None,
 ):
     """Do something to work out what to do with this data..."""
 
+    if (
+        not parameters.get("ispyb_process")
+        and not parameters.get("ispyb_reprocessing_id")
+        and not parameters.get("ispyb_dcid")
+    ):
+        return message, parameters
+
     if session is None:
-        session = Session()
+        session = sessionmaker(
+            bind=sqlalchemy.create_engine(
+                models.url(credentials=config.ispyb_credentials),
+                connect_args={"use_pure": True},
+            )
+        )()
 
     setup_marshmallow_schema(session)
 

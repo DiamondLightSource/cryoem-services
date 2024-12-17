@@ -32,17 +32,16 @@ spec:
           - >-
               {{ .Values.command }}
         env:
-        - name: KUBERNETES
-          value: "1"
-        - name: ZOCALO_CONFIG
-          value: "/zocalo/config/{{ .Values.global.configFileName }}"
-        - name: ISPYB_CREDENTIALS
-          value: "/zocalo/secrets/{{ .Values.global.dbFileName }}"
+        - name: MOTIONCOR2_SIF
+          value: "{{ .Values.motioncorSIF }}"
         volumeMounts:
         - name: config-file
-          mountPath: /zocalo/config
+          mountPath: /cryoemservices/config
         - name: secrets
-          mountPath: /zocalo/secrets
+          mountPath: /cryoemservices/secrets
+{{- if .Values.global.extraGlobalVolumeMounts }}
+{{ toYaml .Values.global.extraGlobalVolumeMounts | indent 8 }}
+{{ end }}
 {{- if .Values.extraVolumeMounts }}
 {{ toYaml .Values.extraVolumeMounts | indent 8 }}
 {{ end }}
@@ -54,12 +53,13 @@ spec:
         projected:
           defaultMode: 0444
           sources:
-          - secret: 
-              name: {{ .Values.global.dbSecretName }}
           - secret:
               name: {{ .Values.global.rmqSecretName }}
           - secret:
               name: {{ .Values.global.rmqApiSecretName }}
+{{- if .Values.global.extraGlobalVolumes }}
+{{ toYaml .Values.global.extraGlobalVolumes | indent 6 }}
+{{ end }}
 {{- if .Values.extraVolumes }}
 {{ toYaml .Values.extraVolumes | indent 6 }}
 {{ end }}

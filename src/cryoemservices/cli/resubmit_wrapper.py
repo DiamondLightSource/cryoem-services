@@ -10,7 +10,7 @@ from workflows.recipe import RecipeWrapper
 
 def run():
     parser = argparse.ArgumentParser(
-        description="Resubmit a failed zocalo wrapper script using the .recipewrap file"
+        description="Resubmit a failed wrapper script using the .recipewrap file"
     )
     parser.add_argument(
         "-w",
