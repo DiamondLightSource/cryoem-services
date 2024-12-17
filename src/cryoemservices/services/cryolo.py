@@ -9,7 +9,7 @@ from typing import Any, Optional
 import numpy as np
 import workflows.recipe
 from gemmi import cif
-from pydantic import BaseModel, Field, ValidationError, field_validator
+from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 from workflows.services.common_service import CommonService
 
 from cryoemservices.util.models import MockRW
@@ -19,8 +19,8 @@ from cryoemservices.util.relion_service_options import RelionServiceOptions
 class CryoloParameters(BaseModel):
     input_path: str = Field(..., min_length=1)
     output_path: str = Field(..., min_length=1)
-    pixel_size: float
     experiment_type: str
+    pixel_size: Optional[float] = None
     cryolo_box_size: int = 160
     cryolo_model_weights: str = "gmodel_phosnet_202005_N63_c17.h5"
     cryolo_threshold: float = 0.3
@@ -34,8 +34,8 @@ class CryoloParameters(BaseModel):
     tomo_tracing_missing_frames: int = 0
     tomo_tracing_search_range: int = -1
     on_the_fly: bool = True
-    mc_uuid: int
-    picker_uuid: int
+    mc_uuid: Optional[int] = None
+    picker_uuid: Optional[int] = None
     relion_options: RelionServiceOptions
     ctf_values: dict = {}
 
@@ -45,6 +45,19 @@ class CryoloParameters(BaseModel):
         if experiment not in ["spa", "tomography"]:
             raise ValueError("Specify an experiment type of spa or tomography.")
         return experiment
+
+    @model_validator(mode="after")
+    def check_spa_has_uuids_and_pixel_size(self):
+        if self.experiment_type == "spa" and (
+            self.mc_uuid is None or self.picker_uuid is None or not self.pixel_size
+        ):
+            raise ValueError(
+                "In SPA mode the following must be provided: "
+                f"mc_uuid (given {self.mc_uuid}), "
+                f"picker_uuid (given {self.picker_uuid}), "
+                f"pixel_size (given {self.pixel_size})"
+            )
+        return self
 
 
 class CrYOLO(CommonService):
@@ -393,7 +406,7 @@ class CrYOLO(CommonService):
             cryolo_particle_sizes = []
 
         # Forward results to ISPyB
-        ispyb_parameters = {
+        ispyb_parameters: dict = {
             "ispyb_command": "buffer",
             "buffer_lookup": {"motion_correction_id": cryolo_params.mc_uuid},
             "buffer_command": {"ispyb_command": "insert_particle_picker"},

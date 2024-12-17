@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import json
 import sys
 from unittest import mock
@@ -15,6 +16,7 @@ from cryoemservices.util.relion_service_options import RelionServiceOptions
 def offline_transport(mocker):
     transport = OfflineTransport()
     mocker.spy(transport, "send")
+    mocker.spy(transport, "nack")
     return transport
 
 
@@ -39,7 +41,6 @@ def test_cryolo_service_spa(mock_subprocess, offline_transport, tmp_path):
     cbox_path = tmp_path / "AutoPick/job007/CBOX/sample.cbox"
     cryolo_test_message = {
         "parameters": {
-            "boxsize": 256,
             "pixel_size": 0.1,
             "input_path": "MotionCorr/job002/sample.mrc",
             "output_path": str(output_path),
@@ -208,8 +209,6 @@ def test_cryolo_service_tomography(mock_subprocess, offline_transport, tmp_path)
     output_path = tmp_path / "AutoPick/job007/STAR/sample.star"
     cryolo_test_message = {
         "parameters": {
-            "boxsize": 256,
-            "pixel_size": 0.1,
             "input_path": "MotionCorr/job002/sample.mrc",
             "output_path": str(output_path),
             "experiment_type": "tomography",
@@ -218,8 +217,6 @@ def test_cryolo_service_tomography(mock_subprocess, offline_transport, tmp_path)
             "cryolo_threshold": 0.15,
             "retained_fraction": 0.5,
             "min_particles": 0,
-            "mc_uuid": 0,
-            "picker_uuid": 0,
             "particle_diameter": 1.1,
             "tomo_tracing_min_frames": 5,
             "tomo_tracing_missing_frames": 0,
@@ -332,6 +329,58 @@ def test_cryolo_service_tomography(mock_subprocess, offline_transport, tmp_path)
             "content": "dummy",
         },
     )
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+@mock.patch("cryoemservices.services.cryolo.subprocess.run")
+def test_cryolo_spa_needs_uuids_and_pixel_size(
+    mock_subprocess, offline_transport, tmp_path
+):
+    """
+    Send a test message to CrYOLO without some of the necessary parameters
+    """
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+
+    output_path = tmp_path / "AutoPick/job007/STAR/sample.star"
+    cryolo_test_message = {
+        "parameters": {
+            "pixel_size": 0.1,
+            "input_path": "MotionCorr/job002/sample.mrc",
+            "output_path": str(output_path),
+            "experiment_type": "spa",
+            "min_particles": 0,
+            "mc_uuid": 0,
+            "picker_uuid": 0,
+            "relion_options": {},
+        },
+        "content": "dummy",
+    }
+
+    # Set up the mock service
+    service = cryolo.CrYOLO()
+    service.transport = offline_transport
+    service.start()
+
+    # Send messages without pixel_size, mc_uuid and picker_uuid in turn
+    no_pixel_size_message = copy.deepcopy(cryolo_test_message)
+    no_pixel_size_message["parameters"]["pixel_size"] = None
+    service.cryolo(None, header=header, message=no_pixel_size_message)
+
+    no_mc_uuid_message = copy.deepcopy(cryolo_test_message)
+    no_mc_uuid_message["parameters"]["mc_uuid"] = None
+    service.cryolo(None, header=header, message=no_mc_uuid_message)
+
+    no_picker_uuid_message = copy.deepcopy(cryolo_test_message)
+    no_picker_uuid_message["parameters"]["picker_uuid"] = None
+    service.cryolo(None, header=header, message=no_picker_uuid_message)
+
+    # None of these should call subprocess or send, all should nack the message
+    mock_subprocess.assert_not_called()
+    offline_transport.send.assert_not_called()
+    assert offline_transport.nack.call_count == 3
 
 
 def test_parse_cryolo_output(offline_transport):
