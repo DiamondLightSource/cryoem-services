@@ -246,6 +246,7 @@ class CrYOLO(CommonService):
             "command": " ".join(command),
             "stdout": result.stdout.decode("utf8", "replace"),
             "stderr": result.stderr.decode("utf8", "replace"),
+            "experiment_type": cryolo_params.experiment_type,
         }
         if (
             result.returncode
