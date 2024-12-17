@@ -213,10 +213,11 @@ def test_denoise_local_service(
     offline_transport.send.assert_any_call(
         destination="cryolo",
         message={
-            "tomogram": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
-            "output_dir": f"{tmp_path}/AutoPick/job009/tomograms",
+            "input_path": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
+            "output_path": f"{tmp_path}/AutoPick/job009/CBOX_3D/test_stack_aretomo.denoised.cbox",
             "experiment_type": "tomography",
             "cryolo_box_size": 40,
+            "relion_options": output_relion_options,
         },
     )
 
@@ -395,9 +396,10 @@ def test_denoise_slurm_service(
     offline_transport.send.assert_any_call(
         destination="cryolo",
         message={
-            "tomogram": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
-            "output_dir": f"{tmp_path}/AutoPick/job009/tomograms",
+            "input_path": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
+            "output_path": f"{tmp_path}/AutoPick/job009/CBOX_3D/test_stack_aretomo.denoised.cbox",
             "experiment_type": "tomography",
             "cryolo_box_size": 40,
+            "relion_options": output_relion_options,
         },
     )

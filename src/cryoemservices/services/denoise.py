@@ -289,7 +289,7 @@ class Denoise(CommonService):
                 segmentation_dir = (
                     project_dir / f"Segmentation/job{job_number + 1:03}/tomograms"
                 )
-                cryolo_dir = project_dir / f"AutoPick/job{job_number + 2:03}/tomograms"
+                cryolo_dir = project_dir / f"AutoPick/job{job_number + 2:03}"
             else:
                 self.log.warning(f"No job number in {denoise_params.output_dir}")
                 segmentation_dir = Path(denoise_params.output_dir)
@@ -302,10 +302,11 @@ class Denoise(CommonService):
             "output_dir": str(segmentation_dir),
         }
         cryolo_parameters = {
-            "tomogram": str(denoised_full_path),
-            "output_dir": str(cryolo_dir),
+            "input_path": str(denoised_full_path),
+            "output_path": str(cryolo_dir / f"CBOX_3D/{denoised_full_path.stem}.cbox"),
             "experiment_type": "tomography",
             "cryolo_box_size": 40,
+            "relion_options": dict(denoise_params.relion_options),
         }
         if isinstance(rw, MockRW):
             rw.transport.send(
