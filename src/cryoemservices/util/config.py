@@ -10,7 +10,6 @@ from pydantic import BaseModel, ConfigDict, model_validator
 class ServiceConfig(BaseModel):
     rabbitmq_credentials: Path
     recipe_directory: Path
-    transport_type: str = "PikaTransport"
     ispyb_credentials: Optional[Path] = None
     slurm_credentials: dict[str, Path] = {}
     graylog_host: str = ""

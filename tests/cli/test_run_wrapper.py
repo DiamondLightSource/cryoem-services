@@ -26,7 +26,7 @@ def test_run_wrapper(mock_rw, mock_transport, mock_class2d, tmp_path):
         "cryoemservices.wrap",
         "--wrap",
         "Class2D",
-        "--recipewrap",
+        "--recipe_wrap",
         str(recipe_wrapper),
         "--config_file",
         str(config_file),
