@@ -648,7 +648,9 @@ def align_image_to_reference(
     if str(reference_array.dtype) != str(moving_array.dtype):
         logger.error("The image stacks provided do not have the same dtype")
         raise ValueError
-    dtype = str(reference_array.dtype)
+    dtype = str(moving_array.dtype)
+    vmin: int | float = moving_array.min()
+    vmax: int | float = moving_array.max()
 
     # Check array shape
     if reference_array.shape != moving_array.shape:
@@ -701,11 +703,11 @@ def align_image_to_reference(
         registration.SetOptimizerAsGradientDescentLineSearch(
             learningRate=1.0,
             numberOfIterations=300,
-            lineSearchLowerLimit=0.5,
-            lineSearchUpperLimit=2.0,
-            lineSearchMaximumIterations=10,
             convergenceMinimumValue=1e-6,
             convergenceWindowSize=10,
+            lineSearchLowerLimit=0,
+            lineSearchUpperLimit=5.0,
+            lineSearchMaximumIterations=20,
         )
         # registration.SetOptimizerAsAmoeba(
         #     simplexDelta=1.0,
@@ -738,7 +740,6 @@ def align_image_to_reference(
         # Transform the moving frame
         aligned_frame: Image = sitk.Resample(
             moving_frame,
-            fixed_frame,
             transform=final_transform,
             interpolator=sitk.sitkLinear,
             defaultPixelValue=0.0,
@@ -753,11 +754,11 @@ def align_image_to_reference(
         if len(aligned_frames) == 1
         else sitk.GetArrayFromImage(sitk.JoinSeries(aligned_frames))
     )
-    aligned = stretch_image_contrast(
-        aligned,
-        percentile_range=(0, 100),
-        target_dtype=dtype,
-    ).astype(dtype)
+
+    # Crop values that exceed initial range after transformation
+    aligned[aligned < vmin] = vmin
+    aligned[aligned > vmax] = vmax
+    aligned = aligned.astype(dtype) if str(aligned.dtype) != dtype else aligned
 
     return aligned
 
