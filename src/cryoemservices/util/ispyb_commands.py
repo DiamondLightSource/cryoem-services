@@ -701,20 +701,20 @@ def update_processing_status(
 
     completion_status = {"success": 1, "failure": 0}.get(full_parameters("status"))
     try:
-        if completion_status is not None:
+        if completion_status is None:
+            # Messages without a completion status update the processing start time
+            values = models.AutoProcProgram(
+                autoProcProgramId=ppid,
+                processingMessage=status_message,
+                processingStartTime=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            )
+        else:
             # For "success" and "failure" messages update the processing end time
             values = models.AutoProcProgram(
                 autoProcProgramId=ppid,
                 processingStatus=completion_status,
                 processingMessage=status_message,
                 processingEndTime=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            )
-        else:
-            # Other messages update the processing start time
-            values = models.AutoProcProgram(
-                autoProcProgramId=ppid,
-                processingMessage=status_message,
-                processingStartTime=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             )
         # This is an update call, want it to throw an error if the row isn't present
         session.query(models.AutoProcProgram).filter(
