@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+import time
 from unittest import mock
 
 import pytest
@@ -282,6 +283,118 @@ def test_tomo_align_service_file_list(
             "volume": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
             "output_dir": f"{tmp_path}/Denoise/job007/tomograms",
             "relion_options": output_relion_options,
+        },
+    )
+    offline_transport.send.assert_any_call(destination="success", message="")
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+@mock.patch("cryoemservices.services.tomo_align.subprocess.run")
+@mock.patch("cryoemservices.services.tomo_align.px.scatter")
+@mock.patch("cryoemservices.services.tomo_align.mrcfile")
+def test_tomo_align_service_file_list_repeated_tilt(
+    mock_mrcfile,
+    mock_plotly,
+    mock_subprocess,
+    offline_transport,
+    tmp_path,
+):
+    """
+    Send a test message to TomoAlign with a duplicated tilt angle
+    Only the newest one of the duplicated tilts should be used
+    """
+    mock_subprocess().returncode = 0
+    mock_subprocess().stdout = "stdout".encode("ascii")
+    mock_subprocess().stderr = "stderr".encode("ascii")
+
+    mock_mrcfile.open().__enter__().header = {"nx": 3000, "ny": 4000}
+
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+    tomo_align_test_message = {
+        "parameters": {
+            "stack_file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack.st",
+            "input_file_list": str(
+                [
+                    [f"{tmp_path}/MotionCorr/job002/Movies/input_file_1.mrc", "1.00"],
+                    [f"{tmp_path}/MotionCorr/job002/Movies/input_file_2.mrc", "1.00"],
+                    [f"{tmp_path}/MotionCorr/job002/Movies/input_file_3.mrc", "1.00"],
+                ]
+            ),
+            "pixel_size": 1e-10,
+            "relion_options": {},
+        },
+        "content": "dummy",
+    }
+    output_relion_options = dict(RelionServiceOptions())
+    output_relion_options["pixel_size"] = 1e-10
+    output_relion_options["pixel_size_downscaled"] = 4e-10
+    output_relion_options["tomo_size_x"] = 4000
+    output_relion_options["tomo_size_y"] = 3000
+
+    # Create the input files. Needs sleeps to ensure distinct timestamps
+    (tmp_path / "MotionCorr/job002/Movies").mkdir(parents=True)
+    (tmp_path / "MotionCorr/job002/Movies/input_file_1.mrc").touch()
+    time.sleep(1)
+    (tmp_path / "MotionCorr/job002/Movies/input_file_2.mrc").touch()
+    time.sleep(1)
+    (tmp_path / "MotionCorr/job002/Movies/input_file_3.mrc").touch()
+
+    # Set up the mock service
+    service = tomo_align.TomoAlign()
+    service.transport = offline_transport
+    service.start()
+
+    service.rot_centre_z_list = [1.1, 2.1]
+    service.tilt_offset = 1.1
+    service.alignment_quality = 0.5
+
+    # Set up outputs: stack_Imod file like AreTomo2, no exclusions but with space
+    (tmp_path / "Tomograms/job006/tomograms/test_stack_Imod").mkdir(parents=True)
+    (tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo.mrc").touch()
+    with open(
+        tmp_path / "Tomograms/job006/tomograms/test_stack_Imod/tilt.com", "w"
+    ) as dark_file:
+        dark_file.write("EXCLUDELIST ")
+    with open(tmp_path / "Tomograms/job006/tomograms/test_stack.aln", "w") as aln_file:
+        aln_file.write("dummy 0 1000 1.2 2.3 5 6 7 8 4.5")
+
+    # Send a message to the service
+    service.tomo_align(None, header=header, message=tomo_align_test_message)
+
+    # Check the expected calls were made
+    assert mock_plotly.call_count == 1
+    assert mock_subprocess.call_count == 5
+
+    # Check the stack file has only the last one of the duplicated tilt angles
+    with open(
+        tmp_path / "Tomograms/job006/tomograms/test_stack_newstack.txt", "r"
+    ) as newstack_file:
+        newstack_tilts = newstack_file.read()
+    assert (
+        newstack_tilts
+        == f"1\n{tmp_path}/MotionCorr/job002/Movies/input_file_3.mrc\n0\n"
+    )
+
+    # Look at a sample of the messages to check they use input_file_3
+    assert offline_transport.send.call_count == 10
+    offline_transport.send.assert_any_call(
+        destination="node_creator",
+        message={
+            "parameters": {
+                "job_type": "relion.excludetilts",
+                "experiment_type": "tomography",
+                "input_file": f"{tmp_path}/MotionCorr/job002/Movies/input_file_3.mrc",
+                "output_file": f"{tmp_path}/ExcludeTiltImages/job004/tilts/input_file_3.mrc",
+                "relion_options": output_relion_options,
+                "command": "",
+                "stdout": "",
+                "stderr": "",
+                "success": True,
+            },
+            "content": "dummy",
         },
     )
     offline_transport.send.assert_any_call(destination="success", message="")
