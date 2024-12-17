@@ -10,11 +10,13 @@ from typing import Optional
 
 import requests
 import workflows.recipe
-from importlib_metadata import entry_points
+import yaml
+from backports.entry_points_selectable import entry_points
 from pydantic import BaseModel, Field
 from workflows.services.common_service import CommonService
-from zocalo.configuration import Configuration
 from zocalo.util import slurm
+
+from cryoemservices.util.config import ServiceConfig, config_from_file
 
 
 class JobSubmissionParameters(BaseModel):
@@ -41,9 +43,21 @@ def submit_to_slurm(
     params: JobSubmissionParameters,
     working_directory: Path,
     logger: logging.Logger,
-    zc: Configuration,
+    service_config: ServiceConfig,
+    cluster_name: str,
 ) -> int | None:
-    api = slurm.SlurmRestApi.from_zocalo_configuration(zc)
+    slurm_credentials = service_config.slurm_credentials.get(cluster_name)
+    if not slurm_credentials:
+        logger.error("No slurm credentials have been provided, aborting")
+        return None
+    with open(slurm_credentials, "r") as f:
+        slurm_rest = yaml.safe_load(f)
+    api = slurm.SlurmRestApi(
+        url=slurm_rest["url"],
+        version=slurm_rest["api_version"],
+        user_name=slurm_rest["user"],
+        user_token=slurm_rest["user_token"],
+    )
 
     script = params.commands
     if not isinstance(script, str):
@@ -62,7 +76,7 @@ def submit_to_slurm(
         logger.error("No environment has been set, aborting")
         return None
 
-    logger.debug(f"Submitting script to Slurm:\n{script}")
+    logger.info(f"Submitting script to Slurm:\n{script}")
     jdm_params = {
         "cpus_per_task": params.cpus_per_task,
         "current_working_directory": os.fspath(working_directory),
@@ -128,7 +142,7 @@ class ClusterSubmission(CommonService):
             f.name: f.load()
             for f in entry_points(group="cryoemservices.services.cluster.schedulers")
         }
-        self.log.debug(f"Supported schedulers: {', '.join(self.schedulers.keys())}")
+        self.log.info(f"Supported schedulers: {', '.join(self.schedulers.keys())}")
         workflows.recipe.wrap_subscribe(
             self._transport,
             "cluster.submission",
@@ -154,7 +168,7 @@ class ClusterSubmission(CommonService):
                 self.log.error(f"Cannot make directory for {recipefile}")
                 self._transport.nack(header)
                 return
-            self.log.debug("Writing recipe to %s", recipefile)
+            self.log.info("Writing recipe to %s", recipefile)
             cluster_params.commands = cluster_params.commands.replace(
                 "$RECIPEFILE", recipefile
             )
@@ -168,7 +182,7 @@ class ClusterSubmission(CommonService):
                 self.log.error(f"Cannot make directory for {recipeenvironment}")
                 self._transport.nack(header)
                 return
-            self.log.debug("Writing recipe environment to %s", recipeenvironment)
+            self.log.info("Writing recipe environment to %s", recipeenvironment)
             cluster_params.commands = cluster_params.commands.replace(
                 "$RECIPEENV", recipeenvironment
             )
@@ -184,7 +198,7 @@ class ClusterSubmission(CommonService):
                 self.log.error(f"Cannot make directory for {recipewrapper}")
                 self._transport.nack(header)
                 return
-            self.log.debug("Storing serialized recipe wrapper in %s", recipewrapper)
+            self.log.info("Storing serialized recipe wrapper in %s", recipewrapper)
             cluster_params.commands = cluster_params.commands.replace(
                 "$RECIPEWRAP", recipewrapper
             )
@@ -222,10 +236,16 @@ class ClusterSubmission(CommonService):
 
         submit_to_scheduler = self.schedulers.get(cluster_params.scheduler)
 
+        service_config = config_from_file(self._environment["config"])
         jobnumber = submit_to_scheduler(
-            cluster_params, working_directory, self.log, zc=self.config
+            cluster_params,
+            working_directory,
+            self.log,
+            service_config=service_config,
+            cluster_name=self._environment["slurm_cluster"],
         )
         if not jobnumber:
+            self.log.error("Job was not submitted")
             self._transport.nack(header)
             return
 

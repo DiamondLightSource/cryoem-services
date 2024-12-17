@@ -2,304 +2,250 @@ global:
   namespace: my-namespace
   runAsUser: user-id
   runAsGroup: group-id
-  configMap: zocalo-conf
+  rmqHost: http://user:password@host:port
+  configMap: cryoemservices-pod-config
+  configFileName: cryoemservices_config.yaml
+  dbSecretName: ispyb
+  dbFileName: ispyb.cfg
+  rmqSecretName: rmq-creds-k8s
+  rmqApiSecretName: rmq-api-reader-k8s
+  extraGlobalVolumes:
+    - name: home
+      hostPath:
+        path: /home
+        type: Directory
+  extraGlobalVolumeMounts:
+    - mountPath: /home
+      name: home
+      mountPropagation: HostToContainer
+      readOnly: true
 
 bfactor_setup:
   replicas: 1
   image: gcr.io/image/path
-  command: zocalo.service -s service-name -e environment
-  extraVolumes:
-    - name: home
-      hostPath:
-        path: /home
-        type: Directory
-  extraVolumeMounts:
-    - mountPath: /home
-      name: home
-      mountPropagation: HostToContainer
-      readOnly: true
+  command: cryoemservices.service -s BFactor -c /cryoemservices/config/cryoemservices_config.yaml
+  cpuRequest: "0.5"
+  cpuLimit: "1"
+  memoryLimit: 4Gi
+  scaleOnQueueLength: true
+  queueLengthTrigger: "10"
+  minReplicaCount: 0
+  maxReplicaCount: 1
 
 cluster_submission:
   replicas: 1
   image: gcr.io/image/path
-  command: zocalo.service -s service-name -e environment
-  extraVolumes:
-    - name: home
-      hostPath:
-        path: /home
-        type: Directory
-  extraVolumeMounts:
-    - mountPath: /home
-      name: home
-      mountPropagation: HostToContainer
-      readOnly: true
+  command: cryoemservices.service -s ClusterSubmission -c /cryoemservices/config/cryoemservices_config.yaml
+  cpuRequest: "0.25"
+  cpuLimit: "0.25"
+  memoryLimit: 256Mi
+  scaleOnQueueLength: false
 
 cryolo:
   replicas: 1
   image: gcr.io/image/path
-  command: zocalo.service -s service-name -e environment
-  extraVolumes:
-    - name: home
-      hostPath:
-        path: /home
-        type: Directory
-  extraVolumeMounts:
-    - mountPath: /home
-      name: home
-      mountPropagation: HostToContainer
-      readOnly: true
+  command: cryoemservices.service -s CrYOLO -c /cryoemservices/config/cryoemservices_config.yaml
+  cpuRequest: "0.5"
+  cpuLimit: "1"
+  memoryLimit: 4Gi
+  scaleOnQueueLength: true
+  queueLengthTrigger: "5"
+  minReplicaCount: 0
+  maxReplicaCount: 4
 
 ctffind:
   replicas: 1
   image: gcr.io/image/path
-  command: zocalo.service -s service-name -e environment
-  extraVolumes:
-    - name: home
-      hostPath:
-        path: /home
-        type: Directory
-  extraVolumeMounts:
-    - mountPath: /home
-      name: home
-      mountPropagation: HostToContainer
-      readOnly: true
+  command: cryoemservices.service -s CTFFind -c /cryoemservices/config/cryoemservices_config.yaml
+  cpuRequest: "0.25"
+  cpuLimit: "1"
+  memoryLimit: 2Gi
+  scaleOnQueueLength: true
+  queueLengthTrigger: "10"
+  minReplicaCount: 0
+  maxReplicaCount: 4
 
 denoise:
   replicas: 1
   image: gcr.io/image/path
-  command: zocalo.service -s service-name -e environment
-  extraVolumes:
-    - name: dls
-      hostPath:
-        path: /dls
-        type: Directory
-  extraVolumeMounts:
-    - mountPath: /dls
-      name: dls
-      mountPropagation: HostToContainer
-      readOnly: true
+  command: cryoemservices.service -s Denoise -c /cryoemservices/config/cryoemservices_config.yaml
+  cpuRequest: "1"
+  cpuLimit: "1"
+  memoryLimit: 15Gi
+  scaleOnQueueLength: false
+  queueLengthTrigger: "1"
+  minReplicaCount: 0
+  maxReplicaCount: 2
 
 denoise_slurm:
+  denoisingSIF: topaz.sif
   replicas: 1
   image: gcr.io/image/path
-  command: zocalo.service -s service-name -e environment
-  extraVolumes:
-    - name: dls
-      hostPath:
-        path: /dls
-        type: Directory
-  extraVolumeMounts:
-    - mountPath: /dls
-      name: dls
-      mountPropagation: HostToContainer
-      readOnly: true
-
-dispatcher:
-  replicas: 1
-  image: gcr.io/image/path
-  command: zocalo.service -s service-name -e environment
-  extraVolumes:
-    - name: home
-      hostPath:
-        path: /home
-        type: Directory
-  extraVolumeMounts:
-    - mountPath: /home
-      name: home
-      mountPropagation: HostToContainer
-      readOnly: true
+  command: cryoemservices.service -s DenoiseSlurm -c /cryoemservices/config/cryoemservices_config.yaml
+  cpuRequest: "0.25"
+  cpuLimit: "1"
+  memoryLimit: 1Gi
+  scaleOnQueueLength: true
+  queueLengthTrigger: "1"
+  minReplicaCount: 0
+  maxReplicaCount: 2
 
 extract:
   replicas: 1
   image: gcr.io/image/path
-  command: zocalo.service -s service-name -e environment
-  extraVolumes:
-    - name: home
-      hostPath:
-        path: /home
-        type: Directory
-  extraVolumeMounts:
-    - mountPath: /home
-      name: home
-      mountPropagation: HostToContainer
-      readOnly: true
+  command: cryoemservices.service -s Extract -c /cryoemservices/config/cryoemservices_config.yaml
+  cpuRequest: "0.5"
+  cpuLimit: "1"
+  memoryLimit: 4Gi
+  scaleOnQueueLength: true
+  queueLengthTrigger: "10"
+  minReplicaCount: 0
+  maxReplicaCount: 4
 
 extract_class:
   replicas: 1
   image: gcr.io/image/path
-  command: zocalo.service -s service-name -e environment
-  extraVolumes:
-    - name: home
-      hostPath:
-        path: /home
-        type: Directory
-  extraVolumeMounts:
-    - mountPath: /home
-      name: home
-      mountPropagation: HostToContainer
-      readOnly: true
+  command: cryoemservices.service -s ExtractClass -c /cryoemservices/config/cryoemservices_config.yaml
+  cpuRequest: "1"
+  cpuLimit: "4"
+  memoryLimit: 4Gi
+  scaleOnQueueLength: true
+  queueLengthTrigger: "10"
+  minReplicaCount: 0
+  maxReplicaCount: 1
 
 icebreaker:
   replicas: 1
   image: gcr.io/image/path
-  command: zocalo.service -s service-name -e environment
-  extraVolumes:
-    - name: home
-      hostPath:
-        path: /home
-        type: Directory
-  extraVolumeMounts:
-    - mountPath: /home
-      name: home
-      mountPropagation: HostToContainer
-      readOnly: true
+  command: cryoemservices.service -s IceBreaker -c /cryoemservices/config/cryoemservices_config.yaml
+  cpuRequest: "0.5"
+  cpuLimit: "1"
+  memoryLimit: 4Gi
+  scaleOnQueueLength: true
+  queueLengthTrigger: "5"
+  minReplicaCount: 0
+  maxReplicaCount: 4
 
 images:
   replicas: 2
   image: gcr.io/image/path
-  command: zocalo.service -s service-name -e environment
-  extraVolumes:
-    - name: home
-      hostPath:
-        path: /home
-        type: Directory
-  extraVolumeMounts:
-    - mountPath: /home
-      name: home
-      mountPropagation: HostToContainer
-      readOnly: true
+  command: cryoemservices.service -s Images -c /cryoemservices/config/cryoemservices_config.yaml
+  cpuRequest: "0.25"
+  cpuLimit: "1"
+  memoryLimit: 8Gi
+  scaleOnQueueLength: true
+  queueLengthTrigger: "50"
+  minReplicaCount: 0
+  maxReplicaCount: 4
 
 ispyb_connector:
   replicas: 1
   image: gcr.io/image/path
-  command: zocalo.service -s service-name -e environment
-  extraVolumes:
-    - name: home
-      hostPath:
-        path: /home
-        type: Directory
-  extraVolumeMounts:
-    - mountPath: /home
-      name: home
-      mountPropagation: HostToContainer
-      readOnly: true
+  command: cryoemservices.service -s EMISPyB -c /cryoemservices/config/cryoemservices_config.yaml
+  cpuRequest: "0.25"
+  cpuLimit: "1"
+  memoryLimit: 256Mi
+  scaleOnQueueLength: true
+  queueLengthTrigger: "10"
+  minReplicaCount: 0
+  maxReplicaCount: 4
 
 membrain_seg:
   replicas: 1
   image: gcr.io/image/path
-  command: zocalo.service -s service-name -e environment
-  extraVolumes:
-    - name: home
-      hostPath:
-        path: /home
-        type: Directory
-  extraVolumeMounts:
-    - mountPath: /home
-      name: home
-      mountPropagation: HostToContainer
-      readOnly: true
+  command: cryoemservices.service -s MembrainSeg -c /cryoemservices/config/cryoemservices_config.yaml
+  cpuRequest: "0.25"
+  cpuLimit: "0.5"
+  memoryLimit: 1Gi
+  scaleOnQueueLength: true
+  queueLengthTrigger: "10"
+  minReplicaCount: 0
+  maxReplicaCount: 2
 
 motioncorr:
+  motioncorSIF: motioncor2.sif
   replicas: 1
   image: gcr.io/image/path
-  command: zocalo.service -s service-name -e environment
-  extraVolumes:
-    - name: home
-      hostPath:
-        path: /home
-        type: Directory
-  extraVolumeMounts:
-    - mountPath: /home
-      name: home
-      mountPropagation: HostToContainer
-      readOnly: true
+  command: cryoemservices.service -s MotionCorr -c /cryoemservices/config/cryoemservices_config.yaml
+  cpuRequest: "4"
+  cpuLimit: "4"
+  memoryLimit: 15Gi
+  scaleOnQueueLength: true
+  queueLengthTrigger: "5"
+  minReplicaCount: 0
+  maxReplicaCount: 10
 
 node_creator:
   replicas: 1
   image: gcr.io/image/path
-  command: zocalo.service -s service-name -e environment
-  extraVolumes:
-    - name: home
-      hostPath:
-        path: /home
-        type: Directory
-  extraVolumeMounts:
-    - mountPath: /home
-      name: home
-      mountPropagation: HostToContainer
-      readOnly: true
+  command: cryoemservices.service -s NodeCreator -c /cryoemservices/config/cryoemservices_config.yaml
+  cpuRequest: "0.25"
+  cpuLimit: "1"
+  memoryLimit: 4Gi
+  scaleOnQueueLength: false
 
 postprocess:
   replicas: 1
   image: gcr.io/image/path
-  command: zocalo.service -s service-name -e environment
-  extraVolumes:
-    - name: home
-      hostPath:
-        path: /home
-        type: Directory
-  extraVolumeMounts:
-    - mountPath: /home
-      name: home
-      mountPropagation: HostToContainer
-      readOnly: true
+  command: cryoemservices.service -s PostProcess -c /cryoemservices/config/cryoemservices_config.yaml
+  cpuRequest: "0.5"
+  cpuLimit: "1"
+  memoryLimit: 4Gi
+  scaleOnQueueLength: true
+  queueLengthTrigger: "10"
+  minReplicaCount: 0
+  maxReplicaCount: 1
+
+process_recipe:
+  replicas: 1
+  image: gcr.io/image/path
+  command: cryoemservices.service -s ProcessRecipe -c /cryoemservices/config/cryoemservices_config.yaml
+  cpuRequest: "0.5"
+  cpuLimit: "1"
+  memoryLimit: 256Mi
+  scaleOnQueueLength: true
+  queueLengthTrigger: "10"
+  minReplicaCount: 1
+  maxReplicaCount: 4
 
 select_classes:
   replicas: 1
   image: gcr.io/image/path
-  command: zocalo.service -s service-name -e environment
-  extraVolumes:
-    - name: home
-      hostPath:
-        path: /home
-        type: Directory
-  extraVolumeMounts:
-    - mountPath: /home
-      name: home
-      mountPropagation: HostToContainer
-      readOnly: true
+  command: cryoemservices.service -s SelectClasses -c /cryoemservices/config/cryoemservices_config.yaml
+  cpuRequest: "1"
+  cpuLimit: "1"
+  memoryLimit: 4Gi
+  scaleOnQueueLength: false
 
 select_particles:
   replicas: 1
   image: gcr.io/image/path
-  command: zocalo.service -s service-name -e environment
-  extraVolumes:
-    - name: home
-      hostPath:
-        path: /home
-        type: Directory
-  extraVolumeMounts:
-    - mountPath: /home
-      name: home
-      mountPropagation: HostToContainer
-      readOnly: true
+  command: cryoemservices.service -s SelectParticles -c /cryoemservices/config/cryoemservices_config.yaml
+  cpuRequest: "0.5"
+  cpuLimit: "1"
+  memoryLimit: 1Gi
+  scaleOnQueueLength: false
 
 tomo_align:
   replicas: 1
   image: gcr.io/image/path
-  command: zocalo.service -s service-name -e environment
-  extraVolumes:
-    - name: dls
-      hostPath:
-        path: /dls
-        type: Directory
-  extraVolumeMounts:
-    - mountPath: /dls
-      name: dls
-      mountPropagation: HostToContainer
-      readOnly: true
+  command: cryoemservices.service -s TomoAlign -c /cryoemservices/config/cryoemservices_config.yaml
+  memoryLimit: 20Gi
+  scaleOnQueueLength: false
+  queueLengthTrigger: "1"
+  minReplicaCount: 0
+  maxReplicaCount: 2
 
 tomo_align_slurm:
+  aretomoExectable: /path/to/AreTomo2
+  extraLibraries: /path/to/aretomo/lib
   replicas: 1
   image: gcr.io/image/path
-  command: zocalo.service -s service-name -e environment
-  extraVolumes:
-    - name: dls
-      hostPath:
-        path: /dls
-        type: Directory
-  extraVolumeMounts:
-    - mountPath: /dls
-      name: dls
-      mountPropagation: HostToContainer
-      readOnly: true
+  command: cryoemservices.service -s TomoAlignSlurm -c /cryoemservices/config/cryoemservices_config.yaml
+  cpuRequest: "0.75"
+  cpuLimit: "1"
+  memoryLimit: 4Gi
+  scaleOnQueueLength: true
+  queueLengthTrigger: "1"
+  minReplicaCount: 0
+  maxReplicaCount: 2

@@ -8,6 +8,7 @@ import workflows.recipe
 from workflows.services.common_service import CommonService
 
 from cryoemservices.util import ispyb_commands
+from cryoemservices.util.config import config_from_file
 from cryoemservices.util.models import MockRW
 
 
@@ -27,9 +28,11 @@ class EMISPyB(CommonService):
     def initializing(self):
         """Subscribe the ISPyB connector queue. Received messages must be
         acknowledged. Prepare ISPyB database connection."""
+        service_config = config_from_file(self._environment["config"])
         self._ispyb_sessionmaker = sqlalchemy.orm.sessionmaker(
             bind=sqlalchemy.create_engine(
-                ispyb.sqlalchemy.url(), connect_args={"use_pure": True}
+                ispyb.sqlalchemy.url(credentials=service_config.ispyb_credentials),
+                connect_args={"use_pure": True},
             )
         )
         self.log.info("ISPyB service ready")

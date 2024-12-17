@@ -29,8 +29,10 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
+    "backports.entry_points_selectable",
     "defusedxml", # CLEM workflow
     "gemmi==0.6.5",
+    "graypy",
     "healpy",
     "icebreaker-em",
     "importlib-metadata",
@@ -70,6 +72,8 @@ dev = [
     "cryoemservices.find_symmetry" = "cryoemservices.pipeliner_plugins.symmetry_finder:run"
     "cryoemservices.reextract" = "cryoemservices.pipeliner_plugins.reextract:run"
     "cryoemservices.resubmit_wrapper" = "cryoemservices.cli.resubmit_wrapper:run"
+    "cryoemservices.service" = "cryoemservices.cli.start_service:run"
+    "cryoemservices.wrap" = "cryoemservices.cli.run_wrapper:run"
     "relipy.link" = "cryoemservices.cli.project_linker:run"
 [project.entry-points."ccpem_pipeliner.jobs"]
     "combine_star_files_job" = "cryoemservices.pipeliner_plugins.combine_star_job:ProcessStarFiles"
@@ -80,6 +84,15 @@ dev = [
     "mrc_to_apng" = "cryoemservices.services.images_plugins:mrc_to_apng"
     "mrc_to_jpeg" = "cryoemservices.services.images_plugins:mrc_to_jpeg"
     "picked_particles" = "cryoemservices.services.images_plugins:picked_particles"
+[project.entry-points."cryoemservices.services.process_recipe.filters"]
+    ispyb = "cryoemservices.util.process_recipe_tools:ispyb_filter"
+[project.entry-points."cryoemservices.wrappers"]
+    CLEMAlignAndMerge = "cryoemservices.wrappers.clem_align_and_merge:AlignAndMergeWrapper"
+    CLEMLIFToStack = "cryoemservices.wrappers.clem_process_raw_lifs:LIFToStackWrapper"
+    CLEMTIFFToStack = "cryoemservices.wrappers.clem_process_raw_tiffs:TIFFToStackWrapper"
+    Class2D = "cryoemservices.wrappers.class2d_wrapper:Class2DWrapper"
+    Class3D = "cryoemservices.wrappers.class3d_wrapper:Class3DWrapper"
+    Refine3D = "cryoemservices.wrappers.refine3d_wrapper:Refine3DWrapper"
 [project.entry-points."workflows.services"]
     BFactor = "cryoemservices.services.bfactor_setup:BFactor"
     CTFFind = "cryoemservices.services.ctffind:CTFFind"
@@ -96,21 +109,11 @@ dev = [
     MotionCorr = "cryoemservices.services.motioncorr:MotionCorr"
     NodeCreator = "cryoemservices.services.node_creator:NodeCreator"
     PostProcess = "cryoemservices.services.postprocess:PostProcess"
+    ProcessRecipe = "cryoemservices.services.process_recipe:ProcessRecipe"
     SelectClasses = "cryoemservices.services.select_classes:SelectClasses"
     SelectParticles = "cryoemservices.services.select_particles:SelectParticles"
     TomoAlign = "cryoemservices.services.tomo_align:TomoAlign"
     TomoAlignSlurm = "cryoemservices.services.tomo_align_slurm:TomoAlignSlurm"
-[project.entry-points."zocalo.services.dispatcher.filters"]
-    ispyb = "cryoemservices.util.dispatcher_tools:ispyb_filter"
-[project.entry-points."zocalo.services.dispatcher.ready_for_processing"]
-    ispyb = "cryoemservices.util.dispatcher_tools:ready_for_processing"
-[project.entry-points."zocalo.wrappers"]
-    CLEMAlignAndMerge = "cryoemservices.wrappers.clem_align_and_merge:AlignAndMergeWrapper"
-    CLEMLIFToStack = "cryoemservices.wrappers.clem_process_raw_lifs:LIFToStackWrapper"
-    CLEMTIFFToStack = "cryoemservices.wrappers.clem_process_raw_tiffs:TIFFToStackWrapper"
-    Class2D = "cryoemservices.wrappers.class2d_wrapper:Class2DWrapper"
-    Class3D = "cryoemservices.wrappers.class3d_wrapper:Class3DWrapper"
-    Refine3D = "cryoemservices.wrappers.refine3d_wrapper:Refine3DWrapper"
 
 [tool.setuptools]
 package-dir = { "" = "src" }

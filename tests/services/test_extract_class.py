@@ -11,6 +11,33 @@ from cryoemservices.services import extract_class
 from cryoemservices.util.relion_service_options import RelionServiceOptions
 
 
+def cluster_submission_configuration(tmp_path):
+    # Create a config file
+    config_file = tmp_path / "config.yaml"
+    with open(config_file, "w") as cf:
+        cf.write("rabbitmq_credentials: rmq_creds\n")
+        cf.write(f"recipe_directory: {tmp_path}/recipes\n")
+        cf.write("slurm_credentials:\n")
+        cf.write(f"  default: {tmp_path}/slurm_credentials.yaml\n")
+    os.environ["USER"] = "user"
+
+    # Create dummy slurm credentials files
+    with open(tmp_path / "slurm_credentials.yaml", "w") as slurm_creds:
+        slurm_creds.write(
+            "user: user\n"
+            "user_home: /home\n"
+            f"user_token: {tmp_path}/token.txt\n"
+            "required_directories: [directory1, directory2]\n"
+            "partition: partition\n"
+            "partition_preference: preference\n"
+            "cluster: cluster\n"
+            "url: /url/of/slurm/restapi\n"
+            "api_version: v0.0.40\n"
+        )
+    with open(tmp_path / "token.txt", "w") as token:
+        token.write("token_key")
+
+
 @pytest.fixture
 def offline_transport(mocker):
     transport = OfflineTransport()
@@ -81,21 +108,7 @@ def test_extract_class_service(mock_subprocess, offline_transport, tmp_path):
     output_relion_options["small_boxsize"] = 114
 
     # Construct the file which contains rest api submission information
-    os.environ["SLURM_RESTAPI_CONFIG"] = str(tmp_path / "restapi.txt")
-    with open(tmp_path / "restapi.txt", "w") as restapi_config:
-        restapi_config.write(
-            "user: user\n"
-            "user_home: /home\n"
-            f"user_token: {tmp_path}/token.txt\n"
-            "required_directories: [directory1, directory2]\n"
-            "partition: partition\n"
-            "partition_preference: preference\n"
-            "cluster: cluster\n"
-            "url: /url/of/slurm/restapi\n"
-            "api_version: v0.0.40\n"
-        )
-    with open(tmp_path / "token.txt", "w") as token:
-        token.write("token_key")
+    cluster_submission_configuration(tmp_path)
 
     # Touch the expected output files
     (tmp_path / "Extract/job012").mkdir(parents=True)
@@ -103,7 +116,9 @@ def test_extract_class_service(mock_subprocess, offline_transport, tmp_path):
     (tmp_path / "Extract/job012/slurm_run.err").touch()
 
     # Set up the mock service and call it
-    service = extract_class.ExtractClass()
+    service = extract_class.ExtractClass(
+        environment={"config": f"{tmp_path}/config.yaml", "slurm_cluster": "default"}
+    )
     service.transport = offline_transport
     service.start()
     service.extract_class(None, header=header, message=extract_class_test_message)
