@@ -85,6 +85,7 @@ dev = [
 [project.entry-points."cryoemservices.services.process_recipe.filters"]
     ispyb = "cryoemservices.util.process_recipe_tools:ispyb_filter"
 [project.entry-points."cryoemservices.wrappers"]
+    CLEMAlignAndMerge = "cryoemservices.wrappers.clem_align_and_merge:AlignAndMergeWrapper"
     CLEMLIFToStack = "cryoemservices.wrappers.clem_process_raw_lifs:LIFToStackWrapper"
     CLEMTIFFToStack = "cryoemservices.wrappers.clem_process_raw_tiffs:TIFFToStackWrapper"
     Class2D = "cryoemservices.wrappers.class2d_wrapper:Class2DWrapper"

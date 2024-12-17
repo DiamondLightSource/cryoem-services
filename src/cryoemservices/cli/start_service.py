@@ -22,8 +22,7 @@ def run():
         "--service",
         required=True,
         choices=list(known_services),
-        help="Name of the service to start. Known services: "
-        + ", ".join(known_services),
+        help=f"Name of the service to start. Known services: {', '.join(known_services)}",
     )
     parser.add_argument(
         "-c",

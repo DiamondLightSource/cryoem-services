@@ -1,5 +1,10 @@
 # cryoem-services
 
+[![PyPI release](https://img.shields.io/pypi/v/cryoemservices.svg)](https://pypi.python.org/pypi/cryoemservices)
+[![Supported Python versions](https://img.shields.io/pypi/pyversions/cryoemservices.svg)](https://pypi.python.org/pypi/cryoemservices)
+[![Test coverage](https://codecov.io/gh/DiamondLightSource/cryoem-services/branch/main/graph/badge.svg)](https://codecov.io/gh/DiamondLightSource/cryoem-services)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/ambv/black)
+
 Services and configuration for cryo-EM pipelines.
 
 This package consists of a number of services to process cryo-EM micrographs,
@@ -55,8 +60,8 @@ The following services are provided for running the pipelines:
 
 - Utility services:
   - **ClusterSubmission**: Submits wrapper scripts to an HPC cluster
+  - **EMISPyB**: Inserts results into an ISPyB database
   - **Images**: Creates thumbnail images for viewing processing outcomes
-  - **ISPyB**: Inserts results into an ISPyB database
   - **NodeCreator**: Creates Relion project files for the services run
   - **ProcessRecipe**: Converts recipes into messages suitable for processing services
 - Processing services:
@@ -75,7 +80,7 @@ The following services are provided for running the pipelines:
   - **TomoAlign**: Tomogram reconstruction from a list of micrographs using [imod](https://bio3d.colorado.edu/imod) and [AreTomo2](https://github.com/czimaginginstitute/AreTomo2)
   - **TomoAlignSlurm**: Tomogram alignment processing submitted to a slurm HPC cluster
 
-There are also three wrapper scripts that can be run on an HPC cluster.
+There are also three wrapper scripts that can be run on an HPC cluster using the ClusterSubmission service.
 These perform 2D classification, 3D classification and 3D refinement
 using [Relion](https://relion.readthedocs.io).
 
@@ -84,11 +89,25 @@ using [Relion](https://relion.readthedocs.io).
 The services in this package are run using
 [zocalo](https://github.com/DiamondLightSource/python-zocalo)
 and [python-workflows](https://github.com/DiamondLightSource/python-workflows).
+They consume messages off a [RabbitMQ](https://www.rabbitmq.com/)
+instance and processing happens in sequences defined by the recipes in the `recipes` folder.
 To start a service run the `cryoemservices.service` command and specify the service name.
 For example, to start a motion correction service:
 
 ```bash
-$ cryoemservices.service -s MotionCorr
+$ cryoemservices.service -s MotionCorr -c config_file.yaml
+```
+
+The configuration file should contain the following:
+
+```yaml
+rabbitmq_credentials: <file with connection credentials to rabbitmq>
+recipe_directory: <directory containing the recipes to run>
+ispyb_credentials: <(Optionally) file with credentials for an ispyb database>
+slurm_credentials:
+  default: <(Optionally) credentials for a slurm RestAPI>
+graylog_host: <(Optionally) the name of a graylog instance>
+graylog_port: <(Optionally) the port used by graylog>
 ```
 
 Once started, these services will initialise and then wait for messages to be sent to them.

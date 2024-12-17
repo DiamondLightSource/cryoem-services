@@ -30,9 +30,9 @@ def run():
     )
     parser.add_argument(
         "-r",
-        "--recipewrapper",
+        "--recipe_wrapper",
         action="store",
-        dest="recipewrapper",
+        dest="recipe_wrapper",
         required=True,
         help="A serialized recipe wrapper file for downstream communication",
     )
@@ -62,7 +62,7 @@ def run():
 
     log.info(
         f"Starting wrapper for {args.wrapper} "
-        f"with recipewrapper file {args.recipewrapper}",
+        f"with recipe wrapper file {args.recipe_wrapper}",
     )
 
     # Connect to transport and start sending notifications
@@ -73,8 +73,8 @@ def run():
     # Instantiate chosen wrapper
     instance = known_wrappers[args.wrapper]()()
 
-    # If specified, read in a serialized recipewrapper
-    with open(args.recipewrapper) as fh:
+    # If specified, read in a serialized recipe wrapper
+    with open(args.recipe_wrapper) as fh:
         recwrap = RecipeWrapper(message=json.load(fh), transport=transport)
     instance.set_recipe_wrapper(recwrap)
 
@@ -83,10 +83,10 @@ def run():
 
     try:
         if instance.run():
-            log.info("successfully finished processing")
+            log.info("Successfully finished processing")
             instance.success("Finished processing")
         else:
-            log.info("processing failed")
+            log.info("Processing failed")
             instance.failure("Processing failed")
     except KeyboardInterrupt:
         log.info("Shutdown via Ctrl+C")

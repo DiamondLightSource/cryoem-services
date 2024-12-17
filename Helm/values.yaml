@@ -141,7 +141,7 @@ images:
 ispyb_connector:
   replicas: 1
   image: gcr.io/image/path
-  command: cryoemservices.service -s ISPyB -c /cryoemservices/config/cryoemservices_config.yaml
+  command: cryoemservices.service -s EMISPyB -c /cryoemservices/config/cryoemservices_config.yaml
   cpuRequest: "0.25"
   cpuLimit: "1"
   memoryLimit: 256Mi

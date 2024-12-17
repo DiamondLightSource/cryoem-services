@@ -36,10 +36,7 @@ def multipart_message(
             f"Multipart command {current_command} does not have a valid ispyb_command"
         )
         return False
-    logger.info(
-        f"Processing step {step} of multipart message ({command}) "
-        f"with {len(commands)-1} further steps",
-    )
+    logger.info(f"Processing step {step} of multipart message ({current_command}) ")
 
     # Create a parameter lookup function specific to this step
     def step_parameters(parameter):

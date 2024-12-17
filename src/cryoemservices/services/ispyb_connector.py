@@ -19,7 +19,7 @@ class EMISPyB(CommonService):
     _service_name = "EMISPyB"
 
     # Logger name
-    _logger_name = "cryoemservices.services.ispyb"
+    _logger_name = "cryoemservices.services.ispyb_connector"
 
     # ispyb connection details
     ispyb = None
@@ -134,24 +134,18 @@ class EMISPyB(CommonService):
             store_result_local = result.get("store_result")
             if store_result_local:
                 rw.environment[store_result_local] = result["return_value"]
+                self.log.info(
+                    f"Storing {result['return_value']} in {store_result_local}"
+                )
             if store_result_global:
                 rw.environment[store_result_global] = result["return_value"]
-            self.log.info(
-                f"Storing {result['return_value']} in "
-                f"environment variables {store_result_global} {store_result_local}.",
-            )
+                self.log.info(
+                    f"Storing {result['return_value']} in {store_result_global}"
+                )
 
         if result and result.get("success"):
-            if isinstance(rw, MockRW):
-                rw.transport.send(
-                    destination="output",
-                    message={"result": result.get("return_value")},
-                )
-            else:
-                rw.send_to(
-                    "output",
-                    {"result": result.get("return_value")},
-                )
+            rw.set_default_channel("output")
+            rw.send({"result": result.get("return_value")})
             rw.transport.ack(header)
         elif result and result.get("checkpoint"):
             rw.checkpoint(result.get("checkpoint_dict"))
