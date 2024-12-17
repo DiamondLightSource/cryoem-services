@@ -571,8 +571,10 @@ def align_image_to_self(
     """
     Use PyStackReg to correct for drift in an image stack.
     """
-    # Record initial dtype
+    # Record initial dtype and intensities
     dtype = str(array.dtype)
+    vmin: int | float = array.min()
+    vmax: int | float = array.max()
 
     # Check if an image or a stack has been passed to the function
     shape = array.shape
@@ -621,13 +623,12 @@ def align_image_to_self(
         logger.error(f"Invalid parameter {start_from!r} provided")
         raise ValueError
 
-    # Rescale intensities of integer arrays to prevent overflow
-    if dtype.startswith(("int", "uint")) and str(aligned.dtype) != dtype:
-        aligned = stretch_image_contrast(
-            aligned,
-            percentile_range=(0, 100),
-            target_dtype=dtype,
-        ).astype(dtype)
+    # Crop intensities that have been shifted outside of the initial range
+    aligned[aligned < vmin] = vmin
+    aligned[aligned > vmax] = vmax
+
+    # Revert array back to initial dtype
+    aligned = aligned.astype(dtype) if str(aligned.dtype) != dtype else aligned
 
     return aligned
 
