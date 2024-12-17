@@ -73,8 +73,8 @@ def run():
     # Instantiate chosen wrapper
     instance = known_wrappers[args.wrapper]()()
 
-    # If specified, read in a serialized recipewrapper
-    with open(args.recipewrapper) as fh:
+    # If specified, read in a serialized recipe wrapper
+    with open(args.recipe_wrapper) as fh:
         recwrap = RecipeWrapper(message=json.load(fh), transport=transport)
     instance.set_recipe_wrapper(recwrap)
 
