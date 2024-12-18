@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, NamedTuple
+from typing import Any, Callable, NamedTuple
 
 import workflows.recipe
 from importlib_metadata import entry_points
@@ -10,7 +10,7 @@ from workflows.services.common_service import CommonService
 class PluginInterface(NamedTuple):
     rw: workflows.recipe.wrapper.RecipeWrapper
     parameters: Callable
-    message: Dict[str, Any]
+    message: dict[str, Any]
 
 
 class Images(CommonService):
