@@ -41,9 +41,9 @@ def align_and_merge_stacks(
     images: Path | list[Path],
     metadata: Optional[Path] = None,
     crop_to_n_frames: Optional[int] = None,
-    align_self: Optional[str] = None,
-    flatten: Optional[Literal["min", "max", "mean"]] = "mean",
-    align_across: Optional[str] = None,
+    align_self: Literal["enabled", ""] = "",
+    flatten: Optional[Literal["min", "max", "mean", ""]] = "mean",
+    align_across: Literal["enabled", ""] = "",
     # Print messages only if run as a CLI
     print_messages: bool = False,
     debug: bool = False,
@@ -66,9 +66,25 @@ def align_and_merge_stacks(
     """
 
     # Validate inputs before proceeding further
-    if flatten is not None and flatten not in ("min", "max", "mean"):
-        logger.error("Incorrect value provided for 'flatten' parameter")
-        raise ValueError
+    if crop_to_n_frames is not None and not isinstance(crop_to_n_frames, int):
+        message = "Incorrect value provided for 'crop_to_n_frames' parameter"
+        logger.error(message)
+        raise ValueError(message)
+
+    if align_self not in ("enabled", ""):
+        message = "Incorrect value provided for 'align_self' parameter"
+        logger.error(message)
+        raise ValueError(message)
+
+    if flatten not in ("mean", "min", "max", ""):
+        message = "Incorrect value provided for 'flatten' parameter"
+        logger.error(message)
+        raise ValueError(message)
+
+    if align_across not in ("enabled", ""):
+        message = "Incorrect value provided for 'align_across' parameter"
+        logger.error(message)
+        raise ValueError(message)
 
     # Use shorter inputs in function
     files = images
@@ -250,7 +266,7 @@ def align_and_merge_stacks(
     )
 
     # Align frames within each image stack
-    if align_self is not None:
+    if align_self:
         if print_messages is True:
             print("Correcting for drift in images...")
         with Pool(len(arrays)) as pool:
@@ -262,7 +278,7 @@ def align_and_merge_stacks(
             print(" Done")
 
     # Flatten images if the option is selected
-    if flatten is not None:
+    if flatten:
         if print_messages is True:
             print("Flattening image stacks...")
         with Pool(len(arrays)) as pool:
@@ -295,7 +311,7 @@ def align_and_merge_stacks(
         )
 
     # Align other stacks to reference stack
-    if align_across is not None:
+    if align_across:
         if print_messages is True:
             print("Aligning images to reference image...")
         reference = arrays[0]  # First image in list is the reference image
@@ -397,12 +413,12 @@ def align_and_merge_stacks(
     extended_metadata = ""
     # image_labels = None
 
-    if flatten is None:
-        axes = "ZYXS"
-        z_size = spacing_list[0]
-    else:
+    if flatten:
         axes = "YXS"
         z_size = None
+    else:
+        axes = "ZYXS"
+        z_size = spacing_list[0]
 
     # Save image as a TIFF file
     save_name = parent_dir / f"composite_{img_type}.tiff"
@@ -449,9 +465,9 @@ class AlignAndMergeParameters(BaseModel):
     images: Path | list[Path]
     metadata: Optional[Path] = Field(default=None)
     crop_to_n_frames: Optional[int] = Field(default=None)
-    align_self: Optional[str] = Field(default=None)
-    flatten: Optional[Literal["min", "max", "mean"]] = Field(default="mean")
-    align_across: Optional[str] = Field(default=None)
+    align_self: Literal["enabled", ""] = Field(default="")
+    flatten: Literal["mean", "min", "max", ""] = Field(default="mean")
+    align_across: Literal["enabled", ""] = Field(default="")
 
     @field_validator("images", mode="before")
     def parse_images(cls, value):
@@ -477,17 +493,6 @@ class AlignAndMergeParameters(BaseModel):
         if isinstance(model.images, Path):
             model.images = [model.images]
         return model
-
-    @field_validator(
-        "crop_to_n_frames", "align_self", "flatten", "align_across", mode="before"
-    )
-    def parse_for_null(cls, value):
-        """
-        Convert incoming "null" keyword into None.
-        """
-        if value == "null":
-            return None
-        return value
 
     @field_validator("crop_to_n_frames", mode="before")
     def parse_for_None(cls, value):

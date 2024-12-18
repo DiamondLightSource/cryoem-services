@@ -31,31 +31,6 @@ def path_or_none(value: str):
         return None
 
 
-def int_or_none(value: str):
-    """
-    Parses the command line input, converting "null" into None and returning an
-    integer otherwise.
-    """
-    if value.lower() == "null":
-        return None
-    try:
-        return int(value)
-    except ValueError:
-        raise argparse.ArgumentTypeError(
-            f"Invalid value provided: {value}. "
-            "Input must be either an integer or 'null'"
-        )
-
-
-def str_or_none(value: str):
-    """
-    Converts the "null" keyword into None, and returns the string as-is otherwise.
-    """
-    if value == "null":
-        return None
-    return value
-
-
 def parse_list_of_paths(values: list[str]):
     if any((not isinstance(file, str) for file in values)):
         raise TypeError("One or more of the files provided are of an invalid type")
@@ -98,7 +73,7 @@ def run():
         nargs="+",  # Gather as list by default and raise warning if not provided
         help=(
             "Full file paths to the image stacks to be processed in the format \n"
-            "'path/to/file_1' 'path/to/file_2' ... '/path/to/file_n'"
+            "'path/to/file_1' 'path/to/file_2' ... '/path/to/file_n'."
         ),
     )
     # Metadata file (optional)
@@ -109,46 +84,51 @@ def run():
         help=(
             "Full file path to the metadata file associated with this dataset. "
             "If no metadata file is provided, it will attempt to find a matching "
-            "metadata file at the expected default location "
-            "('./Metadata/metadata_file.xml)."
+            "metadata file at the expected default location. "
+            "('./metadata/metadata_file.xml)."
         ),
     )
     # Crop image stack to the centremost N frames
     parser.add_argument(
         "--crop-to-n-frames",
         default=None,
-        type=int_or_none,
-        help="Crops the image stack to the centremost N frames.",
+        type=int,
+        help=(
+            "Crops the image stack to the centremost N frames. If not provided, the "
+            "image stack will not be cropped."
+        ),
     )
     # Align image stacks before flattening
     parser.add_argument(
         "--align-self",
-        default=None,
-        type=str_or_none,
+        default="",
+        type=str,
         help=(
             "Choose whether to align the image stacks individually before flattening. \n"
-            "NOT IMPLEMENTED YET."
+            "VALUES:    'enabled', '' \n"
+            "DEFAULT:   ''"
         ),
     )
     # Determine how the image is flattened
     parser.add_argument(
         "--flatten",
         default="mean",
-        type=str_or_none,
+        type=str,
         help=(
             "Choose whether to flatten the image stacks. \n"
-            "DEFAULT: 'mean' \n"
-            "VALUES: ['null', 'min', and 'max']"
+            "VALUES:    'mean', 'min', 'max', '' \n"
+            "DEFAULT:   'mean'"
         ),
     )
     # Determine what image registration protocol to implement
     parser.add_argument(
         "--align-across",
-        default=None,
-        type=str_or_none,
+        default="",
+        type=str,
         help=(
             "Choose whether to align the image stacks to one another before merging. \n"
-            "NOT IMPLEMENTED YET."
+            "VALUES:    'enabled', '' \n"
+            "DEFAULT:   ''"
         ),
     )
     # Add a debug statement

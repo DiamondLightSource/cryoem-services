@@ -803,7 +803,7 @@ def convert_to_rgb(
 
 def flatten_image(
     array: np.ndarray,
-    mode: str = "mean",
+    mode: Literal["mean", "min", "max"] = "mean",
 ) -> np.ndarray:
 
     # Flatten along first (outermost) axis
