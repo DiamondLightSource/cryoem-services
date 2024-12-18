@@ -630,12 +630,12 @@ def _cryolo_output_files(
         if job_dir_search:
             input_job_dir = job_dir_search[0]
         else:
-            input_job_dir = "Denoise/job007"
+            input_job_dir = "Denoise/job007/"
         with open(job_dir / "optimisation_set.star", "w") as opt_file:
             opt_file.write(
                 "data_optimisation_set\n\nloop_\n"
                 "_rlnTomoParticlesFile\n_rlnTomoTomogramsFile\n"
-                f"{particles_file} {input_job_dir}/tomograms.star"
+                f"{particles_file} {input_job_dir}tomograms.star"
             )
 
     # Create a particles star file if it does not exist
