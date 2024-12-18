@@ -14,23 +14,6 @@ from cryoemservices.cli import LineWrapHelpFormatter
 from cryoemservices.wrappers.clem_align_and_merge import align_and_merge_stacks
 
 
-def path_or_none(value: str):
-    """
-    Parses the command line input, converting "null" into None, existing file paths
-    into Path objects, and returning None otherwise.
-    """
-    if value == "null":
-        return None
-    elif Path(value).exists():
-        return Path(value)
-    else:
-        print(
-            "The provided file path doesn't exist. Will attempt to find file using "
-            "the default settings"
-        )
-        return None
-
-
 def parse_list_of_paths(values: list[str]):
     if any((not isinstance(file, str) for file in values)):
         raise TypeError("One or more of the files provided are of an invalid type")
@@ -80,7 +63,7 @@ def run():
     parser.add_argument(
         "--metadata",
         default=None,
-        type=path_or_none,
+        type=str,
         help=(
             "Full file path to the metadata file associated with this dataset. "
             "If no metadata file is provided, it will attempt to find a matching "
@@ -146,12 +129,15 @@ def run():
     if args.debug:
         [print(file) for file in image_files]
 
+    # Convert metadata argument into a Path
+    metadata = Path(args.metadata) if isinstance(args.metadata, str) else args.metadata
+
     """
     Run function
     """
     composite_image = align_and_merge_stacks(
         images=image_files,
-        metadata=args.metadata,
+        metadata=metadata,
         crop_to_n_frames=args.crop_to_n_frames,
         align_self=args.align_self,
         flatten=args.flatten,
