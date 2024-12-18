@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any, Callable, NamedTuple
 
 import workflows.recipe
-from importlib_metadata import entry_points
+from backports.entry_points_selectable import entry_points
 from workflows.services.common_service import CommonService
 
 
@@ -20,8 +20,6 @@ class Images(CommonService):
     'cryoemservices.services.images.plugins'. The contract is that a plugin function
     takes a single argument of type PluginInterface, and returns a truthy value
     to acknowledge success, and a falsy value to reject the related message.
-    If a falsy value is returned that is not False then, additionally, an error
-    is logged.
     Functions may choose to return a list of files that were generated, but
     this is optional at this time.
     """

@@ -35,7 +35,6 @@ dependencies = [
     "graypy",
     "healpy",
     "icebreaker-em",
-    "importlib-metadata",
     "ispyb>=10.2.3",
     "mrcfile",
     "numpy<2",
