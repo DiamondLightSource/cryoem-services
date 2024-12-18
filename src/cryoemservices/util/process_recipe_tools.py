@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Tuple
 
 import ispyb.sqlalchemy as models
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 
 from cryoemservices.util.config import ServiceConfig
@@ -18,10 +18,14 @@ def get_processing_info(processing_id: int, session: Session) -> dict:
     """Find the ispyb recipe name, dcid, and any inserted processing parameters"""
 
     processing_job = (
-        session.query(models.ProcessingJob).filter(
-            models.ProcessingJob.processingJobId == processing_id
+        session.execute(
+            select(models.ProcessingJob).where(
+                models.ProcessingJob.processingJobId == processing_id
+            )
         )
-    ).first()
+        .scalars()
+        .first()
+    )
 
     if not processing_job:
         logger.error(f"Reprocessing ID {processing_id} not found")
@@ -33,10 +37,14 @@ def get_processing_info(processing_id: int, session: Session) -> dict:
     }
 
     job_parameters = (
-        session.query(models.ProcessingJobParameter).filter(
-            models.ProcessingJobParameter.processingJobId == processing_id
+        session.execute(
+            select(models.ProcessingJobParameter).where(
+                models.ProcessingJobParameter.processingJobId == processing_id
+            )
         )
-    ).all()
+        .scalars()
+        .all()
+    )
 
     processing_info["ispyb_reprocessing_parameters"] = {
         p.parameterKey: p.parameterValue for p in job_parameters
@@ -47,8 +55,12 @@ def get_processing_info(processing_id: int, session: Session) -> dict:
 def get_dc_info(dcid: int, session: Session) -> dict:
     """Find a data collection in ispyb"""
     dc_query = (
-        session.query(models.DataCollection)
-        .filter(models.DataCollection.dataCollectionId == dcid)
+        session.execute(
+            select(models.DataCollection).where(
+                models.DataCollection.dataCollectionId == dcid
+            )
+        )
+        .scalars()
         .first()
     )
     if dc_query is None:

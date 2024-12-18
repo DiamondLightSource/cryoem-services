@@ -9,7 +9,8 @@ from cryoemservices.util import process_recipe_tools
 from cryoemservices.util.config import ServiceConfig
 
 
-def test_get_processing_info():
+@mock.patch("cryoemservices.util.process_recipe_tools.select")
+def test_get_processing_info(mock_select):
     """Test the lookup calls for processing parameters"""
 
     class MockParameters:
@@ -20,18 +21,20 @@ def test_get_processing_info():
 
     # A mock for the query results
     mock_session = mock.MagicMock()
-    mock_session.query().filter().first.return_value = MockParameters()
-    mock_session.query().filter().all.return_value = [MockParameters()]
+    mock_session.execute().scalars().first.return_value = MockParameters()
+    mock_session.execute().scalars().all.return_value = [MockParameters()]
 
     output_parameters = process_recipe_tools.get_processing_info(1, mock_session)
 
     # Check the sqlalchemy calls
-    assert mock_session.query.call_count == 4
-    mock_session.query.assert_any_call(models.ProcessingJob)
-    mock_session.query.assert_any_call(models.ProcessingJobParameter)
-    assert mock_session.query().filter.call_count == 4
-    mock_session.query().filter().first.assert_called_once()
-    mock_session.query().filter().all.assert_called_once()
+    assert mock_session.execute.call_count == 4
+    assert mock_session.execute().scalars.call_count == 4
+    mock_session.execute().scalars().first.assert_called_once()
+    mock_session.execute().scalars().all.assert_called_once()
+
+    mock_select.assert_any_call(models.ProcessingJob)
+    mock_select.assert_any_call(models.ProcessingJobParameter)
+    assert mock_select().where.call_count == 2
 
     # Check the return value
     assert list(output_parameters.keys()) == [
@@ -44,7 +47,8 @@ def test_get_processing_info():
     assert output_parameters["ispyb_reprocessing_parameters"] == {"parameter_a": "A"}
 
 
-def test_get_dc_info():
+@mock.patch("cryoemservices.util.process_recipe_tools.select")
+def test_get_dc_info(mock_select):
     """Test the lookup calls for data collections"""
 
     class MockParameters:
@@ -53,15 +57,17 @@ def test_get_dc_info():
 
     # A mock for the query results
     mock_session = mock.MagicMock()
-    mock_session.query().filter().first.return_value = MockParameters()
+    mock_session.execute().scalars().first.return_value = MockParameters()
 
     output_parameters = process_recipe_tools.get_dc_info(1, mock_session)
 
     # Check the sqlalchemy calls
-    assert mock_session.query.call_count == 2
-    mock_session.query.assert_any_call(models.DataCollection)
-    assert mock_session.query().filter.call_count == 2
-    mock_session.query().filter().first.assert_called_once()
+    assert mock_session.execute.call_count == 2
+    assert mock_session.execute().scalars.call_count == 2
+    mock_session.execute().scalars().first.assert_called_once()
+
+    mock_select.assert_called_with(models.DataCollection)
+    mock_select().where.assert_called_once()
 
     # Check the return value
     assert list(output_parameters.keys()) == ["imageDirectory", "fileTemplate"]
