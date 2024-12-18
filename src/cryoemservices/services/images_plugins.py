@@ -104,7 +104,7 @@ def picked_particles(plugin_params):
         # Legacy case of zocalo-relion
         pixel_size = plugin_params.parameters("angpix")
     diam = plugin_params.parameters("diameter")
-    contrast_factor = plugin_params.parameters("contrast_factor", default=6)
+    contrast_factor = plugin_params.parameters("contrast_factor") or 6
     outfile = plugin_params.parameters("outfile")
     if not outfile:
         logger.error(f"Outfile incorrectly specified: {outfile}")
