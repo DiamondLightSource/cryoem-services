@@ -113,7 +113,7 @@ pipeline_jobs: dict[str, dict] = {
     "cryolo.autopick": {
         "folder": "AutoPick",
         "spa_input": {"input_file": "corrected_micrographs.star"},
-        "tomography_input": {"in_tomoset": "tomograms.star"},
+        "tomography_input": {"input_file": "tomograms.star"},  # should be in_tomoset
     },
     "relion.extract": {
         "folder": "Extract",
