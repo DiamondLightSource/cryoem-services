@@ -47,7 +47,7 @@ cryolo:
   command: cryoemservices.service -s CrYOLO -c /cryoemservices/config/cryoemservices_config.yaml
   cpuRequest: "0.5"
   cpuLimit: "1"
-  memoryLimit: 4Gi
+  memoryLimit: 6Gi
   scaleOnQueueLength: true
   queueLengthTrigger: "5"
   minReplicaCount: 0
