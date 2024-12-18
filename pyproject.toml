@@ -29,7 +29,6 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
-    "backports.entry_points_selectable",
     "defusedxml", # CLEM workflow
     "gemmi==0.6.5",
     "graypy",

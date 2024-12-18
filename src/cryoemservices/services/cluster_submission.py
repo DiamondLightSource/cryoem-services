@@ -5,13 +5,13 @@ import json
 import logging
 import math
 import os
+from importlib.metadata import entry_points
 from pathlib import Path
 from typing import Optional
 
 import requests
 import workflows.recipe
 import yaml
-from backports.entry_points_selectable import entry_points
 from pydantic import BaseModel, Field
 from workflows.services.common_service import CommonService
 from zocalo.util import slurm
