@@ -50,11 +50,7 @@ class EMISPyB(CommonService):
         if not rw:
             # Incoming message is not a recipe message. Simple messages can be valid
             self.log.info("Received a simple message")
-            if (
-                not isinstance(message, dict)
-                or not message.get("parameters")
-                or not message.get("content")
-            ):
+            if not isinstance(message, dict):
                 self.log.error("Rejected invalid simple message")
                 self._transport.nack(header)
                 return
@@ -62,12 +58,7 @@ class EMISPyB(CommonService):
             # Create a wrapper-like object that can be passed to functions
             # as if a recipe wrapper was present.
             rw = MockRW(self._transport)
-            rw.recipe_step = {"parameters": message["parameters"]}
-            if isinstance(message["content"], dict) and isinstance(
-                message["parameters"], dict
-            ):
-                message["content"].update(message["parameters"])
-            message = message["content"]
+            rw.recipe_step = {"parameters": message}
 
         if not message:
             # Message must be a dictionary, but at this point it could be None or ""
