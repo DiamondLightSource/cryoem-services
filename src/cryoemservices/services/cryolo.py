@@ -85,11 +85,7 @@ class CrYOLO(CommonService):
         """
         if not rw:
             self.log.info("Received a simple message")
-            if (
-                not isinstance(message, dict)
-                or not message.get("parameters")
-                or not message.get("content")
-            ):
+            if not isinstance(message, dict):
                 self.log.error("Rejected invalid simple message")
                 self._transport.nack(header)
                 return
@@ -97,8 +93,7 @@ class CrYOLO(CommonService):
             # Create a wrapper-like object that can be passed to functions
             # as if a recipe wrapper was present.
             rw = MockRW(self._transport)
-            rw.recipe_step = {"parameters": message["parameters"]}
-            message = message["content"]
+            rw.recipe_step = {"parameters": message}
 
         # Reset number of particles
         self.number_of_particles = 0
@@ -280,13 +275,7 @@ class CrYOLO(CommonService):
             node_creator_parameters["success"] = True
         if not job_is_rerun:
             # Only do the node creator inserts for new files
-            if isinstance(rw, MockRW):
-                rw.transport.send(
-                    destination="node_creator",
-                    message={"parameters": node_creator_parameters, "content": "dummy"},
-                )
-            else:
-                rw.send_to("node_creator", node_creator_parameters)
+            rw.send_to("node_creator", node_creator_parameters)
 
         # End here if the command failed
         if result.returncode:
@@ -312,16 +301,7 @@ class CrYOLO(CommonService):
         if cryolo_params.particle_diameter:
             ispyb_parameters["particle_diameter"] = cryolo_params.particle_diameter
         self.log.info(f"Sending to ispyb {ispyb_parameters}")
-        if isinstance(rw, MockRW):
-            rw.transport.send(
-                destination="ispyb_connector",
-                message={
-                    "parameters": ispyb_parameters,
-                    "content": {"dummy": "dummy"},
-                },
-            )
-        else:
-            rw.send_to("ispyb_connector", ispyb_parameters)
+        rw.send_to("ispyb_connector", ispyb_parameters)
 
         # Extract results for images service
         try:
@@ -332,42 +312,21 @@ class CrYOLO(CommonService):
 
         # Forward results to images service
         self.log.info("Sending to images service")
-        if isinstance(rw, MockRW):
-            rw.transport.send(
-                destination="images",
-                message={
-                    "image_command": "picked_particles",
-                    "file": cryolo_params.input_path,
-                    "coordinates": coords,
-                    "pixel_size": cryolo_params.pixel_size,
-                    "diameter": (
-                        cryolo_params.particle_diameter
-                        if cryolo_params.particle_diameter
-                        else 160
-                    ),
-                    "outfile": str(
-                        Path(cryolo_params.output_path).with_suffix(".jpeg")
-                    ),
-                },
-            )
-        else:
-            rw.send_to(
-                "images",
-                {
-                    "image_command": "picked_particles",
-                    "file": cryolo_params.input_path,
-                    "coordinates": coords,
-                    "pixel_size": cryolo_params.pixel_size,
-                    "diameter": (
-                        cryolo_params.particle_diameter
-                        if cryolo_params.particle_diameter
-                        else 160
-                    ),
-                    "outfile": str(
-                        Path(cryolo_params.output_path).with_suffix(".jpeg")
-                    ),
-                },
-            )
+        rw.send_to(
+            "images",
+            {
+                "image_command": "picked_particles",
+                "file": cryolo_params.input_path,
+                "coordinates": coords,
+                "pixel_size": cryolo_params.pixel_size,
+                "diameter": (
+                    cryolo_params.particle_diameter
+                    if cryolo_params.particle_diameter
+                    else 160
+                ),
+                "outfile": str(Path(cryolo_params.output_path).with_suffix(".jpeg")),
+            },
+        )
 
         # Gather results needed for particle extraction
         extraction_params = {
@@ -388,28 +347,16 @@ class CrYOLO(CommonService):
 
         # Forward results to murfey
         self.log.info("Sending to Murfey for particle extraction")
-        if isinstance(rw, MockRW):
-            rw.transport.send(
-                destination="murfey_feedback",
-                message={
-                    "register": "picked_particles",
-                    "motion_correction_id": cryolo_params.mc_uuid,
-                    "micrograph": cryolo_params.input_path,
-                    "particle_diameters": list(cryolo_particle_sizes),
-                    "extraction_parameters": extraction_params,
-                },
-            )
-        else:
-            rw.send_to(
-                "murfey_feedback",
-                {
-                    "register": "picked_particles",
-                    "motion_correction_id": cryolo_params.mc_uuid,
-                    "micrograph": cryolo_params.input_path,
-                    "particle_diameters": list(cryolo_particle_sizes),
-                    "extraction_parameters": extraction_params,
-                },
-            )
+        rw.send_to(
+            "murfey_feedback",
+            {
+                "register": "picked_particles",
+                "motion_correction_id": cryolo_params.mc_uuid,
+                "micrograph": cryolo_params.input_path,
+                "particle_diameters": list(cryolo_particle_sizes),
+                "extraction_parameters": extraction_params,
+            },
+        )
 
         self.log.info(f"Done {self.job_type} for {cryolo_params.input_path}.")
         rw.transport.ack(header)

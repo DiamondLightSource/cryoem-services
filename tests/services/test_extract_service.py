@@ -43,43 +43,38 @@ def test_extract_service(mock_mrcfile, offline_transport, tmp_path):
     output_path = tmp_path / "Extract/job008/Movies/sample.star"
 
     extract_test_message = {
-        "parameters": {
-            "pixel_size": 0.1,
-            "ctf_image": f"{tmp_path}/CtFind/job006/Movies/sample.ctf",
-            "ctf_max_resolution": "10",
-            "ctf_figure_of_merit": "20",
-            "defocus_u": "1.0",
-            "defocus_v": "2.0",
-            "defocus_angle": "0.0",
-            "micrographs_file": f"{tmp_path}/MotionCorr/job002/sample.mrc",
-            "coord_list_file": str(cryolo_file),
-            "output_file": str(output_path),
-            "particle_diameter": 200,
-            "norm": True,
-            "bg_radius": -1,
-            "downscale": True,
-            "invert_contrast": True,
-            "confidence_threshold": 1,
-            "batch_size": 20000,
-            "voltage": 300,
-            "relion_options": {"batch_size": 20000},
-        },
-        "content": "dummy",
+        "pixel_size": 0.1,
+        "ctf_image": f"{tmp_path}/CtFind/job006/Movies/sample.ctf",
+        "ctf_max_resolution": "10",
+        "ctf_figure_of_merit": "20",
+        "defocus_u": "1.0",
+        "defocus_v": "2.0",
+        "defocus_angle": "0.0",
+        "micrographs_file": f"{tmp_path}/MotionCorr/job002/sample.mrc",
+        "coord_list_file": str(cryolo_file),
+        "output_file": str(output_path),
+        "particle_diameter": 200,
+        "norm": True,
+        "bg_radius": -1,
+        "downscale": True,
+        "invert_contrast": True,
+        "confidence_threshold": 1,
+        "batch_size": 20000,
+        "voltage": 300,
+        "relion_options": {"batch_size": 20000},
     }
     output_relion_options = RelionServiceOptions()
-    output_relion_options.voltage = extract_test_message["parameters"]["voltage"]
-    output_relion_options.pixel_size = extract_test_message["parameters"]["pixel_size"]
-    output_relion_options.particle_diameter = extract_test_message["parameters"][
-        "particle_diameter"
-    ]
-    output_relion_options.downscale = extract_test_message["parameters"]["downscale"]
+    output_relion_options.voltage = extract_test_message["voltage"]
+    output_relion_options.pixel_size = extract_test_message["pixel_size"]
+    output_relion_options.particle_diameter = extract_test_message["particle_diameter"]
+    output_relion_options.downscale = extract_test_message["downscale"]
     output_relion_options.pixel_size_downscaled = (
-        extract_test_message["parameters"]["pixel_size"]
+        extract_test_message["pixel_size"]
         * output_relion_options.boxsize
         / output_relion_options.small_boxsize
     )
     output_relion_options = dict(output_relion_options)
-    output_relion_options.update(extract_test_message["parameters"]["relion_options"])
+    output_relion_options.update(extract_test_message["relion_options"])
 
     # Set up the mock service and send the message to it
     service = extract.Extract()
@@ -93,31 +88,23 @@ def test_extract_service(mock_mrcfile, offline_transport, tmp_path):
     offline_transport.send.assert_any_call(
         destination="select_particles",
         message={
-            "parameters": {
-                "input_file": extract_test_message["parameters"]["output_file"],
-                "relion_options": output_relion_options,
-                "batch_size": output_relion_options["batch_size"],
-                "image_size": 96,
-            },
-            "content": "dummy",
+            "input_file": extract_test_message["output_file"],
+            "relion_options": output_relion_options,
+            "batch_size": output_relion_options["batch_size"],
+            "image_size": 96,
         },
     )
     offline_transport.send.assert_any_call(
         destination="node_creator",
         message={
-            "parameters": {
-                "job_type": "relion.extract",
-                "input_file": (
-                    f"{cryolo_file}:{extract_test_message['parameters']['ctf_image']}"
-                ),
-                "output_file": str(output_path),
-                "relion_options": output_relion_options,
-                "command": "",
-                "stdout": "",
-                "stderr": "",
-                "results": {"box_size": 96},
-            },
-            "content": "dummy",
+            "job_type": "relion.extract",
+            "input_file": (f"{cryolo_file}:{extract_test_message['ctf_image']}"),
+            "output_file": str(output_path),
+            "relion_options": output_relion_options,
+            "command": "",
+            "stdout": "",
+            "stderr": "",
+            "results": {"box_size": 96},
         },
     )
 

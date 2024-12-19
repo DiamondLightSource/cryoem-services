@@ -75,19 +75,16 @@ def test_icebreaker_micrographs_service(mock_icebreaker, offline_transport, tmp_
         "subscription": mock.sentinel,
     }
     icebreaker_test_message = {
-        "parameters": {
-            "icebreaker_type": "micrographs",
-            "input_micrographs": f"{tmp_path}/MotionCorr/job002/Movies/sample.mrc",
-            "input_particles": None,
-            "output_path": f"{tmp_path}/IceBreaker/job003/",
-            "cpus": 1,
-            "mc_uuid": 0,
-            "relion_options": {"do_icebreaker_jobs": "True"},
-            "total_motion": 0.5,
-            "early_motion": 0.2,
-            "late_motion": 0.3,
-        },
-        "content": "dummy",
+        "icebreaker_type": "micrographs",
+        "input_micrographs": f"{tmp_path}/MotionCorr/job002/Movies/sample.mrc",
+        "input_particles": None,
+        "output_path": f"{tmp_path}/IceBreaker/job003/",
+        "cpus": 1,
+        "mc_uuid": 0,
+        "relion_options": {"do_icebreaker_jobs": "True"},
+        "total_motion": 0.5,
+        "early_motion": 0.2,
+        "late_motion": 0.3,
     }
 
     # Set up the mock service and send a message to the service
@@ -104,41 +101,33 @@ def test_icebreaker_micrographs_service(mock_icebreaker, offline_transport, tmp_
     offline_transport.send.assert_any_call(
         destination="icebreaker",
         message={
-            "parameters": {
-                "icebreaker_type": "summary",
-                "input_micrographs": f"{tmp_path}/IceBreaker/job003/Movies/sample_grouped.mrc",
-                "mc_uuid": 0,
-                "relion_options": output_relion_options,
-                "output_path": f"{tmp_path}/IceBreaker/job005/",
-            },
-            "content": "dummy",
+            "icebreaker_type": "summary",
+            "input_micrographs": f"{tmp_path}/IceBreaker/job003/Movies/sample_grouped.mrc",
+            "mc_uuid": 0,
+            "relion_options": output_relion_options,
+            "output_path": f"{tmp_path}/IceBreaker/job005/",
         },
     )
     offline_transport.send.assert_any_call(
         destination="node_creator",
         message={
-            "parameters": {
-                "job_type": "icebreaker.micrograph_analysis.micrographs",
-                "input_file": icebreaker_test_message["parameters"][
-                    "input_micrographs"
-                ],
-                "output_file": icebreaker_test_message["parameters"]["output_path"],
-                "relion_options": output_relion_options,
-                "command": (
-                    "ib_job --j 1 --single_mic MotionCorr/job002/Movies/sample.mrc "
-                    f"--o {tmp_path}/IceBreaker/job003/ --mode group"
-                ),
-                "stdout": "",
-                "stderr": "",
-                "results": {
-                    "icebreaker_type": "micrographs",
-                    "total_motion": 0.5,
-                    "early_motion": 0.2,
-                    "late_motion": 0.3,
-                },
-                "success": True,
+            "job_type": "icebreaker.micrograph_analysis.micrographs",
+            "input_file": icebreaker_test_message["input_micrographs"],
+            "output_file": icebreaker_test_message["output_path"],
+            "relion_options": output_relion_options,
+            "command": (
+                "ib_job --j 1 --single_mic MotionCorr/job002/Movies/sample.mrc "
+                f"--o {tmp_path}/IceBreaker/job003/ --mode group"
+            ),
+            "stdout": "",
+            "stderr": "",
+            "results": {
+                "icebreaker_type": "micrographs",
+                "total_motion": 0.5,
+                "early_motion": 0.2,
+                "late_motion": 0.3,
             },
-            "content": "dummy",
+            "success": True,
         },
     )
 
@@ -161,19 +150,16 @@ def test_icebreaker_enhancecontrast_service(
         "subscription": mock.sentinel,
     }
     icebreaker_test_message = {
-        "parameters": {
-            "icebreaker_type": "enhancecontrast",
-            "input_micrographs": f"{tmp_path}/MotionCorr/job002/Movies/sample.mrc",
-            "input_particles": None,
-            "output_path": f"{tmp_path}/IceBreaker/job004/",
-            "cpus": 1,
-            "mc_uuid": 0,
-            "relion_options": {"options": "options"},
-            "total_motion": 0.5,
-            "early_motion": 0.2,
-            "late_motion": 0.3,
-        },
-        "content": "dummy",
+        "icebreaker_type": "enhancecontrast",
+        "input_micrographs": f"{tmp_path}/MotionCorr/job002/Movies/sample.mrc",
+        "input_particles": None,
+        "output_path": f"{tmp_path}/IceBreaker/job004/",
+        "cpus": 1,
+        "mc_uuid": 0,
+        "relion_options": {"options": "options"},
+        "total_motion": 0.5,
+        "early_motion": 0.2,
+        "late_motion": 0.3,
     }
 
     # Set up the mock service and send a message to the service
@@ -190,28 +176,23 @@ def test_icebreaker_enhancecontrast_service(
     offline_transport.send.assert_any_call(
         destination="node_creator",
         message={
-            "parameters": {
-                "job_type": "icebreaker.micrograph_analysis.enhancecontrast",
-                "input_file": icebreaker_test_message["parameters"][
-                    "input_micrographs"
-                ],
-                "output_file": icebreaker_test_message["parameters"]["output_path"],
-                "relion_options": output_relion_options,
-                "command": (
-                    "ib_job --j 1 --single_mic MotionCorr/job002/Movies/sample.mrc "
-                    f"--o {tmp_path}/IceBreaker/job004/ --mode flatten"
-                ),
-                "stdout": "",
-                "stderr": "",
-                "results": {
-                    "icebreaker_type": "enhancecontrast",
-                    "total_motion": 0.5,
-                    "early_motion": 0.2,
-                    "late_motion": 0.3,
-                },
-                "success": True,
+            "job_type": "icebreaker.micrograph_analysis.enhancecontrast",
+            "input_file": icebreaker_test_message["input_micrographs"],
+            "output_file": icebreaker_test_message["output_path"],
+            "relion_options": output_relion_options,
+            "command": (
+                "ib_job --j 1 --single_mic MotionCorr/job002/Movies/sample.mrc "
+                f"--o {tmp_path}/IceBreaker/job004/ --mode flatten"
+            ),
+            "stdout": "",
+            "stderr": "",
+            "results": {
+                "icebreaker_type": "enhancecontrast",
+                "total_motion": 0.5,
+                "early_motion": 0.2,
+                "late_motion": 0.3,
             },
-            "content": "dummy",
+            "success": True,
         },
     )
 
@@ -231,19 +212,16 @@ def test_icebreaker_summary_service(mock_icebreaker, offline_transport, tmp_path
         "subscription": mock.sentinel,
     }
     icebreaker_test_message = {
-        "parameters": {
-            "icebreaker_type": "summary",
-            "input_micrographs": f"{tmp_path}/IceBreaker/job003/Movies/sample_grouped.star",
-            "input_particles": None,
-            "output_path": f"{tmp_path}/IceBreaker/job005/",
-            "cpus": 1,
-            "mc_uuid": 0,
-            "relion_options": {"options": "options"},
-            "total_motion": 0.5,
-            "early_motion": 0.2,
-            "late_motion": 0.3,
-        },
-        "content": "dummy",
+        "icebreaker_type": "summary",
+        "input_micrographs": f"{tmp_path}/IceBreaker/job003/Movies/sample_grouped.star",
+        "input_particles": None,
+        "output_path": f"{tmp_path}/IceBreaker/job005/",
+        "cpus": 1,
+        "mc_uuid": 0,
+        "relion_options": {"options": "options"},
+        "total_motion": 0.5,
+        "early_motion": 0.2,
+        "late_motion": 0.3,
     }
 
     # Set up the mock service and send a message to the service
@@ -262,46 +240,38 @@ def test_icebreaker_summary_service(mock_icebreaker, offline_transport, tmp_path
     offline_transport.send.assert_any_call(
         destination="node_creator",
         message={
-            "parameters": {
-                "job_type": "icebreaker.micrograph_analysis.summary",
-                "input_file": icebreaker_test_message["parameters"][
-                    "input_micrographs"
-                ],
-                "output_file": icebreaker_test_message["parameters"]["output_path"],
-                "relion_options": output_relion_options,
-                "command": (
-                    "ib_5fig --j 1 "
-                    "--single_mic IceBreaker/job003/Movies/sample_grouped.star "
-                    f"--o {tmp_path}/IceBreaker/job005/"
-                ),
-                "stdout": "",
-                "stderr": "",
-                "results": {
-                    "icebreaker_type": "summary",
-                    "total_motion": 0.5,
-                    "early_motion": 0.2,
-                    "late_motion": 0.3,
-                    "summary": ["0", "1", "2", "3", "4"],
-                },
-                "success": True,
+            "job_type": "icebreaker.micrograph_analysis.summary",
+            "input_file": icebreaker_test_message["input_micrographs"],
+            "output_file": icebreaker_test_message["output_path"],
+            "relion_options": output_relion_options,
+            "command": (
+                "ib_5fig --j 1 "
+                "--single_mic IceBreaker/job003/Movies/sample_grouped.star "
+                f"--o {tmp_path}/IceBreaker/job005/"
+            ),
+            "stdout": "",
+            "stderr": "",
+            "results": {
+                "icebreaker_type": "summary",
+                "total_motion": 0.5,
+                "early_motion": 0.2,
+                "late_motion": 0.3,
+                "summary": ["0", "1", "2", "3", "4"],
             },
-            "content": "dummy",
+            "success": True,
         },
     )
     offline_transport.send.assert_any_call(
         destination="ispyb_connector",
         message={
-            "parameters": {
-                "minimum": "0",
-                "q1": "1",
-                "median": "2",
-                "q3": "3",
-                "maximum": "4",
-                "ispyb_command": "buffer",
-                "buffer_lookup": {"motion_correction_id": 0},
-                "buffer_command": {"ispyb_command": "insert_relative_ice_thickness"},
-            },
-            "content": "dummy",
+            "minimum": "0",
+            "q1": "1",
+            "median": "2",
+            "q3": "3",
+            "maximum": "4",
+            "ispyb_command": "buffer",
+            "buffer_lookup": {"motion_correction_id": 0},
+            "buffer_command": {"ispyb_command": "insert_relative_ice_thickness"},
         },
     )
 
@@ -319,20 +289,17 @@ def test_icebreaker_particles_service(mock_icebreaker, offline_transport, tmp_pa
         "subscription": mock.sentinel,
     }
     icebreaker_test_message = {
-        "parameters": {
-            "icebreaker_type": "particles",
-            "input_micrographs": f"{tmp_path}/IceBreaker/job003/Movies/sample_grouped.star",
-            "input_particles": f"{tmp_path}/Select/job009/particles_split1.star",
-            "output_path": f"{tmp_path}/IceBreaker/job011/",
-            "cpus": 1,
-            "mc_uuid": 0,
-            "relion_options": {"options": "options"},
-            "total_motion": 0.5,
-            "early_motion": 0.2,
-            "late_motion": 0.3,
-            "submit_to_slurm": False,
-        },
-        "content": "dummy",
+        "icebreaker_type": "particles",
+        "input_micrographs": f"{tmp_path}/IceBreaker/job003/Movies/sample_grouped.star",
+        "input_particles": f"{tmp_path}/Select/job009/particles_split1.star",
+        "output_path": f"{tmp_path}/IceBreaker/job011/",
+        "cpus": 1,
+        "mc_uuid": 0,
+        "relion_options": {"options": "options"},
+        "total_motion": 0.5,
+        "early_motion": 0.2,
+        "late_motion": 0.3,
+        "submit_to_slurm": False,
     }
 
     # Set up the mock service and send a message to the service
@@ -353,30 +320,27 @@ def test_icebreaker_particles_service(mock_icebreaker, offline_transport, tmp_pa
     offline_transport.send.assert_any_call(
         destination="node_creator",
         message={
-            "parameters": {
-                "job_type": "icebreaker.micrograph_analysis.particles",
-                "input_file": icebreaker_test_message["parameters"]["input_micrographs"]
-                + ":"
-                + icebreaker_test_message["parameters"]["input_particles"],
-                "output_file": icebreaker_test_message["parameters"]["output_path"],
-                "relion_options": output_relion_options,
-                "command": (
-                    "ib_group --j 1 "
-                    "--in_mics IceBreaker/job003/Movies/sample_grouped.star "
-                    "--in_parts Select/job009/particles_split1.star "
-                    f"--o {tmp_path}/IceBreaker/job011/"
-                ),
-                "stdout": "",
-                "stderr": "",
-                "results": {
-                    "icebreaker_type": "particles",
-                    "total_motion": 0.5,
-                    "early_motion": 0.2,
-                    "late_motion": 0.3,
-                },
-                "success": True,
+            "job_type": "icebreaker.micrograph_analysis.particles",
+            "input_file": icebreaker_test_message["input_micrographs"]
+            + ":"
+            + icebreaker_test_message["input_particles"],
+            "output_file": icebreaker_test_message["output_path"],
+            "relion_options": output_relion_options,
+            "command": (
+                "ib_group --j 1 "
+                "--in_mics IceBreaker/job003/Movies/sample_grouped.star "
+                "--in_parts Select/job009/particles_split1.star "
+                f"--o {tmp_path}/IceBreaker/job011/"
+            ),
+            "stdout": "",
+            "stderr": "",
+            "results": {
+                "icebreaker_type": "particles",
+                "total_motion": 0.5,
+                "early_motion": 0.2,
+                "late_motion": 0.3,
             },
-            "content": "dummy",
+            "success": True,
         },
     )
 
@@ -401,20 +365,17 @@ def test_icebreaker_particles_service_slurm(
         "subscription": mock.sentinel,
     }
     icebreaker_test_message = {
-        "parameters": {
-            "icebreaker_type": "particles",
-            "input_micrographs": f"{tmp_path}/IceBreaker/job003/Movies/sample_grouped.star",
-            "input_particles": f"{tmp_path}/Select/job009/particles_split1.star",
-            "output_path": f"{tmp_path}/IceBreaker/job011/",
-            "cpus": 1,
-            "mc_uuid": 0,
-            "relion_options": {"options": "options"},
-            "total_motion": 0.5,
-            "early_motion": 0.2,
-            "late_motion": 0.3,
-            "submit_to_slurm": True,
-        },
-        "content": "dummy",
+        "icebreaker_type": "particles",
+        "input_micrographs": f"{tmp_path}/IceBreaker/job003/Movies/sample_grouped.star",
+        "input_particles": f"{tmp_path}/Select/job009/particles_split1.star",
+        "output_path": f"{tmp_path}/IceBreaker/job011/",
+        "cpus": 1,
+        "mc_uuid": 0,
+        "relion_options": {"options": "options"},
+        "total_motion": 0.5,
+        "early_motion": 0.2,
+        "late_motion": 0.3,
+        "submit_to_slurm": True,
     }
 
     # Construct the file which contains rest api submission information

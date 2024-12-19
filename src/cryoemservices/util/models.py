@@ -12,3 +12,6 @@ class MockRW:
 
     def send(self, *args, **kwargs):
         pass
+
+    def send_to(self, destination, parameters):
+        self.transport.send(destination, parameters)
