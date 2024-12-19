@@ -22,9 +22,7 @@ class IceBreakerParameters(BaseModel):
     input_micrographs: str = Field(..., min_length=1)
     input_particles: Optional[str] = None
     output_path: str = Field(..., min_length=1)
-    icebreaker_type: str = Literal[
-        "micrographs", "enhancecontrast", "summary", "particles"
-    ]  # type: ignore
+    icebreaker_type: Literal["micrographs", "enhancecontrast", "summary", "particles"]
     cpus: int = 10
     total_motion: float = 0
     early_motion: float = 0
