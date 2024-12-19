@@ -10,9 +10,12 @@ import logging
 import re
 from enum import Enum
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 
 import numpy as np
+import SimpleITK as sitk
+from pystackreg import StackReg
+from SimpleITK.SimpleITK import Image
 from tifffile import imwrite
 
 # Create logger object to output messages with
@@ -561,6 +564,205 @@ def stretch_image_contrast(
     return arr_new
 
 
+def align_image_to_self(
+    array: np.ndarray,
+    start_from: Literal["beginning", "middle", "end"] = "beginning",
+) -> np.ndarray:
+    """
+    Use PyStackReg to correct for drift in an image stack.
+    """
+    # Record initial dtype and intensities
+    dtype = str(array.dtype)
+    vmin: int | float = array.min()
+    vmax: int | float = array.max()
+
+    # Check if an image or a stack has been passed to the function
+    shape = array.shape
+    if len(shape) <= 2 or (
+        len(shape) == 3 and shape[-1] in (3, 4)  # Check for 2D RGB or RGBA images
+    ):
+        logger.warning(
+            f"Image provided likely not an image stack (has dimensions {shape});"
+            "returning original array"
+        )
+        return array
+
+    # Set up StackReg object to facilitate image processing
+    sr = StackReg(StackReg.RIGID_BODY)
+
+    # Standard method for aligning images
+    if start_from == "beginning":
+        aligned = np.array(sr.register_transform_stack(array, reference="previous"))
+
+    # Align from the middle
+    # Useful for aligning defocus series, where the plane of focus is in the middle
+    elif start_from == "middle":
+
+        # Align both halves independently
+        idx = len(array) // 2  # Floor division
+        aligned_front = np.flip(
+            sr.register_transform_stack(
+                np.flip(array[: idx + 1], axis=0), reference="previous"
+            ),
+            axis=0,
+        )
+        aligned_back = np.array(
+            sr.register_transform_stack(array[idx:], reference="previous")
+        )
+
+        # Rejoin halves
+        aligned = np.concatenate((aligned_front[:idx], aligned_back), axis=0)
+
+    # Align from the end
+    elif start_from == "end":
+        aligned = np.flip(
+            sr.register_transform_stack(np.flip(array, axis=0), reference="previous"),
+            axis=0,
+        )
+    else:
+        logger.error(f"Invalid parameter {start_from!r} provided")
+        raise ValueError
+
+    # Crop intensities that have been shifted outside of the initial range
+    aligned[aligned < vmin] = vmin
+    aligned[aligned > vmax] = vmax
+
+    # Revert array back to initial dtype
+    aligned = aligned.astype(dtype) if str(aligned.dtype) != dtype else aligned
+
+    return aligned
+
+
+def align_image_to_reference(
+    reference_array: np.ndarray,
+    moving_array: np.ndarray,
+) -> np.ndarray:
+    """
+    Uses SimpleITK's image registration methods to align images to a reference.
+
+    Currently, this method works poorly for defocused images, which can lead to a
+    lot of jitter in the beginning and tail frames if the images being aligned are
+    a defocus series.
+    """
+    # Get initial dtype
+    if str(reference_array.dtype) != str(moving_array.dtype):
+        logger.error("The image stacks provided do not have the same dtype")
+        raise ValueError
+    dtype = str(moving_array.dtype)
+    vmin: int | float = moving_array.min()
+    vmax: int | float = moving_array.max()
+
+    # Check array shape
+    if reference_array.shape != moving_array.shape:
+        logger.error("The image stacks provided do not have the same dimensions")
+        raise ValueError
+
+    # SimpleITK's image registration prefers to work with floats
+    fixed: Image = sitk.Cast(sitk.GetImageFromArray(reference_array), sitk.sitkFloat64)
+    moving: Image = sitk.Cast(sitk.GetImageFromArray(moving_array), sitk.sitkFloat64)
+
+    # Check if an image or a stack has been passed to the function, and handle accordingly
+    shape: tuple[int, ...] = (
+        fixed.GetSize()
+    )  # In (x, y, z) order; SITK's Size object omits the RGB dimension, if present
+    num_frames = 1 if len(shape) == 2 else shape[-1]
+
+    # Iterate through stacks, aligning corresponding frames
+    aligned_frames: list[Image] = []
+    for f in range(num_frames):
+        fixed_frame: Image
+        moving_frame: Image
+        if len(shape) == 2:
+            fixed_frame = fixed
+            moving_frame = moving
+        else:
+            fixed_frame = fixed[:, :, f]
+            moving_frame = moving[:, :, f]
+
+        # Set up the registration parameters
+        registration = sitk.ImageRegistrationMethod()
+
+        # Choose the metric
+        registration.SetMetricAsMattesMutualInformation(numberOfHistogramBins=64)
+
+        # Choose the type of interpolation to use
+        registration.SetInterpolator(sitk.sitkLinear)
+
+        # Register over a multi-resolution pyramid
+        registration.SetShrinkFactorsPerLevel([4, 2, 1])
+        registration.SetSmoothingSigmasPerLevel([2, 1, 0])
+        # registration.SmoothingSigmasAreSpecifiedInPhysicalUnitsOn()
+
+        # Choose the type of optimiser to use
+        # registration.SetOptimizerAsGradientDescent(
+        #     learningRate=0.5,
+        #     numberOfIterations=300,
+        #     convergenceMinimumValue=1e-6,
+        #     convergenceWindowSize=10,
+        # )
+        registration.SetOptimizerAsGradientDescentLineSearch(
+            learningRate=1.0,
+            numberOfIterations=300,
+            convergenceMinimumValue=1e-6,
+            convergenceWindowSize=10,
+            lineSearchLowerLimit=0,
+            lineSearchUpperLimit=5.0,
+            lineSearchMaximumIterations=20,
+        )
+        # registration.SetOptimizerAsAmoeba(
+        #     simplexDelta=1.0,
+        #     numberOfIterations=300,
+        #     parametersConvergenceTolerance=1e-8,
+        #     functionConvergenceTolerance=1e-4,
+        #     withRestarts=False,
+        # )
+        # registration.SetOptimizerAsOnePlusOneEvolutionary(
+        #     epsilon=1e-6,
+        #     initialRadius=1.0,
+        #     numberOfIterations=300,
+        #     growthFactor=-1.0,
+        #     shrinkFactor=-1.0,
+        # )
+        registration.SetOptimizerScalesFromIndexShift()
+
+        # Initialise a rigid-body transform
+        initial_transform = sitk.CenteredTransformInitializer(
+            fixed_frame,
+            moving_frame,
+            sitk.Euler2DTransform(),  # Restricted to in-plane translation and rotation
+            sitk.CenteredTransformInitializerFilter.GEOMETRY,
+        )
+        registration.SetInitialTransform(initial_transform, inPlace=False)
+
+        # Register the frame
+        final_transform = registration.Execute(fixed_frame, moving_frame)
+
+        # Transform the moving frame
+        aligned_frame: Image = sitk.Resample(
+            moving_frame,
+            transform=final_transform,
+            interpolator=sitk.sitkLinear,
+            defaultPixelValue=0.0,
+            outputPixelType=moving_frame.GetPixelID(),
+            useNearestNeighborExtrapolator=True,
+        )
+        aligned_frames.append(aligned_frame)
+
+    # Recombine as a single image stack
+    aligned: np.ndarray = (
+        sitk.GetArrayFromImage(aligned_frames[0])
+        if len(aligned_frames) == 1
+        else sitk.GetArrayFromImage(sitk.JoinSeries(aligned_frames))
+    )
+
+    # Crop values that exceed initial range after transformation
+    aligned[aligned < vmin] = vmin
+    aligned[aligned > vmax] = vmax
+    aligned = aligned.astype(dtype) if str(aligned.dtype) != dtype else aligned
+
+    return aligned
+
+
 class LUT(Enum):
     """
     3-channel color lookup tables to use when colorising image stacks. They are binary
@@ -601,7 +803,7 @@ def convert_to_rgb(
 
 def flatten_image(
     array: np.ndarray,
-    mode: str = "mean",
+    mode: Literal["mean", "min", "max"] = "mean",
 ) -> np.ndarray:
 
     # Flatten along first (outermost) axis
@@ -650,9 +852,7 @@ def merge_images(
     # Calculate average across all arrays
     arr_new: np.ndarray = np.mean(arrays, axis=0)
 
-    # Preserve dtype of array
-    #   This is an averaging operation, so we can safely switch the dtype back from
-    #   float64 without encountering an overflow
+    # Revert to input array dtype
     arr_new = arr_new.round(0) if dtype.startswith(("int", "uint")) else arr_new
     arr_new = arr_new.astype(dtype)
 
