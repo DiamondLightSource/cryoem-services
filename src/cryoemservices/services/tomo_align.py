@@ -260,16 +260,16 @@ class TomoAlign(CommonService):
             values = tilt_dict[item]
             if len(values) > 1:
                 # sort by age and remove oldest ones
-                values.sort(key=os.path.getctime)
-                values_to_remove.append(values[1:])
+                values.sort(key=os.path.getctime, reverse=True)
+                values_to_remove.extend(values[1:])
 
+        indexes_to_remove = []
         for tilt in self.input_file_list_of_lists:
             if tilt[0] in values_to_remove:
-                index = self.input_file_list_of_lists.index(tilt)
-                self.log.warning(f"Removing: {values_to_remove}")
-                self.input_file_list_of_lists.remove(
-                    self.input_file_list_of_lists[index]
-                )
+                self.log.warning(f"Removing: {tilt[0]}")
+                indexes_to_remove.append(self.input_file_list_of_lists.index(tilt))
+        for index in sorted(indexes_to_remove, reverse=True):
+            self.input_file_list_of_lists.remove(self.input_file_list_of_lists[index])
 
         # Find the input image dimensions
         with mrcfile.open(self.input_file_list_of_lists[0][0]) as mrc:
