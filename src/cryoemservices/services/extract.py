@@ -71,11 +71,7 @@ class Extract(CommonService):
         """Main function which interprets and processes received messages"""
         if not rw:
             self.log.info("Received a simple message")
-            if (
-                not isinstance(message, dict)
-                or not message.get("parameters")
-                or not message.get("content")
-            ):
+            if not isinstance(message, dict):
                 self.log.error("Rejected invalid simple message")
                 self._transport.nack(header)
                 return
@@ -83,8 +79,7 @@ class Extract(CommonService):
             # Create a wrapper-like object that can be passed to functions
             # as if a recipe wrapper was present.
             rw = MockRW(self._transport)
-            rw.recipe_step = {"parameters": message["parameters"]}
-            message = message["content"]
+            rw.recipe_step = {"parameters": message}
 
         try:
             if isinstance(message, dict):
@@ -408,13 +403,7 @@ class Extract(CommonService):
             "stderr": "",
             "results": {"box_size": box_len},
         }
-        if isinstance(rw, MockRW):
-            rw.transport.send(
-                destination="node_creator",
-                message={"parameters": node_creator_parameters, "content": "dummy"},
-            )
-        else:
-            rw.send_to("node_creator", node_creator_parameters)
+        rw.send_to("node_creator", node_creator_parameters)
 
         # Register the files needed for selection and batching
         self.log.info("Sending to particle selection")
@@ -424,13 +413,7 @@ class Extract(CommonService):
             "image_size": box_len,
             "relion_options": dict(extract_params.relion_options),
         }
-        if isinstance(rw, MockRW):
-            rw.transport.send(
-                destination="select_particles",
-                message={"parameters": select_params, "content": "dummy"},
-            )
-        else:
-            rw.send_to("select_particles", select_params)
+        rw.send_to("select_particles", select_params)
 
         self.log.info(f"Done {self.job_type} for {extract_params.coord_list_file}.")
         rw.transport.ack(header)

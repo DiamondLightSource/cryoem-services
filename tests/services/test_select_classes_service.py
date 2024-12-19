@@ -94,22 +94,19 @@ def select_classes_common_setup(
     output_relion_options = dict(tmp_relion_options)
 
     select_test_message = {
-        "parameters": {
-            "input_file": f"{job_dir}/Class2D/job010/run_it020_optimiser.star",
-            "combine_star_job_number": 13,
-            "particle_diameter": 100,
-            "class2d_fraction_of_classes_to_remove": 0.5,
-            "particles_file": "particles.star",
-            "classes_file": "class_averages.star",
-            "python_exe": "python",
-            "min_score": 0,
-            "min_particles": 500,
-            "class3d_batch_size": 50000,
-            "class3d_max_size": 200000,
-            "class_uuids": "{'1': '1', '2': '2'}",
-            "relion_options": {},
-        },
-        "content": "dummy",
+        "input_file": f"{job_dir}/Class2D/job010/run_it020_optimiser.star",
+        "combine_star_job_number": 13,
+        "particle_diameter": 100,
+        "class2d_fraction_of_classes_to_remove": 0.5,
+        "particles_file": "particles.star",
+        "classes_file": "class_averages.star",
+        "python_exe": "python",
+        "min_score": 0,
+        "min_particles": 500,
+        "class3d_batch_size": 50000,
+        "class3d_max_size": 200000,
+        "class_uuids": "{'1': '1', '2': '2'}",
+        "relion_options": {},
     }
     return select_test_message, output_relion_options
 
@@ -155,7 +152,7 @@ def test_select_classes_service_first_batch(
         [
             "relion_class_ranker",
             "--opt",
-            select_test_message["parameters"]["input_file"],
+            select_test_message["input_file"],
             "--o",
             "Select/job012/",
             "--auto_select",
@@ -167,7 +164,7 @@ def test_select_classes_service_first_batch(
             "--fn_sel_classavgs",
             "class_averages.star",
             "--python",
-            select_test_message["parameters"]["python_exe"],
+            select_test_message["python_exe"],
             "--select_min_nr_particles",
             "500",
             "--pipeline_control",
@@ -183,92 +180,80 @@ def test_select_classes_service_first_batch(
     offline_transport.send.assert_any_call(
         destination="ispyb_connector",
         message={
-            "parameters": {
-                "ispyb_command": "multipart_message",
-                "ispyb_command_list": [
-                    {
-                        "ispyb_command": "buffer",
-                        "buffer_lookup": {"particle_classification_id": "1"},
-                        "buffer_command": {
-                            "ispyb_command": "insert_particle_classification"
-                        },
-                        "selected": 1,
+            "ispyb_command": "multipart_message",
+            "ispyb_command_list": [
+                {
+                    "ispyb_command": "buffer",
+                    "buffer_lookup": {"particle_classification_id": "1"},
+                    "buffer_command": {
+                        "ispyb_command": "insert_particle_classification"
                     },
-                    {
-                        "ispyb_command": "buffer",
-                        "buffer_lookup": {"particle_classification_id": "2"},
-                        "buffer_command": {
-                            "ispyb_command": "insert_particle_classification"
-                        },
-                        "selected": 1,
+                    "selected": 1,
+                },
+                {
+                    "ispyb_command": "buffer",
+                    "buffer_lookup": {"particle_classification_id": "2"},
+                    "buffer_command": {
+                        "ispyb_command": "insert_particle_classification"
                     },
-                ],
-            },
-            "content": {"dummy": "dummy"},
+                    "selected": 1,
+                },
+            ],
         },
     )
     offline_transport.send.assert_any_call(
         destination="node_creator",
         message={
-            "parameters": {
-                "job_type": "relion.select.class2dauto",
-                "input_file": select_test_message["parameters"]["input_file"],
-                "output_file": f"{tmp_path}/Select/job012/particles.star",
-                "relion_options": relion_options,
-                "command": (
-                    "relion_class_ranker --opt "
-                    f"{tmp_path}/Class2D/job010/run_it020_optimiser.star "
-                    "--o Select/job012/ --auto_select --fn_root rank "
-                    "--do_granularity_features --fn_sel_parts particles.star "
-                    "--fn_sel_classavgs class_averages.star --python python "
-                    "--select_min_nr_particles 500 "
-                    "--pipeline_control Select/job012/ --min_score 0.006"
-                ),
-                "stdout": "stdout",
-                "stderr": "stderr",
-                "success": True,
-            },
-            "content": "dummy",
+            "job_type": "relion.select.class2dauto",
+            "input_file": select_test_message["input_file"],
+            "output_file": f"{tmp_path}/Select/job012/particles.star",
+            "relion_options": relion_options,
+            "command": (
+                "relion_class_ranker --opt "
+                f"{tmp_path}/Class2D/job010/run_it020_optimiser.star "
+                "--o Select/job012/ --auto_select --fn_root rank "
+                "--do_granularity_features --fn_sel_parts particles.star "
+                "--fn_sel_classavgs class_averages.star --python python "
+                "--select_min_nr_particles 500 "
+                "--pipeline_control Select/job012/ --min_score 0.006"
+            ),
+            "stdout": "stdout",
+            "stderr": "stderr",
+            "success": True,
         },
     )
     offline_transport.send.assert_any_call(
         destination="node_creator",
         message={
-            "parameters": {
-                "alias": "Best_particles",
-                "job_type": "combine_star_files_job",
-                "input_file": f"{tmp_path}/Select/job012/particles.star",
-                "output_file": f"{tmp_path}/Select/job013/particles_all.star",
-                "relion_options": relion_options,
-                "command": (
-                    f"combine_star_files {tmp_path}/Select/job012/particles.star "
-                    f"--output_dir {tmp_path}/Select/job013"
-                ),
-                "stdout": "",
-                "stderr": "",
-                "success": True,
-            },
-            "content": "dummy",
+            "alias": "Best_particles",
+            "job_type": "combine_star_files_job",
+            "input_file": f"{tmp_path}/Select/job012/particles.star",
+            "output_file": f"{tmp_path}/Select/job013/particles_all.star",
+            "relion_options": relion_options,
+            "command": (
+                f"combine_star_files {tmp_path}/Select/job012/particles.star "
+                f"--output_dir {tmp_path}/Select/job013"
+            ),
+            "stdout": "",
+            "stderr": "",
+            "success": True,
         },
     )
     offline_transport.send.assert_any_call(
         destination="node_creator",
         message={
-            "parameters": {
-                "alias": "Best_particles",
-                "job_type": "combine_star_files_job",
-                "input_file": f"{tmp_path}/Select/job012/particles.star",
-                "output_file": f"{tmp_path}/Select/job013/particles_all.star",
-                "relion_options": relion_options,
-                "command": (
-                    f"combine_star_files {tmp_path}/Select/job013/particles_all.star "
-                    f"--output_dir {tmp_path}/Select/job013 --split --split_size 50000"
-                ),
-                "stdout": "",
-                "stderr": "",
-                "success": True,
-            },
-            "content": "dummy",
+            "alias": "Best_particles",
+            "job_type": "combine_star_files_job",
+            "input_file": f"{tmp_path}/Select/job012/particles.star",
+            "output_file": f"{tmp_path}/Select/job013/particles_all.star",
+            "relion_options": relion_options,
+            "command": (
+                f"combine_star_files {tmp_path}/Select/job013/particles_all.star "
+                f"--output_dir {tmp_path}/Select/job013 --split --split_size 50000"
+            ),
+            "stdout": "",
+            "stderr": "",
+            "success": True,
         },
     )
     offline_transport.send.assert_any_call(

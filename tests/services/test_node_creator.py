@@ -50,18 +50,15 @@ def setup_and_run_node_creation(
     output_file.parent.mkdir(parents=True, exist_ok=True)
     output_file.touch()
     test_message = {
-        "parameters": {
-            "job_type": job_type,
-            "input_file": str(input_file),
-            "output_file": str(output_file),
-            "relion_options": relion_options,
-            "command": "command",
-            "stdout": "stdout",
-            "stderr": "stderr",
-            "results": results,
-            "experiment_type": experiment_type,
-        },
-        "content": "dummy",
+        "job_type": job_type,
+        "input_file": str(input_file),
+        "output_file": str(output_file),
+        "relion_options": relion_options,
+        "command": "command",
+        "stdout": "stdout",
+        "stderr": "stderr",
+        "results": results,
+        "experiment_type": experiment_type,
     }
 
     # set up the mock service and send the message to it
@@ -108,17 +105,14 @@ def test_node_creator_failed_job(offline_transport, tmp_path):
     output_file.parent.mkdir(parents=True, exist_ok=True)
     output_file.touch()
     test_message = {
-        "parameters": {
-            "job_type": "relion.motioncorr.motioncor2",
-            "input_file": str(input_file),
-            "output_file": str(output_file),
-            "relion_options": relion_options,
-            "command": "command",
-            "stdout": "stdout",
-            "stderr": "stderr",
-            "success": False,
-        },
-        "content": "dummy",
+        "job_type": "relion.motioncorr.motioncor2",
+        "input_file": str(input_file),
+        "output_file": str(output_file),
+        "relion_options": relion_options,
+        "command": "command",
+        "stdout": "stdout",
+        "stderr": "stderr",
+        "success": False,
     }
 
     # set up the mock service and send the message to it
@@ -160,18 +154,15 @@ def test_node_creator_rerun_job(offline_transport, tmp_path):
     output_file.touch()
     (tmp_path / job_dir / "PIPELINER_JOB_EXIT_SUCCESS").touch()
     test_message = {
-        "parameters": {
-            "job_type": "relion.motioncorr.motioncor2",
-            "input_file": str(input_file),
-            "output_file": str(output_file),
-            "relion_options": relion_options,
-            "command": "command",
-            "stdout": "stdout",
-            "stderr": "stderr",
-            "success": True,
-            "results": {"total_motion": "10", "early_motion": "4", "late_motion": "6"},
-        },
-        "content": "dummy",
+        "job_type": "relion.motioncorr.motioncor2",
+        "input_file": str(input_file),
+        "output_file": str(output_file),
+        "relion_options": relion_options,
+        "command": "command",
+        "stdout": "stdout",
+        "stderr": "stderr",
+        "success": True,
+        "results": {"total_motion": "10", "early_motion": "4", "late_motion": "6"},
     }
 
     # set up the mock service and send the message to it

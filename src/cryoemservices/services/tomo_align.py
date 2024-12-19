@@ -169,11 +169,7 @@ class TomoAlign(CommonService):
         """Main function which interprets and processes received messages"""
         if not rw:
             self.log.info("Received a simple message")
-            if (
-                not isinstance(message, dict)
-                or not message.get("parameters")
-                or not message.get("content")
-            ):
+            if not isinstance(message, dict):
                 self.log.error("Rejected invalid simple message")
                 self._transport.nack(header)
                 return
@@ -181,8 +177,7 @@ class TomoAlign(CommonService):
             # Create a wrapper-like object that can be passed to functions
             # as if a recipe wrapper was present.
             rw = MockRW(self._transport)
-            rw.recipe_step = {"parameters": message["parameters"]}
-            message = message["content"]
+            rw.recipe_step = {"parameters": message}
 
         try:
             if isinstance(message, dict):
@@ -324,13 +319,7 @@ class TomoAlign(CommonService):
             node_creator_parameters["success"] = False
         else:
             node_creator_parameters["success"] = True
-        if isinstance(rw, MockRW):
-            rw.transport.send(
-                destination="node_creator",
-                message={"parameters": node_creator_parameters, "content": "dummy"},
-            )
-        else:
-            rw.send_to("node_creator", node_creator_parameters)
+        rw.send_to("node_creator", node_creator_parameters)
 
         # Stop here if the job failed
         if aretomo_result.returncode or not aretomo_output_path.is_file():
@@ -339,16 +328,10 @@ class TomoAlign(CommonService):
                 + aretomo_result.stderr.decode("utf8", "replace")
             )
             # Update failure processing status
-            if isinstance(rw, MockRW):
-                rw.transport.send(
-                    destination="failure",
-                    message="",
-                )
-            else:
-                rw.send_to(
-                    "failure",
-                    "",
-                )
+            rw.send_to(
+                "failure",
+                "",
+            )
             rw.transport.nack(header)
             return
 
@@ -522,120 +505,62 @@ class TomoAlign(CommonService):
                     return
 
         for tilt_params in node_creator_params_list:
-            if isinstance(rw, MockRW):
-                rw.transport.send(
-                    destination="node_creator",
-                    message={"parameters": tilt_params, "content": "dummy"},
-                )
-            else:
-                rw.send_to("node_creator", tilt_params)
+            rw.send_to("node_creator", tilt_params)
 
         ispyb_parameters = {
             "ispyb_command": "multipart_message",
             "ispyb_command_list": ispyb_command_list,
         }
         self.log.info(f"Sending to ispyb {ispyb_parameters}")
-        if isinstance(rw, MockRW):
-            rw.transport.send(
-                destination="ispyb_connector",
-                message={
-                    "parameters": ispyb_parameters,
-                    "content": {"dummy": "dummy"},
-                },
-            )
-        else:
-            rw.send_to("ispyb_connector", ispyb_parameters)
+        rw.send_to("ispyb_connector", ispyb_parameters)
 
         # Forward results to images service
         self.log.info(f"Sending to images service {aretomo_output_path}")
-        if isinstance(rw, MockRW):
-            rw.transport.send(
-                destination="images",
-                message={
-                    "image_command": "mrc_central_slice",
-                    "file": str(aretomo_output_path),
-                },
-            )
-            rw.transport.send(
-                destination="images",
-                message={
-                    "image_command": "mrc_to_apng",
-                    "file": str(aretomo_output_path),
-                },
-            )
-        else:
-            rw.send_to(
-                "images",
-                {
-                    "image_command": "mrc_central_slice",
-                    "file": str(aretomo_output_path),
-                },
-            )
-            rw.send_to(
-                "images",
-                {
-                    "image_command": "mrc_to_apng",
-                    "file": str(aretomo_output_path),
-                },
-            )
+        rw.send_to(
+            "images",
+            {
+                "image_command": "mrc_central_slice",
+                "file": str(aretomo_output_path),
+            },
+        )
+        rw.send_to(
+            "images",
+            {
+                "image_command": "mrc_to_apng",
+                "file": str(aretomo_output_path),
+            },
+        )
 
         xy_input = self.alignment_output_dir / Path(xy_proj_file).with_suffix(".mrc")
         xz_input = self.alignment_output_dir / Path(xz_proj_file).with_suffix(".mrc")
         self.log.info(f"Sending to images service {xy_input}, {xz_input}")
         for projection_mrc in [xy_input, xz_input]:
-            if isinstance(rw, MockRW):
-                rw.transport.send(
-                    destination="images",
-                    message={
-                        "image_command": "mrc_to_jpeg",
-                        "file": str(projection_mrc),
-                    },
-                )
-            else:
-                rw.send_to(
-                    "images",
-                    {
-                        "image_command": "mrc_to_jpeg",
-                        "file": str(projection_mrc),
-                    },
-                )
+            rw.send_to(
+                "images",
+                {
+                    "image_command": "mrc_to_jpeg",
+                    "file": str(projection_mrc),
+                },
+            )
 
         # Forward results to denoise service
         self.log.info(f"Sending to denoise service {aretomo_output_path}")
-        if isinstance(rw, MockRW):
-            rw.transport.send(
-                destination="denoise",
-                message={
-                    "volume": str(aretomo_output_path),
-                    "output_dir": str(
-                        project_dir / f"Denoise/job{job_number+1:03}/tomograms"
-                    ),
-                    "relion_options": dict(tomo_params.relion_options),
-                },
-            )
-        else:
-            rw.send_to(
-                "denoise",
-                {
-                    "volume": str(aretomo_output_path),
-                    "output_dir": str(
-                        project_dir / f"Denoise/job{job_number+1:03}/tomograms"
-                    ),
-                    "relion_options": dict(tomo_params.relion_options),
-                },
-            )
+        rw.send_to(
+            "denoise",
+            {
+                "volume": str(aretomo_output_path),
+                "output_dir": str(
+                    project_dir / f"Denoise/job{job_number+1:03}/tomograms"
+                ),
+                "relion_options": dict(tomo_params.relion_options),
+            },
+        )
 
         # Update success processing status
-        if isinstance(rw, MockRW):
-            rw.transport.send(
-                destination="success",
-                message="",
-            )
-        else:
-            rw.send_to(
-                "success",
-                "",
-            )
+        rw.send_to(
+            "success",
+            "",
+        )
         self.log.info(f"Done tomogram alignment for {tomo_params.stack_file}")
         rw.transport.ack(header)
 
