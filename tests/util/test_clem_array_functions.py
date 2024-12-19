@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-# import itertools
 from typing import Any, Optional
 
 import numpy as np
@@ -8,6 +7,8 @@ import pytest
 
 from cryoemservices.util.clem_array_functions import (
     LUT,
+    align_image_to_reference,
+    align_image_to_self,
     convert_array_dtype,
     convert_to_rgb,
     estimate_int_dtype,
@@ -512,6 +513,186 @@ def test_stretch_image_contrast_fails(test_params: tuple[str, Optional[str]]):
             stretch_image_contrast(arr)
         else:
             stretch_image_contrast(arr, target_dtype=target_dtype)
+
+
+self_alignment_test_matrix = (
+    # No. frames | x-offset | y-offset | Alignment starting point | dtype
+    # Test uint8 arrays
+    (10, 1, 1, "beginning", "uint8"),
+    (10, 1, 1, "middle", "uint8"),
+    (10, 1, 1, "end", "uint8"),
+    (10, 2, 2, "beginning", "uint8"),
+    (10, 2, 2, "middle", "uint8"),
+    (10, 2, 2, "end", "uint8"),
+    (10, -1, -1, "beginning", "uint8"),
+    (10, -1, -1, "middle", "uint8"),
+    (10, -1, -1, "end", "uint8"),
+    (10, -2, -2, "beginning", "uint8"),
+    (10, -2, -2, "middle", "uint8"),
+    (10, -2, -2, "end", "uint8"),
+    # Test float arrays
+    (10, 1, 1, "beginning", "float64"),
+    (10, 1, 1, "middle", "float64"),
+    (10, 1, 1, "end", "float64"),
+    (10, 2, 2, "beginning", "float64"),
+    (10, 2, 2, "middle", "float64"),
+    (10, 2, 2, "end", "float64"),
+    (10, -2, 2, "beginning", "float64"),
+    (10, -2, 2, "middle", "float64"),
+    (10, -2, 2, "end", "float64"),
+    (10, 1, -2, "beginning", "float64"),
+    (10, 1, -2, "middle", "float64"),
+    (10, 1, -2, "end", "float64"),
+)
+
+
+@pytest.mark.parametrize("test_params", self_alignment_test_matrix)
+def test_align_image_to_self(test_params: tuple[int, int, int, str, str]):
+
+    # Unpack test params
+    frames, x_offset, y_offset, start_point, dtype = test_params
+
+    # Create a reference image stack with offset bright spots
+    array = np.zeros((frames, 64, 64), dtype=dtype)
+
+    # Add 3(?) bright spots per frame at different offsets
+    for f in range(frames):
+        array[f][24 + (y_offset * f)][24 + (x_offset * f)] = 255
+        array[f][32 + (y_offset * f)][36 + (x_offset * f)] = 255
+        array[f][36 + (y_offset * f)][24 + (x_offset * f)] = 255
+
+    # Align the frames in the stack
+    aligned = align_image_to_self(array=array, start_from=start_point)
+
+    # Assert that bright spots are aligned throughout the stack
+    for f in range(frames):
+        if f == 0:
+            continue
+        np.testing.assert_allclose(
+            aligned[f - 1],
+            aligned[f],
+            rtol=1,
+            atol=5,
+            # Absolute intensities can change by quite a bit during alignment
+        )
+
+
+cross_alignment_test_matrix = (
+    # x-offset | y-offset | dtype
+    (1, 1, "uint8"),
+    (2, 2, "uint8"),
+    (-1, 1, "uint8"),
+    (-2, 2, "uint8"),
+    (-1, 1, "float64"),
+    (-2, 2, "float64"),
+    (-1, -1, "float64"),
+    (-2, -2, "float64"),
+)
+
+
+@pytest.mark.parametrize("test_params", cross_alignment_test_matrix)
+def test_align_image_to_reference(test_params: tuple[int, int, str]):
+
+    def gaussian_2d(
+        shape: tuple[int, int],
+        amplitude: float,
+        centre: tuple[int, int],
+        sigma: tuple[float, float],
+        theta: float,
+        offset: float,
+    ):
+        x0, y0 = centre
+        sig_x, sig_y = sigma
+
+        # Create meshgrid
+        rows, cols = shape
+        y, x = np.meshgrid(np.arange(cols), np.arange(rows), indexing="ij")
+
+        x_rot: np.ndarray = (x - x0) * np.cos(np.deg2rad(theta)) + (y - y0) * np.sin(
+            np.deg2rad(theta)
+        )
+        y_rot: np.ndarray = (y - y0) * np.cos(np.deg2rad(theta)) - (x - x0) * np.sin(
+            np.deg2rad(theta)
+        )
+
+        # Compute and return Gaussian
+        gaussian = (
+            amplitude
+            * np.exp(-(x_rot**2 / (2 * sig_x**2)) - (y_rot**2 / (2 * sig_y**2)))
+            + offset
+        )
+
+        return gaussian
+
+    # Unpack test params
+    x_offset, y_offset, dtype = test_params
+
+    n_frames = 5
+    shape = (64, 64)
+    ref = np.zeros((n_frames, *shape), dtype=dtype)
+    mov = np.zeros((n_frames, *shape), dtype=dtype)
+
+    for f in range(n_frames):
+        # Add bright spots
+        # ref[f][24][24] = 255
+        # ref[f][36][48] = 255
+        # ref[f][48][36] = 255
+
+        # Add bright spots with offset
+        # mov[f][24 + y_offset][24 + x_offset] = 255
+        # mov[f][36 + y_offset][48 + x_offset] = 255
+        # mov[f][48 + y_offset][36 + x_offset] = 255
+
+        # Add 2(?) Gaussian peaks to arrays
+        ref[f] += (
+            gaussian_2d(
+                shape,
+                200,
+                (24, 24),
+                (2, 4),
+                30,
+                0,
+            )
+            + gaussian_2d(
+                shape,
+                150,
+                (48, 48),
+                (6, 2),
+                45,
+                0,
+            )
+        ).astype(dtype)
+
+        mov[f] += (
+            gaussian_2d(
+                shape,
+                200,
+                (24 + x_offset, 24 + y_offset),
+                (2, 4),
+                30,
+                0,
+            )
+            + gaussian_2d(
+                shape,
+                150,
+                (48 + x_offset, 48 + y_offset),
+                (6, 2),
+                45,
+                0,
+            )
+        ).astype(dtype)
+
+    # Align moving image to reference
+    reg = align_image_to_reference(ref, mov)
+
+    # Assert that bright spots are aligned
+    np.testing.assert_allclose(
+        ref,
+        reg,
+        rtol=1,
+        atol=5,
+        # Absolute intensities can change by quite a bit during alignment
+    )
 
 
 image_coloring_test_matrix = (

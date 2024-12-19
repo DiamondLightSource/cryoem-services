@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import logging
 from ast import literal_eval
+from multiprocessing import Pool
 from pathlib import Path
 from typing import Any, Literal, Optional
 from xml.etree import ElementTree as ET
@@ -24,6 +25,8 @@ from tifffile import TiffFile, imwrite
 from zocalo.wrapper import BaseWrapper
 
 from cryoemservices.util.clem_array_functions import (
+    align_image_to_reference,
+    align_image_to_self,
     convert_to_rgb,
     flatten_image,
     merge_images,
@@ -37,22 +40,24 @@ logger = logging.getLogger("cryoemservices.wrappers.clem_align_and_merge")
 def align_and_merge_stacks(
     images: Path | list[Path],
     metadata: Optional[Path] = None,
-    align_self: Optional[str] = None,
-    flatten: Optional[Literal["min", "max", "mean"]] = "mean",
-    align_across: Optional[str] = None,
+    crop_to_n_frames: Optional[int] = None,
+    align_self: Literal["enabled", ""] = "",
+    flatten: Optional[Literal["min", "max", "mean", ""]] = "mean",
+    align_across: Literal["enabled", ""] = "",
     # Print messages only if run as a CLI
     print_messages: bool = False,
     debug: bool = False,
 ) -> dict[str, Any]:
     """
-    A cryoEM service (eventually) to create composite images from component image
-    stacks in the series.
+    A cryoemservices wrapper to create composite images from component image stack in
+    the series.
 
     This will (eventually) take a message (JSON dictionary) containing the image stack
     and metadata files associated with an image series, along with settings for how
     the stacks should be processed (a flattened 2D image or a 3D image stack).
 
     The order of processing will be as follows:
+    - Crop image stacks to the middle n frames
     - Align the images within a stack
     - Flatten the stack (depends on whether a 2D or 3D composite image is needed)
     - Align image stacks for a given position to one another
@@ -61,33 +66,54 @@ def align_and_merge_stacks(
     """
 
     # Validate inputs before proceeding further
-    if flatten is not None and flatten not in ("min", "max", "mean"):
-        logger.error("Incorrect value provided for 'flatten' parameter")
-        raise ValueError
+    if crop_to_n_frames is not None and not isinstance(crop_to_n_frames, int):
+        message = "Incorrect value provided for 'crop_to_n_frames' parameter"
+        logger.error(message)
+        raise ValueError(message)
+
+    if align_self not in ("enabled", ""):
+        message = "Incorrect value provided for 'align_self' parameter"
+        logger.error(message)
+        raise ValueError(message)
+
+    if flatten not in ("mean", "min", "max", ""):
+        message = "Incorrect value provided for 'flatten' parameter"
+        logger.error(message)
+        raise ValueError(message)
+
+    if align_across not in ("enabled", ""):
+        message = "Incorrect value provided for 'align_across' parameter"
+        logger.error(message)
+        raise ValueError(message)
 
     # Use shorter inputs in function
     files = images
 
     # Turn single entry into a list
-    if isinstance(files, Path):
+    if isinstance(files, (Path, str)):
         files = [files]
+
     # Check that a value has been provided
     if len(files) == 0:
         logger.error("No image stack file paths have been provided")
         raise ValueError
 
+    # Convert to Path object if a string was provided
+    files = [Path(file) if isinstance(file, str) else file for file in files]
+
     # Check that files have the same parent directories
     if len({file.parents[0] for file in files}) > 1:
-        raise Exception(
+        logger.error(
             "The files provided come from different directories, and might not "
             "be part of the same series"
         )
+        raise ValueError
+
     # Get parent directory
     parent_dir = list({file.parents[0] for file in files})[0]
     # Validate parent directory
-    ## TO DO
     if print_messages is True:
-        print(f"Setting {parent_dir!r} as the working directory")
+        print(f"Setting {str(parent_dir)!r} as the working directory")
 
     # Find metadata file if none was provided
     if metadata is None:
@@ -104,7 +130,7 @@ def align_and_merge_stacks(
         # Load metadata file
         metadata = list((parent_dir / "metadata").glob("*.xml"))[0]
         if print_messages is True:
-            print(f"Using metadata from {metadata!r}")
+            print(f"Using metadata from {str(metadata)!r}")
 
     # Load metadata for series from XML file
     xml_metadata: ET.ElementTree = parse(metadata).getroot()
@@ -116,45 +142,111 @@ def align_and_merge_stacks(
     colors: list[str] = [
         channels[c].attrib["LUTName"].lower() for c in range(len(channels))
     ]
+    # Use grey image as reference and put that first in the list
+    # If a grey image is not present, the first image will be used as reference
+    colors = sorted(
+        colors, key=lambda c: (0, c) if c.lower() in ("gray", "grey") else (1, c)
+    )
     if print_messages is True:
         print("Loaded metadata from file")
 
     # Load image stacks according to their order in the XML file
     arrays: list[np.ndarray] = []
+
+    # ImageJ metadata to load and pass on
+    resolution_list: list[tuple[float, float]] = []
+    spacing_list: list[float] = []
+    units_list: list[str] = []
+    colors_to_process: list[str] = []
     for c in range(len(colors)):
         color = colors[c]
         file_search = [file for file in files if color in file.stem]
         # Handle exceptions in search results
         if len(file_search) == 0:
-            logger.error("No files provided that match this colour")
-            raise FileNotFoundError
+            logger.info(f"No file provided for {color!r} channel; omitting it")
+            continue
         if len(file_search) > 1:
             logger.error("More than one file provided that matches this colour")
             raise Exception
         file = file_search[0]
 
         with TiffFile(file) as tiff_file:
-
             # Check that there aren't multiple series in the image stack
             if len(tiff_file.series) > 1:
                 raise ValueError(
                     "The image stack provided contains more than one series"
                 )
 
-            # Load array and apend it to stack
-            arrays.append(tiff_file.series[0].pages.asarray())
+            # Load array
+            array = tiff_file.series[0].pages.asarray()
+
+            # Crop array to middle n frames if selected and a stack is provided
+            if (
+                not len(array.shape) < 3  # 2D grayscale image
+                or not (
+                    len(array.shape) == 3  # 2D RGB/RGBA image
+                    and array.shape[-1] in (3, 4)
+                )
+            ) and isinstance(crop_to_n_frames, int):
+                m = len(array) // 2
+                n1 = crop_to_n_frames // 2
+                n2 = n1 + 1 if crop_to_n_frames % 2 == 1 else n1
+                f1 = m - n1 if (m - n1) >= 0 else 0
+                f2 = m + n2 if (m + n2) <= len(array) else len(array)
+                array = array[f1:f2]
+                logger.debug(
+                    f"Image stack cropped to central {crop_to_n_frames} frames"
+                )
+
+            # Append array and its corresponding colour
+            arrays.append(array)
+            colors_to_process.append(color)
             if print_messages is True:
-                print(f"Loaded {file!r}")
+                print(f"Loaded {str(file)!r}")
+
+            # Load and append ImageJ metadata
+            ij_metadata = tiff_file.imagej_metadata
+
+            resolution_list.append(tiff_file.series[0][0].resolution)
+            spacing_list.append(ij_metadata.get("spacing", float(0)))
+            units_list.append(ij_metadata.get("unit", ""))
+
+    # Use shortened list for subsequent processing
+    if len(colors_to_process) == 0:
+        raise ValueError(
+            "No files corresponded to the colour channels present in this series"
+        )
+    colors = colors_to_process
+
+    # Add file name component to describe type of composite image being generated
+    img_type = (
+        "BF_FL"  # Bright field + fluorescent
+        if any(color in colors for color in ("gray", "grey"))
+        else "FL"  # Fluorescent only
+    )
+
+    # Check that images have the same pixel calibration
+    if len(set(resolution_list)) > 1:
+        logger.error("The image stacks provided do not have the same resolution")
+        raise ValueError
+
+    if len(set(spacing_list)) > 1:
+        logger.error("The image stacks provided do not have the same z-spacing")
+        raise ValueError
+
+    if len(set(units_list)) > 1:
+        logger.error("The image stacks provided do not have the same units")
+        raise ValueError
 
     # Validate that the stacks provided are of the same shape
     if len({arr.shape for arr in arrays}) > 1:
         logger.error("The image stacks provided do not have the same shape")
-        raise Exception
+        raise ValueError
 
     # Get the dtype of the image
     if len({str(arr.dtype) for arr in arrays}) > 1:
-        logger.error("The image stacks do not have the same dtype")
-        raise Exception
+        logger.error("The image stacks provided do not have the same dtype")
+        raise ValueError
 
     # Debug
     if debug and print_messages:
@@ -174,22 +266,32 @@ def align_and_merge_stacks(
     )
 
     # Align frames within each image stack
-    #    TO DO
-    #    NOTE: This could potentially be a separate cluster submission job.
-    #    Image alignment could potentially take a while, which is not ideal
-    #    for a container service.
+    if align_self:
+        if print_messages is True:
+            print("Correcting for drift in images...")
+        with Pool(len(arrays)) as pool:
+            arrays = pool.starmap(
+                align_image_to_self,
+                [(arr, "middle") for arr in arrays],
+            )
+        if print_messages is True:
+            print(" Done")
 
     # Flatten images if the option is selected
-    if flatten is not None:
+    if flatten:
         if print_messages is True:
             print("Flattening image stacks...")
-        arrays = [flatten_image(arr, mode=flatten) for arr in arrays]
+        with Pool(len(arrays)) as pool:
+            arrays = pool.starmap(
+                flatten_image,
+                [(arr, flatten) for arr in arrays],
+            )
         # Validate that image flattening was done correctly
         if len({arr.shape for arr in arrays}) > 1:
             logger.error("The flattened arrays do not have the same shape")
-            raise Exception
+            raise ValueError
         if print_messages is True:
-            print("Done")
+            print(" Done")
 
         # # Debug
         if debug and print_messages:
@@ -209,34 +311,44 @@ def align_and_merge_stacks(
         )
 
     # Align other stacks to reference stack
-    ## TO DO
-    ## NOTE: This could also potentially be a separate cluster submission job
-    ## as well due to how long image alignment could take
-    ## NOTE: Having this step after the flattening step could potentially save on compute
-    ## if only 2D images are required
+    if align_across:
+        if print_messages is True:
+            print("Aligning images to reference image...")
+        reference = arrays[0]  # First image in list is the reference image
+        to_align = arrays[1:]
+        with Pool(len(to_align)) as pool:
+            aligned = pool.starmap(
+                align_image_to_reference, [(reference, moving) for moving in to_align]
+            )
+        arrays = [reference, *aligned]
+        if print_messages is True:
+            print(" Done")
 
     # Colourise images
     if print_messages is True:
         print("Converting images from grayscale to RGB...")
-    arrays = [convert_to_rgb(arrays[c], colors[c]) for c in range(len(colors))]
+    with Pool(len(arrays)) as pool:
+        arrays = pool.starmap(
+            convert_to_rgb, [(arrays[c], colors[c]) for c in range(len(colors))]
+        )
     if print_messages is True:
-        print("Done")
+        print(" Done")
 
-    # # Debug
+    # Debug
     if debug and print_messages:
         print(
             "Properties of array after colourising: \n",
-            f"Shape: {arrays[0].shape} \n",
-            f"dtype: {arrays[0].dtype} \n",
-            f"Min: {np.min(arrays)} \n",
-            f"Max: {np.max(arrays)} \n",
+            f"Shape: {[arr.shape for arr in arrays]} \n",
+            f"dtype: {[arr.dtype for arr in arrays]} \n",
+            f"Min: {[np.min(arr) for arr in arrays]} \n",
+            f"Max: {[np.max(arr) for arr in arrays]} \n",
         )
     logger.debug(
         "Properties of array after colourising: \n",
-        f"Shape: {arrays[0].shape} \n",
-        f"dtype: {arrays[0].dtype} \n",
-        f"Min: {np.min(arrays)} \n",
-        f"Max: {np.max(arrays)} \n",
+        f"Shape: {[arr.shape for arr in arrays]} \n",
+        f"dtype: {[arr.dtype for arr in arrays]} \n",
+        f"Min: {[np.min(arr) for arr in arrays]} \n",
+        f"Max: {[np.max(arr) for arr in arrays]} \n",
     )
 
     # Convert to a composite image
@@ -244,7 +356,7 @@ def align_and_merge_stacks(
         print("Creating a composite image...")
     composite_img = merge_images(arrays)
     if print_messages is True:
-        print("Done")
+        print(" Done")
 
     # # Debug
     if debug and print_messages:
@@ -271,7 +383,7 @@ def align_and_merge_stacks(
         percentile_range=(0, 100),
     )
     if print_messages is True:
-        print("Done")
+        print(" Done")
 
     # Debug
     if debug and print_messages:
@@ -289,31 +401,34 @@ def align_and_merge_stacks(
         f"Min: {np.min(composite_img)} \n",
         f"Max: {np.max(composite_img)} \n",
     )
-    # Save the image to a TIFF file
+
+    # Prepare to save image as a TIFF file
     if print_messages is True:
         print("Saving composite image...")
 
     # Set up metadata properties
     final_shape = composite_img.shape
-    units = "micron"
+    resolution = resolution_list[0]
+    units = units_list[0]
     extended_metadata = ""
     # image_labels = None
 
-    if flatten is None:
-        axes = "ZYXS"
-        z_size = 1
-    else:
+    if flatten:
         axes = "YXS"
         z_size = None
+    else:
+        axes = "ZYXS"
+        z_size = spacing_list[0]
 
-    save_name = parent_dir / "composite.tiff"
+    # Save image as a TIFF file
+    save_name = parent_dir / f"composite_{img_type}.tiff"
     imwrite(
         save_name,
         composite_img,
         # Array properties
         shape=final_shape,
         dtype=str(composite_img.dtype),
-        resolution=None,
+        resolution=resolution,
         resolutionunit=None,
         # Colour properties
         photometric="rgb",
@@ -332,7 +447,7 @@ def align_and_merge_stacks(
         },
     )
     if print_messages is True:
-        print(f"Composite image saved as {save_name}")
+        print(f"Composite image saved as {str(save_name)!r}")
 
     # Collect and return parameters and result
     result: dict[str, Any] = {
@@ -349,9 +464,10 @@ class AlignAndMergeParameters(BaseModel):
     series_name: str
     images: Path | list[Path]
     metadata: Optional[Path] = Field(default=None)
-    align_self: Optional[str] = Field(default=None)
-    flatten: Optional[Literal["min", "max", "mean"]] = Field(default="mean")
-    align_across: Optional[str] = Field(default=None)
+    crop_to_n_frames: Optional[int] = Field(default=None)
+    align_self: Literal["enabled", ""] = Field(default="")
+    flatten: Literal["mean", "min", "max", ""] = Field(default="mean")
+    align_across: Literal["enabled", ""] = Field(default="")
 
     @field_validator("images", mode="before")
     def parse_images(cls, value):
@@ -378,12 +494,12 @@ class AlignAndMergeParameters(BaseModel):
             model.images = [model.images]
         return model
 
-    @field_validator("align_self", "flatten", "align_across", mode="before")
-    def parse_for_null(cls, value):
+    @field_validator("crop_to_n_frames", mode="before")
+    def parse_for_None(cls, value):
         """
-        Convert incoming "null" keyword into None.
+        Convert incoming "None" into None.
         """
-        if value == "null":
+        if value == "None":
             return None
         return value
 
@@ -413,6 +529,7 @@ class AlignAndMergeWrapper(BaseWrapper):
         result = align_and_merge_stacks(
             images=params.images,
             metadata=params.metadata,
+            crop_to_n_frames=params.crop_to_n_frames,
             align_self=params.align_self,
             flatten=params.flatten,
             align_across=params.align_across,
