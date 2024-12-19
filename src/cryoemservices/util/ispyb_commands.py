@@ -36,7 +36,10 @@ def multipart_message(
             f"Multipart command {current_command} does not have a valid ispyb_command"
         )
         return False
-    logger.info(f"Processing step {step} of multipart message ({current_command}) ")
+    logger.info(
+        f"Processing step {step} of multipart message ({current_command}) "
+        f"with {len(commands)-1} further steps",
+    )
 
     # Create a parameter lookup function specific to this step
     def step_parameters(parameter):
@@ -695,16 +698,24 @@ def update_processing_status(
 
     ppid = full_parameters("program_id")
     status_message = full_parameters("status_message")
+
+    completion_status = {"success": 1, "failure": 0}.get(full_parameters("status"))
     try:
-        values = models.AutoProcProgram(
-            autoProcProgramId=ppid,
-            processingStatus={"success": 1, "failure": 0}.get(
-                full_parameters("status")
-            ),
-            processingMessage=status_message,
-            processingStartTime=full_parameters("start_time"),
-            processingEndTime=full_parameters("update_time"),
-        )
+        if completion_status is None:
+            # Messages without a completion status update the processing start time
+            values = models.AutoProcProgram(
+                autoProcProgramId=ppid,
+                processingMessage=status_message,
+                processingStartTime=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            )
+        else:
+            # For "success" and "failure" messages update the processing end time
+            values = models.AutoProcProgram(
+                autoProcProgramId=ppid,
+                processingStatus=completion_status,
+                processingMessage=status_message,
+                processingEndTime=datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            )
         # This is an update call, want it to throw an error if the row isn't present
         session.query(models.AutoProcProgram).filter(
             models.AutoProcProgram.autoProcProgramId == values.autoProcProgramId,

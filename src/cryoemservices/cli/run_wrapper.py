@@ -78,22 +78,25 @@ def run():
         recwrap = RecipeWrapper(message=json.load(fh), transport=transport)
     instance.set_recipe_wrapper(recwrap)
 
-    instance.prepare("Starting processing")
+    instance.prepare({"status_message": "Starting processing"})
     log.info("Setup complete, starting processing")
-
     try:
         if instance.run():
             log.info("Successfully finished processing")
-            instance.success("Finished processing")
+            instance.success(
+                {"status_message": "Finished processing", "status": "success"}
+            )
         else:
             log.info("Processing failed")
-            instance.failure("Processing failed")
+            instance.failure(
+                {"status_message": "Processing failed", "status": "failure"}
+            )
     except KeyboardInterrupt:
         log.info("Shutdown via Ctrl+C")
     except Exception as e:
         log.error(str(e), exc_info=True)
-        instance.failure(e)
-
-    instance.done("Finished processing")
-    log.info("Terminating")
+        instance.failure(
+            {"status_message": "Exception in processing", "status": "failure"}
+        )
+    log.info("Wrapper terminating")
     transport.disconnect()

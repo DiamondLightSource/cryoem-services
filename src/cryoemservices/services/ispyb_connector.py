@@ -72,6 +72,8 @@ class EMISPyB(CommonService):
         if not message:
             # Message must be a dictionary, but at this point it could be None or ""
             message = {}
+        elif type(message) is str:
+            message = {"status_message": message}
 
         def parameters(parameter):
             if message.get(parameter):
