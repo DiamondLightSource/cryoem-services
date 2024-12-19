@@ -47,7 +47,7 @@ cryolo:
   command: cryoemservices.service -s CrYOLO -c /cryoemservices/config/cryoemservices_config.yaml
   cpuRequest: "0.5"
   cpuLimit: "1"
-  memoryLimit: 4Gi
+  memoryLimit: 6Gi
   scaleOnQueueLength: true
   queueLengthTrigger: "5"
   minReplicaCount: 0
@@ -73,9 +73,6 @@ denoise:
   cpuLimit: "1"
   memoryLimit: 15Gi
   scaleOnQueueLength: false
-  queueLengthTrigger: "1"
-  minReplicaCount: 0
-  maxReplicaCount: 2
 
 denoise_slurm:
   denoisingSIF: topaz.sif
@@ -98,8 +95,8 @@ extract:
   cpuLimit: "1"
   memoryLimit: 4Gi
   scaleOnQueueLength: true
-  queueLengthTrigger: "10"
-  minReplicaCount: 0
+  queueLengthTrigger: "5"
+  minReplicaCount: 1
   maxReplicaCount: 4
 
 extract_class:
@@ -127,7 +124,7 @@ icebreaker:
   maxReplicaCount: 4
 
 images:
-  replicas: 2
+  replicas: 1
   image: gcr.io/image/path
   command: cryoemservices.service -s Images -c /cryoemservices/config/cryoemservices_config.yaml
   cpuRequest: "0.25"
@@ -147,7 +144,7 @@ ispyb_connector:
   memoryLimit: 256Mi
   scaleOnQueueLength: true
   queueLengthTrigger: "10"
-  minReplicaCount: 0
+  minReplicaCount: 1
   maxReplicaCount: 4
 
 membrain_seg:
@@ -169,7 +166,7 @@ motioncorr:
   command: cryoemservices.service -s MotionCorr -c /cryoemservices/config/cryoemservices_config.yaml
   cpuRequest: "4"
   cpuLimit: "4"
-  memoryLimit: 15Gi
+  memoryLimit: 12Gi
   scaleOnQueueLength: true
   queueLengthTrigger: "5"
   minReplicaCount: 0
@@ -182,7 +179,10 @@ node_creator:
   cpuRequest: "0.25"
   cpuLimit: "1"
   memoryLimit: 4Gi
-  scaleOnQueueLength: false
+  scaleOnQueueLength: true
+  queueLengthTrigger: "10"
+  minReplicaCount: 0
+  maxReplicaCount: 1
 
 postprocess:
   replicas: 1
@@ -232,9 +232,6 @@ tomo_align:
   command: cryoemservices.service -s TomoAlign -c /cryoemservices/config/cryoemservices_config.yaml
   memoryLimit: 20Gi
   scaleOnQueueLength: false
-  queueLengthTrigger: "1"
-  minReplicaCount: 0
-  maxReplicaCount: 2
 
 tomo_align_slurm:
   aretomoExectable: /path/to/AreTomo2
@@ -246,6 +243,6 @@ tomo_align_slurm:
   cpuLimit: "1"
   memoryLimit: 4Gi
   scaleOnQueueLength: true
-  queueLengthTrigger: "1"
+  queueLengthTrigger: "2"
   minReplicaCount: 0
-  maxReplicaCount: 2
+  maxReplicaCount: 3
