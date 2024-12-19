@@ -130,7 +130,11 @@ def run():
         [print(file) for file in image_files]
 
     # Convert metadata argument into a Path
-    metadata = Path(args.metadata) if isinstance(args.metadata, str) else args.metadata
+    metadata = (
+        (Path(args.metadata) if args.metadata else None)
+        if isinstance(args.metadata, str)
+        else args.metadata
+    )
 
     """
     Run function
