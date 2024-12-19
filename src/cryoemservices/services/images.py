@@ -1,21 +1,16 @@
 from __future__ import annotations
 
-import time
-from typing import Any, Callable, Dict, NamedTuple, Protocol
+from importlib.metadata import entry_points
+from typing import Any, Callable, NamedTuple
 
 import workflows.recipe
-from importlib_metadata import entry_points
 from workflows.services.common_service import CommonService
-
-
-class _CallableParameter(Protocol):
-    def __call__(self, key: str, default: Any = ...) -> Any: ...
 
 
 class PluginInterface(NamedTuple):
     rw: workflows.recipe.wrapper.RecipeWrapper
-    parameters: _CallableParameter
-    message: Dict[str, Any]
+    parameters: Callable
+    message: dict[str, Any]
 
 
 class Images(CommonService):
@@ -25,8 +20,6 @@ class Images(CommonService):
     'cryoemservices.services.images.plugins'. The contract is that a plugin function
     takes a single argument of type PluginInterface, and returns a truthy value
     to acknowledge success, and a falsy value to reject the related message.
-    If a falsy value is returned that is not False then, additionally, an error
-    is logged.
     Functions may choose to return a list of files that were generated, but
     this is optional at this time.
     """
@@ -64,10 +57,10 @@ class Images(CommonService):
     def image_call(self, rw, header, message):
         """Pass incoming message to the relevant plugin function."""
 
-        def parameters(key: str, default=None):
+        def parameters(key: str):
             if isinstance(message, dict) and message.get(key):
                 return message[key]
-            return rw.recipe_step.get("parameters", {}).get(key, default)
+            return rw.recipe_step.get("parameters", {}).get(key)
 
         command = parameters("image_command")
         if command not in self.image_functions:
@@ -75,7 +68,6 @@ class Images(CommonService):
             rw.transport.nack(header)
             return
 
-        start = time.perf_counter()
         try:
             result = self.image_functions[command](
                 PluginInterface(rw, parameters, message)
@@ -84,18 +76,10 @@ class Images(CommonService):
             self.log.error(f"Command {command!r} raised {e}", exc_info=True)
             rw.transport.nack(header)
             return
-        runtime = time.perf_counter() - start
 
         if result:
-            self.log.info(f"Command {command!r} completed in {runtime:.1f} seconds")
+            self.log.info(f"Command {command!r} completed")
             rw.transport.ack(header)
-        elif result is False:
-            # The assumption here is that if a function returns explicit
-            # 'False' then it has already taken care of logging, so we
-            # don't need yet another log record.
-            rw.transport.nack(header)
         else:
-            self.log.error(
-                f"Command {command!r} returned {result!r} after {runtime:.1f} seconds"
-            )
+            self.log.error(f"Command {command!r} returned {result!r}")
             rw.transport.nack(header)

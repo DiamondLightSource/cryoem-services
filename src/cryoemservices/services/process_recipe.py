@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import uuid
+from importlib.metadata import entry_points
 from pathlib import Path
 
 import workflows.recipe
-from backports.entry_points_selectable import entry_points
 from workflows.services.common_service import CommonService
 
 from cryoemservices.util.config import ServiceConfig, config_from_file

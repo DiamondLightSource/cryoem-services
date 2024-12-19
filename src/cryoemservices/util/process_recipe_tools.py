@@ -1,224 +1,145 @@
 from __future__ import annotations
 
-import decimal
 import logging
-import os
-import re
 import uuid
+from pathlib import Path
+from typing import Tuple
 
 import ispyb.sqlalchemy as models
-import marshmallow.fields
-import sqlalchemy
-from marshmallow_sqlalchemy import SQLAlchemyAutoSchema
-from sqlalchemy.orm import selectinload, sessionmaker
+from sqlalchemy import create_engine, select
+from sqlalchemy.orm import Session, sessionmaker
 
 from cryoemservices.util.config import ServiceConfig
 
 logger = logging.getLogger("cryoemservices.services.process_recipe_tools")
 
-re_visit_base = re.compile(r"^(.*/([a-z][a-z][0-9]+-[0-9]+))/")
 
+def get_processing_info(processing_id: int, session: Session) -> dict:
+    """Find the ispyb recipe name, dcid, and any inserted processing parameters"""
 
-def setup_marshmallow_schema(session):
-    # https://marshmallow-sqlalchemy.readthedocs.io/en/latest/recipes.html#automatically-generating-schemas-for-sqlalchemy-models
-    for class_ in models.Base.registry._class_registry.values():
-        if hasattr(class_, "__tablename__"):
-
-            class Meta:
-                model = class_
-                sqla_session = session
-                load_instance = True
-                include_fk = True
-
-            TYPE_MAPPING = SQLAlchemyAutoSchema.TYPE_MAPPING.copy()
-            TYPE_MAPPING.update({decimal.Decimal: marshmallow.fields.Float})
-            schema_class_name = "%sSchema" % class_.__name__
-            schema_class = type(
-                schema_class_name,
-                (SQLAlchemyAutoSchema,),
-                {
-                    "Meta": Meta,
-                    "TYPE_MAPPING": TYPE_MAPPING,
-                },
+    processing_job = (
+        session.execute(
+            select(models.ProcessingJob).where(
+                models.ProcessingJob.processingJobId == processing_id
             )
-            setattr(class_, "__marshmallow__", schema_class)
-
-
-def get_reprocessing_info(message, parameters, session: sqlalchemy.orm.session.Session):
-    reprocessing_id = parameters.get(
-        "ispyb_reprocessing_id", parameters.get("ispyb_process")
-    )
-    if reprocessing_id:
-        parameters["ispyb_process"] = reprocessing_id
-        query = (
-            session.query(models.ProcessingJob)
-            .options(
-                selectinload(models.ProcessingJob.ProcessingJobParameters),
-                selectinload(models.ProcessingJob.ProcessingJobImageSweeps)
-                .selectinload(models.ProcessingJobImageSweep.DataCollection)
-                .load_only(
-                    models.DataCollection.imageDirectory,
-                    models.DataCollection.fileTemplate,
-                ),
-            )
-            .filter(models.ProcessingJob.processingJobId == reprocessing_id)
         )
-        rp = query.first()
-        if not rp:
-            logger.warning(f"Reprocessing ID {reprocessing_id} not found")
-        # ispyb_reprocessing_parameters is the deprecated method of
-        # accessing the processing parameters
-        parameters["ispyb_reprocessing_parameters"] = {
-            p.parameterKey: p.parameterValue for p in rp.ProcessingJobParameters
-        }
-        # ispyb_processing_parameters is the preferred method of
-        # accessing the processing parameters
-        processing_parameters: dict[str, list[str]] = {}
-        for p in rp.ProcessingJobParameters:
-            processing_parameters.setdefault(p.parameterKey, [])
-            processing_parameters[p.parameterKey].append(p.parameterValue)
-        parameters["ispyb_processing_parameters"] = processing_parameters
-        schema = models.ProcessingJob.__marshmallow__()
-        parameters["ispyb_processing_job"] = schema.dump(rp)
-        if "ispyb_dcid" not in parameters:
-            parameters["ispyb_dcid"] = rp.dataCollectionId
-
-    return message, parameters
-
-
-def get_dc_info(dcid: int, session: sqlalchemy.orm.session.Session):
-
-    query = session.query(models.DataCollection).filter(
-        models.DataCollection.dataCollectionId == dcid
+        .scalars()
+        .first()
     )
-    dc = query.first()
-    if dc is None:
+
+    if not processing_job:
+        logger.error(f"Reprocessing ID {processing_id} not found")
         return {}
-    schema = models.DataCollection.__marshmallow__()
-    return schema.dump(dc)
 
+    processing_info = {
+        "recipe": processing_job.recipe,
+        "ispyb_dcid": processing_job.dataCollectionId,
+    }
 
-def get_beamline_from_dcid(dcid: int, session: sqlalchemy.orm.session.Session):
-    query = (
-        session.query(models.BLSession)
-        .join(models.DataCollectionGroup)
-        .join(models.DataCollection)
-        .filter(models.DataCollection.dataCollectionId == dcid)
+    job_parameters = (
+        session.execute(
+            select(models.ProcessingJobParameter).where(
+                models.ProcessingJobParameter.processingJobId == processing_id
+            )
+        )
+        .scalars()
+        .all()
     )
-    bl_session = query.first()
-    if bl_session:
-        return bl_session.beamLineName
+
+    processing_info["ispyb_reprocessing_parameters"] = {
+        p.parameterKey: p.parameterValue for p in job_parameters
+    }
+    return processing_info
 
 
-def get_visit_directory_from_image_directory(directory):
-    """/dls/${beamline}/data/${year}/${visit}/...
-    -> /dls/${beamline}/data/${year}/${visit}"""
-    if not directory:
-        return None
-    visit_base = re_visit_base.search(directory)
-    if not visit_base:
-        return None
-    return visit_base.group(1)
+def get_dc_info(dcid: int, session: Session) -> dict:
+    """Find a data collection in ispyb"""
+    dc_query = (
+        session.execute(
+            select(models.DataCollection).where(
+                models.DataCollection.dataCollectionId == dcid
+            )
+        )
+        .scalars()
+        .first()
+    )
+    if dc_query is None:
+        logger.error(f"Data collection {dcid} not found")
+        return {}
+    if not dc_query.imageDirectory or not dc_query.fileTemplate:
+        logger.error(f"No image directory or file path for {dcid}")
+        return {}
+    dc_info = {
+        "imageDirectory": dc_query.imageDirectory,
+        "fileTemplate": dc_query.fileTemplate,
+    }
+    return dc_info
 
 
-def get_visit_from_image_directory(directory):
-    """/dls/${beamline}/data/${year}/${visit}/...
-    -> ${visit}"""
-    if not directory:
-        return None
-    visit_base = re_visit_base.search(directory)
-    if not visit_base:
-        return None
-    return visit_base.group(2)
+def get_visit_directory_from_image_directory(data_directory: Path) -> Path:
+    """Return the visit directory. Assumes a structure similar to
+    /${facility}/${beamline}/data/${year}/${visit}/..."""
+    return Path("/".join(str(data_directory).split("/")[:6]))
 
 
-def dc_info_to_working_directory(dc_info):
-    directory = dc_info.get("imageDirectory")
-    if not directory:
-        return None
-    visit = get_visit_directory_from_image_directory(directory)
-    rest = directory[len(visit) + 1 :]
-
-    collection_path = dc_info["imagePrefix"] or ""
-    dc_number = dc_info["dataCollectionNumber"] or ""
-    if collection_path or dc_number:
-        collection_path = f"{collection_path}_{dc_number}"
-    return os.path.join(visit, "tmp", "zocalo", rest, collection_path, dc_info["uuid"])
+def get_working_directory(data_directory: Path, recipe_id: str) -> Path:
+    """Make a directory name for storing the run information"""
+    visit = get_visit_directory_from_image_directory(data_directory)
+    return visit / "tmp" / "wrapper" / data_directory.relative_to(visit) / recipe_id
 
 
-def dc_info_to_results_directory(dc_info):
-    directory = dc_info.get("imageDirectory")
-    if not directory:
-        return None
-    visit = get_visit_directory_from_image_directory(directory)
-    rest = directory[len(visit) + 1 :]
-
-    collection_path = dc_info["imagePrefix"] or ""
-    dc_number = dc_info["dataCollectionNumber"] or ""
-    if collection_path or dc_number:
-        collection_path = f"{collection_path}_{dc_number}"
-    return os.path.join(visit, "processed", rest, collection_path, dc_info["uuid"])
+def get_processed_directory(data_directory: Path, recipe_id: str) -> Path:
+    """Make a directory name for the processed output data"""
+    visit = get_visit_directory_from_image_directory(data_directory)
+    return visit / "processed" / data_directory.relative_to(visit) / recipe_id
 
 
 def ispyb_filter(
-    message,
-    parameters,
+    message: dict,
+    parameters: dict,
     config: ServiceConfig,
-    session: sqlalchemy.orm.session.Session | None = None,
-):
-    """Do something to work out what to do with this data..."""
-
-    if (
-        not parameters.get("ispyb_process")
-        and not parameters.get("ispyb_reprocessing_id")
-        and not parameters.get("ispyb_dcid")
-    ):
+) -> Tuple[dict, dict]:
+    """Filter recipes where a process has already been inserted into ispyb"""
+    ispyb_process = parameters.get("ispyb_process")
+    if not ispyb_process:
+        # Pass all messages where there is not an existing process
         return message, parameters
 
-    if session is None:
-        session = sessionmaker(
-            bind=sqlalchemy.create_engine(
-                models.url(credentials=config.ispyb_credentials),
-                connect_args={"use_pure": True},
-            )
-        )()
+    ispyb_sessionmaker = sessionmaker(
+        bind=create_engine(
+            models.url(credentials=config.ispyb_credentials),
+            connect_args={"use_pure": True},
+        )
+    )
+    with ispyb_sessionmaker() as session:
+        processing_info = get_processing_info(ispyb_process, session)
+        if not processing_info:
+            raise ValueError(f"No ispyb entry found for ispyb_process={ispyb_process}")
 
-    setup_marshmallow_schema(session)
+        parameters.update(processing_info)
+        dc_id = parameters["ispyb_dcid"]
 
-    message, parameters = get_reprocessing_info(message, parameters, session)
+        dc_info = get_dc_info(dc_id, session)
+        if not dc_info:
+            raise ValueError(f"No ispyb entry found for dcid={dc_id}")
 
-    if "ispyb_dcid" not in parameters:
-        return message, parameters
+    recipe_uuid = parameters.get("guid") or str(uuid.uuid4())
+    image_directory = Path(dc_info["imageDirectory"])
 
-    dc_id = parameters["ispyb_dcid"]
-
-    dc_info = get_dc_info(dc_id, session)
-    if not dc_info:
-        raise ValueError(f"No database entry found for dcid={dc_id}: {dc_id}")
-    dc_info["uuid"] = parameters.get("guid") or str(uuid.uuid4())
-    parameters["ispyb_beamline"] = get_beamline_from_dcid(dc_id, session)
-
-    parameters["ispyb_preferred_datacentre"] = "cs05r"
-    parameters["ispyb_preferred_scheduler"] = "slurm"
-
+    parameters["ispyb_beamline"] = "microscope"
     parameters["ispyb_dc_info"] = dc_info
 
-    parameters["ispyb_visit"] = get_visit_from_image_directory(
-        dc_info.get("imageDirectory")
+    parameters["ispyb_visit_directory"] = str(
+        get_visit_directory_from_image_directory(image_directory)
     )
-    parameters["ispyb_visit_directory"] = get_visit_directory_from_image_directory(
-        dc_info.get("imageDirectory")
+    parameters["ispyb_working_directory"] = str(
+        get_working_directory(image_directory, recipe_uuid)
     )
-    parameters["ispyb_working_directory"] = dc_info_to_working_directory(dc_info)
-    parameters["ispyb_results_directory"] = dc_info_to_results_directory(dc_info)
+    parameters["ispyb_results_directory"] = str(
+        get_processed_directory(image_directory, recipe_uuid)
+    )
 
-    if (
-        "ispyb_processing_job" in parameters
-        and parameters["ispyb_processing_job"]["recipe"]
-        and not message.get("recipes")
-        and not message.get("custom_recipe")
-    ):
-        # Prefix recipe name coming from ispyb/synchweb with 'ispyb-'
-        message["recipes"] = ["ispyb-" + parameters["ispyb_processing_job"]["recipe"]]
+    # Prefix recipe name coming from ispyb with 'ispyb-'
+    message["recipes"] = ["ispyb-" + parameters["recipe"]]
 
     return message, parameters

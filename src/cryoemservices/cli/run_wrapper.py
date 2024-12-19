@@ -3,9 +3,9 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+from importlib.metadata import entry_points
 
 import graypy
-from backports.entry_points_selectable import entry_points
 from workflows.recipe.wrapper import RecipeWrapper
 from workflows.transport.pika_transport import PikaTransport
 

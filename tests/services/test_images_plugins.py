@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import pathlib
-from typing import Any, Dict, NamedTuple, Protocol
+from typing import Any, Callable, NamedTuple
 
 import mrcfile
 import numpy as np
@@ -16,14 +16,10 @@ from cryoemservices.services.images_plugins import (
 )
 
 
-class _CallableParameter(Protocol):
-    def __call__(self, key: str, default: Any = ...) -> Any: ...
-
-
 class FunctionParameter(NamedTuple):
     rw: workflows.recipe.wrapper.RecipeWrapper
-    parameters: _CallableParameter
-    message: Dict[str, Any]
+    parameters: Callable
+    message: dict[str, Any]
 
 
 def plugin_params(jpeg_path):
