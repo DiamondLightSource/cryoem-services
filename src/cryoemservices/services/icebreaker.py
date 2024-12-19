@@ -22,9 +22,7 @@ class IceBreakerParameters(BaseModel):
     input_micrographs: str = Field(..., min_length=1)
     input_particles: Optional[str] = None
     output_path: str = Field(..., min_length=1)
-    icebreaker_type: str = Literal[
-        "micrographs", "enhancecontrast", "summary", "particles"
-    ]
+    icebreaker_type: Literal["micrographs", "enhancecontrast", "summary", "particles"]
     cpus: int = 10
     total_motion: float = 0
     early_motion: float = 0
@@ -142,21 +140,26 @@ class IceBreaker(CommonService):
                 icebreaker_icegroups_multi.multigroup(
                     icebreaker_tmp_dir / mic_from_project.name
                 )
-                (
-                    icebreaker_tmp_dir
-                    / "grouped"
-                    / f"{micrograph_name.stem}_grouped.mrc"
-                ).rename(f"{mic_dir_from_job}/{micrograph_name.stem}_grouped.mrc")
+                # Rename the file from the tmp directory to the output directory
+                for ib_grouped_mic in icebreaker_tmp_dir.glob(
+                    f"grouped/{micrograph_name.stem}_grouped_*.mrc"
+                ):
+                    ib_grouped_mic.rename(
+                        f"{mic_dir_from_job}/{micrograph_name.stem}_grouped.mrc"
+                    )
             else:
                 (icebreaker_tmp_dir / "flattened").mkdir()
                 icebreaker_equalize_multi.multigroup(
                     icebreaker_tmp_dir / mic_from_project.name
                 )
-                (
+                # The flattened micrograph is not currently used, so remove it
+                # If it was used it should be renamed to
+                # f"{mic_dir_from_job}/{micrograph_name.stem}_flattened.mrc"
+                Path(
                     icebreaker_tmp_dir
                     / "flattened"
                     / f"{micrograph_name.stem}_flattened.mrc"
-                ).rename(f"{mic_dir_from_job}/{micrograph_name.stem}_flattened.mrc")
+                ).unlink()
             shutil.rmtree(icebreaker_tmp_dir)
 
             # Create the command this replicates
@@ -206,7 +209,11 @@ class IceBreaker(CommonService):
                 "--in_mics",
                 str(mic_from_project),
                 "--in_parts",
-                str(Path(icebreaker_params.input_particles).relative_to(project_dir)),
+                str(
+                    Path(icebreaker_params.input_particles or "").relative_to(
+                        project_dir
+                    )
+                ),
                 "--o",
                 icebreaker_params.output_path,
             ]
@@ -367,7 +374,8 @@ class IceBreaker(CommonService):
         # Create symlink for the particle grouping jobs
         if (
             icebreaker_params.icebreaker_type == "particles"
-            and Path(icebreaker_params.input_particles).name == "particles_split1.star"
+            and Path(icebreaker_params.input_particles or "").name
+            == "particles_split1.star"
         ):
             Path(project_dir / "IceBreaker/Icebreaker_group_batch_1").unlink(
                 missing_ok=True
