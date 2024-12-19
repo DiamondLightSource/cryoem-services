@@ -328,10 +328,7 @@ class TomoAlign(CommonService):
                 + aretomo_result.stderr.decode("utf8", "replace")
             )
             # Update failure processing status
-            rw.send_to(
-                "failure",
-                "",
-            )
+            rw.send_to("failure", {})
             rw.transport.nack(header)
             return
 
@@ -557,10 +554,7 @@ class TomoAlign(CommonService):
         )
 
         # Update success processing status
-        rw.send_to(
-            "success",
-            "",
-        )
+        rw.send_to("success", {})
         self.log.info(f"Done tomogram alignment for {tomo_params.stack_file}")
         rw.transport.ack(header)
 

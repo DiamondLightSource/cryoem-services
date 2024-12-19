@@ -266,7 +266,7 @@ def test_tomo_align_service_file_list(
             "relion_options": output_relion_options,
         },
     )
-    offline_transport.send.assert_any_call(destination="success", message="")
+    offline_transport.send.assert_any_call(destination="success", message={})
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
@@ -372,7 +372,7 @@ def test_tomo_align_service_file_list_repeated_tilt(
             "success": True,
         },
     )
-    offline_transport.send.assert_any_call(destination="success", message="")
+    offline_transport.send.assert_any_call(destination="success", message={})
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
@@ -538,7 +538,7 @@ def test_tomo_align_service_path_pattern(
             "success": True,
         },
     )
-    offline_transport.send.assert_any_call(destination="success", message="")
+    offline_transport.send.assert_any_call(destination="success", message={})
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
@@ -713,7 +713,7 @@ def test_tomo_align_service_dark_images(
             ],
         },
     )
-    offline_transport.send.assert_any_call(destination="success", message="")
+    offline_transport.send.assert_any_call(destination="success", message={})
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
@@ -812,7 +812,7 @@ def test_tomo_align_service_all_dark(
             ],
         },
     )
-    offline_transport.send.assert_any_call(destination="success", message="")
+    offline_transport.send.assert_any_call(destination="success", message={})
 
 
 def test_parse_tomo_align_output(offline_transport):
