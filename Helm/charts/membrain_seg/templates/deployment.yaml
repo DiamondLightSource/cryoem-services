@@ -22,10 +22,10 @@ spec:
         imagePullPolicy: Always
         resources:
           requests:
-            cpu: {{ .Values.cpuRequest }}
+            nvidia.com/gpu: "1"
           limits:
-            cpu: {{ .Values.cpuLimit }}
             memory: {{ .Values.memoryLimit }}
+            nvidia.com/gpu: "1"
         command: ["/bin/sh"]
         args:
           - -c
@@ -59,6 +59,22 @@ spec:
 {{ end }}
 {{- if .Values.extraVolumes }}
 {{ toYaml .Values.extraVolumes | indent 6 }}
+{{ end }}
+      tolerations:
+      - effect: NoSchedule
+        key: nvidia.com/gpu
+        operator: Exists
+      - effect: NoSchedule
+        key: nodetype
+        operator: Equal
+        value: gpu
+{{- if .Values.global.tolerations }}
+      tolerations:
+{{ toYaml .Values.global.tolerations | indent 6 }}
+{{ end }}
+{{- if .Values.global.nodeSelector }}
+      nodeSelector:
+{{ toYaml .Values.global.nodeSelector | indent 8 }}
 {{ end }}
 
 {{- if .Values.scaleOnQueueLength }}
