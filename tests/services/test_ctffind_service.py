@@ -19,7 +19,7 @@ def offline_transport(mocker):
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.ctffind.subprocess.run")
-def test_ctffind4_service(mock_subprocess, offline_transport, tmp_path):
+def test_ctffind4_service_spa(mock_subprocess, offline_transport, tmp_path):
     """
     Send a test message to CTFFind
     This should call the mock subprocess then send messages on to the
@@ -184,7 +184,7 @@ def test_ctffind4_service(mock_subprocess, offline_transport, tmp_path):
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.ctffind.subprocess.run")
-def test_ctffind5_service(mock_subprocess, offline_transport, tmp_path):
+def test_ctffind5_service_tomo(mock_subprocess, offline_transport, tmp_path):
     """
     Send a test message to CTFFind with the version 5 flags on
     """
