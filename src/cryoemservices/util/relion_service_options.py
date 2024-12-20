@@ -113,10 +113,8 @@ class RelionServiceOptions(BaseModel):
     # Threshold for cryolo autopicking
     cryolo_threshold: float = 0.15
     # Location of the cryolo specific files
-    cryolo_config_file: str = "/dls_sw/apps/EM/crYOLO/phosaurus_models/config.json"
-    cryolo_model_weights: str = (
-        "/dls_sw/apps/EM/crYOLO/phosaurus_models/gmodel_phosnet_202005_N63_c17.h5"
-    )
+    cryolo_config_file: str = "cryolo_config.json"
+    cryolo_model_weights: str = "gmodel_phosnet_202005_N63_c17.h5"
 
     # Fraction of classes to attempt to remove using the RELION 2D class ranker
     class2d_fraction_of_classes_to_remove: float = 0.9

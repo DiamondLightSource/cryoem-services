@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import pathlib
 from typing import Any, Callable, NamedTuple
+from unittest import mock
 
 import mrcfile
 import numpy as np
@@ -13,6 +13,8 @@ from cryoemservices.services.images_plugins import (
     mrc_to_apng,
     mrc_to_jpeg,
     picked_particles,
+    picked_particles_3d_apng,
+    picked_particles_3d_central_slice,
 )
 
 
@@ -59,6 +61,20 @@ def plugin_params_parpick(jpeg_path, outfile):
     return FunctionParameter(rw=None, parameters=params, message={})
 
 
+def plugin_params_tomo_pick(input_file, coords_file, command):
+    def params(key):
+        p = {
+            "parameters": {"images_command": command},
+            "file": input_file,
+            "coordinates_file": coords_file,
+            "diameter_pixels": 40,
+            "box_size": 40,
+        }
+        return p.get(key)
+
+    return FunctionParameter(rw=None, parameters=params, message={})
+
+
 def test_contract_with_images_service():
     # Check that we do not declare any keys that are unknown in the images service
     assert set(FunctionParameter._fields).issubset(PluginInterface._fields)
@@ -86,18 +102,16 @@ def test_mrc_to_jpeg_ack_when_file_exists(tmp_path):
     test_data = np.arange(9, dtype=np.int8).reshape(3, 3)
     with mrcfile.new(jpeg_path.with_suffix(".mrc")) as mrc:
         mrc.set_data(test_data)
-
     assert mrc_to_jpeg(plugin_params(jpeg_path)) == jpeg_path
     assert jpeg_path.is_file()
 
 
 def test_picked_particles_processes_when_basefile_exists(tmp_path):
-    base_mrc_path = str(tmp_path / "base.mrc")
-    out_jpeg_path = str(tmp_path / "processed.jpeg")
+    base_mrc_path = tmp_path / "base.mrc"
+    out_jpeg_path = tmp_path / "processed.jpeg"
     test_data = np.arange(16, dtype=np.int8).reshape(4, 4)
     with mrcfile.new(base_mrc_path) as mrc:
         mrc.set_data(test_data)
-
     assert (
         picked_particles(plugin_params_parpick(base_mrc_path, out_jpeg_path))
         == out_jpeg_path
@@ -105,46 +119,242 @@ def test_picked_particles_processes_when_basefile_exists(tmp_path):
 
 
 def test_picked_particles_fails_when_basefile_does_not_exist(tmp_path):
-    base_mrc_path = str(tmp_path / "base.mrc")
-    out_jpeg_path = str(tmp_path / "processed.jpeg")
+    base_mrc_path = tmp_path / "base.mrc"
+    out_jpeg_path = tmp_path / "processed.jpeg"
     assert not picked_particles(plugin_params_parpick(base_mrc_path, out_jpeg_path))
 
 
 def test_central_slice_fails_with_2d(tmp_path):
-    tmp_mrc_path = str(tmp_path / "tmp.mrc")
-    mrc = mrcfile.new(tmp_mrc_path, overwrite=True)
+    tmp_mrc_path = tmp_path / "tmp.mrc"
     data_2d = np.linspace(-1000, 1000, 20, dtype=np.int16).reshape((5, 4))
-    mrc.set_data(data_2d)
-    mrc.close()
-    assert not mrc_central_slice(plugin_params_central(pathlib.Path(tmp_mrc_path)))
+    with mrcfile.new(tmp_mrc_path, overwrite=True) as mrc:
+        mrc.set_data(data_2d)
+    assert not mrc_central_slice(plugin_params_central(tmp_mrc_path))
 
 
 def test_central_slice_works_with_3d(tmp_path):
-    tmp_mrc_path = str(tmp_path / "tmp.mrc")
-    mrc = mrcfile.new(tmp_mrc_path, overwrite=True)
+    tmp_mrc_path = tmp_path / "tmp.mrc"
     data_3d = np.linspace(-1000, 1000, 20, dtype=np.int16).reshape((2, 2, 5))
-    mrc.set_data(data_3d)
-    mrc.close()
-    assert mrc_central_slice(plugin_params_central(pathlib.Path(tmp_mrc_path))) == str(
+    with mrcfile.new(tmp_mrc_path, overwrite=True) as mrc:
+        mrc.set_data(data_3d)
+    assert mrc_central_slice(plugin_params_central(tmp_mrc_path)) == str(
         tmp_path / "tmp_thumbnail.jpeg"
     )
 
 
 def test_mrc_to_apng_fails_with_2d(tmp_path):
-    tmp_mrc_path = str(tmp_path / "tmp.mrc")
-    mrc = mrcfile.new(tmp_mrc_path, overwrite=True)
+    tmp_mrc_path = tmp_path / "tmp.mrc"
     data_2d = np.linspace(-1000, 1000, 20, dtype=np.int16).reshape((5, 4))
-    mrc.set_data(data_2d)
-    mrc.close()
-    assert not mrc_to_apng(plugin_params_central(pathlib.Path(tmp_mrc_path)))
+    with mrcfile.new(tmp_mrc_path, overwrite=True) as mrc:
+        mrc.set_data(data_2d)
+    assert not mrc_to_apng(plugin_params_central(tmp_mrc_path))
 
 
 def test_mrc_to_apng_works_with_3d(tmp_path):
-    tmp_mrc_path = str(tmp_path / "tmp.mrc")
-    mrc = mrcfile.new(tmp_mrc_path, overwrite=True)
+    tmp_mrc_path = tmp_path / "tmp.mrc"
     data_3d = np.linspace(-1000, 1000, 20, dtype=np.int16).reshape((2, 2, 5))
-    mrc.set_data(data_3d)
-    mrc.close()
-    assert mrc_to_apng(plugin_params_central(pathlib.Path(tmp_mrc_path))) == str(
+    with mrcfile.new(tmp_mrc_path, overwrite=True) as mrc:
+        mrc.set_data(data_3d)
+    assert mrc_to_apng(plugin_params_central(tmp_mrc_path)) == str(
         tmp_path / "tmp_movie.png"
     )
+
+
+def test_picked_particles_3d_central_slice_fails_with_2d(tmp_path):
+    tmp_mrc_path = tmp_path / "tmp.mrc"
+    coords_file = tmp_path / "coords.cbox"
+    coords_file.touch()
+    data_2d = np.linspace(-1000, 1000, 20, dtype=np.int16).reshape((5, 4))
+    with mrcfile.new(tmp_mrc_path, overwrite=True) as mrc:
+        mrc.set_data(data_2d)
+    assert not picked_particles_3d_central_slice(
+        plugin_params_tomo_pick(
+            tmp_mrc_path,
+            coords_file,
+            "picked_particles_3d_central_slice",
+        )
+    )
+
+
+@mock.patch("cryoemservices.services.images_plugins.ImageDraw")
+def test_picked_particles_3d_central_slice_works_with_3d(mock_imagedraw, tmp_path):
+    tmp_mrc_path = str(tmp_path / "tmp.mrc")
+    coords_file = tmp_path / "coords.cbox"
+    data_3d = np.linspace(-1000, 1000, 20, dtype=np.int16).reshape((2, 2, 5))
+    with mrcfile.new(tmp_mrc_path, overwrite=True) as mrc:
+        mrc.set_data(data_3d)
+    with open(coords_file, "w") as cbox:
+        cbox.write(
+            "data_global\n\n_version 1\n\n"
+            "data_cryolo\n\nloop_\n_CoordinateX\n_CoordinateY\n_CoordinateZ\n"
+            "40 50 0\n70 80 1\n"
+        )
+    assert picked_particles_3d_central_slice(
+        plugin_params_tomo_pick(
+            tmp_mrc_path,
+            coords_file,
+            "picked_particles_3d_central_slice",
+        )
+    ) == str(tmp_path / "coords_thumbnail.jpeg")
+
+    # Check that the expected picking ellipses were drawn
+    mock_imagedraw.Draw.assert_called()
+    assert mock_imagedraw.Draw().ellipse.call_count == 2
+    mock_imagedraw.Draw().ellipse.assert_any_call(
+        [
+            (
+                40 + 20 - np.sqrt(20**2 - 1**2),
+                50 + 20 - np.sqrt(20**2 - 1**2),
+            ),
+            (
+                40 + 20 + np.sqrt(20**2 - 1**2),
+                50 + 20 + np.sqrt(20**2 - 1**2),
+            ),
+        ],
+        width=4,
+        outline="#f52407",
+    )
+    mock_imagedraw.Draw().ellipse.assert_any_call(
+        [
+            (
+                70,
+                80,
+            ),
+            (
+                70 + 20 + 20,
+                80 + 20 + 20,
+            ),
+        ],
+        width=4,
+        outline="#f52407",
+    )
+
+
+def test_picked_particles_3d_central_slice_works_without_coords(tmp_path):
+    tmp_mrc_path = str(tmp_path / "tmp.mrc")
+    coords_file = tmp_path / "coords.cbox"
+    data_3d = np.linspace(-1000, 1000, 20, dtype=np.int16).reshape((2, 2, 5))
+    with mrcfile.new(tmp_mrc_path, overwrite=True) as mrc:
+        mrc.set_data(data_3d)
+    with open(coords_file, "w") as cbox:
+        cbox.write(
+            "data_global\n\n_version 1\n\n"
+            "data_cryolo\n\nloop_\n_CoordinateX\n_CoordinateY\n_CoordinateZ\n"
+        )
+    assert picked_particles_3d_central_slice(
+        plugin_params_tomo_pick(
+            tmp_mrc_path,
+            coords_file,
+            "picked_particles_3d_central_slice",
+        )
+    ) == str(tmp_path / "coords_thumbnail.jpeg")
+
+
+def test_picked_particles_3d_apng_fails_with_2d(tmp_path):
+    tmp_mrc_path = str(tmp_path / "tmp.mrc")
+    coords_file = tmp_path / "coords.cbox"
+    coords_file.touch()
+    data_2d = np.linspace(-1000, 1000, 20, dtype=np.int16).reshape((5, 4))
+    with mrcfile.new(tmp_mrc_path, overwrite=True) as mrc:
+        mrc.set_data(data_2d)
+    assert not picked_particles_3d_apng(
+        plugin_params_tomo_pick(
+            tmp_mrc_path,
+            coords_file,
+            "picked_particles_3d_apng",
+        )
+    )
+
+
+@mock.patch("cryoemservices.services.images_plugins.ImageDraw")
+def test_picked_particles_3d_apng_works_with_3d(mock_imagedraw, tmp_path):
+    tmp_mrc_path = str(tmp_path / "tmp.mrc")
+    coords_file = tmp_path / "coords.cbox"
+    data_3d = np.linspace(-1000, 1000, 20, dtype=np.int16).reshape((2, 2, 5))
+    with mrcfile.new(tmp_mrc_path, overwrite=True) as mrc:
+        mrc.set_data(data_3d)
+    with open(coords_file, "w") as cbox:
+        cbox.write(
+            "data_global\n\n_version 1\n\n"
+            "data_cryolo\n\nloop_\n_CoordinateX\n_CoordinateY\n_CoordinateZ\n"
+            "40 50 0\n70 80 1\n"
+        )
+    assert picked_particles_3d_apng(
+        plugin_params_tomo_pick(tmp_mrc_path, coords_file, "picked_particles_3d_apng")
+    ) == str(tmp_path / "coords_movie.png")
+
+    # Check that the expected picking ellipses were drawn
+    mock_imagedraw.Draw.assert_called()
+    assert mock_imagedraw.Draw().ellipse.call_count == 4
+    mock_imagedraw.Draw().ellipse.assert_any_call(
+        [
+            (
+                40,
+                50,
+            ),
+            (
+                40 + 20 + 20,
+                50 + 20 + 20,
+            ),
+        ],
+        width=4,
+        outline="#f52407",
+    )
+    mock_imagedraw.Draw().ellipse.assert_any_call(
+        [
+            (
+                40 + 20 - np.sqrt(20**2 - 1**2),
+                50 + 20 - np.sqrt(20**2 - 1**2),
+            ),
+            (
+                40 + 20 + np.sqrt(20**2 - 1**2),
+                50 + 20 + np.sqrt(20**2 - 1**2),
+            ),
+        ],
+        width=4,
+        outline="#f52407",
+    )
+    mock_imagedraw.Draw().ellipse.assert_any_call(
+        [
+            (
+                70,
+                80,
+            ),
+            (
+                70 + 20 + 20,
+                80 + 20 + 20,
+            ),
+        ],
+        width=4,
+        outline="#f52407",
+    )
+    mock_imagedraw.Draw().ellipse.assert_any_call(
+        [
+            (
+                70 + 20 - np.sqrt(20**2 - 1**2),
+                80 + 20 - np.sqrt(20**2 - 1**2),
+            ),
+            (
+                70 + 20 + np.sqrt(20**2 - 1**2),
+                80 + 20 + np.sqrt(20**2 - 1**2),
+            ),
+        ],
+        width=4,
+        outline="#f52407",
+    )
+
+
+def test_picked_particles_3d_apng_works_without_coords(tmp_path):
+    tmp_mrc_path = str(tmp_path / "tmp.mrc")
+    coords_file = tmp_path / "coords.cbox"
+    data_3d = np.linspace(-1000, 1000, 20, dtype=np.int16).reshape((2, 2, 5))
+    with mrcfile.new(tmp_mrc_path, overwrite=True) as mrc:
+        mrc.set_data(data_3d)
+    with open(coords_file, "w") as cbox:
+        cbox.write(
+            "data_global\n\n_version 1\n\n"
+            "data_cryolo\n\nloop_\n_CoordinateX\n_CoordinateY\n_CoordinateZ\n"
+        )
+    assert picked_particles_3d_apng(
+        plugin_params_tomo_pick(tmp_mrc_path, coords_file, "picked_particles_3d_apng")
+    ) == str(tmp_path / "coords_movie.png")
