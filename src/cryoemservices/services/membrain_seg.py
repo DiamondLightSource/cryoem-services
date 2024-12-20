@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 from typing import Optional
 
@@ -26,6 +27,7 @@ class MembrainSegParameters(BaseModel):
     connected_component_threshold: Optional[int] = None
     segmentation_threshold: Optional[float] = None
     cleanup_output: bool = True
+    submit_to_slurm: bool = False
 
 
 class MembrainSeg(CommonService):
@@ -141,28 +143,30 @@ class MembrainSeg(CommonService):
         self.log.info(f"Input: {membrain_seg_params.tomogram} Output: {segmented_path}")
         self.log.info(f"Running {command}")
 
-        # Submit the command to slurm
-        result = slurm_submission(
-            log=self.log,
-            service_config_file=self._environment["config"],
-            slurm_cluster=self._environment["slurm_cluster"],
-            job_name="membrain-seg",
-            command=command,
-            project_dir=segmented_output_dir,
-            output_file=segmented_path,
-            cpus=1,
-            use_gpu=True,
-            use_singularity=False,
-            memory_request=25000,
-            script_extras="module load EM/membrain-seg",
-        )
-
-        # Run the command
-        # result = subprocess.run(command, capture_output=True)
+        # Submit the command to slurm or run locally
+        if membrain_seg_params.submit_to_slurm:
+            result = slurm_submission(
+                log=self.log,
+                service_config_file=self._environment["config"],
+                slurm_cluster=self._environment["slurm_cluster"],
+                job_name="membrain-seg",
+                command=command,
+                project_dir=segmented_output_dir,
+                output_file=segmented_path,
+                cpus=1,
+                use_gpu=True,
+                use_singularity=False,
+                memory_request=25000,
+                script_extras="module load EM/membrain-seg",
+            )
+        else:
+            result = subprocess.run(command, capture_output=True)
 
         # Stop here if the job failed
         if result.returncode:
-            self.log.error("membrain-seg failed to run")
+            self.log.error(
+                f"membrain-seg failed to run: {result.stderr.decode('utf8', 'replace')}"
+            )
             rw.transport.nack(header)
             return
 
@@ -171,7 +175,7 @@ class MembrainSeg(CommonService):
             membrain_path.rename(segmented_path)
 
         # Clean up the slurm files
-        if membrain_seg_params.cleanup_output:
+        if membrain_seg_params.submit_to_slurm and membrain_seg_params.cleanup_output:
             Path(f"{segmented_path}.out").unlink()
             Path(f"{segmented_path}.err").unlink()
             Path(f"{segmented_path}.json").unlink()
