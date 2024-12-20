@@ -13,7 +13,7 @@ from cryoemservices.wrappers.clem_process_raw_lifs import LIFToStackWrapper
 @pytest.fixture
 def offline_transport(mocker):
     transport = OfflineTransport()
-    mocker.spy(transport, "send")  # Observe what happens to the send call
+    mocker.spy(transport, "send")  # Observe what happens to the 'send' call
     return transport
 
 
