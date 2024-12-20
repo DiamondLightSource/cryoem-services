@@ -67,35 +67,32 @@ def test_denoise_local_service(
         "subscription": mock.sentinel,
     }
     denoise_test_message = {
-        "parameters": {
-            "volume": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
-            "output_dir": f"{tmp_path}/Denoise/job007/denoised",
-            "suffix": ".denoised",
-            "model": "unet-3d",
-            "even_train_path": None,
-            "odd_train_path": None,
-            "n_train": 1000,
-            "n_test": 200,
-            "crop": 96,
-            "base_kernel_width": 11,
-            "optim": "adagrad",
-            "lr": "0.001",
-            "criteria": "L2",
-            "momentum": "0.8",
-            "batch_size": 10,
-            "num_epochs": 500,
-            "weight_decay": 0,
-            "save_interval": 10,
-            "save_prefix": "prefix",
-            "num_workers": 1,
-            "num_threads": 0,
-            "gaussian": 0,
-            "patch_size": 96,
-            "patch_padding": 48,
-            "device": "-2",
-            "relion_options": {},
-        },
-        "content": "dummy",
+        "volume": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
+        "output_dir": f"{tmp_path}/Denoise/job007/denoised",
+        "suffix": ".denoised",
+        "model": "unet-3d",
+        "even_train_path": None,
+        "odd_train_path": None,
+        "n_train": 1000,
+        "n_test": 200,
+        "crop": 96,
+        "base_kernel_width": 11,
+        "optim": "adagrad",
+        "lr": "0.001",
+        "criteria": "L2",
+        "momentum": "0.8",
+        "batch_size": 10,
+        "num_epochs": 500,
+        "weight_decay": 0,
+        "save_interval": 10,
+        "save_prefix": "prefix",
+        "num_workers": 1,
+        "num_threads": 0,
+        "gaussian": 0,
+        "patch_size": 96,
+        "patch_padding": 48,
+        "device": "-2",
+        "relion_options": {},
     }
     output_relion_options = dict(RelionServiceOptions())
 
@@ -164,18 +161,15 @@ def test_denoise_local_service(
     offline_transport.send.assert_any_call(
         destination="node_creator",
         message={
-            "parameters": {
-                "experiment_type": "tomography",
-                "job_type": "relion.denoisetomo",
-                "input_file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
-                "output_file": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
-                "relion_options": output_relion_options,
-                "command": " ".join(denoise_command),
-                "stdout": "stdout",
-                "stderr": "stderr",
-                "success": True,
-            },
-            "content": "dummy",
+            "experiment_type": "tomography",
+            "job_type": "relion.denoisetomo",
+            "input_file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
+            "output_file": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
+            "relion_options": output_relion_options,
+            "command": " ".join(denoise_command),
+            "stdout": "stdout",
+            "stderr": "stderr",
+            "success": True,
         },
     )
     offline_transport.send.assert_any_call(
@@ -195,12 +189,9 @@ def test_denoise_local_service(
     offline_transport.send.assert_any_call(
         destination="ispyb_connector",
         message={
-            "parameters": {
-                "ispyb_command": "insert_processed_tomogram",
-                "file_path": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
-                "processing_type": "Denoised",
-            },
-            "content": {"dummy": "dummy"},
+            "ispyb_command": "insert_processed_tomogram",
+            "file_path": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
+            "processing_type": "Denoised",
         },
     )
     offline_transport.send.assert_any_call(
@@ -241,13 +232,10 @@ def test_denoise_slurm_service(
         "subscription": mock.sentinel,
     }
     denoise_test_message = {
-        "parameters": {
-            "volume": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
-            "output_dir": f"{tmp_path}/Denoise/job007/denoised",
-            "cleanup_output": False,
-            "relion_options": {},
-        },
-        "content": "dummy",
+        "volume": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
+        "output_dir": f"{tmp_path}/Denoise/job007/denoised",
+        "cleanup_output": False,
+        "relion_options": {},
     }
     output_relion_options = dict(RelionServiceOptions())
 
@@ -337,18 +325,15 @@ def test_denoise_slurm_service(
     offline_transport.send.assert_any_call(
         destination="node_creator",
         message={
-            "parameters": {
-                "experiment_type": "tomography",
-                "job_type": "relion.denoisetomo",
-                "input_file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
-                "output_file": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
-                "relion_options": output_relion_options,
-                "command": " ".join(denoise_command),
-                "stdout": "",
-                "stderr": "",
-                "success": True,
-            },
-            "content": "dummy",
+            "experiment_type": "tomography",
+            "job_type": "relion.denoisetomo",
+            "input_file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
+            "output_file": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
+            "relion_options": output_relion_options,
+            "command": " ".join(denoise_command),
+            "stdout": "",
+            "stderr": "",
+            "success": True,
         },
     )
     offline_transport.send.assert_any_call(
@@ -368,12 +353,9 @@ def test_denoise_slurm_service(
     offline_transport.send.assert_any_call(
         destination="ispyb_connector",
         message={
-            "parameters": {
-                "ispyb_command": "insert_processed_tomogram",
-                "file_path": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
-                "processing_type": "Denoised",
-            },
-            "content": {"dummy": "dummy"},
+            "ispyb_command": "insert_processed_tomogram",
+            "file_path": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
+            "processing_type": "Denoised",
         },
     )
     offline_transport.send.assert_any_call(
