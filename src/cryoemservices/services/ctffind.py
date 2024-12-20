@@ -32,6 +32,7 @@ class CTFParameters(BaseModel):
     astigmatism_restrain: str = "no"
     additional_phase_shift: str = "no"
     expert_options: str = "no"
+    # Ctffind5 parameters
     determine_tilt: str = "no"
     determine_thickness: str = "no"
     brute_force_1d: str = "yes"
@@ -40,6 +41,7 @@ class CTFParameters(BaseModel):
     node_high_res: float = 3.0
     node_rounded_square: str = "no"
     node_downweight: str = "no"
+    # IDs
     ctffind_version: int = 4
     mc_uuid: int
     picker_uuid: int
@@ -151,10 +153,7 @@ class CTFFind(CommonService):
             return
         self.log.info(f"Using CTFFind version {ctf_params.ctffind_version}")
 
-        if ctf_params.ctffind_version == 5:
-            command = ["ctffind5"]
-        else:
-            command = ["ctffind"]
+        command = ["ctffind5"] if ctf_params.ctffind_version == 5 else ["ctffind"]
 
         # Check if this file has been run before
         if Path(ctf_params.output_image).is_file():
@@ -191,7 +190,7 @@ class CTFFind(CommonService):
                     ctf_params.determine_thickness,
                 ]
             )
-            if ctf_params.determine_thickness in ["yes", "Yes"]:
+            if ctf_params.determine_thickness.lower() == "yes":
                 parameters_list.extend(
                     [
                         ctf_params.brute_force_1d,
