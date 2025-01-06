@@ -21,10 +21,8 @@ RUN source "/conda/etc/profile.d/conda.sh" && conda activate /install/pythonenv 
     pip install /install/ccpem-pipeliner && pip install /install/cryoem-services
 
 # Install relion classranker
-RUN mkdir /install/relion-classranker
-COPY packages/relion-classranker /install/relion-classranker
 RUN source "/conda/etc/profile.d/conda.sh" && conda activate /install/pythonenv && \
-    pip install /install/relion-classranker
+    pip install git+https://github.com/3dem/relion-classranker
 
 # Pack the environment
 RUN /conda/bin/conda-pack -p /install/pythonenv -o /tmp/env.tar.gz
