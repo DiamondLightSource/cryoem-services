@@ -22,7 +22,7 @@ RUN source "/conda/etc/profile.d/conda.sh" && conda activate /install/pythonenv 
 
 # Install relion classranker
 RUN source "/conda/etc/profile.d/conda.sh" && conda activate /install/pythonenv && \
-    pip install git+https://github.com/3dem/relion-classranker
+    pip install https://github.com/3dem/relion-classranker/archive/main.zip
 
 # Pack the environment
 RUN /conda/bin/conda-pack -p /install/pythonenv -o /tmp/env.tar.gz
