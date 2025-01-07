@@ -45,7 +45,8 @@ def gaussian_2d(
 
 
 def create_grayscale_image(
-    shape: tuple[int, ...],
+    shape: tuple[int, int],
+    num_frames: int,
     dtype: str,
     frame_offset: tuple[int, int],
     peaks: list[dict[str, Any]],
@@ -54,13 +55,14 @@ def create_grayscale_image(
     Creates a grayscale image with peaks that are offset from frame-to-frame
     """
 
-    arr = np.zeros(shape, dtype=dtype)
     x_off, y_off = frame_offset
-    if len(shape) == 2:
+    if num_frames == 1:
+        arr = np.zeros(shape, dtype=dtype)
         for peak in peaks:
             arr += gaussian_2d(**peak).astype(dtype)
     else:
-        for f in range(shape[0]):
+        arr = np.zeros((num_frames, *shape), dtype=dtype)
+        for f in range(num_frames):
             for peak in peaks:
                 # Adjust the peak offset per frame
                 centre: tuple[int, int] = peak["centre"]

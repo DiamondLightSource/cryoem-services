@@ -26,13 +26,15 @@ def image_list(tmp_path):
         processed_dir.mkdir(parents=True)
 
     colors = ("gray", "green", "red")  # Typical colour channels used
-    shape = (3, 64, 64)
+    shape = (64, 64)
+    num_frames = 5
     dtype = "uint8"
 
     for c, color in enumerate(colors):
         # Create test image with desired peaks
         arr = create_grayscale_image(
             shape=shape,
+            num_frames=num_frames,
             dtype=dtype,
             frame_offset=(1 + c, -1 - c),
             peaks=[
