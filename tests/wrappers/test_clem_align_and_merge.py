@@ -249,7 +249,7 @@ align_and_merge_parameters_test_matrix = (
 
 
 @pytest.mark.parametrize("test_params", align_and_merge_parameters_test_matrix)
-def test_align_and_merge_parameters_for_stringified_list(
+def test_align_and_merge_parameters(
     test_params: tuple[
         int,
         bool,
@@ -307,13 +307,12 @@ def offline_transport(mocker):  # 'mocker' is a keyword associated with unittest
 def test_align_and_merge_wrapper(
     mock_align_and_merge,
     mock_send_to,
+    metadata_file: Path,
+    image_list: list[Path],
     offline_transport,  # Fixture defined above
-    tmp_path,  # Pytest default working directory
 ):
 
     # Construct a dictionary to pass to the wrapper
-    image_list = [tmp_path / f"{color}.tiff" for color in ("gray", "green", "red")]
-    metadata = tmp_path / "metadata" / "test_series.xml"
     crop_to_n_frames = 30
     align_self = "enabled"
     flatten = "max"
@@ -326,7 +325,7 @@ def test_align_and_merge_wrapper(
                 "job_parameters": {
                     "series_name": "test_series",
                     "images": [str(image) for image in image_list],
-                    "metadata": str(metadata),
+                    "metadata": str(metadata_file),
                     "crop_to_n_frames": crop_to_n_frames,
                     "align_self": align_self,
                     "flatten": flatten,
@@ -351,7 +350,7 @@ def test_align_and_merge_wrapper(
     # Check the align-and-merge function is called correctly
     mock_align_and_merge.assert_called_once_with(
         images=image_list,
-        metadata=metadata,
+        metadata=metadata_file,
         crop_to_n_frames=crop_to_n_frames,
         align_self=align_self,
         flatten=flatten,
