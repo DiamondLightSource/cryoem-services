@@ -88,11 +88,13 @@ def image_list(tmp_path):
 align_and_merge_test_matrix = (
     # Colors | Crop frames | Align self | Flatten | Align across
     (("gray", "green", "red"), 5, "enabled", "max", "enabled"),
+    (("gray", "green", "red", "blue"), 5, "enabled", "max", "enabled"),
     (("gray", "green", "red"), 10, "enabled", "mean", "enabled"),
     (("gray", "green", "red"), 5, "", "min", ""),
     (("gray", "green", "red"), None, "enabled", "mean", "enabled"),
     (("gray", "green", "red"), 5, "enabled", "", ""),
     (("green", "red"), 5, "enabled", "max", "enabled"),
+    (("green", "red", "blue"), 5, "enabled", "max", "enabled"),
     (("green", "red"), 10, "enabled", "mean", "enabled"),
     (("green", "red"), 5, "", "min", ""),
     (("green", "red"), None, "enabled", "mean", "enabled"),
