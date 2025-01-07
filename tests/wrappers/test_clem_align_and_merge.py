@@ -242,9 +242,11 @@ align_and_merge_parameters_test_matrix = (
     (3, False, 5, "enabled", "max", "enabled"),
     (3, True, 5, "", "mean", "enabled"),
     (3, False, None, "enabled", "min", ""),
+    (3, False, "None", "enabled", "min", ""),
     (1, False, 5, "", "", "enabled"),
     (1, True, 5, "enabled", "max", "enabled"),
     (1, False, None, "", "mean", ""),
+    (1, False, "None", "", "mean", ""),
 )
 
 
