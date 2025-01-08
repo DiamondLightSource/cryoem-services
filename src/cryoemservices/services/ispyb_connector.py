@@ -55,6 +55,11 @@ class EMISPyB(CommonService):
                 self._transport.nack(header)
                 return
 
+            if message.get("parameters"):
+                # TODO: remove this when Murfey doesn't send messages of this format
+                self.log.warning("Received a deprecated message format")
+                message = message["parameters"]
+
             # Create a wrapper-like object that can be passed to functions
             # as if a recipe wrapper was present.
             rw = MockRW(self._transport)
