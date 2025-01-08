@@ -35,6 +35,7 @@ except ImportError:
 
 class ISPyBParameters(BaseModel):
     dcid: int
+    foil_hole_id: int
     image_number: int
     ispyb_command: str
     status_message: str

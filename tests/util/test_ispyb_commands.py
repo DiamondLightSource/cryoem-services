@@ -11,6 +11,7 @@ def test_insert_movie_notime(mock_models):
     def mock_movie_parameters(p):
         movie_params = {
             "dcid": 101,
+            "foil_hole_id": 2,
             "movie_number": 1,
             "movie_path": "/path/to/movie",
             "timestamp": None,
@@ -24,7 +25,10 @@ def test_insert_movie_notime(mock_models):
     assert return_value["return_value"]
 
     mock_models.Movie.assert_called_with(
-        dataCollectionId=101, movieNumber=1, movieFullPath="/path/to/movie"
+        dataCollectionId=101,
+        foilHoleId=2,
+        movieNumber=1,
+        movieFullPath="/path/to/movie",
     )
 
     mock_session.add.assert_called()
@@ -36,6 +40,7 @@ def test_insert_movie_timestamp(mock_models):
     def mock_movie_parameters(p):
         movie_params = {
             "dcid": 101,
+            "foil_hole_id": 2,
             "movie_number": 1,
             "movie_path": "/path/to/movie",
             "timestamp": 1,
@@ -49,6 +54,7 @@ def test_insert_movie_timestamp(mock_models):
 
     mock_models.Movie.assert_called_with(
         dataCollectionId=101,
+        foilHoleId=2,
         movieNumber=1,
         movieFullPath="/path/to/movie",
         createdTimeStamp=datetime.fromtimestamp(1).strftime("%Y-%m-%d %H:%M:%S"),
@@ -135,6 +141,7 @@ def test_insert_motion_correction_without_movie(mock_models):
 
     mock_models.Movie.assert_called_with(
         dataCollectionId=101,
+        foilHoleId=1,
         movieNumber=3,
         movieFullPath="/path/to/micrograph",
         createdTimeStamp=datetime.fromtimestamp(1).strftime("%Y-%m-%d %H:%M:%S"),
