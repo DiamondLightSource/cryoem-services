@@ -13,12 +13,9 @@ RUN source "/conda/etc/profile.d/conda.sh" && conda activate /install/pythonenv 
     pip install torch==2.0.1 torchvision==0.15.2 --index-url https://download.pytorch.org/whl/cpu
 
 # Install cryoem-services and pipeliner
-RUN mkdir /install/cryoem-services
-COPY packages/cryoem-services /install/cryoem-services
-RUN mkdir /install/ccpem-pipeliner
-COPY packages/ccpem-pipeliner /install/ccpem-pipeliner
 RUN source "/conda/etc/profile.d/conda.sh" && conda activate /install/pythonenv && \
-    pip install /install/ccpem-pipeliner && pip install /install/cryoem-services
+    pip install cryoemservices && \
+    pip install http://gitlab.com/stephen-riggs/ccpem-pipeliner/-/archive/diamond_tomo/ccpem-pipeliner-diamond_tomo.zip
 
 # Install relion classranker
 RUN source "/conda/etc/profile.d/conda.sh" && conda activate /install/pythonenv && \
@@ -44,13 +41,13 @@ RUN yum install fftw-devel libtiff-devel libpng-devel libjpeg-devel zlib-devel -
 
 # Build Relion - need to be on the ver5.0-mc-devolve tag
 RUN mkdir -p /install/relion5.0
-COPY packages/relion_fork /install/relion_src
-RUN mkdir /install/relion_src/build
+RUN curl https://github.com/d-j-hatton/relion/archive/ver5.0-mc-devolve.tar.gz | tar -xf -C /install
+RUN mkdir /install/relion-ver5.0-mc-devolve/build
 
 RUN mkdir /torch_home
 
-RUN cmake -DCMAKE_INSTALL_PREFIX=/install/relion5.0 -DCMAKE_C_COMPILER=/usr/bin/gcc -DCMAKE_CXX_COMPILER=/usr/bin/g++ -DMPI_C_COMPILER=/usr/lib64/openmpi/bin/mpicc -DMPI_CXX_COMPILER=/usr/lib64/openmpi/bin/mpicxx -DMPI_C_LIBRARIES=/usr/lib64/openmpi/lib/libmpi.so -DMPI_CXX_LIBRARIES=/usr/lib64/openmpi/lib/libmpi.so -DGUI=OFF -DALTCPU=ON -DPYTHON_EXE_PATH=/install/venv/bin/python -DTORCH_HOME_PATH=/torch_home -B/install/relion_src/build -S/install/relion_src
-RUN make --directory=/install/relion_src/build/ install
+RUN cmake -DCMAKE_INSTALL_PREFIX=/install/relion5.0 -DCMAKE_C_COMPILER=/usr/bin/gcc -DCMAKE_CXX_COMPILER=/usr/bin/g++ -DMPI_C_COMPILER=/usr/lib64/openmpi/bin/mpicc -DMPI_CXX_COMPILER=/usr/lib64/openmpi/bin/mpicxx -DMPI_C_LIBRARIES=/usr/lib64/openmpi/lib/libmpi.so -DMPI_CXX_LIBRARIES=/usr/lib64/openmpi/lib/libmpi.so -DGUI=OFF -DALTCPU=ON -DPYTHON_EXE_PATH=/install/venv/bin/python -DTORCH_HOME_PATH=/torch_home -B/install/relion-ver5.0-mc-devolve/build -S/install/relion-ver5.0-mc-devolve
+RUN make --directory=/install/relion-ver5.0-mc-devolve/build/ install
 
 
 # Third stage combines the Relion and conda builds

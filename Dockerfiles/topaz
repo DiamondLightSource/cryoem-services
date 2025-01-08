@@ -8,8 +8,7 @@ ARG userid
 ARG groupname
 
 # Install cryoem-services
-COPY --chown="${userid}":"${groupid}" packages/cryoem-services ./cryoem-services
-RUN python -m pip install ./cryoem-services
+RUN python -m pip install cryoemservices
 
 # Install topaz
 RUN python -m pip install topaz-em==0.2.5

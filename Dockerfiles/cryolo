@@ -12,10 +12,8 @@ RUN source "/conda/etc/profile.d/conda.sh" && source "/conda/etc/profile.d/mamba
     mamba create -p /install/cryolo_env -c conda-forge pyqt=5 python=3.7 cudatoolkit=10.0.130 cudnn=7.6.5 numpy==1.18.5 libtiff wxPython=4.1.1 --override-channels -y
 
 # Install cryoem-services and Cryolo in their own environments
-RUN mkdir /install/cryoem-services
-COPY packages/cryoem-services /install/cryoem-services
 RUN source "/conda/etc/profile.d/conda.sh" && conda activate /install/services_env && \
-    pip install --cache-dir /tmp /install/cryoem-services
+    pip install --cache-dir /tmp cryoemservices
 RUN source "/conda/etc/profile.d/conda.sh" && conda activate /install/cryolo_env && pip install cryolo[cpu]
 
 # Pack the environments

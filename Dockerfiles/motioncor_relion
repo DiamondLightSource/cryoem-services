@@ -8,11 +8,11 @@ RUN yum install fftw-devel libtiff-devel libpng-devel libjpeg-devel zlib-devel -
 
 # Build Relion - need to be on the ver5.0-mc-devolve branch
 RUN mkdir -p /install/relion5.0
-COPY packages/relion_fork /install/relion_src
-RUN mkdir /install/relion_src/build
+RUN curl https://github.com/d-j-hatton/relion/archive/ver5.0-mc-devolve.tar.gz | tar -xf -C /install
+RUN mkdir /install/relion-ver5.0-mc-devolve/build
 
-RUN cmake -DCMAKE_INSTALL_PREFIX=/install/relion5.0 -DCMAKE_C_COMPILER=/usr/bin/gcc -DCMAKE_CXX_COMPILER=/usr/bin/g++ -DMPI_C_COMPILER=/usr/lib64/openmpi/bin/mpicc -DMPI_CXX_COMPILER=/usr/lib64/openmpi/bin/mpicxx -DMPI_C_LIBRARIES=/usr/lib64/openmpi/lib/libmpi.so -DMPI_CXX_LIBRARIES=/usr/lib64/openmpi/lib/libmpi.so -DGUI=OFF -DALTCPU=ON -DDoublePrec_CPU=OFF -DFORCE_OWN_FFTW=ON -DAMDFFTW=ON -B/install/relion_src/build -S/install/relion_src
-RUN make --directory=/install/relion_src/build/ install
+RUN cmake -DCMAKE_INSTALL_PREFIX=/install/relion5.0 -DCMAKE_C_COMPILER=/usr/bin/gcc -DCMAKE_CXX_COMPILER=/usr/bin/g++ -DMPI_C_COMPILER=/usr/lib64/openmpi/bin/mpicc -DMPI_CXX_COMPILER=/usr/lib64/openmpi/bin/mpicxx -DMPI_C_LIBRARIES=/usr/lib64/openmpi/lib/libmpi.so -DMPI_CXX_LIBRARIES=/usr/lib64/openmpi/lib/libmpi.so -DGUI=OFF -DALTCPU=ON -DDoublePrec_CPU=OFF -DFORCE_OWN_FFTW=ON -DAMDFFTW=ON -B/install/relion-ver5.0-mc-devolve/build -S/install/relion-ver5.0-mc-devolve
+RUN make --directory=/install/relion-ver5.0-mc-devolve/build/ install
 
 
 # Second stage combines the Relion build with a python environment
@@ -35,5 +35,4 @@ ENV PATH="/install/relion5.0/bin:${PATH}"
 ENV VIRTUAL_ENV=/venv
 RUN python3.11 -m venv $VIRTUAL_ENV
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
-COPY --chown="${userid}":"${groupid}" packages/cryoem-services ./cryoem-services
-RUN python3.11 -m pip install --upgrade pip && python3.11 -m pip install ./cryoem-services
+RUN python3.11 -m pip install --upgrade pip && python3.11 -m pip install cryoemservices
