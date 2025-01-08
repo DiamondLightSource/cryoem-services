@@ -286,7 +286,18 @@ def test_cryolo_service_tomography(mock_subprocess, offline_transport, tmp_path)
     assert config_values["other"] == {"log_path": "logs/"}
 
     # Check that the correct messages were sent
-    assert offline_transport.send.call_count == 3
+    assert offline_transport.send.call_count == 4
+    offline_transport.send.assert_any_call(
+        destination="ispyb_connector",
+        message={
+            "parameters": {
+                "ispyb_command": "insert_processed_tomogram",
+                "file_path": cryolo_test_message["parameters"]["output_path"],
+                "processing_type": "Picked",
+            },
+            "content": {"dummy": "dummy"},
+        },
+    )
     offline_transport.send.assert_any_call(
         destination="images",
         message={

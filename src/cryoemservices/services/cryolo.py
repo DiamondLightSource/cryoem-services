@@ -281,6 +281,23 @@ class CrYOLO(CommonService):
 
         # If this is tomo then make an image and stop here
         if cryolo_params.experiment_type == "tomography":
+            # Insert the picked tomogram into ISPyB
+            ispyb_parameters_tomo = {
+                "ispyb_command": "insert_processed_tomogram",
+                "file_path": cryolo_params.output_path,
+                "processing_type": "Picked",
+            }
+            if isinstance(rw, MockRW):
+                rw.transport.send(
+                    destination="ispyb_connector",
+                    message={
+                        "parameters": ispyb_parameters_tomo,
+                        "content": {"dummy": "dummy"},
+                    },
+                )
+            else:
+                rw.send_to("ispyb_connector", ispyb_parameters_tomo)
+
             # Forward results to images service
             self.log.info("Sending to images service")
             movie_parameters = {
@@ -407,7 +424,7 @@ class CrYOLO(CommonService):
             cryolo_particle_sizes = []
 
         # Forward results to ISPyB
-        ispyb_parameters: dict = {
+        ispyb_parameters_spa: dict = {
             "ispyb_command": "buffer",
             "buffer_lookup": {"motion_correction_id": cryolo_params.mc_uuid},
             "buffer_command": {"ispyb_command": "insert_particle_picker"},
@@ -419,18 +436,18 @@ class CrYOLO(CommonService):
             ),
         }
         if cryolo_params.particle_diameter:
-            ispyb_parameters["particle_diameter"] = cryolo_params.particle_diameter
-        self.log.info(f"Sending to ispyb {ispyb_parameters}")
+            ispyb_parameters_spa["particle_diameter"] = cryolo_params.particle_diameter
+        self.log.info(f"Sending to ispyb {ispyb_parameters_spa}")
         if isinstance(rw, MockRW):
             rw.transport.send(
                 destination="ispyb_connector",
                 message={
-                    "parameters": ispyb_parameters,
+                    "parameters": ispyb_parameters_spa,
                     "content": {"dummy": "dummy"},
                 },
             )
         else:
-            rw.send_to("ispyb_connector", ispyb_parameters)
+            rw.send_to("ispyb_connector", ispyb_parameters_spa)
 
         # Extract results for images service
         try:
