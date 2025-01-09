@@ -110,11 +110,7 @@ class CrYOLO(CommonService):
         """
         if not rw:
             self.log.info("Received a simple message")
-            if (
-                not isinstance(message, dict)
-                or not message.get("parameters")
-                or not message.get("content")
-            ):
+            if not isinstance(message, dict):
                 self.log.error("Rejected invalid simple message")
                 self._transport.nack(header)
                 return
@@ -122,8 +118,7 @@ class CrYOLO(CommonService):
             # Create a wrapper-like object that can be passed to functions
             # as if a recipe wrapper was present.
             rw = MockRW(self._transport)
-            rw.recipe_step = {"parameters": message["parameters"]}
-            message = message["content"]
+            rw.recipe_step = {"parameters": message}
 
         # Reset number of particles
         self.number_of_particles = 0
@@ -262,13 +257,7 @@ class CrYOLO(CommonService):
             node_creator_parameters["success"] = True
         if not job_is_rerun:
             # Only do the node creator inserts for new files
-            if isinstance(rw, MockRW):
-                rw.transport.send(
-                    destination="node_creator",
-                    message={"parameters": node_creator_parameters, "content": "dummy"},
-                )
-            else:
-                rw.send_to("node_creator", node_creator_parameters)
+            rw.send_to("node_creator", node_creator_parameters)
 
         # End here if the command failed
         if result.returncode:
@@ -287,16 +276,7 @@ class CrYOLO(CommonService):
                 "file_path": cryolo_params.output_path,
                 "processing_type": "Picked",
             }
-            if isinstance(rw, MockRW):
-                rw.transport.send(
-                    destination="ispyb_connector",
-                    message={
-                        "parameters": ispyb_parameters_tomo,
-                        "content": {"dummy": "dummy"},
-                    },
-                )
-            else:
-                rw.send_to("ispyb_connector", ispyb_parameters_tomo)
+            rw.send_to("ispyb_connector", ispyb_parameters_tomo)
 
             # Forward results to images service
             self.log.info("Sending to images service")
@@ -314,14 +294,8 @@ class CrYOLO(CommonService):
                 "diameter_pixels": cryolo_params.cryolo_box_size,
                 "box_size": cryolo_params.cryolo_box_size,
             }
-            if isinstance(rw, MockRW):
-                rw.transport.send(destination="images", message=movie_parameters)
-                rw.transport.send(
-                    destination="images", message=central_slice_parameters
-                )
-            else:
-                rw.send_to("images", movie_parameters)
-                rw.send_to("images", central_slice_parameters)
+            rw.send_to("images", movie_parameters)
+            rw.send_to("images", central_slice_parameters)
 
             # Remove unnecessary files
             eman_file = (
@@ -439,16 +413,7 @@ class CrYOLO(CommonService):
         if cryolo_params.particle_diameter:
             ispyb_parameters_spa["particle_diameter"] = cryolo_params.particle_diameter
         self.log.info(f"Sending to ispyb {ispyb_parameters_spa}")
-        if isinstance(rw, MockRW):
-            rw.transport.send(
-                destination="ispyb_connector",
-                message={
-                    "parameters": ispyb_parameters_spa,
-                    "content": {"dummy": "dummy"},
-                },
-            )
-        else:
-            rw.send_to("ispyb_connector", ispyb_parameters_spa)
+        rw.send_to("ispyb_connector", ispyb_parameters_spa)
 
         # Extract results for images service
         try:
@@ -471,10 +436,7 @@ class CrYOLO(CommonService):
             ),
             "outfile": str(Path(cryolo_params.output_path).with_suffix(".jpeg")),
         }
-        if isinstance(rw, MockRW):
-            rw.transport.send(destination="images", message=images_parameters)
-        else:
-            rw.send_to("images", images_parameters)
+        rw.send_to("images", images_parameters)
 
         # Gather results needed for particle extraction
         extraction_params = {
@@ -495,28 +457,16 @@ class CrYOLO(CommonService):
 
         # Forward results to murfey
         self.log.info("Sending to Murfey for particle extraction")
-        if isinstance(rw, MockRW):
-            rw.transport.send(
-                destination="murfey_feedback",
-                message={
-                    "register": "picked_particles",
-                    "motion_correction_id": cryolo_params.mc_uuid,
-                    "micrograph": cryolo_params.input_path,
-                    "particle_diameters": list(cryolo_particle_sizes),
-                    "extraction_parameters": extraction_params,
-                },
-            )
-        else:
-            rw.send_to(
-                "murfey_feedback",
-                {
-                    "register": "picked_particles",
-                    "motion_correction_id": cryolo_params.mc_uuid,
-                    "micrograph": cryolo_params.input_path,
-                    "particle_diameters": list(cryolo_particle_sizes),
-                    "extraction_parameters": extraction_params,
-                },
-            )
+        rw.send_to(
+            "murfey_feedback",
+            {
+                "register": "picked_particles",
+                "motion_correction_id": cryolo_params.mc_uuid,
+                "micrograph": cryolo_params.input_path,
+                "particle_diameters": list(cryolo_particle_sizes),
+                "extraction_parameters": extraction_params,
+            },
+        )
 
         # Remove unnecessary files
         eman_file = (

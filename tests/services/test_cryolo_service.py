@@ -40,29 +40,31 @@ def test_cryolo_service_spa(mock_subprocess, offline_transport, tmp_path):
     output_path = tmp_path / "AutoPick/job007/STAR/sample.star"
     cbox_path = tmp_path / "AutoPick/job007/CBOX/sample.cbox"
     cryolo_test_message = {
-        "parameters": {
-            "pixel_size": 0.1,
-            "input_path": "MotionCorr/job002/sample.mrc",
-            "output_path": str(output_path),
-            "experiment_type": "spa",
-            "cryolo_model_weights": "sample_weights",
-            "cryolo_threshold": 0.15,
-            "retained_fraction": 0.5,
-            "min_particles": 0,
-            "mc_uuid": 0,
-            "picker_uuid": 0,
-            "particle_diameter": 1.1,
-            "ctf_values": {"dummy": "dummy"},
-            "cryolo_command": "cryolo_predict.py",
-            "relion_options": {"batch_size": 20000, "downscale": True},
-        },
-        "content": "dummy",
+        "pixel_size": 0.1,
+        "input_path": "MotionCorr/job002/sample.mrc",
+        "output_path": str(output_path),
+        "experiment_type": "spa",
+        "cryolo_config_file": str(tmp_path) + "/config.json",
+        "cryolo_model_weights": "sample_weights",
+        "cryolo_threshold": 0.15,
+        "retained_fraction": 0.5,
+        "min_particles": 0,
+        "mc_uuid": 0,
+        "picker_uuid": 0,
+        "particle_diameter": 1.1,
+        "ctf_values": {"dummy": "dummy"},
+        "cryolo_command": "cryolo_predict.py",
+        "relion_options": {"batch_size": 20000, "downscale": True},
     }
     output_relion_options = dict(RelionServiceOptions())
-    output_relion_options.update(cryolo_test_message["parameters"]["relion_options"])
+    output_relion_options.update(cryolo_test_message["relion_options"])
     output_relion_options["cryolo_config_file"] = str(
         tmp_path / "AutoPick/job007/cryolo_config.json"
     )
+
+    # Write a dummy config file expected by cryolo
+    with open(tmp_path / "config.json", "w") as f:
+        f.write('{\n"model": {\n"anchors": [160, 160]\n}\n}')
 
     # Write star co-ordinate file in the format cryolo will output
     output_path.parent.mkdir(parents=True)
@@ -123,32 +125,29 @@ def test_cryolo_service_spa(mock_subprocess, offline_transport, tmp_path):
     # Check that the correct messages were sent
     assert offline_transport.send.call_count == 4
     extraction_params = {
-        "ctf_values": cryolo_test_message["parameters"]["ctf_values"],
-        "micrographs_file": cryolo_test_message["parameters"]["input_path"],
-        "coord_list_file": cryolo_test_message["parameters"]["output_path"],
+        "ctf_values": cryolo_test_message["ctf_values"],
+        "micrographs_file": cryolo_test_message["input_path"],
+        "coord_list_file": cryolo_test_message["output_path"],
         "extract_file": "Extract/job008/Movies/sample_extract.star",
     }
     offline_transport.send.assert_any_call(
-        destination="ispyb_connector",
-        message={
-            "parameters": {
-                "particle_picking_template": "sample_weights",
-                "number_of_particles": 1,
-                "particle_diameter": 1.1,
-                "summary_image_full_path": str(output_path.with_suffix(".jpeg")),
-                "ispyb_command": "buffer",
-                "buffer_lookup": {"motion_correction_id": 0},
-                "buffer_command": {"ispyb_command": "insert_particle_picker"},
-                "buffer_store": 0,
-            },
-            "content": {"dummy": "dummy"},
+        "ispyb_connector",
+        {
+            "particle_picking_template": "sample_weights",
+            "number_of_particles": 1,
+            "particle_diameter": 1.1,
+            "summary_image_full_path": str(output_path.with_suffix(".jpeg")),
+            "ispyb_command": "buffer",
+            "buffer_lookup": {"motion_correction_id": 0},
+            "buffer_command": {"ispyb_command": "insert_particle_picker"},
+            "buffer_store": 0,
         },
     )
     offline_transport.send.assert_any_call(
-        destination="images",
-        message={
+        "images",
+        {
             "image_command": "picked_particles",
-            "file": cryolo_test_message["parameters"]["input_path"],
+            "file": cryolo_test_message["input_path"],
             "coordinates": [["1.1", "2.2"]],
             "pixel_size": 0.1,
             "diameter": 1.1,
@@ -156,36 +155,33 @@ def test_cryolo_service_spa(mock_subprocess, offline_transport, tmp_path):
         },
     )
     offline_transport.send.assert_any_call(
-        destination="murfey_feedback",
-        message={
+        "murfey_feedback",
+        {
             "register": "picked_particles",
-            "motion_correction_id": cryolo_test_message["parameters"]["mc_uuid"],
-            "micrograph": cryolo_test_message["parameters"]["input_path"],
+            "motion_correction_id": cryolo_test_message["mc_uuid"],
+            "micrograph": cryolo_test_message["input_path"],
             "particle_diameters": [10.0, 20.0],
             "extraction_parameters": extraction_params,
         },
     )
     offline_transport.send.assert_any_call(
-        destination="node_creator",
-        message={
-            "parameters": {
-                "job_type": "cryolo.autopick",
-                "input_file": cryolo_test_message["parameters"]["input_path"],
-                "output_file": str(output_path),
-                "relion_options": output_relion_options,
-                "command": (
-                    f"cryolo_predict.py --conf {tmp_path}/AutoPick/job007/cryolo_config.json "
-                    f"-o {tmp_path}/AutoPick/job007 --otf "
-                    "-i MotionCorr/job002/sample.mrc "
-                    "--weights sample_weights --threshold 0.15 "
-                    "--distance 0 --norm_margin 0"
-                ),
-                "stdout": "stdout",
-                "stderr": "stderr",
-                "experiment_type": "spa",
-                "success": True,
-            },
-            "content": "dummy",
+        "node_creator",
+        {
+            "job_type": "cryolo.autopick",
+            "input_file": cryolo_test_message["input_path"],
+            "output_file": str(output_path),
+            "relion_options": output_relion_options,
+            "command": (
+                f"cryolo_predict.py --conf {tmp_path}/AutoPick/job007/cryolo_config.json "
+                f"-o {tmp_path}/AutoPick/job007 --otf "
+                f"-i MotionCorr/job002/sample.mrc "
+                f"--weights sample_weights --threshold 0.15 "
+                "--distance 0 --norm_margin 0"
+            ),
+            "stdout": "stdout",
+            "stderr": "stderr",
+            "experiment_type": "spa",
+            "success": True,
         },
     )
 
@@ -209,24 +205,21 @@ def test_cryolo_service_tomography(mock_subprocess, offline_transport, tmp_path)
 
     output_path = tmp_path / "AutoPick/job007/STAR/sample.star"
     cryolo_test_message = {
-        "parameters": {
-            "input_path": "MotionCorr/job002/sample.mrc",
-            "output_path": str(output_path),
-            "experiment_type": "tomography",
-            "cryolo_box_size": 40,
-            "cryolo_model_weights": "sample_weights",
-            "cryolo_threshold": 0.15,
-            "retained_fraction": 0.5,
-            "min_particles": 0,
-            "particle_diameter": 1.1,
-            "tomo_tracing_min_frames": 5,
-            "tomo_tracing_missing_frames": 0,
-            "tomo_tracing_search_range": -1,
-            "ctf_values": {"dummy": "dummy"},
-            "cryolo_command": "cryolo_predict.py",
-            "relion_options": {},
-        },
-        "content": "dummy",
+        "input_path": "MotionCorr/job002/sample.mrc",
+        "output_path": str(output_path),
+        "experiment_type": "tomography",
+        "cryolo_box_size": 40,
+        "cryolo_model_weights": "sample_weights",
+        "cryolo_threshold": 0.15,
+        "retained_fraction": 0.5,
+        "min_particles": 0,
+        "particle_diameter": 1.1,
+        "tomo_tracing_min_frames": 5,
+        "tomo_tracing_missing_frames": 0,
+        "tomo_tracing_search_range": -1,
+        "ctf_values": {"dummy": "dummy"},
+        "cryolo_command": "cryolo_predict.py",
+        "relion_options": {},
     }
     output_relion_options = dict(RelionServiceOptions())
     output_relion_options["cryolo_config_file"] = str(
@@ -288,58 +281,52 @@ def test_cryolo_service_tomography(mock_subprocess, offline_transport, tmp_path)
     # Check that the correct messages were sent
     assert offline_transport.send.call_count == 4
     offline_transport.send.assert_any_call(
-        destination="ispyb_connector",
-        message={
-            "parameters": {
-                "ispyb_command": "insert_processed_tomogram",
-                "file_path": cryolo_test_message["parameters"]["output_path"],
-                "processing_type": "Picked",
-            },
-            "content": {"dummy": "dummy"},
+        "ispyb_connector",
+        {
+            "ispyb_command": "insert_processed_tomogram",
+            "file_path": cryolo_test_message["output_path"],
+            "processing_type": "Picked",
         },
     )
     offline_transport.send.assert_any_call(
-        destination="images",
-        message={
+        "images",
+        {
             "image_command": "picked_particles_3d_apng",
-            "file": cryolo_test_message["parameters"]["input_path"],
-            "coordinates_file": cryolo_test_message["parameters"]["output_path"],
+            "file": cryolo_test_message["input_path"],
+            "coordinates_file": cryolo_test_message["output_path"],
             "diameter_pixels": 40,
             "box_size": 40,
         },
     )
     offline_transport.send.assert_any_call(
-        destination="images",
-        message={
+        "images",
+        {
             "image_command": "picked_particles_3d_central_slice",
-            "file": cryolo_test_message["parameters"]["input_path"],
-            "coordinates_file": cryolo_test_message["parameters"]["output_path"],
+            "file": cryolo_test_message["input_path"],
+            "coordinates_file": cryolo_test_message["output_path"],
             "diameter_pixels": 40,
             "box_size": 40,
         },
     )
     offline_transport.send.assert_any_call(
-        destination="node_creator",
-        message={
-            "parameters": {
-                "job_type": "cryolo.autopick",
-                "input_file": cryolo_test_message["parameters"]["input_path"],
-                "output_file": str(output_path),
-                "relion_options": output_relion_options,
-                "command": (
-                    f"cryolo_predict.py --conf {tmp_path}/AutoPick/job007/cryolo_config.json "
-                    f"-o {tmp_path}/AutoPick/job007 --otf "
-                    "--tomo --tsr -1 --tmem 0 --tmin 5 "
-                    "-i MotionCorr/job002/sample.mrc "
-                    "--weights sample_weights --threshold 0.15 "
-                    "--distance 0 --norm_margin 0"
-                ),
-                "stdout": "stdout",
-                "stderr": "stderr",
-                "experiment_type": "tomography",
-                "success": True,
-            },
-            "content": "dummy",
+        "node_creator",
+        {
+            "job_type": "cryolo.autopick",
+            "input_file": cryolo_test_message["input_path"],
+            "output_file": str(output_path),
+            "relion_options": output_relion_options,
+            "command": (
+                f"cryolo_predict.py --conf {tmp_path}/AutoPick/job007/cryolo_config.json "
+                f"-o {tmp_path}/AutoPick/job007 --otf "
+                "--tomo --tsr -1 --tmem 0 --tmin 5 "
+                "-i MotionCorr/job002/sample.mrc "
+                "--weights sample_weights --threshold 0.15 "
+                "--distance 0 --norm_margin 0"
+            ),
+            "stdout": "stdout",
+            "stderr": "stderr",
+            "experiment_type": "tomography",
+            "success": True,
         },
     )
 
