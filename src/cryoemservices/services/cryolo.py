@@ -257,13 +257,7 @@ class CrYOLO(CommonService):
             node_creator_parameters["success"] = True
         if not job_is_rerun:
             # Only do the node creator inserts for new files
-            if isinstance(rw, MockRW):
-                rw.transport.send(
-                    destination="node_creator",
-                    message={"parameters": node_creator_parameters, "content": "dummy"},
-                )
-            else:
-                rw.send_to("node_creator", node_creator_parameters)
+            rw.send_to("node_creator", node_creator_parameters)
 
         # End here if the command failed
         if result.returncode:
@@ -282,16 +276,7 @@ class CrYOLO(CommonService):
                 "file_path": cryolo_params.output_path,
                 "processing_type": "Picked",
             }
-            if isinstance(rw, MockRW):
-                rw.transport.send(
-                    destination="ispyb_connector",
-                    message={
-                        "parameters": ispyb_parameters_tomo,
-                        "content": {"dummy": "dummy"},
-                    },
-                )
-            else:
-                rw.send_to("ispyb_connector", ispyb_parameters_tomo)
+            rw.send_to("ispyb_connector", ispyb_parameters_tomo)
 
             # Forward results to images service
             self.log.info("Sending to images service")
@@ -309,14 +294,8 @@ class CrYOLO(CommonService):
                 "diameter_pixels": cryolo_params.cryolo_box_size,
                 "box_size": cryolo_params.cryolo_box_size,
             }
-            if isinstance(rw, MockRW):
-                rw.transport.send(destination="images", message=movie_parameters)
-                rw.transport.send(
-                    destination="images", message=central_slice_parameters
-                )
-            else:
-                rw.send_to("images", movie_parameters)
-                rw.send_to("images", central_slice_parameters)
+            rw.send_to("images", movie_parameters)
+            rw.send_to("images", central_slice_parameters)
 
             # Remove unnecessary files
             eman_file = (
