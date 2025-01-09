@@ -316,6 +316,7 @@ class CTFFind(CommonService):
                 "DefocusV": self.defocus2,
                 "DefocusAngle": self.astigmatism_angle,
             }
+            ctf_params.autopick["experiment_type"] = ctf_params.experiment_type
             ctf_params.autopick["relion_options"] = dict(ctf_params.relion_options)
             ctf_params.autopick["mc_uuid"] = ctf_params.mc_uuid
             ctf_params.autopick["picker_uuid"] = ctf_params.picker_uuid

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 import subprocess
 from pathlib import Path
@@ -8,7 +9,7 @@ from typing import Any, Optional
 import numpy as np
 import workflows.recipe
 from gemmi import cif
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 from workflows.services.common_service import CommonService
 
 from cryoemservices.util.models import MockRW
@@ -18,21 +19,45 @@ from cryoemservices.util.relion_service_options import RelionServiceOptions
 class CryoloParameters(BaseModel):
     input_path: str = Field(..., min_length=1)
     output_path: str = Field(..., min_length=1)
-    pixel_size: float
-    cryolo_config_file: str = "/dls_sw/apps/EM/crYOLO/phosaurus_models/config.json"
-    cryolo_model_weights: str = (
-        "/dls_sw/apps/EM/crYOLO/phosaurus_models/gmodel_phosnet_202005_N63_c17.h5"
-    )
+    experiment_type: str
+    pixel_size: Optional[float] = None
+    cryolo_box_size: int = 160
+    cryolo_model_weights: str = "gmodel_phosnet_202005_N63_c17.h5"
     cryolo_threshold: float = 0.3
     retained_fraction: float = 1
     min_particles: int = 30
     cryolo_command: str = "cryolo_predict.py"
     particle_diameter: Optional[float] = None
+    min_distance: float = 0
+    normalization_margin: float = 0
+    tomo_tracing_min_frames: int = 5
+    tomo_tracing_missing_frames: int = 0
+    tomo_tracing_search_range: int = -1
     on_the_fly: bool = True
-    mc_uuid: int
-    picker_uuid: int
+    mc_uuid: Optional[int] = None
+    picker_uuid: Optional[int] = None
     relion_options: RelionServiceOptions
     ctf_values: dict = {}
+
+    @field_validator("experiment_type")
+    @classmethod
+    def is_spa_or_tomo(cls, experiment):
+        if experiment not in ["spa", "tomography"]:
+            raise ValueError("Specify an experiment type of spa or tomography.")
+        return experiment
+
+    @model_validator(mode="after")
+    def check_spa_has_uuids_and_pixel_size(self):
+        if self.experiment_type == "spa" and (
+            self.mc_uuid is None or self.picker_uuid is None or not self.pixel_size
+        ):
+            raise ValueError(
+                "In SPA mode the following must be provided: "
+                f"mc_uuid (given {self.mc_uuid}), "
+                f"picker_uuid (given {self.picker_uuid}), "
+                f"pixel_size (given {self.pixel_size})"
+            )
+        return self
 
 
 class CrYOLO(CommonService):
@@ -119,6 +144,7 @@ class CrYOLO(CommonService):
         # Check if this file has been run before
         if Path(cryolo_params.output_path).is_file():
             job_is_rerun = True
+            Path(cryolo_params.output_path).unlink()
         else:
             job_is_rerun = False
 
@@ -136,16 +162,32 @@ class CrYOLO(CommonService):
 
         # Construct a command to run cryolo with the given parameters
         command = cryolo_params.cryolo_command.split()
-        command.extend((["--conf", cryolo_params.cryolo_config_file]))
+        command.extend((["--conf", str(job_dir / "cryolo_config.json")]))
         command.extend((["-o", str(job_dir)]))
         if cryolo_params.on_the_fly:
             command.extend((["--otf"]))
+        if cryolo_params.experiment_type == "tomography":
+            command.extend(
+                (
+                    [
+                        "--tomo",
+                        "--tsr",
+                        str(cryolo_params.tomo_tracing_search_range),
+                        "--tmem",
+                        str(cryolo_params.tomo_tracing_missing_frames),
+                        "--tmin",
+                        str(cryolo_params.tomo_tracing_min_frames),
+                    ]
+                )
+            )
 
         cryolo_flags = {
             "cryolo_model_weights": "--weights",
             "input_path": "-i",
             "cryolo_threshold": "--threshold",
             "cryolo_gpus": "--gpu",
+            "min_distance": "--distance",
+            "normalization_margin": "--norm_margin",
         }
 
         for k, v in cryolo_params.model_dump().items():
@@ -157,7 +199,31 @@ class CrYOLO(CommonService):
             + f"Output: {cryolo_params.output_path}"
         )
 
-        # Run cryolo
+        # Create the config file
+        cryolo_params.relion_options.cryolo_config_file = str(
+            job_dir / "cryolo_config.json"
+        )
+        config: dict = {
+            "model": {
+                "architecture": "PhosaurusNet",
+                "input_size": 1024,
+                "max_box_per_image": 600,
+                "norm": "STANDARD",
+                "num_patches": 1,
+            },
+            "other": {"log_path": "logs/"},
+        }
+        if cryolo_params.experiment_type == "spa":
+            config["model"]["filter"] = [0.1, "filtered"]
+        config["model"]["anchors"] = [
+            cryolo_params.cryolo_box_size,
+            cryolo_params.cryolo_box_size,
+        ]
+        if not (job_dir / "cryolo_config.json").is_file():
+            with open(job_dir / "cryolo_config.json", "w") as config_file:
+                json.dump(config, config_file)
+
+        # Run cryolo prediction
         result = subprocess.run(command, cwd=job_dir, capture_output=True)
 
         # Remove cryosparc file to minimise crashes
@@ -165,6 +231,106 @@ class CrYOLO(CommonService):
 
         # Read in the stdout from cryolo
         self.parse_cryolo_output(result.stdout.decode("utf8", "replace"))
+        # Register the cryolo job with the node creator
+        self.log.info(f"Sending {self.job_type} to node creator")
+        node_creator_parameters: dict[str, Any] = {
+            "job_type": self.job_type,
+            "input_file": cryolo_params.input_path,
+            "output_file": cryolo_params.output_path,
+            "relion_options": dict(cryolo_params.relion_options),
+            "command": " ".join(command),
+            "stdout": result.stdout.decode("utf8", "replace"),
+            "stderr": result.stderr.decode("utf8", "replace"),
+            "experiment_type": cryolo_params.experiment_type,
+        }
+        if (
+            result.returncode
+            and result.stderr.decode("utf8", "replace").split("\n")[-1]
+            == "IndexError: list index out of range"
+        ):
+            # If Cryolo failed because there are no picks then consider it a success
+            result.returncode = 0
+
+        if result.returncode:
+            node_creator_parameters["success"] = False
+        else:
+            node_creator_parameters["success"] = True
+        if not job_is_rerun:
+            # Only do the node creator inserts for new files
+            if isinstance(rw, MockRW):
+                rw.transport.send(
+                    destination="node_creator",
+                    message={"parameters": node_creator_parameters, "content": "dummy"},
+                )
+            else:
+                rw.send_to("node_creator", node_creator_parameters)
+
+        # End here if the command failed
+        if result.returncode:
+            self.log.error(
+                f"crYOLO failed with exitcode {result.returncode}:\n"
+                + result.stderr.decode("utf8", "replace")
+            )
+            rw.transport.nack(header)
+            return
+
+        # If this is tomo then make an image and stop here
+        if cryolo_params.experiment_type == "tomography":
+            # Insert the picked tomogram into ISPyB
+            ispyb_parameters_tomo = {
+                "ispyb_command": "insert_processed_tomogram",
+                "file_path": cryolo_params.output_path,
+                "processing_type": "Picked",
+            }
+            if isinstance(rw, MockRW):
+                rw.transport.send(
+                    destination="ispyb_connector",
+                    message={
+                        "parameters": ispyb_parameters_tomo,
+                        "content": {"dummy": "dummy"},
+                    },
+                )
+            else:
+                rw.send_to("ispyb_connector", ispyb_parameters_tomo)
+
+            # Forward results to images service
+            self.log.info("Sending to images service")
+            movie_parameters = {
+                "image_command": "picked_particles_3d_apng",
+                "file": cryolo_params.input_path,
+                "coordinates_file": cryolo_params.output_path,
+                "diameter_pixels": cryolo_params.cryolo_box_size,
+                "box_size": cryolo_params.cryolo_box_size,
+            }
+            central_slice_parameters = {
+                "image_command": "picked_particles_3d_central_slice",
+                "file": cryolo_params.input_path,
+                "coordinates_file": cryolo_params.output_path,
+                "diameter_pixels": cryolo_params.cryolo_box_size,
+                "box_size": cryolo_params.cryolo_box_size,
+            }
+            if isinstance(rw, MockRW):
+                rw.transport.send(destination="images", message=movie_parameters)
+                rw.transport.send(
+                    destination="images", message=central_slice_parameters
+                )
+            else:
+                rw.send_to("images", movie_parameters)
+                rw.send_to("images", central_slice_parameters)
+
+            # Remove unnecessary files
+            eman_file = (
+                job_dir
+                / f"EMAN_3D/{Path(cryolo_params.output_path).with_suffix('.box').name}"
+            )
+            eman_file.unlink(missing_ok=True)
+
+            self.log.info(
+                f"Done {self.job_type} {cryolo_params.experiment_type} "
+                f"for {cryolo_params.input_path}."
+            )
+            rw.transport.ack(header)
+            return
 
         # Read in the cbox file for particle selection and finding sizes
         try:
@@ -240,6 +406,8 @@ class CrYOLO(CommonService):
                         )
             else:
                 cryolo_threshold = cryolo_params.cryolo_threshold
+
+            # Update the relion options, but this value is currently unusable
             cryolo_params.relion_options.cryolo_threshold = cryolo_threshold
 
             # Get the diameters of the particles in Angstroms for Murfey
@@ -248,46 +416,11 @@ class CrYOLO(CommonService):
                 * cryolo_params.pixel_size
             )
         except (FileNotFoundError, OSError, AttributeError):
+            self.number_of_particles = 0
             cryolo_particle_sizes = []
 
-        # Register the cryolo job with the node creator
-        self.log.info(f"Sending {self.job_type} to node creator")
-        node_creator_parameters: dict[str, Any] = {
-            "job_type": self.job_type,
-            "input_file": cryolo_params.input_path,
-            "output_file": cryolo_params.output_path,
-            "relion_options": dict(cryolo_params.relion_options),
-            "command": " ".join(command),
-            "stdout": result.stdout.decode("utf8", "replace"),
-            "stderr": result.stderr.decode("utf8", "replace"),
-        }
-        if (
-            result.returncode
-            and result.stderr.decode("utf8", "replace").split("\n")[-1]
-            == "IndexError: list index out of range"
-        ):
-            # If Cryolo failed because there are no picks then consider it a success
-            result.returncode = 0
-
-        if result.returncode:
-            node_creator_parameters["success"] = False
-        else:
-            node_creator_parameters["success"] = True
-        if not job_is_rerun:
-            # Only do the node creator inserts for new files
-            rw.send_to("node_creator", node_creator_parameters)
-
-        # End here if the command failed
-        if result.returncode:
-            self.log.error(
-                f"crYOLO failed with exitcode {result.returncode}:\n"
-                + result.stderr.decode("utf8", "replace")
-            )
-            rw.transport.nack(header)
-            return
-
         # Forward results to ISPyB
-        ispyb_parameters = {
+        ispyb_parameters_spa: dict = {
             "ispyb_command": "buffer",
             "buffer_lookup": {"motion_correction_id": cryolo_params.mc_uuid},
             "buffer_command": {"ispyb_command": "insert_particle_picker"},
@@ -299,9 +432,9 @@ class CrYOLO(CommonService):
             ),
         }
         if cryolo_params.particle_diameter:
-            ispyb_parameters["particle_diameter"] = cryolo_params.particle_diameter
-        self.log.info(f"Sending to ispyb {ispyb_parameters}")
-        rw.send_to("ispyb_connector", ispyb_parameters)
+            ispyb_parameters_spa["particle_diameter"] = cryolo_params.particle_diameter
+        self.log.info(f"Sending to ispyb {ispyb_parameters_spa}")
+        rw.send_to("ispyb_connector", ispyb_parameters_spa)
 
         # Extract results for images service
         try:
@@ -312,21 +445,19 @@ class CrYOLO(CommonService):
 
         # Forward results to images service
         self.log.info("Sending to images service")
-        rw.send_to(
-            "images",
-            {
-                "image_command": "picked_particles",
-                "file": cryolo_params.input_path,
-                "coordinates": coords,
-                "pixel_size": cryolo_params.pixel_size,
-                "diameter": (
-                    cryolo_params.particle_diameter
-                    if cryolo_params.particle_diameter
-                    else 160
-                ),
-                "outfile": str(Path(cryolo_params.output_path).with_suffix(".jpeg")),
-            },
-        )
+        images_parameters = {
+            "image_command": "picked_particles",
+            "file": cryolo_params.input_path,
+            "coordinates": coords,
+            "pixel_size": cryolo_params.pixel_size,
+            "diameter": (
+                cryolo_params.particle_diameter
+                if cryolo_params.particle_diameter
+                else cryolo_params.cryolo_box_size
+            ),
+            "outfile": str(Path(cryolo_params.output_path).with_suffix(".jpeg")),
+        }
+        rw.send_to("images", images_parameters)
 
         # Gather results needed for particle extraction
         extraction_params = {
@@ -358,5 +489,14 @@ class CrYOLO(CommonService):
             },
         )
 
-        self.log.info(f"Done {self.job_type} for {cryolo_params.input_path}.")
+        # Remove unnecessary files
+        eman_file = (
+            job_dir / f"EMAN/{Path(cryolo_params.output_path).with_suffix('.box').name}"
+        )
+        eman_file.unlink(missing_ok=True)
+
+        self.log.info(
+            f"Done {self.job_type} {cryolo_params.experiment_type} "
+            f"for {cryolo_params.input_path}."
+        )
         rw.transport.ack(header)

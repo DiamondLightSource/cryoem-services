@@ -59,8 +59,6 @@ spec:
           sources:
           - secret:
               name: {{ .Values.global.rmqSecretName }}
-          - secret:
-              name: {{ .Values.global.rmqApiSecretName }}
 {{- if .Values.global.extraGlobalVolumes }}
 {{ toYaml .Values.global.extraGlobalVolumes | indent 6 }}
 {{ end }}
