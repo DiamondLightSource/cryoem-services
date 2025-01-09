@@ -99,8 +99,8 @@ def test_icebreaker_micrographs_service(mock_icebreaker, offline_transport, tmp_
 
     # Check that the correct messages were sent
     offline_transport.send.assert_any_call(
-        destination="icebreaker",
-        message={
+        "icebreaker",
+        {
             "icebreaker_type": "summary",
             "input_micrographs": f"{tmp_path}/IceBreaker/job003/Movies/sample_grouped.mrc",
             "mc_uuid": 0,
@@ -109,8 +109,8 @@ def test_icebreaker_micrographs_service(mock_icebreaker, offline_transport, tmp_
         },
     )
     offline_transport.send.assert_any_call(
-        destination="node_creator",
-        message={
+        "node_creator",
+        {
             "job_type": "icebreaker.micrograph_analysis.micrographs",
             "input_file": icebreaker_test_message["input_micrographs"],
             "output_file": icebreaker_test_message["output_path"],
@@ -174,8 +174,8 @@ def test_icebreaker_enhancecontrast_service(
 
     # Check that the correct messages were sent
     offline_transport.send.assert_any_call(
-        destination="node_creator",
-        message={
+        "node_creator",
+        {
             "job_type": "icebreaker.micrograph_analysis.enhancecontrast",
             "input_file": icebreaker_test_message["input_micrographs"],
             "output_file": icebreaker_test_message["output_path"],
@@ -238,8 +238,8 @@ def test_icebreaker_summary_service(mock_icebreaker, offline_transport, tmp_path
 
     # Check that the correct messages were sent
     offline_transport.send.assert_any_call(
-        destination="node_creator",
-        message={
+        "node_creator",
+        {
             "job_type": "icebreaker.micrograph_analysis.summary",
             "input_file": icebreaker_test_message["input_micrographs"],
             "output_file": icebreaker_test_message["output_path"],
@@ -262,8 +262,8 @@ def test_icebreaker_summary_service(mock_icebreaker, offline_transport, tmp_path
         },
     )
     offline_transport.send.assert_any_call(
-        destination="ispyb_connector",
-        message={
+        "ispyb_connector",
+        {
             "minimum": "0",
             "q1": "1",
             "median": "2",
@@ -318,8 +318,8 @@ def test_icebreaker_particles_service(mock_icebreaker, offline_transport, tmp_pa
 
     # Check that the correct messages were sent
     offline_transport.send.assert_any_call(
-        destination="node_creator",
-        message={
+        "node_creator",
+        {
             "job_type": "icebreaker.micrograph_analysis.particles",
             "input_file": icebreaker_test_message["input_micrographs"]
             + ":"

@@ -81,8 +81,8 @@ def test_bfactor_service(offline_transport, tmp_path):
 
     # Check that the correct messages were sent
     offline_transport.send.assert_any_call(
-        destination="refine_wrapper",
-        message={
+        "refine_wrapper",
+        {
             "refine_job_dir": f"{bfactor_dir}/Refine3D/job003",
             "particles_file": f"{bfactor_dir}/Select/job002/particles_split1.star",
             "rescaled_class_reference": str(
@@ -97,8 +97,8 @@ def test_bfactor_service(offline_transport, tmp_path):
         },
     )
     offline_transport.send.assert_any_call(
-        destination="node_creator",
-        message={
+        "node_creator",
+        {
             "job_type": "relion.select.split",
             "input_file": str(bfactor_dir / "Import/job001/particles.star"),
             "output_file": f"{bfactor_dir}/Select/job002/particles_split1.star",

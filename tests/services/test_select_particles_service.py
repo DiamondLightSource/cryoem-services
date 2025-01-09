@@ -71,8 +71,8 @@ def test_select_particles_service(offline_transport, tmp_path):
 
     # Check that the correct messages were sent
     offline_transport.send.assert_any_call(
-        destination="node_creator",
-        message={
+        "node_creator",
+        {
             "job_type": "relion.select.split",
             "input_file": str(extract_file),
             "output_file": f"{output_dir}/particles_split3.star",
@@ -83,8 +83,8 @@ def test_select_particles_service(offline_transport, tmp_path):
         },
     )
     offline_transport.send.assert_any_call(
-        destination="murfey_feedback",
-        message={
+        "murfey_feedback",
+        {
             "register": "complete_particles_file",
             "class2d_message": {
                 "class2d_dir": f"{tmp_path}/Class2D/job",
@@ -94,8 +94,8 @@ def test_select_particles_service(offline_transport, tmp_path):
         },
     )
     offline_transport.send.assert_any_call(
-        destination="murfey_feedback",
-        message={
+        "murfey_feedback",
+        {
             "register": "done_particle_selection",
         },
     )

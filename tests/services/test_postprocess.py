@@ -102,8 +102,8 @@ def test_postprocess_first_refine_has_symmetry(
     # Check that the correct messages were sent
     assert offline_transport.send.call_count == 3
     offline_transport.send.assert_any_call(
-        destination="murfey_feedback",
-        message={
+        "murfey_feedback",
+        {
             "register": "done_refinement",
             "project_dir": str(tmp_path),
             "resolution": 4.5,
@@ -118,8 +118,8 @@ def test_postprocess_first_refine_has_symmetry(
         },
     )
     offline_transport.send.assert_any_call(
-        destination="ispyb_connector",
-        message={
+        "ispyb_connector",
+        {
             "ispyb_command": "multipart_message",
             "ispyb_command_list": [
                 {
@@ -164,8 +164,8 @@ def test_postprocess_first_refine_has_symmetry(
         },
     )
     offline_transport.send.assert_any_call(
-        destination="node_creator",
-        message={
+        "node_creator",
+        {
             "job_type": "relion.postprocess",
             "input_file": (
                 postprocess_test_message["half_map"]
@@ -283,8 +283,8 @@ def test_postprocess_first_refine_without_symmetry(
     assert offline_transport.send.call_count == 4
     # Don't retest the murfey, ispyb and node creator sends
     offline_transport.send.assert_any_call(
-        destination="refine_wrapper",
-        message={
+        "refine_wrapper",
+        {
             "refine_job_dir": f"{tmp_path}/Refine3D/job016",
             "particles_file": f"{tmp_path}/Extract/job012/particles.star",
             "rescaled_class_reference": str(tmp_path / "class_sym_T.mrc"),
@@ -357,8 +357,8 @@ def test_postprocess_bfactor(mock_subprocess, offline_transport, tmp_path):
     # Check the sends which differ from above
     # So no need to recheck postprocessing command or node creator message
     offline_transport.send.assert_any_call(
-        destination="murfey_feedback",
-        message={
+        "murfey_feedback",
+        {
             "register": "done_bfactor",
             "resolution": 4.5,
             "number_of_particles": 2,
@@ -366,8 +366,8 @@ def test_postprocess_bfactor(mock_subprocess, offline_transport, tmp_path):
         },
     )
     offline_transport.send.assert_any_call(
-        destination="ispyb_connector",
-        message={
+        "ispyb_connector",
+        {
             "ispyb_command": "multipart_message",
             "ispyb_command_list": [
                 {

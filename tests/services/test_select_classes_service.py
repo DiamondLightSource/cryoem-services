@@ -178,8 +178,8 @@ def test_select_classes_service_first_batch(
 
     # Check that the correct messages were sent
     offline_transport.send.assert_any_call(
-        destination="ispyb_connector",
-        message={
+        "ispyb_connector",
+        {
             "ispyb_command": "multipart_message",
             "ispyb_command_list": [
                 {
@@ -202,8 +202,8 @@ def test_select_classes_service_first_batch(
         },
     )
     offline_transport.send.assert_any_call(
-        destination="node_creator",
-        message={
+        "node_creator",
+        {
             "job_type": "relion.select.class2dauto",
             "input_file": select_test_message["input_file"],
             "output_file": f"{tmp_path}/Select/job012/particles.star",
@@ -223,8 +223,8 @@ def test_select_classes_service_first_batch(
         },
     )
     offline_transport.send.assert_any_call(
-        destination="node_creator",
-        message={
+        "node_creator",
+        {
             "alias": "Best_particles",
             "job_type": "combine_star_files_job",
             "input_file": f"{tmp_path}/Select/job012/particles.star",
@@ -240,8 +240,8 @@ def test_select_classes_service_first_batch(
         },
     )
     offline_transport.send.assert_any_call(
-        destination="node_creator",
-        message={
+        "node_creator",
+        {
             "alias": "Best_particles",
             "job_type": "combine_star_files_job",
             "input_file": f"{tmp_path}/Select/job012/particles.star",
@@ -257,8 +257,8 @@ def test_select_classes_service_first_batch(
         },
     )
     offline_transport.send.assert_any_call(
-        destination="images",
-        message={
+        "images",
+        {
             "image_command": "picked_particles",
             "file": f"{tmp_path}/MotionCorr/job002/Movies/movie.mrc",
             "coordinates": [],
@@ -271,15 +271,15 @@ def test_select_classes_service_first_batch(
         },
     )
     offline_transport.send.assert_any_call(
-        destination="murfey_feedback",
-        message={
+        "murfey_feedback",
+        {
             "register": "save_class_selection_score",
             "class_selection_score": 0.006,
         },
     )
     offline_transport.send.assert_any_call(
-        destination="murfey_feedback",
-        message={
+        "murfey_feedback",
+        {
             "register": "run_class3d",
             "class3d_message": {
                 "particles_file": f"{tmp_path}/Select/job013/particles_batch_50000.star",
@@ -289,8 +289,8 @@ def test_select_classes_service_first_batch(
         },
     )
     offline_transport.send.assert_any_call(
-        destination="murfey_feedback",
-        message={
+        "murfey_feedback",
+        {
             "register": "done_class_selection",
         },
     )
@@ -336,8 +336,8 @@ def test_select_classes_service_batch_threshold(
     # Don't bother to check the auto-selection calls here, they are checked above
     # Do check the Murfey 3D calls
     offline_transport.send.assert_any_call(
-        destination="murfey_feedback",
-        message={
+        "murfey_feedback",
+        {
             "register": "run_class3d",
             "class3d_message": {
                 "particles_file": f"{tmp_path}/Select/job013/particles_batch_100000.star",
@@ -388,8 +388,8 @@ def test_select_classes_service_two_thresholds(
     # Don't bother to check the auto-selection calls here, they are checked above
     # Do check the Murfey 3D calls
     offline_transport.send.assert_any_call(
-        destination="murfey_feedback",
-        message={
+        "murfey_feedback",
+        {
             "register": "run_class3d",
             "class3d_message": {
                 "particles_file": f"{tmp_path}/Select/job013/particles_batch_100000.star",
@@ -441,8 +441,8 @@ def test_select_classes_service_last_threshold(
     # Don't bother to check the auto-selection calls here, they are checked above
     # Do check the Murfey 3D calls
     offline_transport.send.assert_any_call(
-        destination="murfey_feedback",
-        message={
+        "murfey_feedback",
+        {
             "register": "run_class3d",
             "class3d_message": {
                 "particles_file": f"{tmp_path}/Select/job013/particles_batch_200000.star",

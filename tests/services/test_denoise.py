@@ -159,8 +159,8 @@ def test_denoise_local_service(
     # Check the images service request
     assert offline_transport.send.call_count == 6
     offline_transport.send.assert_any_call(
-        destination="node_creator",
-        message={
+        "node_creator",
+        {
             "experiment_type": "tomography",
             "job_type": "relion.denoisetomo",
             "input_file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
@@ -173,37 +173,37 @@ def test_denoise_local_service(
         },
     )
     offline_transport.send.assert_any_call(
-        destination="images",
-        message={
+        "images",
+        {
             "image_command": "mrc_central_slice",
             "file": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
         },
     )
     offline_transport.send.assert_any_call(
-        destination="movie",
-        message={
+        "movie",
+        {
             "image_command": "mrc_to_apng",
             "file": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
         },
     )
     offline_transport.send.assert_any_call(
-        destination="ispyb_connector",
-        message={
+        "ispyb_connector",
+        {
             "ispyb_command": "insert_processed_tomogram",
             "file_path": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
             "processing_type": "Denoised",
         },
     )
     offline_transport.send.assert_any_call(
-        destination="segmentation",
-        message={
+        "segmentation",
+        {
             "tomogram": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
             "output_dir": f"{tmp_path}/Segmentation/job008/tomograms",
         },
     )
     offline_transport.send.assert_any_call(
-        destination="cryolo",
-        message={
+        "cryolo",
+        {
             "input_path": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
             "output_path": f"{tmp_path}/AutoPick/job009/CBOX_3D/test_stack_aretomo.denoised.cbox",
             "experiment_type": "tomography",
@@ -333,8 +333,8 @@ def test_denoise_slurm_service(
     # Check the images service request
     assert offline_transport.send.call_count == 6
     offline_transport.send.assert_any_call(
-        destination="node_creator",
-        message={
+        "node_creator",
+        {
             "experiment_type": "tomography",
             "job_type": "relion.denoisetomo",
             "input_file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
@@ -347,37 +347,37 @@ def test_denoise_slurm_service(
         },
     )
     offline_transport.send.assert_any_call(
-        destination="images",
-        message={
+        "images",
+        {
             "image_command": "mrc_central_slice",
             "file": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
         },
     )
     offline_transport.send.assert_any_call(
-        destination="movie",
-        message={
+        "movie",
+        {
             "image_command": "mrc_to_apng",
             "file": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
         },
     )
     offline_transport.send.assert_any_call(
-        destination="ispyb_connector",
-        message={
+        "ispyb_connector",
+        {
             "ispyb_command": "insert_processed_tomogram",
             "file_path": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
             "processing_type": "Denoised",
         },
     )
     offline_transport.send.assert_any_call(
-        destination="segmentation",
-        message={
+        "segmentation",
+        {
             "tomogram": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
             "output_dir": f"{tmp_path}/Segmentation/job008/tomograms",
         },
     )
     offline_transport.send.assert_any_call(
-        destination="cryolo",
-        message={
+        "cryolo",
+        {
             "input_path": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
             "output_path": f"{tmp_path}/AutoPick/job009/CBOX_3D/test_stack_aretomo.denoised.cbox",
             "experiment_type": "tomography",

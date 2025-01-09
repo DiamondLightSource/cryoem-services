@@ -217,8 +217,8 @@ def test_motioncor2_service_spa(mock_subprocess, offline_transport, tmp_path):
 
     # Check that the correct messages were sent
     offline_transport.send.assert_any_call(
-        destination="icebreaker",
-        message={
+        "icebreaker",
+        {
             "icebreaker_type": "micrographs",
             "input_micrographs": motioncorr_test_message["mrc_out"],
             "output_path": f"{tmp_path}/IceBreaker/job003/",
@@ -230,8 +230,8 @@ def test_motioncor2_service_spa(mock_subprocess, offline_transport, tmp_path):
         },
     )
     offline_transport.send.assert_any_call(
-        destination="icebreaker",
-        message={
+        "icebreaker",
+        {
             "icebreaker_type": "enhancecontrast",
             "input_micrographs": motioncorr_test_message["mrc_out"],
             "output_path": f"{tmp_path}/IceBreaker/job004/",
@@ -243,8 +243,8 @@ def test_motioncor2_service_spa(mock_subprocess, offline_transport, tmp_path):
         },
     )
     offline_transport.send.assert_any_call(
-        destination="ctffind",
-        message={
+        "ctffind",
+        {
             "ctf": "ctf",
             "input_image": motioncorr_test_message["mrc_out"],
             "mc_uuid": motioncorr_test_message["mc_uuid"],
@@ -257,8 +257,8 @@ def test_motioncor2_service_spa(mock_subprocess, offline_transport, tmp_path):
         },
     )
     offline_transport.send.assert_any_call(
-        destination="ispyb_connector",
-        message={
+        "ispyb_connector",
+        {
             "first_frame": 1,
             "last_frame": 2,
             "total_motion": total_motion,
@@ -275,15 +275,15 @@ def test_motioncor2_service_spa(mock_subprocess, offline_transport, tmp_path):
         },
     )
     offline_transport.send.assert_any_call(
-        destination="images",
-        message={
+        "images",
+        {
             "image_command": "mrc_to_jpeg",
             "file": motioncorr_test_message["mrc_out"],
         },
     )
     offline_transport.send.assert_any_call(
-        destination="node_creator",
-        message={
+        "node_creator",
+        {
             "experiment_type": "spa",
             "job_type": "relion.import.movies",
             "input_file": str(movie),
@@ -295,8 +295,8 @@ def test_motioncor2_service_spa(mock_subprocess, offline_transport, tmp_path):
         },
     )
     offline_transport.send.assert_any_call(
-        destination="node_creator",
-        message={
+        "node_creator",
+        {
             "experiment_type": "spa",
             "job_type": "relion.motioncorr.motioncor2",
             "input_file": f"{tmp_path}/Import/job001/Movies/sample.tiff",
@@ -472,8 +472,8 @@ def test_motioncor_relion_service_spa(mock_subprocess, offline_transport, tmp_pa
 
     # Check that the correct messages were sent
     offline_transport.send.assert_any_call(
-        destination="icebreaker",
-        message={
+        "icebreaker",
+        {
             "icebreaker_type": "micrographs",
             "input_micrographs": motioncorr_test_message["mrc_out"],
             "output_path": f"{tmp_path}/IceBreaker/job003/",
@@ -485,8 +485,8 @@ def test_motioncor_relion_service_spa(mock_subprocess, offline_transport, tmp_pa
         },
     )
     offline_transport.send.assert_any_call(
-        destination="icebreaker",
-        message={
+        "icebreaker",
+        {
             "icebreaker_type": "enhancecontrast",
             "input_micrographs": motioncorr_test_message["mrc_out"],
             "output_path": f"{tmp_path}/IceBreaker/job004/",
@@ -498,8 +498,8 @@ def test_motioncor_relion_service_spa(mock_subprocess, offline_transport, tmp_pa
         },
     )
     offline_transport.send.assert_any_call(
-        destination="ctffind",
-        message={
+        "ctffind",
+        {
             "ctf": "ctf",
             "input_image": motioncorr_test_message["mrc_out"],
             "mc_uuid": motioncorr_test_message["mc_uuid"],
@@ -512,8 +512,8 @@ def test_motioncor_relion_service_spa(mock_subprocess, offline_transport, tmp_pa
         },
     )
     offline_transport.send.assert_any_call(
-        destination="ispyb_connector",
-        message={
+        "ispyb_connector",
+        {
             "first_frame": 1,
             "last_frame": 2,
             "total_motion": total_motion,
@@ -530,15 +530,15 @@ def test_motioncor_relion_service_spa(mock_subprocess, offline_transport, tmp_pa
         },
     )
     offline_transport.send.assert_any_call(
-        destination="images",
-        message={
+        "images",
+        {
             "image_command": "mrc_to_jpeg",
             "file": motioncorr_test_message["mrc_out"],
         },
     )
     offline_transport.send.assert_any_call(
-        destination="node_creator",
-        message={
+        "node_creator",
+        {
             "experiment_type": "spa",
             "job_type": "relion.import.movies",
             "input_file": str(movie),
@@ -550,8 +550,8 @@ def test_motioncor_relion_service_spa(mock_subprocess, offline_transport, tmp_pa
         },
     )
     offline_transport.send.assert_any_call(
-        destination="node_creator",
-        message={
+        "node_creator",
+        {
             "experiment_type": "spa",
             "job_type": "relion.motioncorr.own",
             "input_file": f"{tmp_path}/Import/job001/Movies/sample.eer",
@@ -691,8 +691,8 @@ def test_motioncor2_service_tomo(mock_subprocess, offline_transport, tmp_path):
 
     # Check that the correct messages were sent
     offline_transport.send.assert_any_call(
-        destination="ctffind",
-        message={
+        "ctffind",
+        {
             "ctf": "ctf",
             "input_image": motioncorr_test_message["mrc_out"],
             "output_image": f"{tmp_path}/CtfFind/job003/Movies/sample_motion_corrected.ctf",
@@ -705,8 +705,8 @@ def test_motioncor2_service_tomo(mock_subprocess, offline_transport, tmp_path):
         },
     )
     offline_transport.send.assert_any_call(
-        destination="ispyb_connector",
-        message={
+        "ispyb_connector",
+        {
             "first_frame": 1,
             "last_frame": 2,
             "total_motion": total_motion,
@@ -723,23 +723,23 @@ def test_motioncor2_service_tomo(mock_subprocess, offline_transport, tmp_path):
         },
     )
     offline_transport.send.assert_any_call(
-        destination="murfey_feedback",
-        message={
+        "murfey_feedback",
+        {
             "register": "motion_corrected",
             "movie": str(movie),
             "mrc_out": motioncorr_test_message["mrc_out"],
         },
     )
     offline_transport.send.assert_any_call(
-        destination="images",
-        message={
+        "images",
+        {
             "image_command": "mrc_to_jpeg",
             "file": motioncorr_test_message["mrc_out"],
         },
     )
     offline_transport.send.assert_any_call(
-        destination="node_creator",
-        message={
+        "node_creator",
+        {
             "experiment_type": "tomography",
             "job_type": "relion.importtomo",
             "input_file": f"{movie}:{tmp_path}/Movies/*.mdoc",
@@ -751,8 +751,8 @@ def test_motioncor2_service_tomo(mock_subprocess, offline_transport, tmp_path):
         },
     )
     offline_transport.send.assert_any_call(
-        destination="node_creator",
-        message={
+        "node_creator",
+        {
             "experiment_type": "tomography",
             "job_type": "relion.motioncorr.motioncor2",
             "input_file": f"{tmp_path}/Import/job001/Movies/sample.tiff",
@@ -905,8 +905,8 @@ def test_motioncor_relion_service_tomo(mock_subprocess, offline_transport, tmp_p
 
     # Check that the correct messages were sent
     offline_transport.send.assert_any_call(
-        destination="ctffind",
-        message={
+        "ctffind",
+        {
             "ctf": "ctf",
             "input_image": motioncorr_test_message["mrc_out"],
             "output_image": f"{tmp_path}/CtfFind/job003/Movies/sample_motion_corrected.ctf",
@@ -919,8 +919,8 @@ def test_motioncor_relion_service_tomo(mock_subprocess, offline_transport, tmp_p
         },
     )
     offline_transport.send.assert_any_call(
-        destination="ispyb_connector",
-        message={
+        "ispyb_connector",
+        {
             "first_frame": 1,
             "last_frame": 2,
             "total_motion": total_motion,
@@ -937,23 +937,23 @@ def test_motioncor_relion_service_tomo(mock_subprocess, offline_transport, tmp_p
         },
     )
     offline_transport.send.assert_any_call(
-        destination="murfey_feedback",
-        message={
+        "murfey_feedback",
+        {
             "register": "motion_corrected",
             "movie": str(movie),
             "mrc_out": motioncorr_test_message["mrc_out"],
         },
     )
     offline_transport.send.assert_any_call(
-        destination="images",
-        message={
+        "images",
+        {
             "image_command": "mrc_to_jpeg",
             "file": motioncorr_test_message["mrc_out"],
         },
     )
     offline_transport.send.assert_any_call(
-        destination="node_creator",
-        message={
+        "node_creator",
+        {
             "experiment_type": "tomography",
             "job_type": "relion.importtomo",
             "input_file": f"{movie}:{tmp_path}/Movies/*.mdoc",
@@ -965,8 +965,8 @@ def test_motioncor_relion_service_tomo(mock_subprocess, offline_transport, tmp_p
         },
     )
     offline_transport.send.assert_any_call(
-        destination="node_creator",
-        message={
+        "node_creator",
+        {
             "experiment_type": "tomography",
             "job_type": "relion.motioncorr.own",
             "input_file": f"{tmp_path}/Import/job001/Movies/sample.tiff",
@@ -1090,8 +1090,8 @@ def test_motioncor2_slurm_service_spa(mock_subprocess, offline_transport, tmp_pa
 
     # Just check the node creator send to make sure all ran correctly
     offline_transport.send.assert_any_call(
-        destination="node_creator",
-        message={
+        "node_creator",
+        {
             "experiment_type": "spa",
             "job_type": "relion.motioncorr.motioncor2",
             "input_file": f"{tmp_path}/Import/job001/Movies/sample.tiff",
@@ -1200,8 +1200,8 @@ def test_motioncor_superres_does_slurm(mock_subprocess, offline_transport, tmp_p
 
     # Just check the node creator send to make sure all ran correctly
     offline_transport.send.assert_any_call(
-        destination="node_creator",
-        message={
+        "node_creator",
+        {
             "experiment_type": "spa",
             "job_type": "relion.motioncorr.motioncor2",
             "input_file": motioncorr_test_message["mrc_out"],

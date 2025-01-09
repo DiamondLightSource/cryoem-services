@@ -182,8 +182,8 @@ def test_extract_class_service(mock_subprocess, offline_transport, tmp_path):
 
     # Check that the correct messages were sent
     offline_transport.send.assert_any_call(
-        destination="refine_wrapper",
-        message={
+        "refine_wrapper",
+        {
             "refine_job_dir": f"{tmp_path}/Refine3D/job013",
             "particles_file": f"{tmp_path}/Extract/job012/particles.star",
             "rescaling_command": rescaling_command,
@@ -198,8 +198,8 @@ def test_extract_class_service(mock_subprocess, offline_transport, tmp_path):
         },
     )
     offline_transport.send.assert_any_call(
-        destination="node_creator",
-        message={
+        "node_creator",
+        {
             "job_type": "relion.select.onvalue",
             "input_file": str(tmp_path / "Class3D/job010/run_it025_data.star"),
             "output_file": f"{tmp_path}/Select/job011/particles.star",
@@ -211,8 +211,8 @@ def test_extract_class_service(mock_subprocess, offline_transport, tmp_path):
         },
     )
     offline_transport.send.assert_any_call(
-        destination="node_creator",
-        message={
+        "node_creator",
+        {
             "job_type": "relion.extract",
             "input_file": (
                 f"{tmp_path}/Select/job011/particles.star"

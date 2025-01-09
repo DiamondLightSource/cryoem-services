@@ -86,8 +86,8 @@ def test_extract_service(mock_mrcfile, offline_transport, tmp_path):
 
     # Check that the correct messages were sent
     offline_transport.send.assert_any_call(
-        destination="select_particles",
-        message={
+        "select_particles",
+        {
             "input_file": extract_test_message["output_file"],
             "relion_options": output_relion_options,
             "batch_size": output_relion_options["batch_size"],
@@ -95,8 +95,8 @@ def test_extract_service(mock_mrcfile, offline_transport, tmp_path):
         },
     )
     offline_transport.send.assert_any_call(
-        destination="node_creator",
-        message={
+        "node_creator",
+        {
             "job_type": "relion.extract",
             "input_file": (f"{cryolo_file}:{extract_test_message['ctf_image']}"),
             "output_file": str(output_path),

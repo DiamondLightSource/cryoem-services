@@ -103,8 +103,8 @@ def test_ctffind4_service_spa(mock_subprocess, offline_transport, tmp_path):
     # Check that the correct messages were sent
     assert offline_transport.send.call_count == 4
     offline_transport.send.assert_any_call(
-        destination="cryolo",
-        message={
+        "cryolo",
+        {
             "input_path": ctffind_test_message["input_image"],
             "output_path": f"{tmp_path}/AutoPick/job007/STAR/sample.star",
             "ctf_values": {
@@ -123,8 +123,8 @@ def test_ctffind4_service_spa(mock_subprocess, offline_transport, tmp_path):
         },
     )
     offline_transport.send.assert_any_call(
-        destination="ispyb_connector",
-        message={
+        "ispyb_connector",
+        {
             "box_size_x": str(ctffind_test_message["ampl_spectrum"]),
             "box_size_y": str(ctffind_test_message["ampl_spectrum"]),
             "min_resolution": str(ctffind_test_message["min_res"]),
@@ -145,15 +145,15 @@ def test_ctffind4_service_spa(mock_subprocess, offline_transport, tmp_path):
         },
     )
     offline_transport.send.assert_any_call(
-        destination="images",
-        message={
+        "images",
+        {
             "image_command": "mrc_to_jpeg",
             "file": f"{tmp_path}/CtfFind/job006/sample.ctf",
         },
     )
     offline_transport.send.assert_any_call(
-        destination="node_creator",
-        message={
+        "node_creator",
+        {
             "experiment_type": "spa",
             "job_type": "relion.ctffind.ctffind4",
             "input_file": f"{tmp_path}/MotionCorr/job002/sample.mrc",
@@ -254,8 +254,8 @@ def test_ctffind5_service_tomo(mock_subprocess, offline_transport, tmp_path):
     # Check that the correct messages were sent (no need to recheck ones tested above)
     assert offline_transport.send.call_count == 3
     offline_transport.send.assert_any_call(
-        destination="node_creator",
-        message={
+        "node_creator",
+        {
             "experiment_type": "tomography",
             "job_type": "relion.ctffind.ctffind4",
             "input_file": f"{tmp_path}/MotionCorr/job002/sample.mrc",

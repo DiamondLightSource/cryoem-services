@@ -148,8 +148,8 @@ def test_tomo_align_service_file_list(
     # Check that the correct messages were sent
     assert offline_transport.send.call_count == 10
     offline_transport.send.assert_any_call(
-        destination="node_creator",
-        message={
+        "node_creator",
+        {
             "job_type": "relion.excludetilts",
             "experiment_type": "tomography",
             "input_file": f"{tmp_path}/MotionCorr/job002/Movies/input_file_1.mrc",
@@ -162,8 +162,8 @@ def test_tomo_align_service_file_list(
         },
     )
     offline_transport.send.assert_any_call(
-        destination="node_creator",
-        message={
+        "node_creator",
+        {
             "job_type": "relion.aligntiltseries",
             "experiment_type": "tomography",
             "input_file": f"{tmp_path}/MotionCorr/job002/Movies/input_file_1.mrc",
@@ -183,8 +183,8 @@ def test_tomo_align_service_file_list(
         },
     )
     offline_transport.send.assert_any_call(
-        destination="node_creator",
-        message={
+        "node_creator",
+        {
             "experiment_type": "tomography",
             "job_type": "relion.reconstructtomograms",
             "input_file": f"{tmp_path}/MotionCorr/job002/Movies/input_file_1.mrc",
@@ -197,8 +197,8 @@ def test_tomo_align_service_file_list(
         },
     )
     offline_transport.send.assert_any_call(
-        destination="ispyb_connector",
-        message={
+        "ispyb_connector",
+        {
             "ispyb_command": "multipart_message",
             "ispyb_command_list": [
                 {
@@ -231,42 +231,42 @@ def test_tomo_align_service_file_list(
         },
     )
     offline_transport.send.assert_any_call(
-        destination="images",
-        message={
+        "images",
+        {
             "image_command": "mrc_central_slice",
             "file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
         },
     )
     offline_transport.send.assert_any_call(
-        destination="images",
-        message={
+        "images",
+        {
             "image_command": "mrc_to_apng",
             "file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
         },
     )
     offline_transport.send.assert_any_call(
-        destination="images",
-        message={
+        "images",
+        {
             "image_command": "mrc_to_jpeg",
             "file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo_projXY.mrc",
         },
     )
     offline_transport.send.assert_any_call(
-        destination="images",
-        message={
+        "images",
+        {
             "image_command": "mrc_to_jpeg",
             "file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo_projXZ.mrc",
         },
     )
     offline_transport.send.assert_any_call(
-        destination="denoise",
-        message={
+        "denoise",
+        {
             "volume": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
             "output_dir": f"{tmp_path}/Denoise/job007/tomograms",
             "relion_options": output_relion_options,
         },
     )
-    offline_transport.send.assert_any_call(destination="success", message={})
+    offline_transport.send.assert_any_call("success", {})
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
@@ -359,8 +359,8 @@ def test_tomo_align_service_file_list_repeated_tilt(
     # Look at a sample of the messages to check they use input_file_3
     assert offline_transport.send.call_count == 10
     offline_transport.send.assert_any_call(
-        destination="node_creator",
-        message={
+        "node_creator",
+        {
             "job_type": "relion.excludetilts",
             "experiment_type": "tomography",
             "input_file": f"{tmp_path}/MotionCorr/job002/Movies/input_file_3.mrc",
@@ -372,7 +372,7 @@ def test_tomo_align_service_file_list_repeated_tilt(
             "success": True,
         },
     )
-    offline_transport.send.assert_any_call(destination="success", message={})
+    offline_transport.send.assert_any_call("success", {})
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
@@ -525,8 +525,8 @@ def test_tomo_align_service_path_pattern(
     # No need to check all sent messages
     assert offline_transport.send.call_count == 12
     offline_transport.send.assert_any_call(
-        destination="node_creator",
-        message={
+        "node_creator",
+        {
             "experiment_type": "tomography",
             "job_type": "relion.reconstructtomograms",
             "input_file": f"{tmp_path}/MotionCorr/job002/Movies/input_file_1.00.mrc",
@@ -538,7 +538,7 @@ def test_tomo_align_service_path_pattern(
             "success": True,
         },
     )
-    offline_transport.send.assert_any_call(destination="success", message={})
+    offline_transport.send.assert_any_call("success", {})
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
@@ -629,8 +629,8 @@ def test_tomo_align_service_dark_images(
     # Expect to get messages for three tilts, and not the excluded ones
     for image in [1, 3, 4]:
         offline_transport.send.assert_any_call(
-            destination="node_creator",
-            message={
+            "node_creator",
+            {
                 "job_type": "relion.excludetilts",
                 "experiment_type": "tomography",
                 "input_file": f"{tmp_path}/MotionCorr/job002/Movies/input_file_{image}.mrc",
@@ -643,8 +643,8 @@ def test_tomo_align_service_dark_images(
             },
         )
         offline_transport.send.assert_any_call(
-            destination="node_creator",
-            message={
+            "node_creator",
+            {
                 "job_type": "relion.aligntiltseries",
                 "experiment_type": "tomography",
                 "input_file": f"{tmp_path}/MotionCorr/job002/Movies/input_file_{image}.mrc",
@@ -664,8 +664,8 @@ def test_tomo_align_service_dark_images(
             },
         )
     offline_transport.send.assert_any_call(
-        destination="ispyb_connector",
-        message={
+        "ispyb_connector",
+        {
             "ispyb_command": "multipart_message",
             "ispyb_command_list": [
                 {
@@ -713,7 +713,7 @@ def test_tomo_align_service_dark_images(
             ],
         },
     )
-    offline_transport.send.assert_any_call(destination="success", message={})
+    offline_transport.send.assert_any_call("success", {})
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
@@ -787,8 +787,8 @@ def test_tomo_align_service_all_dark(
     assert offline_transport.send.call_count == 8
     # Expect to get messages for three tilts, and not the excluded ones
     offline_transport.send.assert_any_call(
-        destination="ispyb_connector",
-        message={
+        "ispyb_connector",
+        {
             "ispyb_command": "multipart_message",
             "ispyb_command_list": [
                 {
@@ -812,7 +812,7 @@ def test_tomo_align_service_all_dark(
             ],
         },
     )
-    offline_transport.send.assert_any_call(destination="success", message={})
+    offline_transport.send.assert_any_call("success", {})
 
 
 def test_parse_tomo_align_output(offline_transport):

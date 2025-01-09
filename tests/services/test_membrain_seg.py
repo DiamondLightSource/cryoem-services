@@ -113,24 +113,24 @@ def test_membrain_seg_service_local(
     # Check the images service request
     assert offline_transport.send.call_count == 3
     offline_transport.send.assert_any_call(
-        destination="images",
-        message={
+        "images",
+        {
             "image_command": "mrc_central_slice",
             "file": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented.mrc",
             "skip_rescaling": True,
         },
     )
     offline_transport.send.assert_any_call(
-        destination="movie",
-        message={
+        "movie",
+        {
             "image_command": "mrc_to_apng",
             "file": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented.mrc",
             "skip_rescaling": True,
         },
     )
     offline_transport.send.assert_any_call(
-        destination="ispyb_connector",
-        message={
+        "ispyb_connector",
+        {
             "ispyb_command": "insert_processed_tomogram",
             "file_path": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented.mrc",
             "processing_type": "Segmented",
@@ -222,24 +222,24 @@ def test_membrain_seg_service_slurm(
     # Check the images service request
     assert offline_transport.send.call_count == 3
     offline_transport.send.assert_any_call(
-        destination="images",
-        message={
+        "images",
+        {
             "image_command": "mrc_central_slice",
             "file": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented.mrc",
             "skip_rescaling": True,
         },
     )
     offline_transport.send.assert_any_call(
-        destination="movie",
-        message={
+        "movie",
+        {
             "image_command": "mrc_to_apng",
             "file": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented.mrc",
             "skip_rescaling": True,
         },
     )
     offline_transport.send.assert_any_call(
-        destination="ispyb_connector",
-        message={
+        "ispyb_connector",
+        {
             "ispyb_command": "insert_processed_tomogram",
             "file_path": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented.mrc",
             "processing_type": "Segmented",
