@@ -421,6 +421,7 @@ class CrYOLO(CommonService):
                 * cryolo_params.pixel_size
             )
         except (FileNotFoundError, OSError, AttributeError):
+            self.number_of_particles = 0
             cryolo_particle_sizes = []
 
         # Forward results to ISPyB
