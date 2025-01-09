@@ -160,7 +160,7 @@ def test_denoise_local_service(
     mock_subprocess.assert_any_call(denoise_command, capture_output=True)
 
     # Check the images service request
-    assert offline_transport.send.call_count == 5
+    assert offline_transport.send.call_count == 6
     offline_transport.send.assert_any_call(
         destination="node_creator",
         message={
@@ -208,6 +208,16 @@ def test_denoise_local_service(
         message={
             "tomogram": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
             "output_dir": f"{tmp_path}/Segmentation/job008/tomograms",
+        },
+    )
+    offline_transport.send.assert_any_call(
+        destination="cryolo",
+        message={
+            "input_path": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
+            "output_path": f"{tmp_path}/AutoPick/job009/CBOX_3D/test_stack_aretomo.denoised.cbox",
+            "experiment_type": "tomography",
+            "cryolo_box_size": 40,
+            "relion_options": output_relion_options,
         },
     )
 
@@ -333,7 +343,7 @@ def test_denoise_slurm_service(
     assert topaz_command == " ".join(singularity_command)
 
     # Check the images service request
-    assert offline_transport.send.call_count == 5
+    assert offline_transport.send.call_count == 6
     offline_transport.send.assert_any_call(
         destination="node_creator",
         message={
@@ -381,5 +391,15 @@ def test_denoise_slurm_service(
         message={
             "tomogram": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
             "output_dir": f"{tmp_path}/Segmentation/job008/tomograms",
+        },
+    )
+    offline_transport.send.assert_any_call(
+        destination="cryolo",
+        message={
+            "input_path": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
+            "output_path": f"{tmp_path}/AutoPick/job009/CBOX_3D/test_stack_aretomo.denoised.cbox",
+            "experiment_type": "tomography",
+            "cryolo_box_size": 40,
+            "relion_options": output_relion_options,
         },
     )

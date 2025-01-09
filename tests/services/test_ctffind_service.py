@@ -120,6 +120,7 @@ def test_ctffind4_service_spa(mock_subprocess, offline_transport, tmp_path):
                     "DefocusV": service.defocus2,
                     "DefocusAngle": service.astigmatism_angle,
                 },
+                "experiment_type": "spa",
                 "relion_options": output_relion_options,
                 "mc_uuid": ctffind_test_message["parameters"]["mc_uuid"],
                 "picker_uuid": ctffind_test_message["parameters"]["picker_uuid"],
