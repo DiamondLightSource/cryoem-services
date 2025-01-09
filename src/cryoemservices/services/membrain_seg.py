@@ -156,7 +156,31 @@ class MembrainSeg(CommonService):
                 script_extras="module load EM/membrain-seg",
             )
         else:
-            result = subprocess.run(command, capture_output=True)
+            try:
+                from membrain_seg.segment import segment
+
+                segment(
+                    tomogram_path=membrain_seg_params.tomogram,
+                    ckpt_path=membrain_seg_params.pretrained_checkpoint,
+                    out_folder=membrain_seg_params.output_dir,
+                    rescale_patches=membrain_seg_params.rescale_patches,
+                    in_pixel_size=membrain_seg_params.pixel_size,
+                    out_pixel_size=10.0,
+                    store_probabilities=membrain_seg_params.store_probabilities,
+                    sw_roi_size=membrain_seg_params.window_size,
+                    store_connected_components=membrain_seg_params.store_connected_components,
+                    connnected_component_thres=membrain_seg_params.connected_component_threshold,
+                    test_time_augmentation=membrain_seg_params.augmentation,
+                    segmentation_threshold=membrain_seg_params.segmentation_threshold,
+                )
+                result = subprocess.CompletedProcess(
+                    args="",
+                    returncode=0,
+                    stdout="".encode("utf8"),
+                    stderr="".encode("utf8"),
+                )
+            except ImportError:
+                result = subprocess.run(command, capture_output=True)
 
         # Send to node creator
         self.log.info("Sending segmentation to node creator")
