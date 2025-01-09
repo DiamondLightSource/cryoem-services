@@ -7,10 +7,8 @@ ARG groupid
 ARG userid
 ARG groupname
 
-# Install cryoem-services, topaz and membrain-seg
-RUN python -m pip install cryoemservices && \
-    python -m pip install topaz-em==0.2.5 && \
-    python -m pip install membrain-seg
+# Install cryoem-services with topaz and membrain-seg
+RUN python -m pip install cryoemservices[torch]
 
 # Create EM user
 RUN groupadd -r -g "${groupid}" "${groupname}" && useradd -r -M "${groupname}" -u "${userid}" -g "${groupname}"
