@@ -190,6 +190,7 @@ def insert_movie(message: dict, parameters: Callable, session: sqlalchemy.orm.Se
         if parameters("timestamp"):
             values = models.Movie(
                 dataCollectionId=parameters("dcid"),
+                foilHoleId=parameters("foil_hole_id"),
                 movieNumber=parameters("movie_number"),
                 movieFullPath=parameters("movie_path"),
                 createdTimeStamp=datetime.fromtimestamp(
@@ -199,6 +200,7 @@ def insert_movie(message: dict, parameters: Callable, session: sqlalchemy.orm.Se
         else:
             values = models.Movie(
                 dataCollectionId=parameters("dcid"),
+                foilHoleId=parameters("foil_hole_id"),
                 movieNumber=parameters("movie_number"),
                 movieFullPath=parameters("movie_path"),
             )
@@ -227,6 +229,7 @@ def insert_motion_correction(
             def movie_parameters(p):
                 mv_param = {
                     "dcid": full_parameters("dcid"),
+                    "foil_hole_id": full_parameters("foil_hole_id"),
                     "movie_number": full_parameters("image_number"),
                     "movie_path": full_parameters("micrograph_full_path"),
                     "timestamp": full_parameters("created_time_stamp"),

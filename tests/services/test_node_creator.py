@@ -50,18 +50,15 @@ def setup_and_run_node_creation(
     output_file.parent.mkdir(parents=True, exist_ok=True)
     output_file.touch()
     test_message = {
-        "parameters": {
-            "job_type": job_type,
-            "input_file": str(input_file),
-            "output_file": str(output_file),
-            "relion_options": relion_options,
-            "command": "command",
-            "stdout": "stdout",
-            "stderr": "stderr",
-            "results": results,
-            "experiment_type": experiment_type,
-        },
-        "content": "dummy",
+        "job_type": job_type,
+        "input_file": str(input_file),
+        "output_file": str(output_file),
+        "relion_options": relion_options,
+        "command": "command",
+        "stdout": "stdout",
+        "stderr": "stderr",
+        "results": results,
+        "experiment_type": experiment_type,
     }
 
     # set up the mock service and send the message to it
@@ -108,17 +105,14 @@ def test_node_creator_failed_job(offline_transport, tmp_path):
     output_file.parent.mkdir(parents=True, exist_ok=True)
     output_file.touch()
     test_message = {
-        "parameters": {
-            "job_type": "relion.motioncorr.motioncor2",
-            "input_file": str(input_file),
-            "output_file": str(output_file),
-            "relion_options": relion_options,
-            "command": "command",
-            "stdout": "stdout",
-            "stderr": "stderr",
-            "success": False,
-        },
-        "content": "dummy",
+        "job_type": "relion.motioncorr.motioncor2",
+        "input_file": str(input_file),
+        "output_file": str(output_file),
+        "relion_options": relion_options,
+        "command": "command",
+        "stdout": "stdout",
+        "stderr": "stderr",
+        "success": False,
     }
 
     # set up the mock service and send the message to it
@@ -160,18 +154,15 @@ def test_node_creator_rerun_job(offline_transport, tmp_path):
     output_file.touch()
     (tmp_path / job_dir / "PIPELINER_JOB_EXIT_SUCCESS").touch()
     test_message = {
-        "parameters": {
-            "job_type": "relion.motioncorr.motioncor2",
-            "input_file": str(input_file),
-            "output_file": str(output_file),
-            "relion_options": relion_options,
-            "command": "command",
-            "stdout": "stdout",
-            "stderr": "stderr",
-            "success": True,
-            "results": {"total_motion": "10", "early_motion": "4", "late_motion": "6"},
-        },
-        "content": "dummy",
+        "job_type": "relion.motioncorr.motioncor2",
+        "input_file": str(input_file),
+        "output_file": str(output_file),
+        "relion_options": relion_options,
+        "command": "command",
+        "stdout": "stdout",
+        "stderr": "stderr",
+        "success": True,
+        "results": {"total_motion": "10", "early_motion": "4", "late_motion": "6"},
     }
 
     # set up the mock service and send the message to it
@@ -517,10 +508,7 @@ def test_node_creator_cryolo(offline_transport, tmp_path):
     (tmp_path / "MotionCorr/job002/corrected_micrographs.star").touch()
 
     (tmp_path / job_dir / "DISTR").mkdir(parents=True)
-    with open(
-        tmp_path / job_dir / "DISTR/confidence_distribution_summary_1.txt", "w"
-    ) as f:
-        f.write("Metric, Value\nMEAN, 1.0\nSD, 1.0\nQ25, 0.5\nQ50, 1.0\nQ75, 1.5")
+    (tmp_path / job_dir / "DISTR/confidence_distribution_summary_1.txt").touch()
 
     setup_and_run_node_creation(
         relion_options,
@@ -1462,4 +1450,78 @@ def test_node_creator_denoisetomo(offline_transport, tmp_path):
     ]
     assert list(global_block.find_loop("_rlnTomoReconstructedTomogramDenoised")) == [
         str(output_file.relative_to(tmp_path))
+    ]
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+def test_node_creator_cryolo_tomo(offline_transport, tmp_path):
+    """
+    Send a test message to the node creator for
+    cryolo.autopick running on a tomogram
+    """
+    job_dir = "AutoPick/job009"
+    (tmp_path / job_dir / "CBOX_3D").mkdir(parents=True)
+
+    input_file = f"{tmp_path}/Denoise/job007/Movies/tomograms/Position_1_2_stack_aretomo.denoised.mrc"
+    output_file = (
+        tmp_path / job_dir / "CBOX_3D/Position_1_2_stack_aretomo.denoised.cbox"
+    )
+    relion_options = RelionServiceOptions()
+
+    relion_options.cryolo_config_file = str(tmp_path / job_dir / "cryolo_config.json")
+    (tmp_path / job_dir / "cryolo_config.json").touch()
+
+    with open(
+        tmp_path / job_dir / "CBOX_3D/Position_1_2_stack_aretomo.denoised.cbox", "w"
+    ) as particles_file:
+        particles_file.write(
+            "data_global\n\n_cbox_format_version   1.0\n"
+            "data_cryolo\n\nloop_\n"
+            "_CoordinateX\n_CoordinateY\n_CoordinateZ\n_EstWidth\n_EstHeight\n"
+            "60 70 80 5 6\n90 100 110 8 10\n"
+        )
+
+    (tmp_path / job_dir / "DISTR").mkdir(parents=True)
+    (tmp_path / job_dir / "DISTR/confidence_distribution_summary_1.txt").touch()
+
+    setup_and_run_node_creation(
+        relion_options,
+        offline_transport,
+        tmp_path,
+        job_dir,
+        "cryolo.autopick",
+        input_file,
+        output_file,
+        experiment_type="tomography",
+    )
+
+    # Check the output file structure
+    assert (tmp_path / job_dir / "optimisation_set.star").exists()
+    optimiser_file = cif.read_file(str(tmp_path / job_dir / "optimisation_set.star"))
+    optimiser_block = optimiser_file.find_block("optimisation_set")
+    assert list(optimiser_block.find_loop("_rlnTomoParticlesFile")) == [
+        "AutoPick/job009/particles.star"
+    ]
+    assert list(optimiser_block.find_loop("_rlnTomoTomogramsFile")) == [
+        "Denoise/job007/tomograms.star"
+    ]
+
+    assert (tmp_path / job_dir / "particles.star").exists()
+    particles_file = cif.read_file(str(tmp_path / job_dir / "particles.star"))
+    particles_block = particles_file.find_block("particles")
+    assert list(particles_block.find_loop("_rlnTomoName")) == [
+        "Position_1_2",
+        "Position_1_2",
+    ]
+    assert list(particles_block.find_loop("_rlnCenteredCoordinateXAngst")) == [
+        "62.5",
+        "94.0",
+    ]
+    assert list(particles_block.find_loop("_rlnCenteredCoordinateYAngst")) == [
+        "73.0",
+        "105.0",
+    ]
+    assert list(particles_block.find_loop("_rlnCenteredCoordinateZAngst")) == [
+        "80",
+        "110",
     ]

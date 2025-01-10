@@ -116,11 +116,7 @@ class CTFFind(CommonService):
         """Main function which interprets and processes received messages"""
         if not rw:
             self.log.info("Received a simple message")
-            if (
-                not isinstance(message, dict)
-                or not message.get("parameters")
-                or not message.get("content")
-            ):
+            if not isinstance(message, dict):
                 self.log.error("Rejected invalid simple message")
                 self._transport.nack(header)
                 return
@@ -128,8 +124,7 @@ class CTFFind(CommonService):
             # Create a wrapper-like object that can be passed to functions
             # as if a recipe wrapper was present.
             rw = MockRW(self._transport)
-            rw.recipe_step = {"parameters": message["parameters"]}
-            message = message["content"]
+            rw.recipe_step = {"parameters": message}
 
         try:
             if isinstance(message, dict):
@@ -237,13 +232,7 @@ class CTFFind(CommonService):
                 node_creator_parameters["success"] = False
             else:
                 node_creator_parameters["success"] = True
-            if isinstance(rw, MockRW):
-                rw.transport.send(
-                    destination="node_creator",
-                    message={"parameters": node_creator_parameters, "content": "dummy"},
-                )
-            else:
-                rw.send_to("node_creator", node_creator_parameters)
+            rw.send_to("node_creator", node_creator_parameters)
 
         # End here if the command failed
         if result.returncode:
@@ -287,35 +276,17 @@ class CTFFind(CommonService):
             ),  # path to output mrc (would be jpeg if we could convert in SW)
         }
         self.log.info(f"Sending to ispyb {ispyb_parameters}")
-        if isinstance(rw, MockRW):
-            rw.transport.send(
-                destination="ispyb_connector",
-                message={
-                    "parameters": ispyb_parameters,
-                    "content": {"dummy": "dummy"},
-                },
-            )
-        else:
-            rw.send_to("ispyb_connector", ispyb_parameters)
+        rw.send_to("ispyb_connector", ispyb_parameters)
 
         # Forward results to images service
         self.log.info(f"Sending to images service {ctf_params.output_image}")
-        if isinstance(rw, MockRW):
-            rw.transport.send(
-                destination="images",
-                message={
-                    "image_command": "mrc_to_jpeg",
-                    "file": ctf_params.output_image,
-                },
-            )
-        else:
-            rw.send_to(
-                "images",
-                {
-                    "image_command": "mrc_to_jpeg",
-                    "file": ctf_params.output_image,
-                },
-            )
+        rw.send_to(
+            "images",
+            {
+                "image_command": "mrc_to_jpeg",
+                "file": ctf_params.output_image,
+            },
+        )
 
         # If this is SPA, also set up a cryolo job
         if ctf_params.experiment_type == "spa":
@@ -345,17 +316,12 @@ class CTFFind(CommonService):
                 "DefocusV": self.defocus2,
                 "DefocusAngle": self.astigmatism_angle,
             }
+            ctf_params.autopick["experiment_type"] = ctf_params.experiment_type
             ctf_params.autopick["relion_options"] = dict(ctf_params.relion_options)
             ctf_params.autopick["mc_uuid"] = ctf_params.mc_uuid
             ctf_params.autopick["picker_uuid"] = ctf_params.picker_uuid
             ctf_params.autopick["pixel_size"] = ctf_params.pixel_size
-            if isinstance(rw, MockRW):
-                rw.transport.send(
-                    destination="cryolo",
-                    message={"parameters": ctf_params.autopick, "content": "dummy"},
-                )
-            else:
-                rw.send_to("cryolo", ctf_params.autopick)
+            rw.send_to("cryolo", ctf_params.autopick)
 
         self.log.info(f"Done {self.job_type} for {ctf_params.input_image}.")
         rw.transport.ack(header)

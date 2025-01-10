@@ -7,7 +7,7 @@ requires = [
 
 [project]
 name = "cryoemservices"
-version = "1.0.0"
+version = "1.0.1"
 description = "Services for CryoEM processing"
 readme = "README.md"
 keywords = [
@@ -81,6 +81,8 @@ dev = [
     "mrc_to_apng" = "cryoemservices.services.images_plugins:mrc_to_apng"
     "mrc_to_jpeg" = "cryoemservices.services.images_plugins:mrc_to_jpeg"
     "picked_particles" = "cryoemservices.services.images_plugins:picked_particles"
+    "picked_particles_3d_apng" = "cryoemservices.services.images_plugins:picked_particles_3d_apng"
+    "picked_particles_3d_central_slice" = "cryoemservices.services.images_plugins:picked_particles_3d_central_slice"
 [project.entry-points."cryoemservices.services.process_recipe.filters"]
     ispyb = "cryoemservices.util.process_recipe_tools:ispyb_filter"
 [project.entry-points."cryoemservices.wrappers"]

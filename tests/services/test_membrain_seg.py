@@ -63,20 +63,17 @@ def test_membrain_seg_service_local(
         "subscription": mock.sentinel,
     }
     segmentation_test_message = {
-        "parameters": {
-            "tomogram": f"{tmp_path}/Denoise/job007/tomograms/test_stack_aretomo.denoised.mrc",
-            "output_dir": f"{tmp_path}/Segmentation/job008/tomograms",
-            "pretrained_checkpoint": "checkpoint.ckpt",
-            "pixel_size": "1.0",
-            "rescale_patches": True,
-            "augmentation": True,
-            "store_probabilities": True,
-            "store_connected_components": True,
-            "window_size": 100,
-            "connected_component_threshold": 2,
-            "segmentation_threshold": 4,
-        },
-        "content": "dummy",
+        "tomogram": f"{tmp_path}/Denoise/job007/tomograms/test_stack_aretomo.denoised.mrc",
+        "output_dir": f"{tmp_path}/Segmentation/job008/tomograms",
+        "pretrained_checkpoint": "checkpoint.ckpt",
+        "pixel_size": "1.0",
+        "rescale_patches": True,
+        "augmentation": True,
+        "store_probabilities": True,
+        "store_connected_components": True,
+        "window_size": 100,
+        "connected_component_threshold": 2,
+        "segmentation_threshold": 4,
     }
 
     # Set up the mock service
@@ -116,30 +113,27 @@ def test_membrain_seg_service_local(
     # Check the images service request
     assert offline_transport.send.call_count == 3
     offline_transport.send.assert_any_call(
-        destination="images",
-        message={
+        "images",
+        {
             "image_command": "mrc_central_slice",
             "file": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented.mrc",
             "skip_rescaling": True,
         },
     )
     offline_transport.send.assert_any_call(
-        destination="movie",
-        message={
+        "movie",
+        {
             "image_command": "mrc_to_apng",
             "file": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented.mrc",
             "skip_rescaling": True,
         },
     )
     offline_transport.send.assert_any_call(
-        destination="ispyb_connector",
-        message={
-            "parameters": {
-                "ispyb_command": "insert_processed_tomogram",
-                "file_path": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented.mrc",
-                "processing_type": "Segmented",
-            },
-            "content": {"dummy": "dummy"},
+        "ispyb_connector",
+        {
+            "ispyb_command": "insert_processed_tomogram",
+            "file_path": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented.mrc",
+            "processing_type": "Segmented",
         },
     )
 
@@ -166,22 +160,19 @@ def test_membrain_seg_service_slurm(
         "subscription": mock.sentinel,
     }
     segmentation_test_message = {
-        "parameters": {
-            "tomogram": f"{tmp_path}/Denoise/job007/tomograms/test_stack_aretomo.denoised.mrc",
-            "output_dir": f"{tmp_path}/Segmentation/job008/tomograms",
-            "pretrained_checkpoint": "checkpoint.ckpt",
-            "pixel_size": "1.0",
-            "rescale_patches": True,
-            "augmentation": True,
-            "store_probabilities": True,
-            "store_connected_components": True,
-            "window_size": 100,
-            "connected_component_threshold": 2,
-            "segmentation_threshold": 4,
-            "cleanup_output": False,
-            "submit_to_slurm": True,
-        },
-        "content": "dummy",
+        "tomogram": f"{tmp_path}/Denoise/job007/tomograms/test_stack_aretomo.denoised.mrc",
+        "output_dir": f"{tmp_path}/Segmentation/job008/tomograms",
+        "pretrained_checkpoint": "checkpoint.ckpt",
+        "pixel_size": "1.0",
+        "rescale_patches": True,
+        "augmentation": True,
+        "store_probabilities": True,
+        "store_connected_components": True,
+        "window_size": 100,
+        "connected_component_threshold": 2,
+        "segmentation_threshold": 4,
+        "cleanup_output": False,
+        "submit_to_slurm": True,
     }
 
     # Construct the file which contains rest api submission information
@@ -231,30 +222,27 @@ def test_membrain_seg_service_slurm(
     # Check the images service request
     assert offline_transport.send.call_count == 3
     offline_transport.send.assert_any_call(
-        destination="images",
-        message={
+        "images",
+        {
             "image_command": "mrc_central_slice",
             "file": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented.mrc",
             "skip_rescaling": True,
         },
     )
     offline_transport.send.assert_any_call(
-        destination="movie",
-        message={
+        "movie",
+        {
             "image_command": "mrc_to_apng",
             "file": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented.mrc",
             "skip_rescaling": True,
         },
     )
     offline_transport.send.assert_any_call(
-        destination="ispyb_connector",
-        message={
-            "parameters": {
-                "ispyb_command": "insert_processed_tomogram",
-                "file_path": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented.mrc",
-                "processing_type": "Segmented",
-            },
-            "content": {"dummy": "dummy"},
+        "ispyb_connector",
+        {
+            "ispyb_command": "insert_processed_tomogram",
+            "file_path": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented.mrc",
+            "processing_type": "Segmented",
         },
     )
 

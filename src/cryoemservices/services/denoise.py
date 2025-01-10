@@ -103,11 +103,7 @@ class Denoise(CommonService):
         """Main function which interprets and processes received messages"""
         if not rw:
             self.log.info("Received a simple message")
-            if (
-                not isinstance(message, dict)
-                or not message.get("parameters")
-                or not message.get("content")
-            ):
+            if not isinstance(message, dict):
                 self.log.error("Rejected invalid simple message")
                 self._transport.nack(header)
                 return
@@ -115,8 +111,7 @@ class Denoise(CommonService):
             # Create a wrapper-like object that can be passed to functions
             # as if a recipe wrapper was present.
             rw = MockRW(self._transport)
-            rw.recipe_step = {"parameters": message["parameters"]}
-            message = message["content"]
+            rw.recipe_step = {"parameters": message}
 
         try:
             if isinstance(message, dict):
@@ -208,13 +203,7 @@ class Denoise(CommonService):
         }
         if result.returncode:
             node_creator_parameters["success"] = False
-        if isinstance(rw, MockRW):
-            rw.transport.send(
-                destination="node_creator",
-                message={"parameters": node_creator_parameters, "content": "dummy"},
-            )
-        else:
-            rw.send_to("node_creator", node_creator_parameters)
+        rw.send_to("node_creator", node_creator_parameters)
 
         # Stop here if the job failed
         if result.returncode:
@@ -230,36 +219,20 @@ class Denoise(CommonService):
 
         # Forward results to images service
         self.log.info(f"Sending to images service {denoise_params.volume}")
-        if isinstance(rw, MockRW):
-            rw.transport.send(
-                destination="images",
-                message={
-                    "image_command": "mrc_central_slice",
-                    "file": str(denoised_full_path),
-                },
-            )
-            rw.transport.send(
-                destination="movie",
-                message={
-                    "image_command": "mrc_to_apng",
-                    "file": str(denoised_full_path),
-                },
-            )
-        else:
-            rw.send_to(
-                "images",
-                {
-                    "image_command": "mrc_central_slice",
-                    "file": str(denoised_full_path),
-                },
-            )
-            rw.send_to(
-                "movie",
-                {
-                    "image_command": "mrc_to_apng",
-                    "file": str(denoised_full_path),
-                },
-            )
+        rw.send_to(
+            "images",
+            {
+                "image_command": "mrc_central_slice",
+                "file": str(denoised_full_path),
+            },
+        )
+        rw.send_to(
+            "movie",
+            {
+                "image_command": "mrc_to_apng",
+                "file": str(denoised_full_path),
+            },
+        )
 
         # Insert the denoised tomogram into ISPyB
         ispyb_parameters = {
@@ -267,19 +240,10 @@ class Denoise(CommonService):
             "file_path": str(denoised_full_path),
             "processing_type": "Denoised",
         }
-        if isinstance(rw, MockRW):
-            rw.transport.send(
-                destination="ispyb_connector",
-                message={
-                    "parameters": ispyb_parameters,
-                    "content": {"dummy": "dummy"},
-                },
-            )
-        else:
-            rw.send_to("ispyb_connector", ispyb_parameters)
+        rw.send_to("ispyb_connector", ispyb_parameters)
 
-        # Send to segmentation
-        self.log.info(f"Sending {denoised_full_path} for segmentation")
+        # Send to segmentation and picking
+        self.log.info(f"Sending {denoised_full_path} for segmentation and picking")
         if denoise_params.output_dir:
             project_dir_search = re.search(".+/job[0-9]+/", denoise_params.output_dir)
             job_num_search = re.search("/job[0-9]+", denoise_params.output_dir)
@@ -289,27 +253,27 @@ class Denoise(CommonService):
                 segmentation_dir = (
                     project_dir / f"Segmentation/job{job_number + 1:03}/tomograms"
                 )
+                cryolo_dir = project_dir / f"AutoPick/job{job_number + 2:03}"
             else:
                 self.log.warning(f"No job number in {denoise_params.output_dir}")
                 segmentation_dir = Path(denoise_params.output_dir)
+                cryolo_dir = Path(denoise_params.output_dir)
         else:
             segmentation_dir = Path(denoise_params.volume).parent
-        if isinstance(rw, MockRW):
-            rw.transport.send(
-                destination="segmentation",
-                message={
-                    "tomogram": str(denoised_full_path),
-                    "output_dir": str(segmentation_dir),
-                },
-            )
-        else:
-            rw.send_to(
-                "segmentation",
-                {
-                    "tomogram": str(denoised_full_path),
-                    "output_dir": str(segmentation_dir),
-                },
-            )
+            cryolo_dir = Path(denoise_params.volume).parent
+        segmentation_parameters = {
+            "tomogram": str(denoised_full_path),
+            "output_dir": str(segmentation_dir),
+        }
+        cryolo_parameters = {
+            "input_path": str(denoised_full_path),
+            "output_path": str(cryolo_dir / f"CBOX_3D/{denoised_full_path.stem}.cbox"),
+            "experiment_type": "tomography",
+            "cryolo_box_size": 40,
+            "relion_options": dict(denoise_params.relion_options),
+        }
+        rw.send_to("segmentation", segmentation_parameters)
+        rw.send_to("cryolo", cryolo_parameters)
 
         self.log.info(f"Done denoising for {denoise_params.volume}")
         rw.transport.ack(header)
