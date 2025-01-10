@@ -14,7 +14,6 @@ RUN python -m pip install cryoemservices && \
 
 # Install IMOD for tomo align
 COPY --chown="${userid}":"${groupid}" packages/imod-4.11.1 /IMOD/4.11.1
-WORKDIR /IMOD/4.11.1
 ENV PATH=/IMOD/4.11.1/IMOD/bin/realbin:${PATH}
 RUN chmod +x /IMOD/4.11.1
 
