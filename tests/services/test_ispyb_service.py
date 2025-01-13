@@ -171,6 +171,58 @@ def test_ispyb_service_env_keys(
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.ispyb_connector.ispyb.sqlalchemy")
 @mock.patch("cryoemservices.services.ispyb_connector.sqlalchemy")
+@mock.patch("cryoemservices.util.ispyb_commands.models")
+def test_ispyb_service_multipart_env_keys(
+    mock_models, mock_sqlalchemy, mock_ispyb_api, offline_transport, tmp_path
+):
+    """
+    Test as above, but with a nested $ key in a multipart message
+    Using initial model as example of where this happens
+    """
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+    ispyb_test_message = {
+        "ispyb_command": "multipart_message",
+        "ispyb_command_list": [
+            {
+                "ispyb_command": "insert_cryoem_initial_model",
+                "particle_classification_id": 401,
+                "cryoem_initial_model_id": "$ispyb_initial_model_id",
+                "number_of_particles": 10000,
+                "resolution": "6.6",
+            }
+        ],
+    }
+    ispyb_test_environment = {"output": "full_result", "ispyb_initial_model_id": 601}
+
+    mock_rw = mock.MagicMock()
+    mock_rw.recipe_step = {"parameters": ispyb_test_message}
+    mock_rw.environment = ispyb_test_environment
+    write_config_file(tmp_path)
+
+    # Set up the mock service and call it
+    service = ispyb_connector.EMISPyB(environment={"config": f"{tmp_path}/config.yaml"})
+    service.transport = offline_transport
+    service.start()
+    service.insert_into_ispyb(rw=mock_rw, header=header, message=ispyb_test_message)
+
+    # Check the sub-command calls were made
+    mock_models.CryoemInitialModel.assert_not_called()
+    mock_models.t_ParticleClassification_has_CryoemInitialModel.insert().values.assert_called_with(
+        cryoemInitialModelId="601",
+        particleClassificationId=401,
+    )
+
+    # Check that the correct messages were sent
+    mock_rw.set_default_channel.assert_called_with("output")
+    mock_rw.send.assert_called_with({"result": "601"})
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+@mock.patch("cryoemservices.services.ispyb_connector.ispyb.sqlalchemy")
+@mock.patch("cryoemservices.services.ispyb_connector.sqlalchemy")
 @mock.patch("cryoemservices.services.ispyb_connector.ispyb_commands.insert_movie")
 def test_ispyb_service_checkpoint(
     mock_command, mock_sqlalchemy, mock_ispyb_api, offline_transport, tmp_path
