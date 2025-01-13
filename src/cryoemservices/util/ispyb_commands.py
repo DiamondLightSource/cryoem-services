@@ -187,23 +187,23 @@ def _get_movie_id(
 
 def insert_movie(message: dict, parameters: Callable, session: sqlalchemy.orm.Session):
     try:
-        if parameters("timestamp"):
-            values = models.Movie(
-                dataCollectionId=parameters("dcid"),
-                foilHoleId=parameters("foil_hole_id"),
-                movieNumber=parameters("movie_number"),
-                movieFullPath=parameters("movie_path"),
-                createdTimeStamp=datetime.fromtimestamp(
-                    parameters("timestamp")
-                ).strftime("%Y-%m-%d %H:%M:%S"),
+        foil_hole_id = (
+            parameters("foil_hole_id") if parameters("foil_hole_id") != "None" else None
+        )
+        created_time_stamp = (
+            datetime.fromtimestamp(parameters("timestamp")).strftime(
+                "%Y-%m-%d %H:%M:%S"
             )
-        else:
-            values = models.Movie(
-                dataCollectionId=parameters("dcid"),
-                foilHoleId=parameters("foil_hole_id"),
-                movieNumber=parameters("movie_number"),
-                movieFullPath=parameters("movie_path"),
-            )
+            if parameters("timestamp")
+            else None
+        )
+        values = models.Movie(
+            dataCollectionId=parameters("dcid"),
+            foilHoleId=foil_hole_id,
+            movieNumber=parameters("movie_number"),
+            movieFullPath=parameters("movie_path"),
+            createdTimeStamp=created_time_stamp,
+        )
         session.add(values)
         session.commit()
         logger.info(f"Created Movie record {values.movieId}")
