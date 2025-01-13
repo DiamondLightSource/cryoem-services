@@ -14,6 +14,7 @@ from cryoemservices.services import ispyb_connector
 def offline_transport(mocker):
     transport = OfflineTransport()
     mocker.spy(transport, "send")
+    mocker.spy(transport, "nack")
     return transport
 
 
@@ -372,7 +373,7 @@ def test_ispyb_service_failed_lookup(
 ):
     """
     Send a test message to the ispyb service for a command which fails
-    This should checkpoint ready for rerunning
+    This currently nacks, but maybe should checkpoint ready for rerunning
     """
     header = {
         "message-id": mock.sentinel,
@@ -397,4 +398,5 @@ def test_ispyb_service_failed_lookup(
     # Check that the correct messages were sent - this checkpoints but does not send
     mock_rw.set_default_channel.assert_not_called()
     mock_rw.send.assert_not_called()
-    mock_rw.checkpoint.assert_called_with(ispyb_test_message, delay=20)
+    mock_rw.checkpoint.assert_not_called()
+    mock_rw.transport.nack.assert_called()
