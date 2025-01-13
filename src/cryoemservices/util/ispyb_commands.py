@@ -362,7 +362,7 @@ def insert_particle_picker(
             firstMotionCorrectionId=full_parameters("motion_correction_id"),
             particlePickingTemplate=full_parameters("particle_picking_template"),
             particleDiameter=full_parameters("particle_diameter"),
-            numberOfParticles=full_parameters("number_of_particles"),
+            numberOfParticles=full_parameters("number_of_particles") or 0,
             summaryImageFullPath=full_parameters("summary_image_full_path"),
         )
         session.add(values)
