@@ -149,11 +149,8 @@ class EMISPyB(CommonService):
             rw.checkpoint(result.get("checkpoint_dict"))
             rw.transport.ack(header)
         elif message["expiry_time"] > time.time():
-            self.log.warning(
-                f"Failed call {command}. Checkpointing for delayed resubmission"
-            )
-            rw.checkpoint(message, delay=20)
-            rw.transport.ack(header)
+            self.log.warning(f"Failed call {command} due to timeout")
+            rw.transport.nack(header)
         else:
             self.log.error(f"ISPyB request for {command} failed")
             rw.transport.nack(header)
