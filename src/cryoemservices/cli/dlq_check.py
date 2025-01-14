@@ -19,7 +19,7 @@ def check_dlq_rabbitmq(rabbitmq_credentials: Path) -> dict:
         if ": " in rmq_val:
             split_rmq = rmq_val.split(": ")
             rabbitmq_connection[split_rmq[0]] = split_rmq[1]
-    print(rabbitmq_connection)
+    print("Connecting to:", rabbitmq_connection["base_url"])
 
     rmq = RabbitMQAPI(
         url=rabbitmq_connection["base_url"],
@@ -49,7 +49,7 @@ def run() -> None:
     if Path(args.config_file).is_file():
         config = config_from_file(Path(args.config_file))
     else:
-        exit(f"Cannot file config file {args.config_file}")
+        exit(f"Cannot find config file {args.config_file}")
 
     dlqs = check_dlq_rabbitmq(config.rabbitmq_credentials)
     for queue, count in dlqs.items():
