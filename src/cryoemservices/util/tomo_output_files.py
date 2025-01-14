@@ -649,7 +649,10 @@ def _cryolo_output_files(
 
     # Read in the output particles
     particles_data = cif.read_file(str(output_file))
-    cryolo_block = particles_data["cryolo"]
+    try:
+        cryolo_block = particles_data["cryolo"]
+    except KeyError:
+        return {str(particles_file): ["ParticleGroupMetadata", ["relion"]]}
     loop_x = cryolo_block.find_loop("_CoordinateX")
     loop_y = cryolo_block.find_loop("_CoordinateY")
     loop_z = cryolo_block.find_loop("_CoordinateZ")
