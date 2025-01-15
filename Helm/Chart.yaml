@@ -6,6 +6,7 @@ dependencies:
   - name: bfactor_setup
   - name: cluster_submission
   - name: cryolo
+  - name: cryolo_gpu
   - name: ctffind
   - name: denoise
   - name: denoise_slurm
