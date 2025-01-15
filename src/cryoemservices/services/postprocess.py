@@ -59,7 +59,7 @@ class PostProcess(CommonService):
         self.log.info("Postprocessing service starting")
         workflows.recipe.wrap_subscribe(
             self._transport,
-            "postprocess",
+            self._environment["queue"] or "postprocess",
             self.postprocess,
             acknowledgement=True,
             log_extender=self.extend_log,

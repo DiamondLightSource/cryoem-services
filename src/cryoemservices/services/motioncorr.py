@@ -100,7 +100,7 @@ class MotionCorr(CommonService):
         self.log.info("Motion correction service starting")
         workflows.recipe.wrap_subscribe(
             self._transport,
-            "motioncorr",
+            self._environment["queue"] or "motioncorr",
             self.motion_correction,
             acknowledgement=True,
             log_extender=self.extend_log,

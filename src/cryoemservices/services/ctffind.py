@@ -82,7 +82,7 @@ class CTFFind(CommonService):
         self.log.info("CTFFind service starting")
         workflows.recipe.wrap_subscribe(
             self._transport,
-            "ctffind",
+            self._environment["queue"] or "ctffind",
             self.ctf_find,
             acknowledgement=True,
             log_extender=self.extend_log,

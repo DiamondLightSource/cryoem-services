@@ -82,7 +82,7 @@ class CrYOLO(CommonService):
         self.log.info("crYOLO service starting")
         workflows.recipe.wrap_subscribe(
             self._transport,
-            "cryolo",
+            self._environment["queue"] or "cryolo",
             self.cryolo,
             acknowledgement=True,
             log_extender=self.extend_log,

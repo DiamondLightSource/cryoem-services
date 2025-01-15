@@ -46,7 +46,7 @@ class MembrainSeg(CommonService):
         self.log.info("membrain-seg service starting")
         workflows.recipe.wrap_subscribe(
             self._transport,
-            "segmentation",
+            self._environment["queue"] or "segmentation",
             self.membrain_seg,
             acknowledgement=True,
             log_extender=self.extend_log,
