@@ -82,7 +82,7 @@ class CrYOLO(CommonService):
         self.log.info("crYOLO service starting")
         workflows.recipe.wrap_subscribe(
             self._transport,
-            "cryolo",
+            self._environment["queue"] or "cryolo",
             self.cryolo,
             acknowledgement=True,
             log_extender=self.extend_log,
@@ -164,18 +164,18 @@ class CrYOLO(CommonService):
         command = cryolo_params.cryolo_command.split()
         command.extend((["--conf", str(job_dir / "cryolo_config.json")]))
         command.extend((["-o", str(job_dir)]))
-        if cryolo_params.on_the_fly:
+        if cryolo_params.on_the_fly and cryolo_params.experiment_type == "spa":
             command.extend((["--otf"]))
         if cryolo_params.experiment_type == "tomography":
             command.extend(
                 (
                     [
-                        "--tomo",
-                        "--tsr",
+                        "--tomogram",
+                        "-tsr",
                         str(cryolo_params.tomo_tracing_search_range),
-                        "--tmem",
+                        "-tmem",
                         str(cryolo_params.tomo_tracing_missing_frames),
-                        "--tmin",
+                        "-tmin",
                         str(cryolo_params.tomo_tracing_min_frames),
                     ]
                 )

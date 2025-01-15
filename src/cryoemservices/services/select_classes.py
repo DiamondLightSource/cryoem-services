@@ -69,7 +69,7 @@ class SelectClasses(CommonService):
         self.log.info("Select classes service starting")
         workflows.recipe.wrap_subscribe(
             self._transport,
-            "select_classes",
+            self._environment["queue"] or "select_classes",
             self.select_classes,
             acknowledgement=True,
             log_extender=self.extend_log,

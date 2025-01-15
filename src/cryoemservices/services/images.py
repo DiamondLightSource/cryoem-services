@@ -48,7 +48,7 @@ class Images(CommonService):
         )
         workflows.recipe.wrap_subscribe(
             self._transport,
-            "images",
+            self._environment["queue"] or "images",
             self.image_call,
             acknowledgement=True,
             log_extender=self.extend_log,

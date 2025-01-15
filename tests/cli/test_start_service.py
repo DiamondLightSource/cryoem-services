@@ -7,7 +7,7 @@ from cryoemservices.cli import start_service
 
 
 @mock.patch("workflows.frontend.Frontend")
-def test_start_service(mock_frontend, tmp_path):
+def test_start_service_with_optional_args(mock_frontend, tmp_path):
     """Test that wrappers can be started and run"""
     # Create a sample config file
     config_file = tmp_path / "config.yaml"
@@ -24,6 +24,8 @@ def test_start_service(mock_frontend, tmp_path):
         str(config_file),
         "--slurm",
         "extra",
+        "--queue",
+        "motioncorr",
     ]
     start_service.run()
 
@@ -36,6 +38,42 @@ def test_start_service(mock_frontend, tmp_path):
             "environment": {
                 "config": f"{tmp_path}/config.yaml",
                 "slurm_cluster": "extra",
+                "queue": "motioncorr",
+            },
+        }
+    )
+    mock_frontend().run.assert_called()
+
+
+@mock.patch("workflows.frontend.Frontend")
+def test_start_service_with_default_args(mock_frontend, tmp_path):
+    """Test that wrappers can be started and run"""
+    # Create a sample config file
+    config_file = tmp_path / "config.yaml"
+    with open(config_file, "w") as cf:
+        cf.write("rabbitmq_credentials: rmq_creds\n")
+        cf.write(f"recipe_directory: {tmp_path}\n")
+
+    # Run the wrapper starter
+    sys.argv = [
+        "cryoemservices.wrap",
+        "--service",
+        "MotionCorr",
+        "--config_file",
+        str(config_file),
+    ]
+    start_service.run()
+
+    mock_frontend.assert_called_with(
+        **{
+            "service": "MotionCorr",
+            "transport": mock.ANY,
+            "transport_command_channel": "command",
+            "verbose_service": True,
+            "environment": {
+                "config": f"{tmp_path}/config.yaml",
+                "slurm_cluster": "default",
+                "queue": "",
             },
         }
     )

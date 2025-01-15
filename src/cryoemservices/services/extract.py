@@ -60,7 +60,7 @@ class Extract(CommonService):
         self.log.info("Extract service starting")
         workflows.recipe.wrap_subscribe(
             self._transport,
-            "extract",
+            self._environment["queue"] or "extract",
             self.extract,
             acknowledgement=True,
             log_extender=self.extend_log,

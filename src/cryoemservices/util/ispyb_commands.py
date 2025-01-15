@@ -15,6 +15,23 @@ logger = logging.getLogger("cryoemservices.util.ispyb_commands")
 logger.setLevel(logging.INFO)
 
 
+def parameters_with_replacement(param: str, message: dict, all_parameters: Callable):
+    """
+    Create a parameter lookup function specific to this call.
+    Slight change in behaviour compared to 'parameters' in a direct call:
+    If the value is defined in the command list item then this takes
+    precedence.
+    """
+    if message.get(param) and "$" not in str(message[param]):
+        # Precedence for command list items
+        return message[param]
+    elif message.get(param):
+        # Run lookup on dollar parameters
+        return all_parameters(message[param])
+    # Lookup anything else
+    return all_parameters(param)
+
+
 def multipart_message(
     message: dict, parameters: Callable, session: sqlalchemy.orm.Session
 ):
@@ -43,15 +60,7 @@ def multipart_message(
 
     # Create a parameter lookup function specific to this step
     def step_parameters(parameter):
-        """Slight change in behaviour compared to 'parameters' in a direct call:
-        If the value is defined in the command list item then this takes
-        precedence.
-        """
-        if parameter in current_command:
-            base_value = current_command[parameter]
-        else:
-            base_value = parameters(parameter)
-        return base_value
+        return parameters_with_replacement(parameter, current_command, parameters)
 
     # If this step previously checkpointed then override the message passed
     # to the step.
@@ -187,10 +196,13 @@ def _get_movie_id(
 
 def insert_movie(message: dict, parameters: Callable, session: sqlalchemy.orm.Session):
     try:
+        foil_hole_id = (
+            parameters("foil_hole_id") if parameters("foil_hole_id") != "None" else None
+        )
         if parameters("timestamp"):
             values = models.Movie(
                 dataCollectionId=parameters("dcid"),
-                foilHoleId=parameters("foil_hole_id"),
+                foilHoleId=foil_hole_id,
                 movieNumber=parameters("movie_number"),
                 movieFullPath=parameters("movie_path"),
                 createdTimeStamp=datetime.fromtimestamp(
@@ -200,7 +212,7 @@ def insert_movie(message: dict, parameters: Callable, session: sqlalchemy.orm.Se
         else:
             values = models.Movie(
                 dataCollectionId=parameters("dcid"),
-                foilHoleId=parameters("foil_hole_id"),
+                foilHoleId=foil_hole_id,
                 movieNumber=parameters("movie_number"),
                 movieFullPath=parameters("movie_path"),
             )
@@ -220,7 +232,7 @@ def insert_motion_correction(
     message: dict, parameters: Callable, session: sqlalchemy.orm.Session
 ):
     def full_parameters(param):
-        return message.get(param) or parameters(param)
+        return parameters_with_replacement(param, message, parameters)
 
     try:
         movie_id = None
@@ -279,7 +291,7 @@ def insert_relative_ice_thickness(
     message: dict, parameters: Callable, session: sqlalchemy.orm.Session
 ):
     def full_parameters(param):
-        return message.get(param) or parameters(param)
+        return parameters_with_replacement(param, message, parameters)
 
     try:
         values = models.RelativeIceThickness(
@@ -305,7 +317,7 @@ def insert_relative_ice_thickness(
 
 def insert_ctf(message: dict, parameters: Callable, session: sqlalchemy.orm.Session):
     def full_parameters(param):
-        return message.get(param) or parameters(param)
+        return parameters_with_replacement(param, message, parameters)
 
     try:
         values = models.CTF(
@@ -344,7 +356,7 @@ def insert_particle_picker(
     message: dict, parameters: Callable, session: sqlalchemy.orm.Session
 ):
     def full_parameters(param):
-        return message.get(param) or parameters(param)
+        return parameters_with_replacement(param, message, parameters)
 
     try:
         values = models.ParticlePicker(
@@ -353,7 +365,7 @@ def insert_particle_picker(
             firstMotionCorrectionId=full_parameters("motion_correction_id"),
             particlePickingTemplate=full_parameters("particle_picking_template"),
             particleDiameter=full_parameters("particle_diameter"),
-            numberOfParticles=full_parameters("number_of_particles"),
+            numberOfParticles=full_parameters("number_of_particles") or 0,
             summaryImageFullPath=full_parameters("summary_image_full_path"),
         )
         session.add(values)
@@ -372,7 +384,7 @@ def insert_particle_classification(
     message: dict, parameters: Callable, session: sqlalchemy.orm.Session
 ):
     def full_parameters(param):
-        return message.get(param) or parameters(param)
+        return parameters_with_replacement(param, message, parameters)
 
     try:
         values = models.ParticleClassification(
@@ -432,7 +444,7 @@ def insert_particle_classification_group(
     message: dict, parameters: Callable, session: sqlalchemy.orm.Session
 ):
     def full_parameters(param):
-        return message.get(param) or parameters(param)
+        return parameters_with_replacement(param, message, parameters)
 
     try:
         values = models.ParticleClassificationGroup(
@@ -490,7 +502,7 @@ def insert_cryoem_initial_model(
     message: dict, parameters: Callable, session: sqlalchemy.orm.Session
 ):
     def full_parameters(param):
-        return message.get(param) or parameters(param)
+        return parameters_with_replacement(param, message, parameters)
 
     try:
         if not full_parameters("cryoem_initial_model_id"):
@@ -524,7 +536,7 @@ def insert_bfactor_fit(
     message: dict, parameters: Callable, session: sqlalchemy.orm.Session
 ):
     def full_parameters(param):
-        return message.get(param) or parameters(param)
+        return parameters_with_replacement(param, message, parameters)
 
     try:
         values = models.BFactorFit(
@@ -572,7 +584,7 @@ def insert_tomogram(
         message = {}
 
     def full_parameters(param):
-        return message.get(param) or parameters(param)
+        return parameters_with_replacement(param, message, parameters)
 
     try:
         values = models.Tomogram(
@@ -632,7 +644,7 @@ def insert_processed_tomogram(
     message: dict, parameters: Callable, session: sqlalchemy.orm.Session
 ):
     def full_parameters(param):
-        return message.get(param) or parameters(param)
+        return parameters_with_replacement(param, message, parameters)
 
     try:
         values = models.ProcessedTomogram(
@@ -656,7 +668,7 @@ def insert_tilt_image_alignment(
     message: dict, parameters: Callable, session: sqlalchemy.orm.Session
 ):
     def full_parameters(param):
-        return message.get(param) or parameters(param)
+        return parameters_with_replacement(param, message, parameters)
 
     if full_parameters("movie_id"):
         mvid = full_parameters("movie_id")
@@ -697,7 +709,7 @@ def update_processing_status(
     message: dict, parameters: Callable, session: sqlalchemy.orm.Session
 ):
     def full_parameters(param):
-        return message.get(param) or parameters(param)
+        return parameters_with_replacement(param, message, parameters)
 
     ppid = full_parameters("program_id")
     status_message = full_parameters("status_message")

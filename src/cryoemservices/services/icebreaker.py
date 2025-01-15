@@ -51,7 +51,7 @@ class IceBreaker(CommonService):
         self.log.info("IceBreaker service starting")
         workflows.recipe.wrap_subscribe(
             self._transport,
-            "icebreaker",
+            self._environment["queue"] or "icebreaker",
             self.icebreaker,
             acknowledgement=True,
             log_extender=self.extend_log,

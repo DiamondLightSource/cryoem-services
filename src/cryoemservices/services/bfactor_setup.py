@@ -45,7 +45,7 @@ class BFactor(CommonService):
         self.log.info("BFactor setup service starting")
         workflows.recipe.wrap_subscribe(
             self._transport,
-            "bfactor",
+            self._environment["queue"] or "bfactor",
             self.bfactor_setup,
             acknowledgement=True,
             log_extender=self.extend_log,
