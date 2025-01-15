@@ -145,7 +145,7 @@ class ClusterSubmission(CommonService):
         self.log.info(f"Supported schedulers: {', '.join(self.schedulers.keys())}")
         workflows.recipe.wrap_subscribe(
             self._transport,
-            "cluster.submission",
+            self._environment["queue"] or "cluster.submission",
             self.run_submit_job,
             acknowledgement=True,
             log_extender=self.extend_log,

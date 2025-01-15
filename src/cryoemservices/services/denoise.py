@@ -83,7 +83,7 @@ class Denoise(CommonService):
         self.log.info("Denoise service starting")
         workflows.recipe.wrap_subscribe(
             self._transport,
-            "denoise",
+            self._environment["queue"] or "denoise",
             self.denoise,
             acknowledgement=True,
             log_extender=self.extend_log,

@@ -40,7 +40,7 @@ class SelectParticles(CommonService):
         self.log.info("Select particles service starting")
         workflows.recipe.wrap_subscribe(
             self._transport,
-            "select_particles",
+            self._environment["queue"] or "select_particles",
             self.select_particles,
             acknowledgement=True,
             log_extender=self.extend_log,

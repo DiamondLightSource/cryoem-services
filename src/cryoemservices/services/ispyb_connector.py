@@ -38,7 +38,7 @@ class EMISPyB(CommonService):
         self.log.info("ISPyB service ready")
         workflows.recipe.wrap_subscribe(
             self._transport,
-            "ispyb_connector",
+            self._environment["queue"] or "ispyb_connector",
             self.insert_into_ispyb,
             acknowledgement=True,
             log_extender=self.extend_log,

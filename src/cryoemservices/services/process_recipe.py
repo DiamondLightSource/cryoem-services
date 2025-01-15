@@ -66,7 +66,7 @@ class ProcessRecipe(CommonService):
 
         workflows.recipe.wrap_subscribe(
             self._transport,
-            "processing_recipe",
+            self._environment["queue"] or "processing_recipe",
             self.process,
             acknowledgement=True,
             log_extender=self.extend_log,
