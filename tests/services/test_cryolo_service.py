@@ -240,13 +240,12 @@ def test_cryolo_service_tomography(mock_subprocess, offline_transport, tmp_path)
             str(tmp_path / "AutoPick/job007/cryolo_config.json"),
             "-o",
             str(output_path.parent.parent),
-            "--otf",
-            "--tomo",
-            "--tsr",
+            "--tomogram",
+            "-tsr",
             "-1",
-            "--tmem",
+            "-tmem",
             "0",
-            "--tmin",
+            "-tmin",
             "5",
             "-i",
             "MotionCorr/job002/sample.mrc",
@@ -317,8 +316,7 @@ def test_cryolo_service_tomography(mock_subprocess, offline_transport, tmp_path)
             "relion_options": output_relion_options,
             "command": (
                 f"cryolo_predict.py --conf {tmp_path}/AutoPick/job007/cryolo_config.json "
-                f"-o {tmp_path}/AutoPick/job007 --otf "
-                "--tomo --tsr -1 --tmem 0 --tmin 5 "
+                f"-o {tmp_path}/AutoPick/job007 --tomogram -tsr -1 -tmem 0 -tmin 5 "
                 "-i MotionCorr/job002/sample.mrc "
                 "--weights sample_weights --threshold 0.15 "
                 "--distance 0 --norm_margin 0"
