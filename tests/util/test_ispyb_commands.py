@@ -29,7 +29,6 @@ def test_insert_movie_id_notime(mock_models):
         foilHoleId=2,
         movieNumber=1,
         movieFullPath="/path/to/movie",
-        createdTimeStamp=None,
     )
 
     mock_session.add.assert_called()
@@ -117,7 +116,6 @@ def test_insert_movie_noid_notime(mock_models):
         foilHoleId=None,
         movieNumber=1,
         movieFullPath="/path/to/movie",
-        createdTimeStamp=None,
     )
 
     mock_session.add.assert_called()
