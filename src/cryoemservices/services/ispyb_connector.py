@@ -71,26 +71,31 @@ class EMISPyB(CommonService):
         elif type(message) is str:
             message = {"status_message": message}
 
+        def replace_with_environment(env_value):
+            """Replace any $ keys with their value provided in the environment"""
+            for key in rw.environment:
+                if "${" + str(key) + "}" == env_value:
+                    env_value = env_value.replace(
+                        "${" + str(key) + "}", str(rw.environment[key])
+                    )
+                if f"${key}" == env_value:
+                    env_value = env_value.replace(f"${key}", str(rw.environment[key]))
+            return env_value
+
         def parameters(parameter):
+            if "$" in parameter:
+                # If given a $ dollar parameter, go ahead and replace it
+                return replace_with_environment(parameter)
+
+            # Otherwise look up the parameter value
             if message.get(parameter):
                 base_value = message[parameter]
             else:
                 base_value = rw.recipe_step["parameters"].get(parameter)
-            if (
-                not base_value
-                or not isinstance(base_value, str)
-                or "$" not in base_value
-            ):
-                return base_value
-            for key in sorted(rw.environment, key=len, reverse=True):
-                if "${" + str(key) + "}" in base_value:
-                    base_value = base_value.replace(
-                        "${" + str(key) + "}", str(rw.environment[key])
-                    )
-                # Replace longest keys first, as the following replacement is
-                # not well-defined when one key is a prefix of another:
-                if f"${key}" in base_value:
-                    base_value = base_value.replace(f"${key}", str(rw.environment[key]))
+            if base_value and isinstance(base_value, str) and "$" in base_value:
+                # Replace the found value if it has a $
+                return replace_with_environment(base_value)
+            # Return the value or None
             return base_value
 
         command = parameters("ispyb_command")
@@ -149,11 +154,8 @@ class EMISPyB(CommonService):
             rw.checkpoint(result.get("checkpoint_dict"))
             rw.transport.ack(header)
         elif message["expiry_time"] > time.time():
-            self.log.warning(
-                f"Failed call {command}. Checkpointing for delayed resubmission"
-            )
-            rw.checkpoint(message, delay=20)
-            rw.transport.ack(header)
+            self.log.warning(f"Failed call {command} due to timeout")
+            rw.transport.nack(header)
         else:
             self.log.error(f"ISPyB request for {command} failed")
             rw.transport.nack(header)
