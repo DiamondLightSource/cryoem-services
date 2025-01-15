@@ -73,14 +73,12 @@ class EMISPyB(CommonService):
 
         def replace_with_environment(env_value):
             """Replace any $ keys with their value provided in the environment"""
-            for key in sorted(rw.environment, key=len, reverse=True):
-                if "${" + str(key) + "}" in env_value:
+            for key in rw.environment:
+                if "${" + str(key) + "}" == env_value:
                     env_value = env_value.replace(
                         "${" + str(key) + "}", str(rw.environment[key])
                     )
-                # Replace longest keys first, as the following replacement is
-                # not well-defined when one key is a prefix of another:
-                if f"${key}" in env_value:
+                if f"${key}" == env_value:
                     env_value = env_value.replace(f"${key}", str(rw.environment[key]))
             return env_value
 
