@@ -77,7 +77,7 @@ def test_cryolo_service_spa(mock_subprocess, offline_transport, tmp_path):
         )
 
     # Set up the mock service and send the message to it
-    service = cryolo.CrYOLO()
+    service = cryolo.CrYOLO(environment={"queue": ""})
     service.transport = offline_transport
     service.start()
     service.cryolo(None, header=header, message=cryolo_test_message)
@@ -227,7 +227,7 @@ def test_cryolo_service_tomography(mock_subprocess, offline_transport, tmp_path)
     )
 
     # Set up the mock service and send the message to it
-    service = cryolo.CrYOLO()
+    service = cryolo.CrYOLO(environment={"queue": ""})
     service.transport = offline_transport
     service.start()
     service.cryolo(None, header=header, message=cryolo_test_message)
@@ -247,6 +247,8 @@ def test_cryolo_service_tomography(mock_subprocess, offline_transport, tmp_path)
             "0",
             "-tmin",
             "5",
+            "--gpus",
+            "0",
             "-i",
             "MotionCorr/job002/sample.mrc",
             "--weights",
@@ -316,7 +318,8 @@ def test_cryolo_service_tomography(mock_subprocess, offline_transport, tmp_path)
             "relion_options": output_relion_options,
             "command": (
                 f"cryolo_predict.py --conf {tmp_path}/AutoPick/job007/cryolo_config.json "
-                f"-o {tmp_path}/AutoPick/job007 --tomogram -tsr -1 -tmem 0 -tmin 5 "
+                f"-o {tmp_path}/AutoPick/job007 "
+                f"--tomogram -tsr -1 -tmem 0 -tmin 5 --gpus 0 "
                 "-i MotionCorr/job002/sample.mrc "
                 "--weights sample_weights --threshold 0.15 "
                 "--distance 0 --norm_margin 0"
@@ -358,7 +361,7 @@ def test_cryolo_spa_needs_uuids_and_pixel_size(
     }
 
     # Set up the mock service
-    service = cryolo.CrYOLO()
+    service = cryolo.CrYOLO(environment={"queue": ""})
     service.transport = offline_transport
     service.start()
 
@@ -386,7 +389,7 @@ def test_parse_cryolo_output(offline_transport):
     Send test lines to the output parser
     to check the number of particles is being read in
     """
-    service = cryolo.CrYOLO()
+    service = cryolo.CrYOLO(environment={"queue": ""})
     service.transport = offline_transport
     service.start()
 

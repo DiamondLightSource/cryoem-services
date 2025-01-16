@@ -64,7 +64,7 @@ def test_select_particles_service(offline_transport, tmp_path):
     }
 
     # Set up the mock service and send the message to it
-    service = select_particles.SelectParticles()
+    service = select_particles.SelectParticles(environment={"queue": ""})
     service.transport = offline_transport
     service.start()
     service.select_particles(None, header=header, message=select_test_message)

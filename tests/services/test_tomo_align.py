@@ -84,7 +84,7 @@ def test_tomo_align_service_file_list(
     output_relion_options["tomo_size_y"] = 3000
 
     # Set up the mock service
-    service = tomo_align.TomoAlign()
+    service = tomo_align.TomoAlign(environment={"queue": ""})
     service.transport = offline_transport
     service.start()
 
@@ -321,7 +321,7 @@ def test_tomo_align_service_file_list_repeated_tilt(
     (tmp_path / "MotionCorr/job002/Movies/input_file_3.mrc").touch()
 
     # Set up the mock service
-    service = tomo_align.TomoAlign()
+    service = tomo_align.TomoAlign(environment={"queue": ""})
     service.transport = offline_transport
     service.start()
 
@@ -442,7 +442,7 @@ def test_tomo_align_service_path_pattern(
     output_relion_options["manual_tilt_offset"] = 10.5
 
     # Set up the mock service
-    service = tomo_align.TomoAlign()
+    service = tomo_align.TomoAlign(environment={"queue": ""})
     service.transport = offline_transport
     service.start()
 
@@ -594,7 +594,7 @@ def test_tomo_align_service_dark_images(
     output_relion_options["tomo_size_y"] = 3000
 
     # Set up the mock service
-    service = tomo_align.TomoAlign()
+    service = tomo_align.TomoAlign(environment={"queue": ""})
     service.transport = offline_transport
     service.start()
 
@@ -762,7 +762,7 @@ def test_tomo_align_service_all_dark(
     }
 
     # Set up the mock service
-    service = tomo_align.TomoAlign()
+    service = tomo_align.TomoAlign(environment={"queue": ""})
     service.transport = offline_transport
     service.start()
 
@@ -820,7 +820,7 @@ def test_parse_tomo_align_output(offline_transport):
     Send test lines to the output parser
     to check the rotations and offsets are being read in
     """
-    service = tomo_align.TomoAlign()
+    service = tomo_align.TomoAlign(environment={"queue": ""})
     service.transport = offline_transport
     service.start()
 

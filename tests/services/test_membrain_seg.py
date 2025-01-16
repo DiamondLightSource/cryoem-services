@@ -77,7 +77,7 @@ def test_membrain_seg_service_local(
     }
 
     # Set up the mock service
-    service = membrain_seg.MembrainSeg()
+    service = membrain_seg.MembrainSeg(environment={"queue": ""})
     service.transport = offline_transport
     service.start()
 
@@ -180,7 +180,11 @@ def test_membrain_seg_service_slurm(
 
     # Set up the mock service
     service = membrain_seg.MembrainSeg(
-        environment={"config": f"{tmp_path}/config.yaml", "slurm_cluster": "default"}
+        environment={
+            "config": f"{tmp_path}/config.yaml",
+            "slurm_cluster": "default",
+            "queue": "",
+        }
     )
     service.transport = offline_transport
     service.start()

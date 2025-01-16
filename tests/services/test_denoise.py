@@ -97,7 +97,7 @@ def test_denoise_local_service(
     output_relion_options = dict(RelionServiceOptions())
 
     # Set up the mock service
-    service = denoise.Denoise()
+    service = denoise.Denoise(environment={"queue": ""})
     service.transport = offline_transport
     service.start()
 
@@ -255,7 +255,11 @@ def test_denoise_slurm_service(
 
     # Set up the mock service
     service = denoise_slurm.DenoiseSlurm(
-        environment={"config": f"{tmp_path}/config.yaml", "slurm_cluster": "default"}
+        environment={
+            "config": f"{tmp_path}/config.yaml",
+            "slurm_cluster": "default",
+            "queue": "",
+        }
     )
     service.transport = offline_transport
     service.start()

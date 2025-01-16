@@ -60,7 +60,7 @@ def test_ctffind4_service_spa(mock_subprocess, offline_transport, tmp_path):
     output_relion_options.update(ctffind_test_message["relion_options"])
 
     # Set up the mock service
-    service = ctffind.CTFFind()
+    service = ctffind.CTFFind(environment={"queue": ""})
     service.transport = offline_transport
     service.start()
 
@@ -203,7 +203,7 @@ def test_ctffind5_service_tomo(mock_subprocess, offline_transport, tmp_path):
     output_relion_options.update(ctffind_test_message["relion_options"])
 
     # Set up the mock service
-    service = ctffind.CTFFind()
+    service = ctffind.CTFFind(environment={"queue": ""})
     service.transport = offline_transport
     service.start()
 
@@ -298,7 +298,7 @@ def test_ctffind5_service_nothickness(mock_subprocess, offline_transport, tmp_pa
     output_relion_options.update(ctffind_test_message["relion_options"])
 
     # Set up the mock service
-    service = ctffind.CTFFind()
+    service = ctffind.CTFFind(environment={"queue": ""})
     service.transport = offline_transport
     service.start()
 
@@ -349,7 +349,7 @@ def test_parse_ctffind_output(offline_transport):
     Send test lines to the output parser
     to check the ctf values are being read in
     """
-    service = ctffind.CTFFind()
+    service = ctffind.CTFFind(environment={"queue": ""})
     service.transport = offline_transport
     service.start()
 

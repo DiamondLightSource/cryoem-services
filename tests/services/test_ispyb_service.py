@@ -50,7 +50,9 @@ def test_ispyb_service_run(
     write_config_file(tmp_path)
 
     # Set up the mock service and call it
-    service = ispyb_connector.EMISPyB(environment={"config": f"{tmp_path}/config.yaml"})
+    service = ispyb_connector.EMISPyB(
+        environment={"config": f"{tmp_path}/config.yaml", "queue": ""}
+    )
     service.transport = offline_transport
     service.start()
     service.insert_into_ispyb(None, header=header, message=ispyb_test_message)
@@ -106,7 +108,9 @@ def test_ispyb_service_store_result(
     write_config_file(tmp_path)
 
     # Set up the mock service and call it
-    service = ispyb_connector.EMISPyB(environment={"config": f"{tmp_path}/config.yaml"})
+    service = ispyb_connector.EMISPyB(
+        environment={"config": f"{tmp_path}/config.yaml", "queue": ""}
+    )
     service.transport = offline_transport
     service.start()
     service.insert_into_ispyb(rw=mock_rw, header=header, message=ispyb_test_message)
@@ -153,7 +157,9 @@ def test_ispyb_service_env_keys(
     write_config_file(tmp_path)
 
     # Set up the mock service and call it
-    service = ispyb_connector.EMISPyB(environment={"config": f"{tmp_path}/config.yaml"})
+    service = ispyb_connector.EMISPyB(
+        environment={"config": f"{tmp_path}/config.yaml", "queue": ""}
+    )
     service.transport = offline_transport
     service.start()
     service.insert_into_ispyb(rw=mock_rw, header=header, message=ispyb_test_message)
@@ -203,7 +209,9 @@ def test_ispyb_service_multipart_env_keys(
     write_config_file(tmp_path)
 
     # Set up the mock service and call it
-    service = ispyb_connector.EMISPyB(environment={"config": f"{tmp_path}/config.yaml"})
+    service = ispyb_connector.EMISPyB(
+        environment={"config": f"{tmp_path}/config.yaml", "queue": ""}
+    )
     service.transport = offline_transport
     service.start()
     service.insert_into_ispyb(rw=mock_rw, header=header, message=ispyb_test_message)
@@ -249,7 +257,9 @@ def test_ispyb_service_checkpoint(
     write_config_file(tmp_path)
 
     # Set up the mock service and call it
-    service = ispyb_connector.EMISPyB(environment={"config": f"{tmp_path}/config.yaml"})
+    service = ispyb_connector.EMISPyB(
+        environment={"config": f"{tmp_path}/config.yaml", "queue": ""}
+    )
     service.transport = offline_transport
     service.start()
     service.insert_into_ispyb(rw=mock_rw, header=header, message=ispyb_test_message)
@@ -352,7 +362,9 @@ def test_ispyb_multipart_message(
     write_config_file(tmp_path)
 
     # Set up the mock service and call it
-    service = ispyb_connector.EMISPyB(environment={"config": f"{tmp_path}/config.yaml"})
+    service = ispyb_connector.EMISPyB(
+        environment={"config": f"{tmp_path}/config.yaml", "queue": ""}
+    )
     service.transport = offline_transport
     service.start()
     service.insert_into_ispyb(rw=mock_rw, header=header, message=ispyb_test_message)
@@ -442,7 +454,9 @@ def test_ispyb_service_failed_lookup(
     write_config_file(tmp_path)
 
     # Set up the mock service and call it
-    service = ispyb_connector.EMISPyB(environment={"config": f"{tmp_path}/config.yaml"})
+    service = ispyb_connector.EMISPyB(
+        environment={"config": f"{tmp_path}/config.yaml", "queue": ""}
+    )
     service.transport = offline_transport
     service.start()
     service.insert_into_ispyb(rw=mock_rw, header=header, message=ispyb_test_message)

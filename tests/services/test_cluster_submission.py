@@ -84,7 +84,11 @@ def test_cluster_submission_recipeless(
 
     # Set up the mock service
     service = cluster_submission.ClusterSubmission(
-        environment={"config": f"{tmp_path}/config.yaml", "slurm_cluster": "default"}
+        environment={
+            "config": f"{tmp_path}/config.yaml",
+            "slurm_cluster": "default",
+            "queue": "",
+        }
     )
     service.transport = offline_transport
     service.start()
@@ -167,7 +171,11 @@ def test_cluster_submission_recipefile(
 
     # Set up the mock service
     service = cluster_submission.ClusterSubmission(
-        environment={"config": f"{tmp_path}/config.yaml", "slurm_cluster": "default"}
+        environment={
+            "config": f"{tmp_path}/config.yaml",
+            "slurm_cluster": "default",
+            "queue": "",
+        }
     )
     service.transport = offline_transport
     service.start()
@@ -225,7 +233,11 @@ def test_cluster_submission_recipeenvironment(
 
     # Set up the mock service
     service = cluster_submission.ClusterSubmission(
-        environment={"config": f"{tmp_path}/config.yaml", "slurm_cluster": "default"}
+        environment={
+            "config": f"{tmp_path}/config.yaml",
+            "slurm_cluster": "default",
+            "queue": "",
+        }
     )
     service.transport = offline_transport
     service.start()
@@ -287,7 +299,11 @@ def test_cluster_submission_recipewrapper(
 
     # Set up the mock service
     service = cluster_submission.ClusterSubmission(
-        environment={"config": f"{tmp_path}/config.yaml", "slurm_cluster": "default"}
+        environment={
+            "config": f"{tmp_path}/config.yaml",
+            "slurm_cluster": "default",
+            "queue": "",
+        }
     )
     service.transport = offline_transport
     service.start()
@@ -355,7 +371,11 @@ def test_cluster_submission_extra_cluster(
 
     # Set up the mock service
     service = cluster_submission.ClusterSubmission(
-        environment={"config": f"{tmp_path}/config.yaml", "slurm_cluster": "extra"}
+        environment={
+            "config": f"{tmp_path}/config.yaml",
+            "slurm_cluster": "extra",
+            "queue": "",
+        }
     )
     service.transport = offline_transport
     service.start()
