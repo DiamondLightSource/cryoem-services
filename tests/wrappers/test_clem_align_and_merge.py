@@ -288,9 +288,21 @@ def test_align_and_merge_parameters(
         "flatten": flatten,
         "align_across": align_across,
     }
-    AlignAndMergeParameters(**params_dict)
 
-    pass
+    # Check that validated parameters are of the allowed types/values
+    validated_params = AlignAndMergeParameters(**params_dict)
+    assert isinstance(validated_params.series_name, str)
+    assert isinstance(validated_params.images, list)
+    for file in validated_params.images:
+        assert isinstance(file, Path)
+    assert isinstance(validated_params.metadata, Path)
+    assert (
+        isinstance(validated_params.crop_to_n_frames, int)
+        or validated_params.crop_to_n_frames is None
+    )
+    assert validated_params.align_self in ("enabled", "")
+    assert validated_params.flatten in ("mean", "min", "max", "")
+    assert validated_params.align_across in ("enabled", "")
 
 
 # Set up a mock transport object
