@@ -77,7 +77,7 @@ def test_extract_service(mock_mrcfile, offline_transport, tmp_path):
     output_relion_options.update(extract_test_message["relion_options"])
 
     # Set up the mock service and send the message to it
-    service = extract.Extract()
+    service = extract.Extract(environment={"queue": ""})
     service.transport = offline_transport
     service.start()
     service.extract(None, header=header, message=extract_test_message)

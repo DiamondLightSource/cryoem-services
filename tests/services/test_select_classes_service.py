@@ -134,7 +134,7 @@ def test_select_classes_service_first_batch(
     )
 
     # Set up the mock service and send the message to it
-    service = select_classes.SelectClasses()
+    service = select_classes.SelectClasses(environment={"queue": ""})
     service.transport = offline_transport
     service.start()
     service.select_classes(None, header=header, message=select_test_message)
@@ -321,7 +321,7 @@ def test_select_classes_service_batch_threshold(
     )
 
     # Set up the mock service and send the message to it
-    service = select_classes.SelectClasses()
+    service = select_classes.SelectClasses(environment={"queue": ""})
     service.transport = offline_transport
     service.start()
     service.select_classes(None, header=header, message=select_test_message)
@@ -373,7 +373,7 @@ def test_select_classes_service_two_thresholds(
     )
 
     # Set up the mock service and send the message to it
-    service = select_classes.SelectClasses()
+    service = select_classes.SelectClasses(environment={"queue": ""})
     service.transport = offline_transport
     service.start()
     service.select_classes(None, header=header, message=select_test_message)
@@ -426,7 +426,7 @@ def test_select_classes_service_last_threshold(
     )
 
     # Set up the mock service and send the message to it
-    service = select_classes.SelectClasses()
+    service = select_classes.SelectClasses(environment={"queue": ""})
     service.transport = offline_transport
     service.start()
     service.select_classes(None, header=header, message=select_test_message)
@@ -476,7 +476,7 @@ def test_select_classes_service_not_threshold(
     )
 
     # Set up the mock service and send the message to it
-    service = select_classes.SelectClasses()
+    service = select_classes.SelectClasses(environment={"queue": ""})
     service.transport = offline_transport
     service.start()
     service.select_classes(None, header=header, message=select_test_message)
@@ -516,7 +516,7 @@ def test_select_classes_service_past_maximum(
     )
 
     # Set up the mock service and send the message to it
-    service = select_classes.SelectClasses()
+    service = select_classes.SelectClasses(environment={"queue": ""})
     service.transport = offline_transport
     service.start()
     service.select_classes(None, header=header, message=select_test_message)
@@ -538,7 +538,7 @@ def test_parse_combiner_output(offline_transport):
     Send test lines to the output parser
     to check the number of particles are being read in
     """
-    service = select_classes.SelectClasses()
+    service = select_classes.SelectClasses(environment={"queue": ""})
     service.transport = offline_transport
     service.start()
 

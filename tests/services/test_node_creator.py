@@ -62,7 +62,7 @@ def setup_and_run_node_creation(
     }
 
     # set up the mock service and send the message to it
-    service = node_creator.NodeCreator()
+    service = node_creator.NodeCreator(environment={"queue": ""})
     service.transport = transport
     service.start()
     service.node_creator(None, header=header, message=test_message)
@@ -116,7 +116,7 @@ def test_node_creator_failed_job(offline_transport, tmp_path):
     }
 
     # set up the mock service and send the message to it
-    service = node_creator.NodeCreator()
+    service = node_creator.NodeCreator(environment={"queue": ""})
     service.transport = offline_transport
     service.start()
     service.node_creator(None, header=header, message=test_message)
@@ -166,7 +166,7 @@ def test_node_creator_rerun_job(offline_transport, tmp_path):
     }
 
     # set up the mock service and send the message to it
-    service = node_creator.NodeCreator()
+    service = node_creator.NodeCreator(environment={"queue": ""})
     service.transport = offline_transport
     service.start()
     service.node_creator(None, header=header, message=test_message)
