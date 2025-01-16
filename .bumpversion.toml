@@ -1,5 +1,5 @@
 [tool.bumpversion]
-current_version = "1.0.1"
+current_version = "1.0.2"
 commit = true
 tag = true
 
@@ -30,6 +30,11 @@ replace = 'version: {new_version}'
 
 [[tool.bumpversion.files]]
 filename = "Helm/charts/cryolo/Chart.yaml"
+search = 'version: {current_version}'
+replace = 'version: {new_version}'
+
+[[tool.bumpversion.files]]
+filename = "Helm/charts/cryolo_gpu/Chart.yaml"
 search = 'version: {current_version}'
 replace = 'version: {new_version}'
 
