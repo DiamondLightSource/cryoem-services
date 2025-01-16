@@ -16,14 +16,11 @@ from cryoemservices.wrappers.clem_align_and_merge import (
 )
 from tests.test_utils.clem import create_grayscale_image
 
-
-@pytest.fixture
-def series_name():
-    return "test_series"
+series_name = "test_series"
 
 
 @pytest.fixture
-def processed_dir(tmp_path: Path, series_name: str):
+def processed_dir(tmp_path: Path):
     processed_dir = tmp_path / series_name
     if not processed_dir.exists():
         processed_dir.mkdir(parents=True)
@@ -31,7 +28,7 @@ def processed_dir(tmp_path: Path, series_name: str):
 
 
 @pytest.fixture
-def metadata_file(series_name: str, processed_dir: Path):
+def metadata_file(processed_dir: Path):
     metadata = processed_dir / "metadata" / f"{series_name}.xml"
     if not metadata.parent.exists():
         metadata.parent.mkdir(parents=True)
@@ -205,7 +202,6 @@ def test_align_and_merge_stacks_wrong_params(
     colors, crop_to_n_frames, align_self, flatten, align_across = test_params
 
     # Set up the test environment
-    series_name = "test_series"
     processed_dir = tmp_path / series_name
     if not processed_dir.exists():
         processed_dir.mkdir(parents=True)
@@ -260,7 +256,6 @@ def test_align_and_merge_parameters(
         str,
         str,
     ],
-    series_name: str,
     metadata_file: Path,
     image_list: list[Path],
 ):
@@ -337,7 +332,7 @@ def test_align_and_merge_wrapper(
             "start": [[1, []]],
             "1": {
                 "job_parameters": {
-                    "series_name": "test_series",
+                    "series_name": series_name,
                     "images": [str(image) for image in image_list],
                     "metadata": str(metadata_file),
                     "crop_to_n_frames": crop_to_n_frames,
