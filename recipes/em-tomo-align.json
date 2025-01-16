@@ -95,7 +95,7 @@
       "movie": 6,
       "node_creator": 11
     },
-    "queue": "cryolo",
+    "queue": "cryolo_gpu",
     "service": "CrYOLO"
   },
   "10": {
