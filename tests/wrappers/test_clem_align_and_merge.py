@@ -63,7 +63,7 @@ def image_list(processed_dir: Path):
                 {
                     "shape": shape[-2:],
                     "amplitude": 200,
-                    "centre": (24, 24),
+                    "centre": (24 + (2 * c), 24 + (2 * c)),
                     "sigma": (3, 4),
                     "theta": 20,
                     "offset": 0,
@@ -71,7 +71,7 @@ def image_list(processed_dir: Path):
                 {
                     "shape": shape[-2:],
                     "amplitude": 150,
-                    "centre": (40, 32),
+                    "centre": (40 + (2 * c), 32 + (2 * c)),
                     "sigma": (5, 2),
                     "theta": 40,
                     "offset": 0,
@@ -79,13 +79,13 @@ def image_list(processed_dir: Path):
                 {
                     "shape": shape[-2:],
                     "amplitude": 100,
-                    "centre": (20, 40),
+                    "centre": (20 + (2 * c), 40 + (2 * c)),
                     "sigma": (5, 2),
                     "theta": 50,
                     "offset": 0,
                 },
             ],
-            peak_offset_per_frame=(1 + c, -1 - c),
+            peak_shift_per_frame=(2, -2),
             intensity_offset_per_frame=0,
         )
 

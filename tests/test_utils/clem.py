@@ -49,14 +49,14 @@ def create_grayscale_image(
     num_frames: int,
     dtype: str,
     peaks: list[dict[str, Any]],
-    peak_offset_per_frame: tuple[int, int],
+    peak_shift_per_frame: tuple[int, int],
     intensity_offset_per_frame: int,
 ):
     """
     Creates a grayscale image with peaks that are offset from frame-to-frame
     """
 
-    x_off, y_off = peak_offset_per_frame
+    x_shift, y_shift = peak_shift_per_frame
     c_off = intensity_offset_per_frame
     if num_frames == 1:
         arr = np.zeros(shape, dtype=dtype)
@@ -69,7 +69,7 @@ def create_grayscale_image(
                 # Adjust the peak offset per frame
                 centre: tuple[int, int] = peak["centre"]
                 x, y = centre
-                peak["centre"] = (x + (f * x_off), y + (f * y_off))
+                peak["centre"] = (x + (f * x_shift), y + (f * y_shift))
                 peak["offset"] += f * c_off
                 arr[f] += gaussian_2d(**peak).astype(dtype)
 
