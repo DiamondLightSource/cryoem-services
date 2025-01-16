@@ -34,6 +34,11 @@ search = 'version: {current_version}'
 replace = 'version: {new_version}'
 
 [[tool.bumpversion.files]]
+filename = "Helm/charts/cryolo_gpu/Chart.yaml"
+search = 'version: {current_version}'
+replace = 'version: {new_version}'
+
+[[tool.bumpversion.files]]
 filename = "Helm/charts/ctffind/Chart.yaml"
 search = 'version: {current_version}'
 replace = 'version: {new_version}'
