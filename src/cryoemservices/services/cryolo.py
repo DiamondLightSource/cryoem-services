@@ -177,6 +177,8 @@ class CrYOLO(CommonService):
                         str(cryolo_params.tomo_tracing_missing_frames),
                         "-tmin",
                         str(cryolo_params.tomo_tracing_min_frames),
+                        "--gpus",
+                        "0",
                     ]
                 )
             )
