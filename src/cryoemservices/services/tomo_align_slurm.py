@@ -74,7 +74,12 @@ class TomoAlignSlurm(TomoAlign, CommonService):
                 self.alignment_quality = float(line.split()[5])
         tomo_file.close()
 
-    def aretomo(self, tomo_parameters: TomoParameters, aretomo_output_path: Path):
+    def aretomo(
+        self,
+        tomo_parameters: TomoParameters,
+        aretomo_output_path: Path,
+        angle_file: Path,
+    ):
         """Submit AreTomo2 jobs to the slurm cluster via the RestAPI"""
         self.log.info(
             f"Input stack: {tomo_parameters.stack_file} \n"
@@ -90,8 +95,8 @@ class TomoAlignSlurm(TomoAlign, CommonService):
             str(Path(tomo_parameters.stack_file).name),
         ]
 
-        if tomo_parameters.angle_file:
-            command.extend(("-AngFile", tomo_parameters.angle_file))
+        if tomo_parameters.dose_weight:
+            command.extend(("-AngFile", str(angle_file)))
         else:
             command.extend(
                 (

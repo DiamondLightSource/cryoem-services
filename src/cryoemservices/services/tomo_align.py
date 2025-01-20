@@ -39,10 +39,10 @@ class TomoParameters(BaseModel):
     patch: Optional[int] = None
     kv: Optional[int] = None
     align_file: Optional[str] = None
-    angle_file: Optional[str] = None
     align_z: Optional[int] = None
     init_val: Optional[int] = None
     refine_flag: Optional[int] = None
+    dose_weight: bool = True
     out_imod: int = 1
     out_imod_xf: Optional[int] = None
     dark_tol: Optional[float] = None
@@ -299,9 +299,20 @@ class TomoAlign(CommonService):
             rw.transport.nack(header)
             return
 
+        # Set up the angle file needed for dose weighting
+        angle_file = (
+            Path(tomo_params.stack_file).parent
+            / f"{Path(tomo_params.stack_file).name}_tilt_angles.txt"
+        )
+        with open(angle_file, "w") as angfile:
+            for i in range(len(self.input_file_list_of_lists)):
+                angfile.write(f"{self.input_file_list_of_lists[i][1]}  {i}\n")
+
         # Do alignment with AreTomo
         aretomo_output_path = self.alignment_output_dir / f"{stack_name}_aretomo.mrc"
-        aretomo_result, aretomo_command = self.aretomo(tomo_params, aretomo_output_path)
+        aretomo_result, aretomo_command = self.aretomo(
+            tomo_params, aretomo_output_path, angle_file
+        )
 
         # Send to node creator
         self.log.info("Sending tomo align to node creator")
@@ -582,14 +593,19 @@ class TomoAlign(CommonService):
         result = subprocess.run(newstack_cmd)
         return result
 
-    def aretomo(self, tomo_parameters: TomoParameters, aretomo_output_path: Path):
+    def aretomo(
+        self,
+        tomo_parameters: TomoParameters,
+        aretomo_output_path: Path,
+        angle_file: Path,
+    ):
         """
         Run AreTomo2 on output of Newstack
         """
         command = ["AreTomo2", "-OutMrc", str(aretomo_output_path)]
 
-        if tomo_parameters.angle_file:
-            command.extend(("-AngFile", tomo_parameters.angle_file))
+        if tomo_parameters.dose_weight:
+            command.extend(("-AngFile", str(angle_file)))
         else:
             command.extend(
                 (
