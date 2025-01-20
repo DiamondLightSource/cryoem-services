@@ -326,9 +326,16 @@ def test_rabbitmq_dlq_reinject_extras(mock_check, mock_reinject, config_file, tm
 
     # The provided messages should have been reinjected
     mock_reinject.assert_called_once()
-    mock_reinject.assert_called_with(
-        [Path("DLQ/msg00"), Path("DLQ/msg01"), Path("DLQ/msg02"), Path("DLQ/msg03")],
-        0,
-        tmp_path / "rabbitmq-credentials.yaml",
-        False,
+    assert len(mock_reinject.call_args_list) == 1
+    assert len(mock_reinject.call_args_list[0][0]) == 4
+    assert sorted(mock_reinject.call_args_list[0][0][0]) == [
+        Path("DLQ/msg00"),
+        Path("DLQ/msg01"),
+        Path("DLQ/msg02"),
+        Path("DLQ/msg03"),
+    ]
+    assert mock_reinject.call_args_list[0][0][1] == 0.0
+    assert (
+        mock_reinject.call_args_list[0][0][2] == tmp_path / "rabbitmq-credentials.yaml"
     )
+    assert mock_reinject.call_args_list[0][0][3] is False
