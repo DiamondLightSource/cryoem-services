@@ -172,7 +172,7 @@ def run() -> None:
         "--reinject",
         action="store_true",
         default=False,
-        help="Reinject messages to rabbitmq?",
+        help="Reinject purged messages to rabbitmq?",
     )
     parser.add_argument(
         "-m",
@@ -220,7 +220,7 @@ def run() -> None:
                 args.remove,
             )
 
-    if args.reinject:
+    if args.messages:
         extra_messages = list(Path(".").glob(args.messages))
         dlq_reinject(
             extra_messages,
