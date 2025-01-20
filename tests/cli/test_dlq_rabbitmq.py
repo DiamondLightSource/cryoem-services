@@ -162,6 +162,7 @@ def test_dlq_reinject(mock_transport, mock_time, tmp_path):
 
 @mock.patch("cryoemservices.cli.dlq_rabbitmq.RabbitMQAPI")
 def test_rabbitmq_dlq_check(mock_rmq_api, capsys, config_file, tmp_path):
+    """Test the DLQ checks through the CLI"""
     mock_queue = mock.Mock()
     mock_queue.name = "dlq.dummy"
     mock_queue.vhost = "host"
@@ -189,7 +190,15 @@ def test_rabbitmq_dlq_check(mock_rmq_api, capsys, config_file, tmp_path):
     )
 
 
-def no_test_rabbitmq_dlq_purge_only(config_file, tmp_path):
+@mock.patch("cryoemservices.cli.dlq_rabbitmq.dlq_reinject")
+@mock.patch("cryoemservices.cli.dlq_rabbitmq.dlq_purge")
+@mock.patch("cryoemservices.cli.dlq_rabbitmq.check_dlq_rabbitmq")
+def test_rabbitmq_dlq_purge_only(
+    mock_check, mock_purge, mock_reinject, config_file, tmp_path
+):
+    """Test the CLI for purging only"""
+    mock_purge.return_value = [tmp_path / "purge1", tmp_path / "purge2"]
+
     sys.argv = [
         "cryoemservices.dlq_rabbitmq",
         "--config_file",
@@ -199,8 +208,26 @@ def no_test_rabbitmq_dlq_purge_only(config_file, tmp_path):
     ]
     dlq_rabbitmq.run()
 
+    # DLQ checks are always run
+    mock_check.assert_called_once()
 
-def no_test_rabbitmq_dlq_purge_reinject(config_file, tmp_path):
+    # Messages should be purged
+    mock_purge.assert_called_once()
+    mock_purge.assert_called_with("dummy", tmp_path / "rabbitmq-credentials.yaml")
+
+    # The purged messages should not be reinjected
+    mock_reinject.assert_not_called()
+
+
+@mock.patch("cryoemservices.cli.dlq_rabbitmq.dlq_reinject")
+@mock.patch("cryoemservices.cli.dlq_rabbitmq.dlq_purge")
+@mock.patch("cryoemservices.cli.dlq_rabbitmq.check_dlq_rabbitmq")
+def test_rabbitmq_dlq_purge_reinject(
+    mock_check, mock_purge, mock_reinject, config_file, tmp_path
+):
+    """Test the CLI for purging and reinjecting without deletion"""
+    mock_purge.return_value = [tmp_path / "purge1", tmp_path / "purge2"]
+
     sys.argv = [
         "cryoemservices.dlq_rabbitmq",
         "--config_file",
@@ -211,8 +238,32 @@ def no_test_rabbitmq_dlq_purge_reinject(config_file, tmp_path):
     ]
     dlq_rabbitmq.run()
 
+    # DLQ checks are always run
+    mock_check.assert_called_once()
 
-def no_test_rabbitmq_dlq_purge_reinject_remove(config_file, tmp_path):
+    # Messages should be purged
+    mock_purge.assert_called_once()
+    mock_purge.assert_called_with("dummy", tmp_path / "rabbitmq-credentials.yaml")
+
+    # The purged messages should have been reinjected, without removal
+    mock_reinject.assert_called_once()
+    mock_reinject.assert_called_with(
+        mock.ANY,
+        0,
+        tmp_path / "rabbitmq-credentials.yaml",
+        False,
+    )
+
+
+@mock.patch("cryoemservices.cli.dlq_rabbitmq.dlq_reinject")
+@mock.patch("cryoemservices.cli.dlq_rabbitmq.dlq_purge")
+@mock.patch("cryoemservices.cli.dlq_rabbitmq.check_dlq_rabbitmq")
+def test_rabbitmq_dlq_purge_reinject_remove(
+    mock_check, mock_purge, mock_reinject, config_file, tmp_path
+):
+    """Test the CLI for purging and reinjecting with deletion of files"""
+    mock_purge.return_value = [tmp_path / "purge1", tmp_path / "purge2"]
+
     sys.argv = [
         "cryoemservices.dlq_rabbitmq",
         "--config_file",
@@ -226,11 +277,27 @@ def no_test_rabbitmq_dlq_purge_reinject_remove(config_file, tmp_path):
     ]
     dlq_rabbitmq.run()
 
+    # DLQ checks are always run
+    mock_check.assert_called_once()
+
+    # Messages should be purged
+    mock_purge.assert_called_once()
+    mock_purge.assert_called_with("dummy", tmp_path / "rabbitmq-credentials.yaml")
+
+    # The purged messages should have been reinjected, with removal on
+    mock_reinject.assert_called_once()
+    mock_reinject.assert_called_with(
+        mock.ANY,
+        1,
+        tmp_path / "rabbitmq-credentials.yaml",
+        True,
+    )
+
 
 @mock.patch("cryoemservices.cli.dlq_rabbitmq.dlq_reinject")
 @mock.patch("cryoemservices.cli.dlq_rabbitmq.check_dlq_rabbitmq")
 def test_rabbitmq_dlq_reinject_extras(mock_check, mock_reinject, config_file, tmp_path):
-    """Test that the messages glob happens as expected"""
+    """Test that the messages glob happens as expected through the CLI"""
     os.chdir(tmp_path)
     (tmp_path / "DLQ").mkdir()
     for i in range(4):
