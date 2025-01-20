@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
+from pathlib import Path
 from unittest import mock
 
 import pytest
@@ -225,12 +227,32 @@ def no_test_rabbitmq_dlq_purge_reinject_remove(config_file, tmp_path):
     dlq_rabbitmq.run()
 
 
-def no_test_rabbitmq_dlq_reinject_extras(config_file, tmp_path):
+@mock.patch("cryoemservices.cli.dlq_rabbitmq.dlq_reinject")
+@mock.patch("cryoemservices.cli.dlq_rabbitmq.check_dlq_rabbitmq")
+def test_rabbitmq_dlq_reinject_extras(mock_check, mock_reinject, config_file, tmp_path):
+    """Test that the messages glob happens as expected"""
+    os.chdir(tmp_path)
+    (tmp_path / "DLQ").mkdir()
+    for i in range(4):
+        (tmp_path / f"DLQ/msg0{i}").touch()
+
     sys.argv = [
         "cryoemservices.dlq_rabbitmq",
         "--config_file",
         str(config_file),
         "--messages",
-        "DLQ/date/msg*",
+        "DLQ/msg*",
     ]
     dlq_rabbitmq.run()
+
+    # DLQ checks are always run
+    mock_check.assert_called_once()
+
+    # The provided messages should have been reinjected
+    mock_reinject.assert_called_once()
+    mock_reinject.assert_called_with(
+        [Path("DLQ/msg00"), Path("DLQ/msg01"), Path("DLQ/msg02"), Path("DLQ/msg03")],
+        0,
+        tmp_path / "rabbitmq-credentials.yaml",
+        False,
+    )

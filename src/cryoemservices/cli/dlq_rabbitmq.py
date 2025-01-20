@@ -144,8 +144,7 @@ def dlq_reinject(
         if remove:
             dlqfile.unlink()
         print(f"Done {dlqfile}\n")
-        if wait_time:
-            time.sleep(wait_time)
+        time.sleep(wait_time)
 
     transport.disconnect()
 
