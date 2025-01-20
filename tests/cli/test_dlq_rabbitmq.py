@@ -4,6 +4,7 @@ import json
 import os
 import sys
 from pathlib import Path
+from queue import Empty
 from unittest import mock
 
 import pytest
@@ -59,10 +60,15 @@ def test_check_rabbitmq_dlq_fails_no_creds(tmp_path):
 
 @mock.patch("cryoemservices.cli.dlq_rabbitmq.PikaTransport")
 @mock.patch("cryoemservices.cli.dlq_rabbitmq.Queue")
-def bad_test_dlq_purge(mock_queue, mock_transport, tmp_path):
-    mock_queue.get.return_value = False
+def test_dlq_purge(mock_queue, mock_transport, tmp_path):
+    """Test the dlq purging function.
+    Currently doesn't test saving the message, as the subscribe is mocked out"""
+    mock_queue().get.return_value = {"message": "dummy"}
+    mock_queue().get.side_effect = [None, Empty]
 
-    dlq_rabbitmq.dlq_purge("dummy", tmp_path / "config_file")
+    exported_messages = dlq_rabbitmq.dlq_purge("dummy", tmp_path / "config_file")
+
+    # The transport should be connected to and subscribes to the queue
     mock_transport.assert_called_once()
     mock_transport().load_configuration_file.assert_called_with(
         tmp_path / "config_file"
@@ -75,9 +81,12 @@ def bad_test_dlq_purge(mock_queue, mock_transport, tmp_path):
     )
     mock_transport().disconnect.assert_called_once()
 
-    mock_queue.assert_called_once()
+    # Should read from the queue
     mock_queue().get.assert_any_call(True, 3)
-    mock_queue().get.assert_called_with(True, 0.1)
+    mock_queue().get.assert_any_call(True, 0.1)
+
+    # Ideally this test would return the message, but the partial isn't called yet
+    assert exported_messages == []
 
 
 @mock.patch("cryoemservices.cli.dlq_rabbitmq.time")

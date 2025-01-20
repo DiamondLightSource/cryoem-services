@@ -53,10 +53,9 @@ def dlq_purge(queue: str, rabbitmq_credentials: Path) -> list[Path]:
 
     def receive_dlq_message(header: dict, message: dict) -> None:
         idlequeue.put_nowait("start")
-        msg_time = int(datetime.timestamp(header["x-death"][0]["time"])) * 1000
         header["x-death"][0]["time"] = datetime.timestamp(header["x-death"][0]["time"])
 
-        timestamp = time.localtime(msg_time / 1000)
+        timestamp = time.localtime(int(header["x-death"][0]["time"]))
         filepath = Path(dlq_dump_path, time.strftime("%Y-%m-%d", timestamp))
         filepath.mkdir(parents=True, exist_ok=True)
         filename = filepath / (
