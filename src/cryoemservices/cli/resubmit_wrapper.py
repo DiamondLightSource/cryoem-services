@@ -7,6 +7,8 @@ from pathlib import Path
 import workflows.transport.pika_transport as pt
 from workflows.recipe import RecipeWrapper
 
+from cryoemservices.util.config import config_from_file
+
 
 def run():
     parser = argparse.ArgumentParser(
@@ -16,17 +18,17 @@ def run():
         "-w",
         "--wrapper",
         help="Location of the .recipewrap wrapper file to resubmit",
-        dest="wrapper",
         required=True,
     )
     parser.add_argument(
         "-c",
-        "--config",
-        help="Transport configuration file for connecting to the message broker",
-        dest="config",
+        "--config_file",
         required=True,
+        help="Config file specifying the location of other credentials to read",
     )
     args = parser.parse_args()
+
+    service_config = config_from_file(args.config_file)
 
     if not Path(args.wrapper).is_file():
         print(f"{args.wrapper} cannot be found")
@@ -37,7 +39,7 @@ def run():
 
     # Connect to the message transport
     transport = pt.PikaTransport()
-    transport.load_configuration_file(args.config)
+    transport.load_configuration_file(service_config.rabbitmq_credentials)
     transport.connect()
 
     # Load and submit the wrapper part of the recipe
@@ -45,7 +47,3 @@ def run():
         recipe = json.load(wrap)
     rw = RecipeWrapper(message=recipe, transport=transport)
     rw._send_to_destination(rw.recipe_pointer, None, rw.payload, {})
-
-
-if __name__ == "__main__":
-    run()
