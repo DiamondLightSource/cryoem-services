@@ -4,8 +4,8 @@ import argparse
 import json
 from pathlib import Path
 
-import workflows.transport.pika_transport as pt
 from workflows.recipe import RecipeWrapper
+from workflows.transport.pika_transport import PikaTransport
 
 from cryoemservices.util.config import config_from_file
 
@@ -31,14 +31,10 @@ def run():
     service_config = config_from_file(args.config_file)
 
     if not Path(args.wrapper).is_file():
-        print(f"{args.wrapper} cannot be found")
-        return
-    if not Path(args.config).is_file():
-        print(f"{args.config} cannot be found")
-        return
+        raise FileNotFoundError(f"{args.wrapper} cannot be found")
 
     # Connect to the message transport
-    transport = pt.PikaTransport()
+    transport = PikaTransport()
     transport.load_configuration_file(service_config.rabbitmq_credentials)
     transport.connect()
 
@@ -47,3 +43,4 @@ def run():
         recipe = json.load(wrap)
     rw = RecipeWrapper(message=recipe, transport=transport)
     rw._send_to_destination(rw.recipe_pointer, None, rw.payload, {})
+    transport.disconnect()
