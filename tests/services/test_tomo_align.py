@@ -64,11 +64,11 @@ def test_tomo_align_service_file_list(
         "patch": None,
         "kv": None,
         "align_file": None,
-        "angle_file": f"{tmp_path}/angles.file",
         "align_z": None,
         "pixel_size": 1e-10,
         "init_val": None,
         "refine_flag": None,
+        "dose_weight": True,
         "out_imod": 1,
         "out_imod_xf": None,
         "dark_tol": None,
@@ -110,7 +110,7 @@ def test_tomo_align_service_file_list(
         "-OutMrc",
         f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
         "-AngFile",
-        f"{tmp_path}/angles.file",
+        f"{tmp_path}/Tomograms/job006/tomograms/test_stack_tilt_angles.txt",
         "-TiltCor",
         "1",
         "-InMrc",
@@ -144,6 +144,16 @@ def test_tomo_align_service_file_list(
         aretomo_command,
         capture_output=True,
     )
+
+    # Check the angle file
+    assert (
+        tmp_path / "Tomograms/job006/tomograms/test_stack_tilt_angles.txt"
+    ).is_file()
+    with open(
+        tmp_path / "Tomograms/job006/tomograms/test_stack_tilt_angles.txt", "r"
+    ) as angfile:
+        angles_data = angfile.read()
+    assert angles_data == "1.00  0\n"
 
     # Check that the correct messages were sent
     assert offline_transport.send.call_count == 10
@@ -421,11 +431,11 @@ def test_tomo_align_service_path_pattern(
         "patch": 1,
         "kv": 300,
         "align_file": None,
-        "angle_file": f"{tmp_path}/angles.file",
         "align_z": 500,
         "pixel_size": 1e-10,
         "init_val": None,
         "refine_flag": None,
+        "dose_weight": True,
         "out_imod": 1,
         "out_imod_xf": None,
         "dark_tol": 0.3,
@@ -470,7 +480,7 @@ def test_tomo_align_service_path_pattern(
         "-OutMrc",
         f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
         "-AngFile",
-        f"{tmp_path}/angles.file",
+        f"{tmp_path}/Tomograms/job006/tomograms/test_stack_tilt_angles.txt",
         "-TiltCor",
         "1",
         str(tomo_align_test_message["manual_tilt_offset"]),
@@ -580,8 +590,8 @@ def test_tomo_align_service_dark_images(
         "out_bin": 4,
         "tilt_cor": 1,
         "flip_vol": 1,
-        "angle_file": f"{tmp_path}/angles.file",
         "pixel_size": 1e-10,
+        "dose_weight": False,
         "out_imod": 1,
         "relion_options": {},
     }
@@ -623,6 +633,34 @@ def test_tomo_align_service_dark_images(
 
     # Send a message to the service
     service.tomo_align(None, header=header, message=tomo_align_test_message)
+
+    # Check the aretomo call
+    aretomo_command = [
+        "AreTomo2",
+        "-OutMrc",
+        f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
+        "-TiltRange",
+        "0.00",
+        "8.00",
+        "-TiltCor",
+        "1",
+        "-InMrc",
+        tomo_align_test_message["stack_file"],
+        "-PixSize",
+        "1e-10",
+        "-VolZ",
+        str(tomo_align_test_message["vol_z"]),
+        "-OutBin",
+        str(tomo_align_test_message["out_bin"]),
+        "-FlipVol",
+        str(tomo_align_test_message["flip_vol"]),
+        "-OutImod",
+        str(tomo_align_test_message["out_imod"]),
+    ]
+    mock_subprocess.assert_any_call(
+        aretomo_command,
+        capture_output=True,
+    )
 
     # Check that the correct messages were sent
     assert offline_transport.send.call_count == 14
@@ -755,7 +793,6 @@ def test_tomo_align_service_all_dark(
         "out_bin": 4,
         "tilt_cor": 1,
         "flip_vol": 1,
-        "angle_file": f"{tmp_path}/angles.file",
         "pixel_size": 1e-10,
         "out_imod": 1,
         "relion_options": {},

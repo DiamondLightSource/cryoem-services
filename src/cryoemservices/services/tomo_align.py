@@ -302,7 +302,7 @@ class TomoAlign(CommonService):
         # Set up the angle file needed for dose weighting
         angle_file = (
             Path(tomo_params.stack_file).parent
-            / f"{Path(tomo_params.stack_file).name}_tilt_angles.txt"
+            / f"{Path(tomo_params.stack_file).stem}_tilt_angles.txt"
         )
         with open(angle_file, "w") as angfile:
             for i in range(len(self.input_file_list_of_lists)):
