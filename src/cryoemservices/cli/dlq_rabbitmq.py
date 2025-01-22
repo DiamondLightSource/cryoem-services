@@ -191,6 +191,12 @@ def run() -> None:
         dest="wait",
         help="Wait this many seconds between reinjections",
     )
+    parser.add_argument(
+        "--skip_checks",
+        action="store_true",
+        default=False,
+        help="Skip checking the status of the dead letter queues",
+    )
     args = parser.parse_args()
 
     if Path(args.config_file).is_file():
@@ -198,14 +204,15 @@ def run() -> None:
     else:
         exit(f"Cannot find config file {args.config_file}")
 
-    dlq_checks = check_dlq_rabbitmq(service_config.rabbitmq_credentials)
-    for queue, count in dlq_checks.items():
-        print(f"{queue} contains {count} entries")
-    total = sum(dlq_checks.values())
-    if total:
-        print(f"Total of {total} DLQ messages found")
-    else:
-        print("No DLQ messages found")
+    if not args.skip_checks:
+        dlq_checks = check_dlq_rabbitmq(service_config.rabbitmq_credentials)
+        for queue, count in dlq_checks.items():
+            print(f"{queue} contains {count} entries")
+        total = sum(dlq_checks.values())
+        if total:
+            print(f"Total of {total} DLQ messages found")
+        else:
+            print("No DLQ messages found")
 
     if args.queue:
         exported_messages = dlq_purge(args.queue, service_config.rabbitmq_credentials)

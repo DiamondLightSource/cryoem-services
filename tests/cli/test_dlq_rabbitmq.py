@@ -199,6 +199,20 @@ def test_rabbitmq_dlq_check(mock_rmq_api, capsys, config_file, tmp_path):
     )
 
 
+@mock.patch("cryoemservices.cli.dlq_rabbitmq.RabbitMQAPI")
+def test_rabbitmq_skip_checks(mock_rmq_api, capsys, config_file, tmp_path):
+    """Test the DLQ checks can be skipped"""
+    sys.argv = [
+        "cryoemservices.dlq_rabbitmq",
+        "--config_file",
+        str(config_file),
+        "--skip_checks",
+    ]
+    dlq_rabbitmq.run()
+
+    mock_rmq_api.assert_not_called()
+
+
 @mock.patch("cryoemservices.cli.dlq_rabbitmq.dlq_reinject")
 @mock.patch("cryoemservices.cli.dlq_rabbitmq.dlq_purge")
 @mock.patch("cryoemservices.cli.dlq_rabbitmq.check_dlq_rabbitmq")
