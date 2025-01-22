@@ -20,6 +20,7 @@ from cryoemservices.util.relion_service_options import (
     RelionServiceOptions,
     update_relion_options,
 )
+from cryoemservices.util.tomo_output_files import _get_tilt_number_v5_12
 
 
 class TomoParameters(BaseModel):
@@ -304,9 +305,15 @@ class TomoAlign(CommonService):
             Path(tomo_params.stack_file).parent
             / f"{Path(tomo_params.stack_file).stem}_tilt_angles.txt"
         )
+        tilt_angles = {}
+        for i in range(len(self.input_file_list_of_lists)):
+            tilt_index = _get_tilt_number_v5_12(
+                Path(self.input_file_list_of_lists[i][0])
+            )
+            tilt_angles[tilt_index] = self.input_file_list_of_lists[i][1]
         with open(angle_file, "w") as angfile:
-            for i in range(len(self.input_file_list_of_lists)):
-                angfile.write(f"{self.input_file_list_of_lists[i][1]}  {i}\n")
+            for tilt_id in tilt_angles.keys():
+                angfile.write(f"{tilt_angles[tilt_id]}  {int(tilt_id)}\n")
 
         # Do alignment with AreTomo
         aretomo_output_path = self.alignment_output_dir / f"{stack_name}_aretomo.mrc"
@@ -358,14 +365,6 @@ class TomoAlign(CommonService):
                 if elapsed > 600:
                     self.log.warning("Timeout waiting for Imod directory")
                     break
-            else:
-                if imod_directory_option1.is_dir():
-                    _f = imod_directory_option1
-                else:
-                    _f = imod_directory_option2
-                _f.chmod(0o750)
-                for file in _f.iterdir():
-                    file.chmod(0o740)
 
         # Names of the files made for ispyb images
         plot_file = stack_name + "_xy_shift_plot.json"
