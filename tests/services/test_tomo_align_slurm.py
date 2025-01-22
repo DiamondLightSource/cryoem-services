@@ -157,6 +157,16 @@ def test_tomo_align_slurm_service(
         ]
     )
 
+    # Check the angle file
+    assert (
+        tmp_path / "Tomograms/job006/tomograms/test_stack_tilt_angles.txt"
+    ).is_file()
+    with open(
+        tmp_path / "Tomograms/job006/tomograms/test_stack_tilt_angles.txt", "r"
+    ) as angfile:
+        angles_data = angfile.read()
+    assert angles_data == "1.00  0\n"
+
     # Check the slurm commands were run
     slurm_submit_command = (
         f'curl -H "X-SLURM-USER-NAME:user" -H "X-SLURM-USER-TOKEN:token_key" '
