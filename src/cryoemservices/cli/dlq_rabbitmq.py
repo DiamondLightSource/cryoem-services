@@ -107,7 +107,10 @@ def dlq_reinject(
     transport.load_configuration_file(rabbitmq_credentials)
     transport.connect()
 
-    for dlqfile in messages_path:
+    for f, dlqfile in enumerate(messages_path):
+        if not f == 0:
+            time.sleep(wait_time)
+
         if not Path(dlqfile).is_file():
             print(f"Ignoring missing file {dlqfile}")
             continue
@@ -144,7 +147,6 @@ def dlq_reinject(
         if remove:
             dlqfile.unlink()
         print(f"Done {dlqfile}\n")
-        time.sleep(wait_time)
 
     transport.disconnect()
 

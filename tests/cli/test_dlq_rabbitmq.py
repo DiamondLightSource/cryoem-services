@@ -94,45 +94,38 @@ def test_dlq_purge(mock_queue, mock_transport, tmp_path):
 def test_dlq_reinject(mock_transport, mock_time, tmp_path):
     """Reinject some example messages, skipping anything invalid"""
     # Create two sample messages, and two invalid messages
-    msg1_info = {
-        "header": {
-            "x-death": [{"queue": "queue_msg1"}],
-            "message-id": 1,
-            "routing_key": "dlq.queue_msg1",
-            "redelivered": True,
-            "exchange": "",
-            "consumer_tag": "1",
-            "delivery_mode": 2,
-            "other_key": "value",
+    messages_paths_list: list[Path] = [tmp_path / "not_a_message"]
+    messages_dict: dict[str, dict] = {
+        "msg1": {
+            "header": {
+                "x-death": [{"queue": "queue_msg1"}],
+                "message-id": 1,
+                "routing_key": "dlq.queue_msg1",
+                "redelivered": True,
+                "exchange": "",
+                "consumer_tag": "1",
+                "delivery_mode": 2,
+                "other_key": "value",
+            },
+            "message": {"parameters": "msg1"},
         },
-        "message": {"parameters": "msg1"},
+        "msg2": {
+            "header": {"x-death": [{"queue": "queue_msg2"}]},
+            "message": {"content": "msg2"},
+        },
+        "msg3": {
+            "header": {},
+        },  # Won't send, no message
+        "msg4": {"message": {}},  # Won't send, no header
     }
-    with open(tmp_path / "msg1", "w") as msgs1_file:
-        json.dump(msg1_info, msgs1_file)
-    msg2_info = {
-        "header": {"x-death": [{"queue": "queue_msg2"}]},
-        "message": {"content": "msg2"},
-    }
-    with open(tmp_path / "msg2", "w") as msgs2_file:
-        json.dump(msg2_info, msgs2_file)
-    msg3_info = {
-        "header": {},
-    }  # Won't send, no message
-    with open(tmp_path / "msg3", "w") as msgs3_file:
-        json.dump(msg3_info, msgs3_file)
-    msg4_info = {"message": {}}  # Won't send, no header
-    with open(tmp_path / "msg4", "w") as msgs4_file:
-        json.dump(msg4_info, msgs4_file)
+    for message in messages_dict.keys():
+        messages_paths_list.append(tmp_path / message)
+        with open(tmp_path / message, "w") as msg_file:
+            json.dump(messages_dict[message], msg_file)
 
     # Send the four messages, plus a file that is not a message
     dlq_rabbitmq.dlq_reinject(
-        messages_path=[
-            tmp_path / "msg1",
-            tmp_path / "msg2",
-            tmp_path / "msg3",
-            tmp_path / "msg4",
-            tmp_path / "not_a_message",
-        ],
+        messages_path=messages_paths_list,
         wait_time=1,
         rabbitmq_credentials=tmp_path / "config_file",
         remove=True,
@@ -164,7 +157,7 @@ def test_dlq_reinject(mock_transport, mock_time, tmp_path):
     # Removal and waiting
     assert not (tmp_path / "msg1").is_file()
     assert not (tmp_path / "msg2").is_file()
-    assert mock_time.sleep.call_count == 2
+    assert mock_time.sleep.call_count == 4
     mock_time.sleep.assert_called_with(1)
     mock_transport().disconnect.assert_called_once()
 
