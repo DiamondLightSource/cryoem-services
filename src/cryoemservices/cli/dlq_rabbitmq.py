@@ -13,6 +13,8 @@ from zocalo.util.rabbitmq import RabbitMQAPI
 
 from cryoemservices.util.config import config_from_file
 
+dlq_dump_path = Path("./DLQ")
+
 
 def check_dlq_rabbitmq(rabbitmq_credentials: Path) -> dict:
     if not rabbitmq_credentials.is_file():
@@ -47,7 +49,6 @@ def dlq_purge(queue: str, rabbitmq_credentials: Path) -> list[Path]:
     transport.connect()
 
     queue_to_purge = "dlq." + queue
-    dlq_dump_path = "./DLQ"
     idlequeue: Queue = Queue()
     exported_messages = []
 
@@ -56,7 +57,7 @@ def dlq_purge(queue: str, rabbitmq_credentials: Path) -> list[Path]:
         header["x-death"][0]["time"] = datetime.timestamp(header["x-death"][0]["time"])
 
         timestamp = time.localtime(int(header["x-death"][0]["time"]))
-        filepath = Path(dlq_dump_path, time.strftime("%Y-%m-%d", timestamp))
+        filepath = dlq_dump_path / time.strftime("%Y-%m-%d", timestamp)
         filepath.mkdir(parents=True, exist_ok=True)
         filename = filepath / (
             f"{queue}-"
@@ -233,3 +234,14 @@ def run() -> None:
             service_config.rabbitmq_credentials,
             args.remove,
         )
+
+    if args.remove:
+        for date_directory in dlq_dump_path.glob("*"):
+            try:
+                date_directory.rmdir()
+            except OSError:
+                print(f"Cannnot remove {date_directory} as it is not empty")
+        try:
+            dlq_dump_path.rmdir()
+        except OSError:
+            print(f"Cannnot remove {dlq_dump_path} as it is not empty")

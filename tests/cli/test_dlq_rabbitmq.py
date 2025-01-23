@@ -220,6 +220,8 @@ def test_rabbitmq_dlq_purge_only(
     mock_check, mock_purge, mock_reinject, config_file, tmp_path
 ):
     """Test the CLI for purging only"""
+    os.chdir(tmp_path)
+    (tmp_path / "DLQ/date").mkdir(parents=True)
     mock_purge.return_value = [tmp_path / "purge1", tmp_path / "purge2"]
 
     sys.argv = [
@@ -241,6 +243,9 @@ def test_rabbitmq_dlq_purge_only(
     # The purged messages should not be reinjected
     mock_reinject.assert_not_called()
 
+    # Should not have deleted the DLQ directory
+    assert (tmp_path / "DLQ/date").is_dir()
+
 
 @mock.patch("cryoemservices.cli.dlq_rabbitmq.dlq_reinject")
 @mock.patch("cryoemservices.cli.dlq_rabbitmq.dlq_purge")
@@ -249,6 +254,8 @@ def test_rabbitmq_dlq_purge_reinject(
     mock_check, mock_purge, mock_reinject, config_file, tmp_path
 ):
     """Test the CLI for purging and reinjecting without deletion"""
+    os.chdir(tmp_path)
+    (tmp_path / "DLQ/date").mkdir(parents=True)
     mock_purge.return_value = [tmp_path / "purge1", tmp_path / "purge2"]
 
     sys.argv = [
@@ -277,6 +284,9 @@ def test_rabbitmq_dlq_purge_reinject(
         False,
     )
 
+    # Should not have deleted the DLQ directory
+    assert (tmp_path / "DLQ/date").is_dir()
+
 
 @mock.patch("cryoemservices.cli.dlq_rabbitmq.dlq_reinject")
 @mock.patch("cryoemservices.cli.dlq_rabbitmq.dlq_purge")
@@ -285,6 +295,8 @@ def test_rabbitmq_dlq_purge_reinject_remove(
     mock_check, mock_purge, mock_reinject, config_file, tmp_path
 ):
     """Test the CLI for purging and reinjecting with deletion of files"""
+    os.chdir(tmp_path)
+    (tmp_path / "DLQ/date").mkdir(parents=True)
     mock_purge.return_value = [tmp_path / "purge1", tmp_path / "purge2"]
 
     sys.argv = [
@@ -315,6 +327,9 @@ def test_rabbitmq_dlq_purge_reinject_remove(
         tmp_path / "rabbitmq-credentials.yaml",
         True,
     )
+
+    # Should delete the DLQ directory as it is empty
+    assert not (tmp_path / "DLQ").is_dir()
 
 
 @mock.patch("cryoemservices.cli.dlq_rabbitmq.dlq_reinject")
