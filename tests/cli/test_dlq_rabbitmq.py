@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 from pathlib import Path
 from queue import Empty
@@ -361,3 +362,25 @@ def test_rabbitmq_dlq_reinject_extras(mock_check, mock_reinject, config_file, tm
         mock_reinject.call_args_list[0][0][2] == tmp_path / "rabbitmq-credentials.yaml"
     )
     assert mock_reinject.call_args_list[0][0][3] is False
+
+
+def test_dlq_rabbitmq_exists():
+    """Test the DLQ check CLI is made"""
+    result = subprocess.run(
+        [
+            "cryoemservices.dlq_rabbitmq",
+            "--help",
+        ],
+        capture_output=True,
+    )
+    assert not result.returncode
+
+    # Find the first line of the help and strip out all the spaces and newlines
+    stdout_as_string = result.stdout.decode("utf8", "replace")
+    cleaned_help_line = (
+        stdout_as_string.split("\n\n")[0].replace("\n", "").replace(" ", "")
+    )
+    assert cleaned_help_line == (
+        "usage:cryoemservices.dlq_rabbitmq[-h]-cCONFIG_FILE[-qQUEUE]"
+        "[--reinject][-mMESSAGES][--remove][-wWAIT][--skip_checks]"
+    )
