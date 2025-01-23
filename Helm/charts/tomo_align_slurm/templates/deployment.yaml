@@ -36,10 +36,6 @@ spec:
           value: "{{ .Values.aretomoExecutable }}"
         - name: EXTRA_LIBRARIES
           value: "{{ .Values.extraLibraries }}"
-        - name: LD_LIBRARY_PATH
-          value: "/IMOD/4.11.1/IMOD/lib:/IMOD/4.11.1/IMOD/qtlib"
-        - name: IMOD_DIR
-          value: "/IMOD/4.11.1/IMOD"
         volumeMounts:
         - name: config-file
           mountPath: /cryoemservices/config

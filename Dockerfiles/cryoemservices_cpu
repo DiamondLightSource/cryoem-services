@@ -15,10 +15,12 @@ RUN python -m pip install ./cryoem-services && \
     python -m pip install ./ccpem-pipeliner
 
 # Install IMOD for tomo align
-COPY --chown="${userid}":"${groupid}" packages/imod-4.11.1 /IMOD/4.11.1
-WORKDIR /IMOD/4.11.1
-ENV PATH=/IMOD/4.11.1/IMOD/bin/realbin:${PATH}
-RUN chmod +x /IMOD/4.11.1
+RUN mkdir imod_install && \
+    curl https://bio3d.colorado.edu/imod/AMD64-RHEL5/imod_5.1.0_RHEL8-64_CUDA12.0.sh > imod_5.1.0_RHEL8-64_CUDA12.0.sh && \
+    chmod +x imod_5.1.0_RHEL8-64_CUDA12.0.sh && \
+    ./imod_5.1.0_RHEL8-64_CUDA12.0.sh -dir imod_install -skip -y
+ENV PATH=/imod_install/IMOD/bin:${PATH}
+ENV IMOD_DIR=/imod_install/IMOD
 
 # Create EM user
 RUN groupadd -r -g "${groupid}" "${groupname}" && useradd -r -M "${groupname}" -u "${userid}" -g "${groupname}"
