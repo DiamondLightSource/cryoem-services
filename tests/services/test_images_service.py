@@ -8,9 +8,26 @@ import pytest
 from cryoemservices.services import images
 
 
+def test_plugins_exist():
+    """Check the correct images plugins exist"""
+    # Set up the mock service
+    service = images.Images(environment={"queue": ""})
+    service.transport = mock.Mock()
+    service.start()
+
+    # Check the expected images plugins are present
+    assert len(service.image_functions.keys()) == 6
+    assert service.image_functions.get("mrc_central_slice", "")
+    assert service.image_functions.get("mrc_to_apng", "")
+    assert service.image_functions.get("mrc_to_jpeg", "")
+    assert service.image_functions.get("picked_particles", "")
+    assert service.image_functions.get("picked_particles_3d_apng", "")
+    assert service.image_functions.get("picked_particles_3d_central_slice", "")
+
+
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.images_plugins.picked_particles")
-def test_images_call(mock_picker_image, tmp_path):
+def test_images_call(mock_picker_image):
     """
     Send a test message to the images service
     """
@@ -40,7 +57,7 @@ def test_images_call(mock_picker_image, tmp_path):
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.images_plugins.picked_particles")
-def test_images_failed_call(mock_picker_image, tmp_path):
+def test_images_failed_call(mock_picker_image):
     """
     Send a test message to the images service for a call that fails
     """
@@ -74,7 +91,7 @@ def test_images_failed_call(mock_picker_image, tmp_path):
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.images_plugins.picked_particles")
-def test_images_file_not_found(mock_picker_image, tmp_path):
+def test_images_file_not_found(mock_picker_image):
     """
     Send a test message to the images service for a call that can't find a file
     """
@@ -107,7 +124,7 @@ def test_images_file_not_found(mock_picker_image, tmp_path):
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-def test_images_call_unknown_function(tmp_path):
+def test_images_call_unknown_function():
     """
     Send a test message to the images service, for a plugin that does not exist
     """
