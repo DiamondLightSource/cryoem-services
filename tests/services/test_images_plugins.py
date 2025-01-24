@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, Callable, NamedTuple
 from unittest import mock
 
@@ -24,11 +25,12 @@ class FunctionParameter(NamedTuple):
     message: dict[str, Any]
 
 
-def plugin_params(jpeg_path):
+def plugin_params(jpeg_path: Path, all_frames: bool):
     def params(key):
         p = {
             "parameters": {"images_command": "mrc_to_jpeg"},
             "file": jpeg_path.with_suffix(".mrc"),
+            "all_frames": all_frames,
         }
         return p.get(key)
 
@@ -94,16 +96,39 @@ def test_contract_with_images_service():
 
 def test_mrc_to_jpeg_nack_when_file_not_found(tmp_path):
     jpeg_path = tmp_path / "new_folder/new_job/new_file.jpeg"
-    assert not mrc_to_jpeg(plugin_params(jpeg_path))
+    assert not mrc_to_jpeg(plugin_params(jpeg_path, False))
 
 
-def test_mrc_to_jpeg_ack_when_file_exists(tmp_path):
+def test_mrc_to_jpeg_2d_ack_when_file_exists(tmp_path):
     jpeg_path = tmp_path / "convert_test.jpeg"
     test_data = np.arange(9, dtype=np.int8).reshape(3, 3)
     with mrcfile.new(jpeg_path.with_suffix(".mrc")) as mrc:
         mrc.set_data(test_data)
-    assert mrc_to_jpeg(plugin_params(jpeg_path)) == jpeg_path
+    assert mrc_to_jpeg(plugin_params(jpeg_path, False)) == jpeg_path
     assert jpeg_path.is_file()
+
+
+def test_mrc_to_jpeg_3d_ack_all_frames(tmp_path):
+    """All frames version makes a file for every frame of the movie"""
+    jpeg_path = tmp_path / "convert_test.jpeg"
+    test_data = np.arange(27, dtype=np.int8).reshape((3, 3, 3))
+    with mrcfile.new(jpeg_path.with_suffix(".mrc")) as mrc:
+        mrc.set_data(test_data)
+    assert mrc_to_jpeg(plugin_params(jpeg_path, True)) == [
+        tmp_path / f"{jpeg_path.stem}_{i}.jpeg" for i in range(1, 4)
+    ]
+    for i in range(1, 4):
+        assert (tmp_path / f"{jpeg_path.stem}_{i}.jpeg").is_file()
+
+
+def test_mrc_to_jpeg_3d_ack_not_all_frames(tmp_path):
+    """Only make an image from the first frame"""
+    jpeg_path = tmp_path / "convert_test.jpeg"
+    test_data = np.arange(27, dtype=np.int8).reshape((3, 3, 3))
+    with mrcfile.new(jpeg_path.with_suffix(".mrc")) as mrc:
+        mrc.set_data(test_data)
+    assert mrc_to_jpeg(plugin_params(jpeg_path, False)) == jpeg_path
+    assert (tmp_path / "convert_test.jpeg").is_file()
 
 
 def test_picked_particles_processes_when_basefile_exists(tmp_path):

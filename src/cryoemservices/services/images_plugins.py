@@ -62,7 +62,7 @@ def mrc_to_jpeg(plugin_params):
                 frame = frame * 255 / frame.max()
                 frame = frame.astype("uint8")
                 im = PIL.Image.fromarray(frame, mode="L")
-                frame_outfile = str(outfile).replace(".jpeg", f"_{i+1}.jpeg")
+                frame_outfile = outfile.parent / f"{outfile.stem}_{i+1}.jpeg"
                 try:
                     im.save(frame_outfile)
                 except FileNotFoundError:
