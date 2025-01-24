@@ -238,8 +238,6 @@ def mrc_central_slice(plugin_params):
         f"Converted mrc to jpeg {filename} -> {outfile} in {timing:.1f} seconds",
         extra={"image-processing-time": timing},
     )
-
-    Path(outfile).chmod(0o740)
     return outfile
 
 
@@ -251,8 +249,6 @@ def mrc_to_apng(plugin_params):
         logger.error("Skipping mrc to jpeg conversion: filename not specified")
         return False
     filepath = Path(filename)
-
-    filepath.chmod(0o740)
 
     if not filepath.is_file():
         logger.error(f"File {filepath} not found")
@@ -300,8 +296,6 @@ def mrc_to_apng(plugin_params):
     logger.info(
         f"Converted mrc to apng {filename} -> {outfile} in {timing:.1f} seconds"
     )
-
-    Path(outfile).chmod(0o740)
     return outfile
 
 
