@@ -23,7 +23,10 @@
       "success": 7
     },
     "parameters": {
+      "dose_per_frame": "{dose_per_frame}",
+      "frame_count": "{frame_count}",
       "input_file_list": "{input_file_list}",
+      "kv": "{kv}",
       "manual_tilt_offset": "{manual_tilt_offset}",
       "path_pattern": "{path_pattern}",
       "pixel_size": "{pixel_size}",
