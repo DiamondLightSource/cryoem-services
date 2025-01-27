@@ -365,6 +365,14 @@ class TomoAlign(CommonService):
                 if elapsed > 600:
                     self.log.warning("Timeout waiting for Imod directory")
                     break
+            else:
+                if imod_directory_option1.is_dir():
+                    _f = imod_directory_option1
+                else:
+                    _f = imod_directory_option2
+                _f.chmod(0o750)
+                for file in _f.iterdir():
+                    file.chmod(0o740)
 
         # Names of the files made for ispyb images
         plot_file = stack_name + "_xy_shift_plot.json"
