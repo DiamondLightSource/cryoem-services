@@ -63,12 +63,13 @@ def test_tomo_align_service_file_list(
         "roi_file": None,
         "patch": None,
         "kv": None,
-        "image_dose": None,
+        "dose_per_frame": None,
+        "frame_count": None,
         "align_file": None,
         "align_z": None,
         "pixel_size": 1e-10,
         "refine_flag": 1,
-        "dose_weight": True,
+        "make_angle_file": True,
         "out_imod": 1,
         "out_imod_xf": None,
         "dark_tol": None,
@@ -440,12 +441,13 @@ def test_tomo_align_service_path_pattern(
         "roi_file": None,
         "patch": 1,
         "kv": 300,
-        "image_dose": 1.2,
+        "dose_per_frame": 0.2,
+        "frame_count": 6,
         "align_file": None,
         "align_z": 500,
         "pixel_size": 1e-10,
         "refine_flag": 1,
-        "dose_weight": True,
+        "make_angle_file": True,
         "out_imod": 1,
         "out_imod_xf": None,
         "dark_tol": 0.3,
@@ -460,6 +462,8 @@ def test_tomo_align_service_path_pattern(
     output_relion_options["tomo_size_x"] = 4000
     output_relion_options["tomo_size_y"] = 3000
     output_relion_options["manual_tilt_offset"] = 10.5
+    output_relion_options["frame_count"] = 6
+    output_relion_options["dose_per_frame"] = 0.2
 
     # Set up the mock service
     service = tomo_align.TomoAlign(environment={"queue": ""})
@@ -497,6 +501,11 @@ def test_tomo_align_service_path_pattern(
         "-TiltAxis",
         str(tomo_align_test_message["tilt_axis"]),
         "1",
+        "-ImgDose",
+        str(
+            tomo_align_test_message["dose_per_frame"]
+            * tomo_align_test_message["frame_count"]
+        ),
         "-InMrc",
         tomo_align_test_message["stack_file"],
         "-PixSize",
@@ -517,8 +526,6 @@ def test_tomo_align_service_path_pattern(
         "1",
         "-Kv",
         str(tomo_align_test_message["kv"]),
-        "-ImgDose",
-        str(tomo_align_test_message["image_dose"]),
         "-AlignZ",
         str(tomo_align_test_message["align_z"]),
         "-OutImod",
@@ -617,7 +624,7 @@ def test_tomo_align_service_dark_images(
         "tilt_cor": 1,
         "flip_vol": 1,
         "pixel_size": 1e-10,
-        "dose_weight": False,
+        "make_angle_file": False,
         "out_imod": 1,
         "relion_options": {},
     }

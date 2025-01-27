@@ -39,11 +39,12 @@ class TomoParameters(BaseModel):
     roi_file: Optional[list] = None
     patch: Optional[int] = None
     kv: Optional[int] = None
-    image_dose: Optional[float] = None
+    dose_per_frame: Optional[float] = None
+    frame_count: Optional[int] = None
     align_file: Optional[str] = None
     align_z: Optional[int] = None
     refine_flag: int = 1
-    dose_weight: bool = True
+    make_angle_file: bool = True
     out_imod: int = 1
     out_imod_xf: Optional[int] = None
     dark_tol: Optional[float] = None
@@ -611,7 +612,7 @@ class TomoAlign(CommonService):
         """
         command = ["AreTomo2", "-OutMrc", str(aretomo_output_path)]
 
-        if tomo_parameters.dose_weight:
+        if tomo_parameters.make_angle_file:
             command.extend(("-AngFile", str(angle_file)))
         else:
             command.extend(
@@ -642,6 +643,14 @@ class TomoAlign(CommonService):
                 )
             )
 
+        if tomo_parameters.frame_count and tomo_parameters.dose_per_frame:
+            command.extend(
+                (
+                    "-ImgDose",
+                    str(tomo_parameters.frame_count * tomo_parameters.dose_per_frame),
+                )
+            )
+
         aretomo_flags = {
             "stack_file": "-InMrc",
             "vol_z": "-VolZ",
@@ -653,7 +662,6 @@ class TomoAlign(CommonService):
             "roi_file": "-RoiFile",
             "patch": "-Patch",
             "kv": "-Kv",
-            "image_dose": "-ImgDose",
             "align_file": "-AlnFile",
             "align_z": "-AlignZ",
             "pixel_size": "-PixSize",

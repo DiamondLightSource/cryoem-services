@@ -95,7 +95,7 @@ class TomoAlignSlurm(TomoAlign, CommonService):
             str(Path(tomo_parameters.stack_file).name),
         ]
 
-        if tomo_parameters.dose_weight:
+        if tomo_parameters.make_angle_file:
             command.extend(("-AngFile", str(angle_file)))
         else:
             command.extend(
@@ -126,6 +126,14 @@ class TomoAlignSlurm(TomoAlign, CommonService):
                 )
             )
 
+        if tomo_parameters.frame_count and tomo_parameters.dose_per_frame:
+            command.extend(
+                (
+                    "-ImgDose",
+                    str(tomo_parameters.frame_count * tomo_parameters.dose_per_frame),
+                )
+            )
+
         aretomo_flags = {
             "vol_z": "-VolZ",
             "out_bin": "-OutBin",
@@ -136,7 +144,6 @@ class TomoAlignSlurm(TomoAlign, CommonService):
             "roi_file": "-RoiFile",
             "patch": "-Patch",
             "kv": "-Kv",
-            "image_dose": "-ImgDose",
             "align_file": "-AlnFile",
             "align_z": "-AlignZ",
             "pixel_size": "-PixSize",
