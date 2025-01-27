@@ -136,6 +136,7 @@ class TomoAlignSlurm(TomoAlign, CommonService):
             "roi_file": "-RoiFile",
             "patch": "-Patch",
             "kv": "-Kv",
+            "image_dose": "-ImgDose",
             "align_file": "-AlnFile",
             "align_z": "-AlignZ",
             "pixel_size": "-PixSize",

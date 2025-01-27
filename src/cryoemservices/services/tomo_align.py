@@ -39,6 +39,7 @@ class TomoParameters(BaseModel):
     roi_file: Optional[list] = None
     patch: Optional[int] = None
     kv: Optional[int] = None
+    image_dose: Optional[float] = None
     align_file: Optional[str] = None
     align_z: Optional[int] = None
     refine_flag: int = 1
@@ -652,6 +653,7 @@ class TomoAlign(CommonService):
             "roi_file": "-RoiFile",
             "patch": "-Patch",
             "kv": "-Kv",
+            "image_dose": "-ImgDose",
             "align_file": "-AlnFile",
             "align_z": "-AlignZ",
             "pixel_size": "-PixSize",
