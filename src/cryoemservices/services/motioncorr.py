@@ -57,6 +57,7 @@ class MotionCorrParameters(BaseModel):
     defect_file: Optional[str] = None
     arc_dir: Optional[str] = None
     in_fm_motion: Optional[int] = None
+    frame_count: Optional[int] = None
     split_sum: Optional[int] = None
     dose_motionstats_cutoff: float = 4.0
     do_icebreaker_jobs: bool = True

@@ -74,7 +74,12 @@ class TomoAlignSlurm(TomoAlign, CommonService):
                 self.alignment_quality = float(line.split()[5])
         tomo_file.close()
 
-    def aretomo(self, tomo_parameters: TomoParameters, aretomo_output_path: Path):
+    def aretomo(
+        self,
+        tomo_parameters: TomoParameters,
+        aretomo_output_path: Path,
+        angle_file: Path,
+    ):
         """Submit AreTomo2 jobs to the slurm cluster via the RestAPI"""
         self.log.info(
             f"Input stack: {tomo_parameters.stack_file} \n"
@@ -90,8 +95,8 @@ class TomoAlignSlurm(TomoAlign, CommonService):
             str(Path(tomo_parameters.stack_file).name),
         ]
 
-        if tomo_parameters.angle_file:
-            command.extend(("-AngFile", tomo_parameters.angle_file))
+        if tomo_parameters.make_angle_file:
+            command.extend(("-AngFile", str(angle_file)))
         else:
             command.extend(
                 (
@@ -112,10 +117,26 @@ class TomoAlignSlurm(TomoAlign, CommonService):
         elif tomo_parameters.tilt_cor:
             command.extend(("-TiltCor", str(tomo_parameters.tilt_cor)))
 
+        if tomo_parameters.tilt_axis:
+            command.extend(
+                (
+                    "-TiltAxis",
+                    str(tomo_parameters.tilt_axis),
+                    str(tomo_parameters.refine_flag),
+                )
+            )
+
+        if tomo_parameters.frame_count and tomo_parameters.dose_per_frame:
+            command.extend(
+                (
+                    "-ImgDose",
+                    str(tomo_parameters.frame_count * tomo_parameters.dose_per_frame),
+                )
+            )
+
         aretomo_flags = {
             "vol_z": "-VolZ",
             "out_bin": "-OutBin",
-            "tilt_axis": "-TiltAxis",
             "flip_int": "-FlipInt",
             "flip_vol": "-FlipVol",
             "wbp": "-Wbp",
@@ -126,8 +147,6 @@ class TomoAlignSlurm(TomoAlign, CommonService):
             "align_file": "-AlnFile",
             "align_z": "-AlignZ",
             "pixel_size": "-PixSize",
-            "init_val": "initVal",
-            "refine_flag": "refineFlag",
             "out_imod": "-OutImod",
             "out_imod_xf": "-OutXf",
             "dark_tol": "-DarkTol",

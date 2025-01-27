@@ -108,6 +108,7 @@ def test_motioncor2_service_spa(mock_subprocess, offline_transport, tmp_path):
         "defect_file": "file",
         "arc_dir": "arc_dir",
         "in_fm_motion": 1,
+        "frame_count": 50,
         "split_sum": 1,
         "do_icebreaker_jobs": True,
         "relion_options": {
@@ -128,6 +129,7 @@ def test_motioncor2_service_spa(mock_subprocess, offline_transport, tmp_path):
     output_relion_options.update(motioncorr_test_message["relion_options"])
     output_relion_options["pixel_size"] = motioncorr_test_message["pixel_size"]
     output_relion_options["eer_grouping"] = 0
+    output_relion_options["frame_count"] = motioncorr_test_message["frame_count"]
 
     # Set up the mock service
     service = motioncorr.MotionCorr(environment={"queue": ""})

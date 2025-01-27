@@ -96,12 +96,13 @@ def test_tomo_align_slurm_service(
         "roi_file": [],
         "patch": None,
         "kv": None,
+        "dose_per_frame": None,
+        "frame_count": None,
         "align_file": None,
         "angle_file": f"{tmp_path}/angles.file",
         "align_z": None,
         "pixel_size": 1e-10,
-        "init_val": None,
-        "refine_flag": None,
+        "refine_flag": 1,
         "out_imod": 1,
         "out_imod_xf": None,
         "dark_tol": None,
@@ -156,6 +157,16 @@ def test_tomo_align_slurm_service(
             "-quiet",
         ]
     )
+
+    # Check the angle file
+    assert (
+        tmp_path / "Tomograms/job006/tomograms/test_stack_tilt_angles.txt"
+    ).is_file()
+    with open(
+        tmp_path / "Tomograms/job006/tomograms/test_stack_tilt_angles.txt", "r"
+    ) as angfile:
+        angles_data = angfile.read()
+    assert angles_data == "1.00  0\n"
 
     # Check the slurm commands were run
     slurm_submit_command = (
