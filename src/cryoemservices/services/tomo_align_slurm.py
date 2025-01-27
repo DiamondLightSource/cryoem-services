@@ -117,10 +117,18 @@ class TomoAlignSlurm(TomoAlign, CommonService):
         elif tomo_parameters.tilt_cor:
             command.extend(("-TiltCor", str(tomo_parameters.tilt_cor)))
 
+        if tomo_parameters.tilt_axis:
+            command.extend(
+                (
+                    "-TiltAxis",
+                    str(tomo_parameters.tilt_axis),
+                    str(tomo_parameters.refine_flag),
+                )
+            )
+
         aretomo_flags = {
             "vol_z": "-VolZ",
             "out_bin": "-OutBin",
-            "tilt_axis": "-TiltAxis",
             "flip_int": "-FlipInt",
             "flip_vol": "-FlipVol",
             "wbp": "-Wbp",
@@ -131,8 +139,6 @@ class TomoAlignSlurm(TomoAlign, CommonService):
             "align_file": "-AlnFile",
             "align_z": "-AlignZ",
             "pixel_size": "-PixSize",
-            "init_val": "initVal",
-            "refine_flag": "refineFlag",
             "out_imod": "-OutImod",
             "out_imod_xf": "-OutXf",
             "dark_tol": "-DarkTol",

@@ -41,8 +41,7 @@ class TomoParameters(BaseModel):
     kv: Optional[int] = None
     align_file: Optional[str] = None
     align_z: Optional[int] = None
-    init_val: Optional[int] = None
-    refine_flag: Optional[int] = None
+    refine_flag: int = 1
     dose_weight: bool = True
     out_imod: int = 1
     out_imod_xf: Optional[int] = None
@@ -633,11 +632,19 @@ class TomoAlign(CommonService):
         elif tomo_parameters.tilt_cor:
             command.extend(("-TiltCor", str(tomo_parameters.tilt_cor)))
 
+        if tomo_parameters.tilt_axis:
+            command.extend(
+                (
+                    "-TiltAxis",
+                    str(tomo_parameters.tilt_axis),
+                    str(tomo_parameters.refine_flag),
+                )
+            )
+
         aretomo_flags = {
             "stack_file": "-InMrc",
             "vol_z": "-VolZ",
             "out_bin": "-OutBin",
-            "tilt_axis": "-TiltAxis",
             "flip_int": "-FlipInt",
             "flip_vol": "-FlipVol",
             "wbp": "-Wbp",
@@ -648,8 +655,6 @@ class TomoAlign(CommonService):
             "align_file": "-AlnFile",
             "align_z": "-AlignZ",
             "pixel_size": "-PixSize",
-            "init_val": "initVal",
-            "refine_flag": "refineFlag",
             "out_imod": "-OutImod",
             "out_imod_xf": "-OutXf",
             "dark_tol": "-DarkTol",
