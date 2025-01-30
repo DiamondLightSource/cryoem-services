@@ -230,3 +230,60 @@ def test_parse_tomo_align_output(offline_transport, tmp_path):
     assert service.rot_centre_z_list == ["300.0", "350.0"]
     assert service.tilt_offset == 1.0
     assert service.alignment_quality == 0.07568
+
+
+def test_transfer_files(tmp_path):
+    """Test that existing files can be transferred, and non-existant files are not"""
+    (tmp_path / "to_transfer").mkdir()
+    (tmp_path / "to_transfer/file_exists").touch()
+    transferred_files = tomo_align_slurm.transfer_files(
+        [
+            tmp_path / "to_transfer/file_exists",
+            tmp_path / "to_transfer/file_does_not_exist",
+        ],
+        local_base=f"{tmp_path}/to_transfer",
+        remote_base=f"{tmp_path}/destination",
+    )
+
+    assert transferred_files == [tmp_path / "to_transfer/file_exists"]
+    assert (tmp_path / "destination/file_exists").is_file()
+    assert not (tmp_path / "destination/file_does_not_exist").exists()
+
+
+def test_retrieve_files(tmp_path):
+    (tmp_path / "remote_system/job_dir/file_imod_dir").mkdir(parents=True)
+    (tmp_path / "remote_system/job_dir/file_to_retrieve").touch()
+    (tmp_path / "remote_system/job_dir/file_to_ignore").touch()
+    (tmp_path / "remote_system/job_dir/different_basepath").touch()
+    (tmp_path / "remote_system/job_dir/file_imod_dir/imod_file").touch()
+
+    tomo_align_slurm.retrieve_files(
+        job_directory=tmp_path / "local_system/job_dir",
+        files_to_skip=[
+            tmp_path / "local_system/job_dir/file_to_ignore",
+            tmp_path / "local_system/job_dir/file_not_exists",
+        ],
+        basepath="file",
+        local_base=f"{tmp_path}/local_system",
+        remote_base=f"{tmp_path}/remote_system",
+    )
+
+    # File which should have been copied and removed
+    assert (tmp_path / "local_system/job_dir/file_to_retrieve").is_file()
+    assert not (tmp_path / "remote_system/job_dir/file_to_retrieve").exists()
+
+    # File should have been ignored but removed anyway
+    assert not (tmp_path / "local_system/job_dir/file_to_ignore").exists()
+    assert not (tmp_path / "remote_system/job_dir/file_to_ignore").exists()
+
+    # File in subfolder which should have been copied and removed
+    assert (tmp_path / "local_system/job_dir/file_imod_dir/imod_file").is_file()
+    assert not (tmp_path / "remote_system/job_dir/file_imod_dir").exists()
+
+    # File with different basepath should have been left where it is
+    assert not (tmp_path / "local_system/job_dir/different_basepath").exists()
+    assert (tmp_path / "remote_system/job_dir/different_basepath").is_file()
+
+    # File which doesn't exist
+    assert not (tmp_path / "local_system/job_dir/file_not_exists").exists()
+    assert not (tmp_path / "remote_system/job_dir/file_not_exists").exists()

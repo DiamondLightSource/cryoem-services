@@ -12,43 +12,51 @@ from cryoemservices.services.tomo_align import TomoAlign, TomoParameters
 from cryoemservices.util.slurm_submission import slurm_submission
 
 
-def retrieve_files(job_directory: Path, files_to_skip: List[Path], basepath: str):
-    """Copy files back from the Iris cluster"""
-    iris_directory = Path("/iris") / job_directory.relative_to("/dls")
-    for iris_item in iris_directory.glob(f"{basepath}*"):
+def retrieve_files(
+    job_directory: Path,
+    files_to_skip: List[Path],
+    basepath: str,
+    local_base: str = "/dls",
+    remote_base: str = "/iris",
+):
+    """Copy files back from remote filesystem to local filesystem"""
+    remote_directory = Path(remote_base) / job_directory.relative_to(local_base)
+    for remote_item in remote_directory.glob(f"{basepath}*"):
         # Find all files in the job directory
-        dls_item = job_directory / iris_item.relative_to(iris_directory)
-        dls_item.parent.mkdir(parents=True, exist_ok=True)
-        if iris_item.is_dir():
+        local_item = job_directory / remote_item.relative_to(remote_directory)
+        local_item.parent.mkdir(parents=True, exist_ok=True)
+        if remote_item.is_dir():
             # Transfer imod directory files (assumes only one layer of subdirectories)
-            dls_item.mkdir(exist_ok=True)
-            for iris_imod in iris_item.glob("*"):
-                dls_imod = job_directory / iris_imod.relative_to(iris_directory)
-                shutil.copy(iris_imod, dls_imod)
-                iris_imod.unlink()
-            iris_item.rmdir()
+            local_item.mkdir(exist_ok=True)
+            for remote_imod in remote_item.glob("*"):
+                local_imod = job_directory / remote_imod.relative_to(remote_directory)
+                shutil.copy(remote_imod, local_imod)
+                remote_imod.unlink()
+            remote_item.rmdir()
         else:
             # Transfer and remove all other files, but skip copying input files
-            if dls_item not in files_to_skip:
-                shutil.copy(iris_item, dls_item)
-            iris_item.unlink()
-    for extra_dls_item in files_to_skip:
-        extra_iris_item = Path("/iris") / extra_dls_item.relative_to("/dls")
-        if extra_iris_item.is_file():
-            extra_iris_item.unlink()
+            if local_item not in files_to_skip:
+                shutil.copy(remote_item, local_item)
+            remote_item.unlink()
+    for extra_local_item in files_to_skip:
+        extra_remote_item = Path(remote_base) / extra_local_item.relative_to(local_base)
+        if extra_remote_item.is_file():
+            extra_remote_item.unlink()
 
 
-def transfer_files(file_list: List[Path]):
-    """Transfer files to the Iris cluster"""
+def transfer_files(
+    file_list: List[Path], local_base: str = "/dls", remote_base: str = "/iris"
+):
+    """Transfer files from local filesystem to remote filesystem"""
     transferred_items: List[Path] = []
-    for dls_item in file_list:
-        if not dls_item.is_file():
+    for local_item in file_list:
+        if not local_item.is_file():
             continue
-        iris_item = Path("/iris") / dls_item.relative_to("/dls")
+        remote_item = Path(remote_base) / local_item.relative_to(local_base)
         try:
-            iris_item.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy(dls_item, iris_item)
-            transferred_items.append(dls_item)
+            remote_item.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy(local_item, remote_item)
+            transferred_items.append(local_item)
         except Exception:
             continue
     return transferred_items
