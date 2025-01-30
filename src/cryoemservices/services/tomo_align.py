@@ -601,16 +601,25 @@ class TomoAlign(CommonService):
         result = subprocess.run(newstack_cmd)
         return result
 
-    def aretomo(
+    def assemble_aretomo_command(
         self,
+        aretomo_executable: str,
+        input_file: str,
         tomo_parameters: TomoParameters,
         aretomo_output_path: Path,
         angle_file: Path,
     ):
         """
-        Run AreTomo2 on output of Newstack
+        Assemble the command to run AreTomo2, using a base command with
+        <executable> -InMrc <input file>
         """
-        command = ["AreTomo2", "-OutMrc", str(aretomo_output_path)]
+        command = [
+            aretomo_executable,
+            "-InMrc",
+            input_file,
+            "-OutMrc",
+            str(aretomo_output_path),
+        ]
 
         if tomo_parameters.make_angle_file:
             command.extend(("-AngFile", str(angle_file)))
@@ -652,7 +661,6 @@ class TomoAlign(CommonService):
             )
 
         aretomo_flags = {
-            "stack_file": "-InMrc",
             "vol_z": "-VolZ",
             "out_bin": "-OutBin",
             "flip_int": "-FlipInt",
@@ -673,6 +681,25 @@ class TomoAlign(CommonService):
         for k, v in tomo_parameters.model_dump().items():
             if (v not in [None, ""]) and (k in aretomo_flags):
                 command.extend((aretomo_flags[k], str(v)))
+
+        return command
+
+    def aretomo(
+        self,
+        tomo_parameters: TomoParameters,
+        aretomo_output_path: Path,
+        angle_file: Path,
+    ):
+        """
+        Run AreTomo2 on output of Newstack
+        """
+        command = self.assemble_aretomo_command(
+            aretomo_executable="AreTomo2",
+            input_file=tomo_parameters.stack_file,
+            tomo_parameters=tomo_parameters,
+            aretomo_output_path=aretomo_output_path,
+            angle_file=angle_file,
+        )
 
         self.log.info(f"Running AreTomo2 {command}")
         self.log.info(

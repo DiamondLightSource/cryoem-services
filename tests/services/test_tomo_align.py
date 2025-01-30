@@ -108,14 +108,14 @@ def test_tomo_align_service_file_list(
 
     aretomo_command = [
         "AreTomo2",
+        "-InMrc",
+        tomo_align_test_message["stack_file"],
         "-OutMrc",
         f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
         "-AngFile",
         f"{tmp_path}/Tomograms/job006/tomograms/test_stack_tilt_angles.txt",
         "-TiltCor",
         "1",
-        "-InMrc",
-        tomo_align_test_message["stack_file"],
         "-PixSize",
         "1e-10",
         "-VolZ",
@@ -491,6 +491,8 @@ def test_tomo_align_service_path_pattern(
 
     aretomo_command = [
         "AreTomo2",
+        "-InMrc",
+        tomo_align_test_message["stack_file"],
         "-OutMrc",
         f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
         "-AngFile",
@@ -506,8 +508,6 @@ def test_tomo_align_service_path_pattern(
             tomo_align_test_message["dose_per_frame"]
             * tomo_align_test_message["frame_count"]
         ),
-        "-InMrc",
-        tomo_align_test_message["stack_file"],
         "-PixSize",
         "1e-10",
         "-VolZ",
@@ -670,6 +670,8 @@ def test_tomo_align_service_dark_images(
     # Check the aretomo call
     aretomo_command = [
         "AreTomo2",
+        "-InMrc",
+        tomo_align_test_message["stack_file"],
         "-OutMrc",
         f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
         "-TiltRange",
@@ -677,8 +679,6 @@ def test_tomo_align_service_dark_images(
         "12.00",
         "-TiltCor",
         "1",
-        "-InMrc",
-        tomo_align_test_message["stack_file"],
         "-PixSize",
         "1e-10",
         "-VolZ",

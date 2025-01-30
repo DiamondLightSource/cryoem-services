@@ -85,79 +85,17 @@ class TomoAlignSlurm(TomoAlign, CommonService):
             f"Input stack: {tomo_parameters.stack_file} \n"
             f"Output file: {aretomo_output_path}"
         )
-
-        # Assemble the command to run AreTomo2
-        command = [
-            os.environ["ARETOMO2_EXECUTABLE"],
-            "-OutMrc",
-            str(aretomo_output_path),
-            "-InMrc",
-            str(Path(tomo_parameters.stack_file).name),
-        ]
-
-        if tomo_parameters.make_angle_file:
-            command.extend(("-AngFile", str(angle_file)))
-        else:
-            command.extend(
-                (
-                    "-TiltRange",
-                    self.input_file_list_of_lists[0][1],  # lowest tilt
-                    self.input_file_list_of_lists[-1][1],
-                )
-            )  # highest tilt
-
-        if tomo_parameters.manual_tilt_offset:
-            command.extend(
-                (
-                    "-TiltCor",
-                    str(tomo_parameters.tilt_cor),
-                    str(tomo_parameters.manual_tilt_offset),
-                )
-            )
-        elif tomo_parameters.tilt_cor:
-            command.extend(("-TiltCor", str(tomo_parameters.tilt_cor)))
-
-        if tomo_parameters.tilt_axis:
-            command.extend(
-                (
-                    "-TiltAxis",
-                    str(tomo_parameters.tilt_axis),
-                    str(tomo_parameters.refine_flag),
-                )
-            )
-
-        if tomo_parameters.frame_count and tomo_parameters.dose_per_frame:
-            command.extend(
-                (
-                    "-ImgDose",
-                    str(tomo_parameters.frame_count * tomo_parameters.dose_per_frame),
-                )
-            )
-
-        aretomo_flags = {
-            "vol_z": "-VolZ",
-            "out_bin": "-OutBin",
-            "flip_int": "-FlipInt",
-            "flip_vol": "-FlipVol",
-            "wbp": "-Wbp",
-            "align": "-Align",
-            "roi_file": "-RoiFile",
-            "patch": "-Patch",
-            "kv": "-Kv",
-            "align_file": "-AlnFile",
-            "align_z": "-AlignZ",
-            "pixel_size": "-PixSize",
-            "out_imod": "-OutImod",
-            "out_imod_xf": "-OutXf",
-            "dark_tol": "-DarkTol",
-        }
-        for k, v in tomo_parameters.model_dump().items():
-            if (v not in [None, ""]) and (k in aretomo_flags):
-                command.extend((aretomo_flags[k], str(v)))
+        command = self.assemble_aretomo_command(
+            aretomo_executable=os.environ["ARETOMO2_EXECUTABLE"],
+            input_file=str(Path(tomo_parameters.stack_file).name),
+            tomo_parameters=tomo_parameters,
+            aretomo_output_path=aretomo_output_path,
+            angle_file=angle_file,
+        )
 
         # Transfer the required files
         self.log.info("Transferring files...")
-        items_to_transfer = [Path(tomo_parameters.stack_file)]
+        items_to_transfer = [Path(tomo_parameters.stack_file), angle_file]
         transfer_status = transfer_files(items_to_transfer)
         if len(transfer_status) != len(items_to_transfer):
             self.log.error(
@@ -197,7 +135,7 @@ class TomoAlignSlurm(TomoAlign, CommonService):
         self.log.info("Retrieving output files...")
         retrieve_files(
             job_directory=Path(self.alignment_output_dir),
-            files_to_skip=[Path(tomo_parameters.stack_file)],
+            files_to_skip=[Path(tomo_parameters.stack_file), angle_file],
             basepath=str(Path(tomo_parameters.stack_file).stem),
         )
         self.log.info("All output files retrieved")
