@@ -32,12 +32,13 @@ RUN groupadd -r -g "${groupid}" "${groupname}" && useradd -r -M "${groupname}" -
 
 # Copy python environment
 COPY --from=conda-build --chown="${userid}":"${groupid}" /install/venv /install/venv
-ENV PATH="/install/venv/bin:${PATH}"
+ENV PATH=/install/venv/bin:${PATH}
 
 # Install IMOD
 RUN mkdir imod_install && \
     curl https://bio3d.colorado.edu/imod/AMD64-RHEL5/imod_5.1.0_RHEL8-64_CUDA12.0.sh > imod_5.1.0_RHEL8-64_CUDA12.0.sh && \
     chmod +x imod_5.1.0_RHEL8-64_CUDA12.0.sh && \
+    ln -s /install/venv/bin/python /usr/bin/python3 && \
     ./imod_5.1.0_RHEL8-64_CUDA12.0.sh -dir imod_install -skip -y
 ENV PATH=/imod_install/IMOD/bin:${PATH}
 ENV IMOD_DIR=/imod_install/IMOD

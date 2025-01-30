@@ -20,6 +20,7 @@ from cryoemservices.util.relion_service_options import (
     RelionServiceOptions,
     update_relion_options,
 )
+from cryoemservices.util.tomo_output_files import _get_tilt_number_v5_12
 
 
 class TomoParameters(BaseModel):
@@ -38,11 +39,12 @@ class TomoParameters(BaseModel):
     roi_file: Optional[list] = None
     patch: Optional[int] = None
     kv: Optional[int] = None
+    dose_per_frame: Optional[float] = None
+    frame_count: Optional[int] = None
     align_file: Optional[str] = None
-    angle_file: Optional[str] = None
     align_z: Optional[int] = None
-    init_val: Optional[int] = None
-    refine_flag: Optional[int] = None
+    refine_flag: int = 1
+    make_angle_file: bool = True
     out_imod: int = 1
     out_imod_xf: Optional[int] = None
     dark_tol: Optional[float] = None
@@ -299,9 +301,26 @@ class TomoAlign(CommonService):
             rw.transport.nack(header)
             return
 
+        # Set up the angle file needed for dose weighting
+        angle_file = (
+            Path(tomo_params.stack_file).parent
+            / f"{Path(tomo_params.stack_file).stem}_tilt_angles.txt"
+        )
+        tilt_angles = {}
+        for i in range(len(self.input_file_list_of_lists)):
+            tilt_index = _get_tilt_number_v5_12(
+                Path(self.input_file_list_of_lists[i][0])
+            )
+            tilt_angles[tilt_index] = self.input_file_list_of_lists[i][1]
+        with open(angle_file, "w") as angfile:
+            for tilt_id in tilt_angles.keys():
+                angfile.write(f"{tilt_angles[tilt_id]}  {int(tilt_id)}\n")
+
         # Do alignment with AreTomo
         aretomo_output_path = self.alignment_output_dir / f"{stack_name}_aretomo.mrc"
-        aretomo_result, aretomo_command = self.aretomo(tomo_params, aretomo_output_path)
+        aretomo_result, aretomo_command = self.aretomo(
+            tomo_params, aretomo_output_path, angle_file
+        )
 
         # Send to node creator
         self.log.info("Sending tomo align to node creator")
@@ -582,14 +601,28 @@ class TomoAlign(CommonService):
         result = subprocess.run(newstack_cmd)
         return result
 
-    def aretomo(self, tomo_parameters: TomoParameters, aretomo_output_path: Path):
+    def assemble_aretomo_command(
+        self,
+        aretomo_executable: str,
+        input_file: str,
+        tomo_parameters: TomoParameters,
+        aretomo_output_path: Path,
+        angle_file: Path,
+    ):
         """
-        Run AreTomo2 on output of Newstack
+        Assemble the command to run AreTomo2, using a base command with
+        <executable> -InMrc <input file>
         """
-        command = ["AreTomo2", "-OutMrc", str(aretomo_output_path)]
+        command = [
+            aretomo_executable,
+            "-InMrc",
+            input_file,
+            "-OutMrc",
+            str(aretomo_output_path),
+        ]
 
-        if tomo_parameters.angle_file:
-            command.extend(("-AngFile", tomo_parameters.angle_file))
+        if tomo_parameters.make_angle_file:
+            command.extend(("-AngFile", str(angle_file)))
         else:
             command.extend(
                 (
@@ -610,11 +643,26 @@ class TomoAlign(CommonService):
         elif tomo_parameters.tilt_cor:
             command.extend(("-TiltCor", str(tomo_parameters.tilt_cor)))
 
+        if tomo_parameters.tilt_axis:
+            command.extend(
+                (
+                    "-TiltAxis",
+                    str(tomo_parameters.tilt_axis),
+                    str(tomo_parameters.refine_flag),
+                )
+            )
+
+        if tomo_parameters.frame_count and tomo_parameters.dose_per_frame:
+            command.extend(
+                (
+                    "-ImgDose",
+                    str(tomo_parameters.frame_count * tomo_parameters.dose_per_frame),
+                )
+            )
+
         aretomo_flags = {
-            "stack_file": "-InMrc",
             "vol_z": "-VolZ",
             "out_bin": "-OutBin",
-            "tilt_axis": "-TiltAxis",
             "flip_int": "-FlipInt",
             "flip_vol": "-FlipVol",
             "wbp": "-Wbp",
@@ -625,8 +673,6 @@ class TomoAlign(CommonService):
             "align_file": "-AlnFile",
             "align_z": "-AlignZ",
             "pixel_size": "-PixSize",
-            "init_val": "initVal",
-            "refine_flag": "refineFlag",
             "out_imod": "-OutImod",
             "out_imod_xf": "-OutXf",
             "dark_tol": "-DarkTol",
@@ -635,6 +681,25 @@ class TomoAlign(CommonService):
         for k, v in tomo_parameters.model_dump().items():
             if (v not in [None, ""]) and (k in aretomo_flags):
                 command.extend((aretomo_flags[k], str(v)))
+
+        return command
+
+    def aretomo(
+        self,
+        tomo_parameters: TomoParameters,
+        aretomo_output_path: Path,
+        angle_file: Path,
+    ):
+        """
+        Run AreTomo2 on output of Newstack
+        """
+        command = self.assemble_aretomo_command(
+            aretomo_executable="AreTomo2",
+            input_file=tomo_parameters.stack_file,
+            tomo_parameters=tomo_parameters,
+            aretomo_output_path=aretomo_output_path,
+            angle_file=angle_file,
+        )
 
         self.log.info(f"Running AreTomo2 {command}")
         self.log.info(

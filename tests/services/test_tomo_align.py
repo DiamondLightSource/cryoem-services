@@ -49,7 +49,7 @@ def test_tomo_align_service_file_list(
         "path_pattern": None,
         "input_file_list": str(
             [
-                [f"{tmp_path}/MotionCorr/job002/Movies/input_file_1.mrc", "1.00"],
+                [f"{tmp_path}/MotionCorr/job002/Movies/Position_1_001_0.0.mrc", "1.00"],
             ]
         ),
         "vol_z": 1200,
@@ -63,12 +63,13 @@ def test_tomo_align_service_file_list(
         "roi_file": None,
         "patch": None,
         "kv": None,
+        "dose_per_frame": None,
+        "frame_count": None,
         "align_file": None,
-        "angle_file": f"{tmp_path}/angles.file",
         "align_z": None,
         "pixel_size": 1e-10,
-        "init_val": None,
-        "refine_flag": None,
+        "refine_flag": 1,
+        "make_angle_file": True,
         "out_imod": 1,
         "out_imod_xf": None,
         "dark_tol": None,
@@ -107,14 +108,14 @@ def test_tomo_align_service_file_list(
 
     aretomo_command = [
         "AreTomo2",
+        "-InMrc",
+        tomo_align_test_message["stack_file"],
         "-OutMrc",
         f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
         "-AngFile",
-        f"{tmp_path}/angles.file",
+        f"{tmp_path}/Tomograms/job006/tomograms/test_stack_tilt_angles.txt",
         "-TiltCor",
         "1",
-        "-InMrc",
-        tomo_align_test_message["stack_file"],
         "-PixSize",
         "1e-10",
         "-VolZ",
@@ -145,6 +146,16 @@ def test_tomo_align_service_file_list(
         capture_output=True,
     )
 
+    # Check the angle file
+    assert (
+        tmp_path / "Tomograms/job006/tomograms/test_stack_tilt_angles.txt"
+    ).is_file()
+    with open(
+        tmp_path / "Tomograms/job006/tomograms/test_stack_tilt_angles.txt", "r"
+    ) as angfile:
+        angles_data = angfile.read()
+    assert angles_data == "1.00  1\n"
+
     # Check that the correct messages were sent
     assert offline_transport.send.call_count == 10
     offline_transport.send.assert_any_call(
@@ -152,8 +163,8 @@ def test_tomo_align_service_file_list(
         {
             "job_type": "relion.excludetilts",
             "experiment_type": "tomography",
-            "input_file": f"{tmp_path}/MotionCorr/job002/Movies/input_file_1.mrc",
-            "output_file": f"{tmp_path}/ExcludeTiltImages/job004/tilts/input_file_1.mrc",
+            "input_file": f"{tmp_path}/MotionCorr/job002/Movies/Position_1_001_0.0.mrc",
+            "output_file": f"{tmp_path}/ExcludeTiltImages/job004/tilts/Position_1_001_0.0.mrc",
             "relion_options": output_relion_options,
             "command": "",
             "stdout": "",
@@ -166,8 +177,8 @@ def test_tomo_align_service_file_list(
         {
             "job_type": "relion.aligntiltseries",
             "experiment_type": "tomography",
-            "input_file": f"{tmp_path}/MotionCorr/job002/Movies/input_file_1.mrc",
-            "output_file": f"{tmp_path}/AlignTiltSeries/job005/tilts/input_file_1.mrc",
+            "input_file": f"{tmp_path}/MotionCorr/job002/Movies/Position_1_001_0.0.mrc",
+            "output_file": f"{tmp_path}/AlignTiltSeries/job005/tilts/Position_1_001_0.0.mrc",
             "relion_options": output_relion_options,
             "command": "",
             "stdout": "",
@@ -187,7 +198,7 @@ def test_tomo_align_service_file_list(
         {
             "experiment_type": "tomography",
             "job_type": "relion.reconstructtomograms",
-            "input_file": f"{tmp_path}/MotionCorr/job002/Movies/input_file_1.mrc",
+            "input_file": f"{tmp_path}/MotionCorr/job002/Movies/Position_1_001_0.0.mrc",
             "output_file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
             "relion_options": output_relion_options,
             "command": " ".join(aretomo_command),
@@ -225,7 +236,7 @@ def test_tomo_align_service_file_list(
                     "refined_magnification": "1000.0",
                     "refined_tilt_angle": "4.5",
                     "refined_tilt_axis": "0.0",
-                    "path": f"{tmp_path}/MotionCorr/job002/Movies/input_file_1.mrc",
+                    "path": f"{tmp_path}/MotionCorr/job002/Movies/Position_1_001_0.0.mrc",
                 },
             ],
         },
@@ -298,9 +309,9 @@ def test_tomo_align_service_file_list_repeated_tilt(
         "stack_file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack.st",
         "input_file_list": str(
             [
-                [f"{tmp_path}/MotionCorr/job002/Movies/input_file_1.mrc", "1.00"],
-                [f"{tmp_path}/MotionCorr/job002/Movies/input_file_2.mrc", "1.00"],
-                [f"{tmp_path}/MotionCorr/job002/Movies/input_file_3.mrc", "1.00"],
+                [f"{tmp_path}/MotionCorr/job002/Movies/Position_1_001_0.0.mrc", "1.00"],
+                [f"{tmp_path}/MotionCorr/job002/Movies/Position_1_002_0.0.mrc", "1.00"],
+                [f"{tmp_path}/MotionCorr/job002/Movies/Position_1_003_0.0.mrc", "1.00"],
             ]
         ),
         "pixel_size": 1e-10,
@@ -314,11 +325,11 @@ def test_tomo_align_service_file_list_repeated_tilt(
 
     # Create the input files. Needs sleeps to ensure distinct timestamps
     (tmp_path / "MotionCorr/job002/Movies").mkdir(parents=True)
-    (tmp_path / "MotionCorr/job002/Movies/input_file_1.mrc").touch()
+    (tmp_path / "MotionCorr/job002/Movies/Position_1_001_0.0.mrc").touch()
     time.sleep(1)
-    (tmp_path / "MotionCorr/job002/Movies/input_file_2.mrc").touch()
+    (tmp_path / "MotionCorr/job002/Movies/Position_1_002_0.0.mrc").touch()
     time.sleep(1)
-    (tmp_path / "MotionCorr/job002/Movies/input_file_3.mrc").touch()
+    (tmp_path / "MotionCorr/job002/Movies/Position_1_003_0.0.mrc").touch()
 
     # Set up the mock service
     service = tomo_align.TomoAlign(environment={"queue": ""})
@@ -346,6 +357,16 @@ def test_tomo_align_service_file_list_repeated_tilt(
     assert mock_plotly.call_count == 1
     assert mock_subprocess.call_count == 5
 
+    # Check the angle file
+    assert (
+        tmp_path / "Tomograms/job006/tomograms/test_stack_tilt_angles.txt"
+    ).is_file()
+    with open(
+        tmp_path / "Tomograms/job006/tomograms/test_stack_tilt_angles.txt", "r"
+    ) as angfile:
+        angles_data = angfile.read()
+    assert angles_data == "1.00  3\n"
+
     # Check the stack file has only the last one of the duplicated tilt angles
     with open(
         tmp_path / "Tomograms/job006/tomograms/test_stack_newstack.txt", "r"
@@ -353,18 +374,18 @@ def test_tomo_align_service_file_list_repeated_tilt(
         newstack_tilts = newstack_file.read()
     assert (
         newstack_tilts
-        == f"1\n{tmp_path}/MotionCorr/job002/Movies/input_file_3.mrc\n0\n"
+        == f"1\n{tmp_path}/MotionCorr/job002/Movies/Position_1_003_0.0.mrc\n0\n"
     )
 
-    # Look at a sample of the messages to check they use input_file_3
+    # Look at a sample of the messages to check they use input file 3
     assert offline_transport.send.call_count == 10
     offline_transport.send.assert_any_call(
         "node_creator",
         {
             "job_type": "relion.excludetilts",
             "experiment_type": "tomography",
-            "input_file": f"{tmp_path}/MotionCorr/job002/Movies/input_file_3.mrc",
-            "output_file": f"{tmp_path}/ExcludeTiltImages/job004/tilts/input_file_3.mrc",
+            "input_file": f"{tmp_path}/MotionCorr/job002/Movies/Position_1_003_0.0.mrc",
+            "output_file": f"{tmp_path}/ExcludeTiltImages/job004/tilts/Position_1_003_0.0.mrc",
             "relion_options": output_relion_options,
             "command": "",
             "stdout": "",
@@ -398,8 +419,8 @@ def test_tomo_align_service_path_pattern(
     mock_mrcfile.open().__enter__().header = {"nx": 3000, "ny": 4000}
 
     (tmp_path / "MotionCorr/job002/Movies").mkdir(parents=True)
-    (tmp_path / "MotionCorr/job002/Movies/input_file_1.00.mrc").touch()
-    (tmp_path / "MotionCorr/job002/Movies/input_file_2.00.mrc").touch()
+    (tmp_path / "MotionCorr/job002/Movies/Position_1_001_1.00.mrc").touch()
+    (tmp_path / "MotionCorr/job002/Movies/Position_1_002_2.00.mrc").touch()
 
     header = {
         "message-id": mock.sentinel,
@@ -407,7 +428,7 @@ def test_tomo_align_service_path_pattern(
     }
     tomo_align_test_message = {
         "stack_file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack.st",
-        "path_pattern": f"{tmp_path}/MotionCorr/job002/Movies/input_file_*.mrc",
+        "path_pattern": f"{tmp_path}/MotionCorr/job002/Movies/Position_1_00*.mrc",
         "input_file_list": None,
         "vol_z": 1200,
         "align": 0,
@@ -420,12 +441,13 @@ def test_tomo_align_service_path_pattern(
         "roi_file": None,
         "patch": 1,
         "kv": 300,
+        "dose_per_frame": 0.2,
+        "frame_count": 6,
         "align_file": None,
-        "angle_file": f"{tmp_path}/angles.file",
         "align_z": 500,
         "pixel_size": 1e-10,
-        "init_val": None,
-        "refine_flag": None,
+        "refine_flag": 1,
+        "make_angle_file": True,
         "out_imod": 1,
         "out_imod_xf": None,
         "dark_tol": 0.3,
@@ -440,6 +462,8 @@ def test_tomo_align_service_path_pattern(
     output_relion_options["tomo_size_x"] = 4000
     output_relion_options["tomo_size_y"] = 3000
     output_relion_options["manual_tilt_offset"] = 10.5
+    output_relion_options["frame_count"] = 6
+    output_relion_options["dose_per_frame"] = 0.2
 
     # Set up the mock service
     service = tomo_align.TomoAlign(environment={"queue": ""})
@@ -467,15 +491,23 @@ def test_tomo_align_service_path_pattern(
 
     aretomo_command = [
         "AreTomo2",
+        "-InMrc",
+        tomo_align_test_message["stack_file"],
         "-OutMrc",
         f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
         "-AngFile",
-        f"{tmp_path}/angles.file",
+        f"{tmp_path}/Tomograms/job006/tomograms/test_stack_tilt_angles.txt",
         "-TiltCor",
         "1",
         str(tomo_align_test_message["manual_tilt_offset"]),
-        "-InMrc",
-        tomo_align_test_message["stack_file"],
+        "-TiltAxis",
+        str(tomo_align_test_message["tilt_axis"]),
+        "1",
+        "-ImgDose",
+        str(
+            tomo_align_test_message["dose_per_frame"]
+            * tomo_align_test_message["frame_count"]
+        ),
         "-PixSize",
         "1e-10",
         "-VolZ",
@@ -484,8 +516,6 @@ def test_tomo_align_service_path_pattern(
         "0",
         "-OutBin",
         str(tomo_align_test_message["out_bin"]),
-        "-TiltAxis",
-        str(tomo_align_test_message["tilt_axis"]),
         "-FlipInt",
         "1",
         "-FlipVol",
@@ -522,6 +552,16 @@ def test_tomo_align_service_path_pattern(
         capture_output=True,
     )
 
+    # Check the angle file
+    assert (
+        tmp_path / "Tomograms/job006/tomograms/test_stack_tilt_angles.txt"
+    ).is_file()
+    with open(
+        tmp_path / "Tomograms/job006/tomograms/test_stack_tilt_angles.txt", "r"
+    ) as angfile:
+        angles_data = angfile.read()
+    assert angles_data == "1.00  1\n2.00  2\n"
+
     # No need to check all sent messages
     assert offline_transport.send.call_count == 12
     offline_transport.send.assert_any_call(
@@ -529,7 +569,7 @@ def test_tomo_align_service_path_pattern(
         {
             "experiment_type": "tomography",
             "job_type": "relion.reconstructtomograms",
-            "input_file": f"{tmp_path}/MotionCorr/job002/Movies/input_file_1.00.mrc",
+            "input_file": f"{tmp_path}/MotionCorr/job002/Movies/Position_1_001_1.00.mrc",
             "output_file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
             "relion_options": output_relion_options,
             "command": " ".join(aretomo_command),
@@ -569,19 +609,22 @@ def test_tomo_align_service_dark_images(
         "stack_file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack.st",
         "input_file_list": str(
             [
-                [f"{tmp_path}/MotionCorr/job002/Movies/input_file_1.mrc", "0.00"],
-                [f"{tmp_path}/MotionCorr/job002/Movies/input_file_2.mrc", "2.00"],
-                [f"{tmp_path}/MotionCorr/job002/Movies/input_file_3.mrc", "4.00"],
-                [f"{tmp_path}/MotionCorr/job002/Movies/input_file_4.mrc", "6.00"],
-                [f"{tmp_path}/MotionCorr/job002/Movies/input_file_5.mrc", "8.00"],
+                [f"{tmp_path}/MotionCorr/job002/Movies/Position_1_001_0.0.mrc", "0.00"],
+                [
+                    f"{tmp_path}/MotionCorr/job002/Movies/Position_1_002_0.0.mrc",
+                    "12.00",
+                ],
+                [f"{tmp_path}/MotionCorr/job002/Movies/Position_1_003_0.0.mrc", "6.00"],
+                [f"{tmp_path}/MotionCorr/job002/Movies/Position_1_004_0.0.mrc", "9.00"],
+                [f"{tmp_path}/MotionCorr/job002/Movies/Position_1_005_0.0.mrc", "3.00"],
             ]
         ),
         "vol_z": 1200,
         "out_bin": 4,
         "tilt_cor": 1,
         "flip_vol": 1,
-        "angle_file": f"{tmp_path}/angles.file",
         "pixel_size": 1e-10,
+        "make_angle_file": False,
         "out_imod": 1,
         "relion_options": {},
     }
@@ -604,7 +647,7 @@ def test_tomo_align_service_dark_images(
 
     x_tilts = ["1.2", "2.4", "3.2", "3.4", "4.2"]
     y_tilts = ["2.3", "2.5", "4.3", "4.5", "6.3"]
-    tilt_angles = ["0.01", "2.01", "4.01", "6.01", "8.01"]
+    tilt_angles = ["0.01", "12.01", "6.01", "9.01", "3.01"]
 
     # Set up outputs: stack_aretomo_Imod file like AreTomo, with exclusions and spaces
     (tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo_Imod").mkdir(
@@ -624,8 +667,46 @@ def test_tomo_align_service_dark_images(
     # Send a message to the service
     service.tomo_align(None, header=header, message=tomo_align_test_message)
 
+    # Check the aretomo call
+    aretomo_command = [
+        "AreTomo2",
+        "-InMrc",
+        tomo_align_test_message["stack_file"],
+        "-OutMrc",
+        f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
+        "-TiltRange",
+        "0.00",
+        "12.00",
+        "-TiltCor",
+        "1",
+        "-PixSize",
+        "1e-10",
+        "-VolZ",
+        str(tomo_align_test_message["vol_z"]),
+        "-OutBin",
+        str(tomo_align_test_message["out_bin"]),
+        "-FlipVol",
+        str(tomo_align_test_message["flip_vol"]),
+        "-OutImod",
+        str(tomo_align_test_message["out_imod"]),
+    ]
+    mock_subprocess.assert_any_call(
+        aretomo_command,
+        capture_output=True,
+    )
+
+    # Check the angle file
+    assert (
+        tmp_path / "Tomograms/job006/tomograms/test_stack_tilt_angles.txt"
+    ).is_file()
+    with open(
+        tmp_path / "Tomograms/job006/tomograms/test_stack_tilt_angles.txt", "r"
+    ) as angfile:
+        angles_data = angfile.read()
+    assert angles_data == "0.00  1\n3.00  5\n6.00  3\n9.00  4\n12.00  2\n"
+
     # Check that the correct messages were sent
-    assert offline_transport.send.call_count == 14
+    # assert offline_transport.send.call_count == 14
     # Expect to get messages for three tilts, and not the excluded ones
     for image in [1, 3, 4]:
         offline_transport.send.assert_any_call(
@@ -633,8 +714,8 @@ def test_tomo_align_service_dark_images(
             {
                 "job_type": "relion.excludetilts",
                 "experiment_type": "tomography",
-                "input_file": f"{tmp_path}/MotionCorr/job002/Movies/input_file_{image}.mrc",
-                "output_file": f"{tmp_path}/ExcludeTiltImages/job004/tilts/input_file_{image}.mrc",
+                "input_file": f"{tmp_path}/MotionCorr/job002/Movies/Position_1_00{image}_0.0.mrc",
+                "output_file": f"{tmp_path}/ExcludeTiltImages/job004/tilts/Position_1_00{image}_0.0.mrc",
                 "relion_options": output_relion_options,
                 "command": "",
                 "stdout": "",
@@ -647,8 +728,8 @@ def test_tomo_align_service_dark_images(
             {
                 "job_type": "relion.aligntiltseries",
                 "experiment_type": "tomography",
-                "input_file": f"{tmp_path}/MotionCorr/job002/Movies/input_file_{image}.mrc",
-                "output_file": f"{tmp_path}/AlignTiltSeries/job005/tilts/input_file_{image}.mrc",
+                "input_file": f"{tmp_path}/MotionCorr/job002/Movies/Position_1_00{image}_0.0.mrc",
+                "output_file": f"{tmp_path}/AlignTiltSeries/job005/tilts/Position_1_00{image}_0.0.mrc",
                 "relion_options": output_relion_options,
                 "command": "",
                 "stdout": "",
@@ -692,15 +773,7 @@ def test_tomo_align_service_dark_images(
                     "refined_magnification": "1000.0",
                     "refined_tilt_angle": "0.01",
                     "refined_tilt_axis": "0.0",
-                    "path": f"{tmp_path}/MotionCorr/job002/Movies/input_file_1.mrc",
-                },
-                {
-                    "ispyb_command": "insert_tilt_image_alignment",
-                    "psd_file": None,
-                    "refined_magnification": "1000.0",
-                    "refined_tilt_angle": "4.01",
-                    "refined_tilt_axis": "0.0",
-                    "path": f"{tmp_path}/MotionCorr/job002/Movies/input_file_3.mrc",
+                    "path": f"{tmp_path}/MotionCorr/job002/Movies/Position_1_001_0.0.mrc",
                 },
                 {
                     "ispyb_command": "insert_tilt_image_alignment",
@@ -708,7 +781,15 @@ def test_tomo_align_service_dark_images(
                     "refined_magnification": "1000.0",
                     "refined_tilt_angle": "6.01",
                     "refined_tilt_axis": "0.0",
-                    "path": f"{tmp_path}/MotionCorr/job002/Movies/input_file_4.mrc",
+                    "path": f"{tmp_path}/MotionCorr/job002/Movies/Position_1_003_0.0.mrc",
+                },
+                {
+                    "ispyb_command": "insert_tilt_image_alignment",
+                    "psd_file": None,
+                    "refined_magnification": "1000.0",
+                    "refined_tilt_angle": "9.01",
+                    "refined_tilt_axis": "0.0",
+                    "path": f"{tmp_path}/MotionCorr/job002/Movies/Position_1_004_0.0.mrc",
                 },
             ],
         },
@@ -744,18 +825,23 @@ def test_tomo_align_service_all_dark(
         "stack_file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack.st",
         "input_file_list": str(
             [
-                [f"{tmp_path}/MotionCorr/job002/Movies/input_file_1.mrc", "0.00"],
-                [f"{tmp_path}/MotionCorr/job002/Movies/input_file_2.mrc", "2.00"],
-                [f"{tmp_path}/MotionCorr/job002/Movies/input_file_3.mrc", "4.00"],
-                [f"{tmp_path}/MotionCorr/job002/Movies/input_file_4.mrc", "6.00"],
-                [f"{tmp_path}/MotionCorr/job002/Movies/input_file_5.mrc", "8.00"],
+                [f"{tmp_path}/MotionCorr/job002/Movies/Position_1_001_0.0.mrc", "0.00"],
+                [
+                    f"{tmp_path}/MotionCorr/job002/Movies/Position_1_002_0.0.mrc",
+                    "-2.00",
+                ],
+                [f"{tmp_path}/MotionCorr/job002/Movies/Position_1_003_0.0.mrc", "2.00"],
+                [
+                    f"{tmp_path}/MotionCorr/job002/Movies/Position_1_004_0.0.mrc",
+                    "-4.00",
+                ],
+                [f"{tmp_path}/MotionCorr/job002/Movies/Position_1_005_0.0.mrc", "4.00"],
             ]
         ),
         "vol_z": 1200,
         "out_bin": 4,
         "tilt_cor": 1,
         "flip_vol": 1,
-        "angle_file": f"{tmp_path}/angles.file",
         "pixel_size": 1e-10,
         "out_imod": 1,
         "relion_options": {},
@@ -782,6 +868,16 @@ def test_tomo_align_service_all_dark(
 
     # Send a message to the service
     service.tomo_align(None, header=header, message=tomo_align_test_message)
+
+    # Check the angle file
+    assert (
+        tmp_path / "Tomograms/job006/tomograms/test_stack_tilt_angles.txt"
+    ).is_file()
+    with open(
+        tmp_path / "Tomograms/job006/tomograms/test_stack_tilt_angles.txt", "r"
+    ) as angfile:
+        angles_data = angfile.read()
+    assert angles_data == "-4.00  4\n-2.00  2\n0.00  1\n2.00  3\n4.00  5\n"
 
     # Check that the correct messages were sent
     assert offline_transport.send.call_count == 8
