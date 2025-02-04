@@ -302,11 +302,8 @@ def mrc_to_apng(plugin_params):
 def particles_3d_in_frame(
     framedata: np.ndarray,
     framenum: int,
-    radius: int,
     radius_box: int,
-    pick_x_coords: np.ndarray,
-    pick_y_coords: np.ndarray,
-    pick_z_coords: np.ndarray,
+    coords_file: Path,
 ):
     """Function to plot the pick locations of particles in a frame of a volume"""
     # Rescale the frame image
@@ -325,27 +322,45 @@ def particles_3d_in_frame(
     colour_im = im.convert("RGB")
     dim = ImageDraw.Draw(colour_im)
 
+    # Find the coordinates of the picks
+    try:
+        all_coords: pd.DataFrame = starfile.read(coords_file)["cryolo"]
+        pick_x_coords = all_coords["CoordinateX"].to_numpy(dtype=float)
+        pick_y_coords = all_coords["CoordinateY"].to_numpy(dtype=float)
+        pick_z_coords = all_coords["CoordinateZ"].to_numpy(dtype=float)
+        pick_width = all_coords["EstWidth"].to_numpy(dtype=float)
+        pick_height = all_coords["EstHeight"].to_numpy(dtype=float)
+        frame_count = all_coords["NumBoxes"].to_numpy(dtype=int)
+    except KeyError:
+        logger.warning(f"Cannot find picks in {coords_file}")
+        colour_im.thumbnail((512, 512))
+        return colour_im
+
     # Find the locations of picks which cross into this frame
-    picks_appearing_in_frame = np.abs(pick_z_coords - framenum) < radius
+    picks_appearing_in_frame = np.abs(pick_z_coords - framenum) - frame_count // 2 <= 0
     frame_x_coords = pick_x_coords[picks_appearing_in_frame]
     frame_y_coords = pick_y_coords[picks_appearing_in_frame]
     if len(frame_x_coords) and len(frame_y_coords):
         # Red circles for all coordinates
         for cid in range(len(frame_x_coords)):
             # Scale the pick radius based on the distance of frame from centre
-            cid_radius = np.sqrt(
-                radius**2
+            scaled_width = np.sqrt(
+                pick_width[cid] ** 2
+                - (pick_z_coords[picks_appearing_in_frame][cid] - framenum) ** 2
+            )
+            scaled_height = np.sqrt(
+                pick_height[cid] ** 2
                 - (pick_z_coords[picks_appearing_in_frame][cid] - framenum) ** 2
             )
             dim.ellipse(
                 [
                     (
-                        frame_x_coords[cid] + radius_box - cid_radius,
-                        frame_y_coords[cid] + radius_box - cid_radius,
+                        frame_x_coords[cid] + radius_box - scaled_width / 2,
+                        frame_y_coords[cid] + radius_box - scaled_height / 2,
                     ),
                     (
-                        frame_x_coords[cid] + radius_box + cid_radius,
-                        frame_y_coords[cid] + radius_box + cid_radius,
+                        frame_x_coords[cid] + radius_box + scaled_width / 2,
+                        frame_y_coords[cid] + radius_box + scaled_height / 2,
                     ),
                 ],
                 width=4,
@@ -359,16 +374,11 @@ def particles_3d_in_frame(
 def picked_particles_3d_central_slice(plugin_params):
     filename = plugin_params.parameters("file")
     coords_file = plugin_params.parameters("coordinates_file")
-    diameter_pixels = plugin_params.parameters("diameter_pixels")
     box_size = plugin_params.parameters("box_size")
+    radius_box = box_size // 2
     if not Path(filename).is_file() or not Path(coords_file).is_file():
         logger.error(f"File {filename} or {coords_file} not found")
         return False
-    radius = diameter_pixels // 2
-    radius_box = box_size // 2
-
-    outfile = str(Path(coords_file).with_suffix("")) + "_thumbnail.jpeg"
-
     try:
         with mrcfile.open(filename) as mrc:
             data = mrc.data
@@ -378,16 +388,6 @@ def picked_particles_3d_central_slice(plugin_params):
     if not len(data.shape) == 3:
         logger.error(f"File {filename} is not a 3D volume")
         return False
-    try:
-        all_coords: pd.DataFrame = starfile.read(coords_file)["cryolo"]
-        pick_x_coords = all_coords["CoordinateX"].to_numpy(dtype=float)
-        pick_y_coords = all_coords["CoordinateY"].to_numpy(dtype=float)
-        pick_z_coords = all_coords["CoordinateZ"].to_numpy(dtype=float)
-    except KeyError:
-        logger.warning(f"Cannot find picks in {coords_file}")
-        pick_x_coords = np.array([])
-        pick_y_coords = np.array([])
-        pick_z_coords = np.array([])
 
     # Extract central slice
     total_slices = data.shape[0]
@@ -397,12 +397,11 @@ def picked_particles_3d_central_slice(plugin_params):
     colour_im = particles_3d_in_frame(
         framedata=central_slice_data,
         framenum=central_slice_index,
-        radius=radius,
         radius_box=radius_box,
-        pick_x_coords=pick_x_coords,
-        pick_y_coords=pick_y_coords,
-        pick_z_coords=pick_z_coords,
+        coords_file=Path(coords_file),
     )
+
+    outfile = str(Path(coords_file).with_suffix("")) + "_thumbnail.jpeg"
     try:
         colour_im.save(outfile)
     except FileNotFoundError:
@@ -416,16 +415,11 @@ def picked_particles_3d_central_slice(plugin_params):
 def picked_particles_3d_apng(plugin_params):
     filename = plugin_params.parameters("file")
     coords_file = plugin_params.parameters("coordinates_file")
-    diameter_pixels = plugin_params.parameters("diameter_pixels")
     box_size = plugin_params.parameters("box_size")
+    radius_box = box_size // 2
     if not Path(filename).is_file() or not Path(coords_file).is_file():
         logger.error(f"File {filename} or {coords_file} not found")
         return False
-    radius = diameter_pixels // 2
-    radius_box = box_size // 2
-
-    outfile = str(Path(coords_file).with_suffix("")) + "_movie.png"
-
     try:
         with mrcfile.open(filename) as mrc:
             data = mrc.data
@@ -435,29 +429,18 @@ def picked_particles_3d_apng(plugin_params):
     if not len(data.shape) == 3:
         logger.error(f"File {filename} is not a 3D volume")
         return False
-    try:
-        all_coords: pd.DataFrame = starfile.read(coords_file)["cryolo"]
-        pick_x_coords = all_coords["CoordinateX"].to_numpy(dtype=float)
-        pick_y_coords = all_coords["CoordinateY"].to_numpy(dtype=float)
-        pick_z_coords = all_coords["CoordinateZ"].to_numpy(dtype=float)
-    except KeyError:
-        logger.warning(f"Cannot find picks in {coords_file}")
-        pick_x_coords = np.array([])
-        pick_y_coords = np.array([])
-        pick_z_coords = np.array([])
 
     images_to_append = []
     for framenum, frame in enumerate(data):
         colour_im = particles_3d_in_frame(
             framedata=frame,
             framenum=framenum,
-            radius=radius,
             radius_box=radius_box,
-            pick_x_coords=pick_x_coords,
-            pick_y_coords=pick_y_coords,
-            pick_z_coords=pick_z_coords,
+            coords_file=Path(coords_file),
         )
         images_to_append.append(colour_im)
+
+    outfile = str(Path(coords_file).with_suffix("")) + "_movie.png"
     try:
         im_frame0 = images_to_append[0]
         im_frame0.save(outfile, save_all=True, append_images=images_to_append[1:])
