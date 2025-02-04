@@ -16,13 +16,20 @@ logger = logging.getLogger("cryoemservices.services.images_plugins")
 logger.setLevel(logging.INFO)
 
 
+def required_parameters(parameters: Callable, required_keys: list[str]):
+    """Make sure all parameters which aren't nullable are there"""
+    for param_key in required_keys:
+        if parameters(param_key) in [False, "False", None, "None"]:
+            logger.error(f"Required key {param_key} not valid: {parameters(param_key)}")
+            return False
+    return True
+
+
 def mrc_to_jpeg(plugin_params: Callable):
-    filename = plugin_params("file")
-    allframes = plugin_params("all_frames")
-    if not filename or filename == "None":
-        logger.error("Skipping mrc to jpeg conversion: filename not specified")
+    if not required_parameters(plugin_params, ["file"]):
         return False
-    filepath = Path(filename)
+    filepath = Path(plugin_params("file"))
+    allframes = plugin_params("all_frames")
     if not filepath.is_file():
         logger.error(f"File {filepath} not found")
         return False
@@ -87,7 +94,7 @@ def mrc_to_jpeg(plugin_params: Callable):
     timing = time.perf_counter() - start
 
     logger.info(
-        f"Converted mrc to jpeg {filename} -> {outfile} in {timing:.1f} seconds",
+        f"Converted mrc to jpeg {filepath} -> {outfile} in {timing:.1f} seconds",
         extra={"image-processing-time": timing},
     )
     if outfiles:
@@ -96,6 +103,8 @@ def mrc_to_jpeg(plugin_params: Callable):
 
 
 def picked_particles(plugin_params: Callable):
+    if not required_parameters(plugin_params, ["file", "diameter", "outfile"]):
+        return False
     basefilename = Path(plugin_params("file"))
     if basefilename.suffix == ".jpeg":
         logger.info(f"Replacing jpeg extension with mrc extension for {basefilename}")
@@ -105,13 +114,10 @@ def picked_particles(plugin_params: Callable):
     pixel_size = plugin_params("pixel_size")
     if not pixel_size:
         # Legacy case of zocalo-relion
-        pixel_size = plugin_params("angpix")
+        pixel_size = plugin_params("angpix") or 1
     diam = plugin_params("diameter")
     contrast_factor = plugin_params("contrast_factor") or 6
     outfile = plugin_params("outfile")
-    if not outfile:
-        logger.error(f"Outfile incorrectly specified: {outfile}")
-        return False
     if not basefilename.is_file():
         logger.error(f"File {basefilename} not found")
         return False
@@ -124,9 +130,6 @@ def picked_particles(plugin_params: Callable):
         logger.error(
             f"File {basefilename} could not be opened. It may be corrupted or not in mrc format"
         )
-        return False
-    except FileNotFoundError:
-        logger.error(f"File {basefilename} could not be opened")
         return False
     mean = np.mean(data)
     sdev = np.std(data)
@@ -183,13 +186,10 @@ def picked_particles(plugin_params: Callable):
 
 
 def mrc_central_slice(plugin_params: Callable):
-    filename = plugin_params("file")
-    skip_rescaling = plugin_params("skip_rescaling")
-
-    if not filename or filename == "None":
-        logger.error("Skipping mrc to jpeg conversion: filename not specified")
+    if not required_parameters(plugin_params, ["file"]):
         return False
-    filepath = Path(filename)
+    filepath = Path(plugin_params("file"))
+    skip_rescaling = plugin_params("skip_rescaling")
     if not filepath.is_file():
         logger.error(f"File {filepath} not found")
         return False
@@ -236,21 +236,17 @@ def mrc_central_slice(plugin_params: Callable):
     timing = time.perf_counter() - start
 
     logger.info(
-        f"Converted mrc to jpeg {filename} -> {outfile} in {timing:.1f} seconds",
+        f"Converted mrc to jpeg {filepath} -> {outfile} in {timing:.1f} seconds",
         extra={"image-processing-time": timing},
     )
     return outfile
 
 
 def mrc_to_apng(plugin_params: Callable):
-    filename = plugin_params("file")
-    skip_rescaling = plugin_params("skip_rescaling")
-
-    if not filename or filename == "None":
-        logger.error("Skipping mrc to jpeg conversion: filename not specified")
+    if not required_parameters(plugin_params, ["file"]):
         return False
-    filepath = Path(filename)
-
+    filepath = Path(plugin_params("file"))
+    skip_rescaling = plugin_params("skip_rescaling")
     if not filepath.is_file():
         logger.error(f"File {filepath} not found")
         return False
@@ -295,7 +291,7 @@ def mrc_to_apng(plugin_params: Callable):
         return False
     timing = time.perf_counter() - start
     logger.info(
-        f"Converted mrc to apng {filename} -> {outfile} in {timing:.1f} seconds"
+        f"Converted mrc to apng {filepath} -> {outfile} in {timing:.1f} seconds"
     )
     return outfile
 
@@ -373,6 +369,8 @@ def particles_3d_in_frame(
 
 
 def picked_particles_3d_central_slice(plugin_params: Callable):
+    if not required_parameters(plugin_params, ["file", "coordinates_file", "box_size"]):
+        return False
     filename = plugin_params("file")
     coords_file = plugin_params("coordinates_file")
     box_size = plugin_params("box_size")
@@ -414,6 +412,8 @@ def picked_particles_3d_central_slice(plugin_params: Callable):
 
 
 def picked_particles_3d_apng(plugin_params: Callable):
+    if not required_parameters(plugin_params, ["file", "coordinates_file", "box_size"]):
+        return False
     filename = plugin_params("file")
     coords_file = plugin_params("coordinates_file")
     box_size = plugin_params("box_size")
