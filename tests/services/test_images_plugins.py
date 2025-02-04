@@ -358,3 +358,26 @@ def test_picked_particles_3d_apng_works_without_coords(tmp_path):
     assert picked_particles_3d_apng(
         plugin_params_tomo_pick(tmp_mrc_path, coords_file, "picked_particles_3d_apng")
     ) == str(tmp_path / "coords_movie.png")
+
+
+def test_interfaces_without_files(tmp_path):
+    """Assert rejections if files specified do not exist"""
+    (tmp_path / "test.mrc").touch()
+    (tmp_path / "coords.cbox").touch()
+
+    assert not mrc_to_jpeg(plugin_params(tmp_path / "not.mrc", False))
+    assert not picked_particles(plugin_params_parpick(tmp_path / "not.mrc", "test.jpg"))
+    assert not picked_particles(plugin_params_parpick(tmp_path / "test.jpeg", None))
+    assert not picked_particles(plugin_params_parpick(tmp_path / "test.mrc", None))
+    assert not mrc_central_slice(plugin_params_central(tmp_path / "not.mrc"))
+    assert not mrc_to_apng(plugin_params_central(tmp_path / "not.mrc"))
+    assert not picked_particles_3d_apng(
+        plugin_params_tomo_pick(
+            tmp_path / "not.mrc", tmp_path / "coords.cbox", "picked_particles_3d_apng"
+        )
+    )
+    assert not picked_particles_3d_apng(
+        plugin_params_tomo_pick(
+            tmp_path / "test.mrc", tmp_path / "not.cbox", "picked_particles_3d_apng"
+        )
+    )
