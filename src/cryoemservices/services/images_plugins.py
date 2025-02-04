@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import time
 from pathlib import Path
+from typing import Callable
 
 import mrcfile
 import numpy as np
@@ -15,9 +16,9 @@ logger = logging.getLogger("cryoemservices.services.images_plugins")
 logger.setLevel(logging.INFO)
 
 
-def mrc_to_jpeg(plugin_params):
-    filename = plugin_params.parameters("file")
-    allframes = plugin_params.parameters("all_frames")
+def mrc_to_jpeg(plugin_params: Callable):
+    filename = plugin_params("file")
+    allframes = plugin_params("all_frames")
     if not filename or filename == "None":
         logger.error("Skipping mrc to jpeg conversion: filename not specified")
         return False
@@ -94,20 +95,20 @@ def mrc_to_jpeg(plugin_params):
     return outfile
 
 
-def picked_particles(plugin_params):
-    basefilename = Path(plugin_params.parameters("file"))
+def picked_particles(plugin_params: Callable):
+    basefilename = Path(plugin_params("file"))
     if basefilename.suffix == ".jpeg":
         logger.info(f"Replacing jpeg extension with mrc extension for {basefilename}")
         basefilename = basefilename.with_suffix(".mrc")
-    coords = plugin_params.parameters("coordinates")
-    selected_coords = plugin_params.parameters("selected_coordinates")
-    pixel_size = plugin_params.parameters("pixel_size")
+    coords = plugin_params("coordinates")
+    selected_coords = plugin_params("selected_coordinates")
+    pixel_size = plugin_params("pixel_size")
     if not pixel_size:
         # Legacy case of zocalo-relion
-        pixel_size = plugin_params.parameters("angpix")
-    diam = plugin_params.parameters("diameter")
-    contrast_factor = plugin_params.parameters("contrast_factor") or 6
-    outfile = plugin_params.parameters("outfile")
+        pixel_size = plugin_params("angpix")
+    diam = plugin_params("diameter")
+    contrast_factor = plugin_params("contrast_factor") or 6
+    outfile = plugin_params("outfile")
     if not outfile:
         logger.error(f"Outfile incorrectly specified: {outfile}")
         return False
@@ -181,9 +182,9 @@ def picked_particles(plugin_params):
     return outfile
 
 
-def mrc_central_slice(plugin_params):
-    filename = plugin_params.parameters("file")
-    skip_rescaling = plugin_params.parameters("skip_rescaling")
+def mrc_central_slice(plugin_params: Callable):
+    filename = plugin_params("file")
+    skip_rescaling = plugin_params("skip_rescaling")
 
     if not filename or filename == "None":
         logger.error("Skipping mrc to jpeg conversion: filename not specified")
@@ -241,9 +242,9 @@ def mrc_central_slice(plugin_params):
     return outfile
 
 
-def mrc_to_apng(plugin_params):
-    filename = plugin_params.parameters("file")
-    skip_rescaling = plugin_params.parameters("skip_rescaling")
+def mrc_to_apng(plugin_params: Callable):
+    filename = plugin_params("file")
+    skip_rescaling = plugin_params("skip_rescaling")
 
     if not filename or filename == "None":
         logger.error("Skipping mrc to jpeg conversion: filename not specified")
@@ -371,10 +372,10 @@ def particles_3d_in_frame(
     return colour_im
 
 
-def picked_particles_3d_central_slice(plugin_params):
-    filename = plugin_params.parameters("file")
-    coords_file = plugin_params.parameters("coordinates_file")
-    box_size = plugin_params.parameters("box_size")
+def picked_particles_3d_central_slice(plugin_params: Callable):
+    filename = plugin_params("file")
+    coords_file = plugin_params("coordinates_file")
+    box_size = plugin_params("box_size")
     radius_box = box_size // 2
     if not Path(filename).is_file() or not Path(coords_file).is_file():
         logger.error(f"File {filename} or {coords_file} not found")
@@ -412,10 +413,10 @@ def picked_particles_3d_central_slice(plugin_params):
     return outfile
 
 
-def picked_particles_3d_apng(plugin_params):
-    filename = plugin_params.parameters("file")
-    coords_file = plugin_params.parameters("coordinates_file")
-    box_size = plugin_params.parameters("box_size")
+def picked_particles_3d_apng(plugin_params: Callable):
+    filename = plugin_params("file")
+    coords_file = plugin_params("coordinates_file")
+    box_size = plugin_params("box_size")
     radius_box = box_size // 2
     if not Path(filename).is_file() or not Path(coords_file).is_file():
         logger.error(f"File {filename} or {coords_file} not found")

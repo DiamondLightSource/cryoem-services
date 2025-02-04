@@ -1,14 +1,11 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Callable, NamedTuple
 from unittest import mock
 
 import mrcfile
 import numpy as np
-import workflows
 
-from cryoemservices.services.images import PluginInterface
 from cryoemservices.services.images_plugins import (
     mrc_central_slice,
     mrc_to_apng,
@@ -17,12 +14,6 @@ from cryoemservices.services.images_plugins import (
     picked_particles_3d_apng,
     picked_particles_3d_central_slice,
 )
-
-
-class FunctionParameter(NamedTuple):
-    rw: workflows.recipe.wrapper.RecipeWrapper
-    parameters: Callable
-    message: dict[str, Any]
 
 
 def plugin_params(jpeg_path: Path, all_frames: bool):
@@ -34,7 +25,7 @@ def plugin_params(jpeg_path: Path, all_frames: bool):
         }
         return p.get(key)
 
-    return FunctionParameter(rw=None, parameters=params, message={})
+    return params
 
 
 def plugin_params_central(jpeg_path):
@@ -45,7 +36,7 @@ def plugin_params_central(jpeg_path):
         }
         return p.get(key)
 
-    return FunctionParameter(rw=None, parameters=params, message={})
+    return params
 
 
 def plugin_params_parpick(jpeg_path, outfile):
@@ -60,7 +51,7 @@ def plugin_params_parpick(jpeg_path, outfile):
         }
         return p.get(key) or default
 
-    return FunctionParameter(rw=None, parameters=params, message={})
+    return params
 
 
 def plugin_params_tomo_pick(input_file, coords_file, command):
@@ -73,24 +64,7 @@ def plugin_params_tomo_pick(input_file, coords_file, command):
         }
         return p.get(key)
 
-    return FunctionParameter(rw=None, parameters=params, message={})
-
-
-def test_contract_with_images_service():
-    # Check that we do not declare any keys that are unknown in the images service
-    assert set(FunctionParameter._fields).issubset(PluginInterface._fields)
-
-    for key, annotation in FunctionParameter.__annotations__.items():
-        if annotation is Any:
-            continue
-        upstream_type = PluginInterface.__annotations__[key]
-        if annotation == upstream_type:
-            continue
-        if not hasattr(annotation, "_name") or not hasattr(upstream_type, "_name"):
-            raise TypeError(
-                f"Parameter {key!r} with local type {annotation!r} does not match upstream type {upstream_type!r}"
-            )
-        assert annotation._name == upstream_type._name
+    return params
 
 
 def test_mrc_to_jpeg_nack_when_file_not_found(tmp_path):
