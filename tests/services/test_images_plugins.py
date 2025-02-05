@@ -1,14 +1,11 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Callable, NamedTuple
 from unittest import mock
 
 import mrcfile
 import numpy as np
-import workflows
 
-from cryoemservices.services.images import PluginInterface
 from cryoemservices.services.images_plugins import (
     mrc_central_slice,
     mrc_to_apng,
@@ -17,12 +14,6 @@ from cryoemservices.services.images_plugins import (
     picked_particles_3d_apng,
     picked_particles_3d_central_slice,
 )
-
-
-class FunctionParameter(NamedTuple):
-    rw: workflows.recipe.wrapper.RecipeWrapper
-    parameters: Callable
-    message: dict[str, Any]
 
 
 def plugin_params(jpeg_path: Path, all_frames: bool):
@@ -34,7 +25,7 @@ def plugin_params(jpeg_path: Path, all_frames: bool):
         }
         return p.get(key)
 
-    return FunctionParameter(rw=None, parameters=params, message={})
+    return params
 
 
 def plugin_params_central(jpeg_path):
@@ -45,7 +36,7 @@ def plugin_params_central(jpeg_path):
         }
         return p.get(key)
 
-    return FunctionParameter(rw=None, parameters=params, message={})
+    return params
 
 
 def plugin_params_parpick(jpeg_path, outfile):
@@ -60,7 +51,7 @@ def plugin_params_parpick(jpeg_path, outfile):
         }
         return p.get(key) or default
 
-    return FunctionParameter(rw=None, parameters=params, message={})
+    return params
 
 
 def plugin_params_tomo_pick(input_file, coords_file, command):
@@ -69,29 +60,11 @@ def plugin_params_tomo_pick(input_file, coords_file, command):
             "parameters": {"images_command": command},
             "file": input_file,
             "coordinates_file": coords_file,
-            "diameter_pixels": 40,
             "box_size": 40,
         }
         return p.get(key)
 
-    return FunctionParameter(rw=None, parameters=params, message={})
-
-
-def test_contract_with_images_service():
-    # Check that we do not declare any keys that are unknown in the images service
-    assert set(FunctionParameter._fields).issubset(PluginInterface._fields)
-
-    for key, annotation in FunctionParameter.__annotations__.items():
-        if annotation is Any:
-            continue
-        upstream_type = PluginInterface.__annotations__[key]
-        if annotation == upstream_type:
-            continue
-        if not hasattr(annotation, "_name") or not hasattr(upstream_type, "_name"):
-            raise TypeError(
-                f"Parameter {key!r} with local type {annotation!r} does not match upstream type {upstream_type!r}"
-            )
-        assert annotation._name == upstream_type._name
+    return params
 
 
 def test_mrc_to_jpeg_nack_when_file_not_found(tmp_path):
@@ -212,7 +185,8 @@ def test_picked_particles_3d_central_slice_works_with_3d(mock_imagedraw, tmp_pat
         cbox.write(
             "data_global\n\n_version 1\n\n"
             "data_cryolo\n\nloop_\n_CoordinateX\n_CoordinateY\n_CoordinateZ\n"
-            "40 50 0\n70 80 1\n"
+            "_EstWidth\n_EstHeight\n_NumBoxes\n"
+            "40 50 0 20 30 2 \n70 80 1 40 50 2\n"
         )
     assert picked_particles_3d_central_slice(
         plugin_params_tomo_pick(
@@ -228,12 +202,12 @@ def test_picked_particles_3d_central_slice_works_with_3d(mock_imagedraw, tmp_pat
     mock_imagedraw.Draw().ellipse.assert_any_call(
         [
             (
-                40 + 20 - np.sqrt(20**2 - 1**2),
-                50 + 20 - np.sqrt(20**2 - 1**2),
+                40 + 20 - np.sqrt(20**2 - 1**2) / 2,
+                50 + 20 - np.sqrt(30**2 - 1**2) / 2,
             ),
             (
-                40 + 20 + np.sqrt(20**2 - 1**2),
-                50 + 20 + np.sqrt(20**2 - 1**2),
+                40 + 20 + np.sqrt(20**2 - 1**2) / 2,
+                50 + 20 + np.sqrt(30**2 - 1**2) / 2,
             ),
         ],
         width=4,
@@ -242,12 +216,12 @@ def test_picked_particles_3d_central_slice_works_with_3d(mock_imagedraw, tmp_pat
     mock_imagedraw.Draw().ellipse.assert_any_call(
         [
             (
-                70,
-                80,
+                70 + 20 - 20,
+                80 + 20 - 25,
             ),
             (
                 70 + 20 + 20,
-                80 + 20 + 20,
+                80 + 20 + 25,
             ),
         ],
         width=4,
@@ -302,7 +276,8 @@ def test_picked_particles_3d_apng_works_with_3d(mock_imagedraw, tmp_path):
         cbox.write(
             "data_global\n\n_version 1\n\n"
             "data_cryolo\n\nloop_\n_CoordinateX\n_CoordinateY\n_CoordinateZ\n"
-            "40 50 0\n70 80 1\n"
+            "_EstWidth\n_EstHeight\n_NumBoxes\n"
+            "40 50 0 20 30 2 \n70 80 1 40 50 2\n"
         )
     assert picked_particles_3d_apng(
         plugin_params_tomo_pick(tmp_mrc_path, coords_file, "picked_particles_3d_apng")
@@ -314,26 +289,12 @@ def test_picked_particles_3d_apng_works_with_3d(mock_imagedraw, tmp_path):
     mock_imagedraw.Draw().ellipse.assert_any_call(
         [
             (
-                40,
-                50,
+                40 + 20 - 10,
+                50 + 20 - 15,
             ),
             (
-                40 + 20 + 20,
-                50 + 20 + 20,
-            ),
-        ],
-        width=4,
-        outline="#f52407",
-    )
-    mock_imagedraw.Draw().ellipse.assert_any_call(
-        [
-            (
-                40 + 20 - np.sqrt(20**2 - 1**2),
-                50 + 20 - np.sqrt(20**2 - 1**2),
-            ),
-            (
-                40 + 20 + np.sqrt(20**2 - 1**2),
-                50 + 20 + np.sqrt(20**2 - 1**2),
+                40 + 20 + 10,
+                50 + 20 + 15,
             ),
         ],
         width=4,
@@ -342,12 +303,26 @@ def test_picked_particles_3d_apng_works_with_3d(mock_imagedraw, tmp_path):
     mock_imagedraw.Draw().ellipse.assert_any_call(
         [
             (
-                70,
-                80,
+                40 + 20 - np.sqrt(20**2 - 1**2) / 2,
+                50 + 20 - np.sqrt(30**2 - 1**2) / 2,
+            ),
+            (
+                40 + 20 + np.sqrt(20**2 - 1**2) / 2,
+                50 + 20 + np.sqrt(30**2 - 1**2) / 2,
+            ),
+        ],
+        width=4,
+        outline="#f52407",
+    )
+    mock_imagedraw.Draw().ellipse.assert_any_call(
+        [
+            (
+                70 + 20 - 20,
+                80 + 20 - 25,
             ),
             (
                 70 + 20 + 20,
-                80 + 20 + 20,
+                80 + 20 + 25,
             ),
         ],
         width=4,
@@ -356,12 +331,12 @@ def test_picked_particles_3d_apng_works_with_3d(mock_imagedraw, tmp_path):
     mock_imagedraw.Draw().ellipse.assert_any_call(
         [
             (
-                70 + 20 - np.sqrt(20**2 - 1**2),
-                80 + 20 - np.sqrt(20**2 - 1**2),
+                70 + 20 - np.sqrt(40**2 - 1**2) / 2,
+                80 + 20 - np.sqrt(50**2 - 1**2) / 2,
             ),
             (
-                70 + 20 + np.sqrt(20**2 - 1**2),
-                80 + 20 + np.sqrt(20**2 - 1**2),
+                70 + 20 + np.sqrt(40**2 - 1**2) / 2,
+                80 + 20 + np.sqrt(50**2 - 1**2) / 2,
             ),
         ],
         width=4,
@@ -383,3 +358,46 @@ def test_picked_particles_3d_apng_works_without_coords(tmp_path):
     assert picked_particles_3d_apng(
         plugin_params_tomo_pick(tmp_mrc_path, coords_file, "picked_particles_3d_apng")
     ) == str(tmp_path / "coords_movie.png")
+
+
+def test_interfaces_without_keys():
+    """Test that file path keys are required"""
+    assert not mrc_to_jpeg(lambda x: None)
+    assert not picked_particles(lambda x: None)
+    assert not mrc_central_slice(lambda x: None)
+    assert not mrc_to_apng(lambda x: None)
+    assert not picked_particles_3d_central_slice(lambda x: None)
+    assert not picked_particles_3d_apng(lambda x: None)
+
+
+def test_interfaces_without_files(tmp_path):
+    """Assert rejections if files specified do not exist"""
+    (tmp_path / "test.mrc").touch()
+    (tmp_path / "coords.cbox").touch()
+
+    assert not mrc_to_jpeg(plugin_params(tmp_path / "not.mrc", False))
+    assert not picked_particles(plugin_params_parpick(tmp_path / "not.mrc", "test.jpg"))
+    assert not picked_particles(plugin_params_parpick(tmp_path / "test.jpeg", None))
+    assert not picked_particles(plugin_params_parpick(tmp_path / "test.mrc", None))
+    assert not mrc_central_slice(plugin_params_central(tmp_path / "not.mrc"))
+    assert not mrc_to_apng(plugin_params_central(tmp_path / "not.mrc"))
+    assert not picked_particles_3d_central_slice(
+        plugin_params_tomo_pick(
+            tmp_path / "not.mrc", tmp_path / "coords.cbox", "picked_particles_3d_apng"
+        )
+    )
+    assert not picked_particles_3d_central_slice(
+        plugin_params_tomo_pick(
+            tmp_path / "test.mrc", tmp_path / "not.cbox", "picked_particles_3d_apng"
+        )
+    )
+    assert not picked_particles_3d_apng(
+        plugin_params_tomo_pick(
+            tmp_path / "not.mrc", tmp_path / "coords.cbox", "picked_particles_3d_apng"
+        )
+    )
+    assert not picked_particles_3d_apng(
+        plugin_params_tomo_pick(
+            tmp_path / "test.mrc", tmp_path / "not.cbox", "picked_particles_3d_apng"
+        )
+    )

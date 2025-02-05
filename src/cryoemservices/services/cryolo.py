@@ -286,14 +286,12 @@ class CrYOLO(CommonService):
                 "image_command": "picked_particles_3d_apng",
                 "file": cryolo_params.input_path,
                 "coordinates_file": cryolo_params.output_path,
-                "diameter_pixels": cryolo_params.cryolo_box_size,
                 "box_size": cryolo_params.cryolo_box_size,
             }
             central_slice_parameters = {
                 "image_command": "picked_particles_3d_central_slice",
                 "file": cryolo_params.input_path,
                 "coordinates_file": cryolo_params.output_path,
-                "diameter_pixels": cryolo_params.cryolo_box_size,
                 "box_size": cryolo_params.cryolo_box_size,
             }
             rw.send_to("images", movie_parameters)

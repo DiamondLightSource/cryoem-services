@@ -295,7 +295,6 @@ def test_cryolo_service_tomography(mock_subprocess, offline_transport, tmp_path)
             "image_command": "picked_particles_3d_apng",
             "file": cryolo_test_message["input_path"],
             "coordinates_file": cryolo_test_message["output_path"],
-            "diameter_pixels": 40,
             "box_size": 40,
         },
     )
@@ -305,7 +304,6 @@ def test_cryolo_service_tomography(mock_subprocess, offline_transport, tmp_path)
             "image_command": "picked_particles_3d_central_slice",
             "file": cryolo_test_message["input_path"],
             "coordinates_file": cryolo_test_message["output_path"],
-            "diameter_pixels": 40,
             "box_size": 40,
         },
     )

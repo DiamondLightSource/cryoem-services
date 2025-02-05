@@ -49,9 +49,7 @@ def test_images_call(mock_picker_image):
     service.image_call(mock_recipe_wrapper, header=header, message=images_test_message)
 
     # Check the correct calls were made
-    mock_picker_image.assert_called_with(
-        images.PluginInterface(mock_recipe_wrapper, mock.ANY, images_test_message)
-    )
+    mock_picker_image.assert_called_once()
     mock_recipe_wrapper.transport.ack.assert_called()
 
 
@@ -83,9 +81,7 @@ def test_images_failed_call(mock_picker_image):
     service.image_call(mock_recipe_wrapper, header=header, message=images_test_message)
 
     # Check the correct calls were made
-    mock_picker_image.assert_called_with(
-        images.PluginInterface(mock_recipe_wrapper, mock.ANY, images_test_message)
-    )
+    mock_picker_image.assert_called_once()
     mock_recipe_wrapper.transport.nack.assert_called()
 
 
@@ -117,9 +113,7 @@ def test_images_file_not_found(mock_picker_image):
     service.image_call(mock_recipe_wrapper, header=header, message=images_test_message)
 
     # Check the correct calls were made
-    mock_picker_image.assert_called_with(
-        images.PluginInterface(mock_recipe_wrapper, mock.ANY, images_test_message)
-    )
+    mock_picker_image.assert_called_once()
     mock_recipe_wrapper.transport.nack.assert_called()
 
 
