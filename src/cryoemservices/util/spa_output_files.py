@@ -15,6 +15,8 @@ NODE_PARTICLEGROUPMETADATA = "ParticleGroupMetadata"
 def get_ice_ring_density(output_file: Path):
     with open(f"{output_file.with_suffix('')}_avrot.txt", "r") as f:
         ctf_rings = f.readlines()[5:7]
+    if not ctf_rings:
+        return 0
     ring_levels = np.array(ctf_rings[0].split(), dtype=float)
     ice_values = np.array(ctf_rings[1].split(), dtype=float)
     return np.sum(np.abs(ice_values[(ring_levels > 0.25) * (ring_levels < 0.28)]))
@@ -306,6 +308,38 @@ def _cryolo_output_files(
     else:
         with open(star_file, "a") as output_cif:
             output_cif.write(" ".join(added_line) + "\n")
+
+    # Sort out the cryosparc file
+    cryosparc_file = job_dir / "CRYOSPARC/cryosparc.star"
+    if not cryosparc_file.exists():
+        cryosparc_file.parent.mkdir(exist_ok=True)
+        with open(cryosparc_file, "w") as csparc_file:
+            csparc_file.write(
+                "data_\n\nloop_\n_rlnMicrographName\n"
+                "_rlnCoordinateX\n_rlnCoordinateY\n_rlnAutopickFigureOfMerit\n"
+            )
+
+    with (
+        open(cryosparc_file, "a") as csparc_file,
+        open(
+            output_file.parent / "CBOX" / output_file.with_suffix(".cbox").name, "r"
+        ) as cbox_file,
+    ):
+        while True:
+            line = cbox_file.readline()
+            if not line:
+                break
+            if line and line[0].isnumeric():
+                # Find coordinates and add half the box size to get centre
+                split_line = line.split()
+                x_coordinate = float(split_line[0]) + float(split_line[3]) / 2
+                y_coordinate = float(split_line[1]) + float(split_line[4]) / 2
+                confidence = float(split_line[8])
+                if confidence >= relion_options.cryolo_threshold:
+                    # Only append if above the given threshold
+                    csparc_file.write(
+                        f"{star_file.stem} {x_coordinate} {y_coordinate} {confidence}\n"
+                    )
 
 
 def _extract_output_files(
