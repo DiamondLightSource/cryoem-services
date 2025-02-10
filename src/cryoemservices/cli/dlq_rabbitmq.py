@@ -231,10 +231,10 @@ def run() -> None:
             )
 
     if args.messages:
-        if isinstance(args.messages, str):
-            extra_messages = list(Path(".").glob(args.messages))
+        if len(args.messages) == 1:
+            extra_messages = list(Path(".").glob(args.messages[0]))
         else:
-            extra_messages = args.messages
+            extra_messages = [Path(msg) for msg in args.messages]
         dlq_reinject(
             extra_messages,
             float(args.wait),

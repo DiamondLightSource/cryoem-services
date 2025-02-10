@@ -328,7 +328,9 @@ def test_rabbitmq_dlq_purge_reinject_remove(
 
 @mock.patch("cryoemservices.cli.dlq_rabbitmq.dlq_reinject")
 @mock.patch("cryoemservices.cli.dlq_rabbitmq.check_dlq_rabbitmq")
-def test_rabbitmq_dlq_reinject_extras(mock_check, mock_reinject, config_file, tmp_path):
+def test_rabbitmq_dlq_reinject_extras_string(
+    mock_check, mock_reinject, config_file, tmp_path
+):
     """Test that the messages glob happens as expected through the CLI"""
     os.chdir(tmp_path)
     (tmp_path / "DLQ").mkdir()
@@ -364,6 +366,47 @@ def test_rabbitmq_dlq_reinject_extras(mock_check, mock_reinject, config_file, tm
     assert mock_reinject.call_args_list[0][0][3] is False
 
 
+@mock.patch("cryoemservices.cli.dlq_rabbitmq.dlq_reinject")
+@mock.patch("cryoemservices.cli.dlq_rabbitmq.check_dlq_rabbitmq")
+def test_rabbitmq_dlq_reinject_extras_list(
+    mock_check, mock_reinject, config_file, tmp_path
+):
+    """Test that a list of messages can be sent through the CLI"""
+    os.chdir(tmp_path)
+    (tmp_path / "DLQ").mkdir()
+    for i in range(4):
+        (tmp_path / f"DLQ/msg0{i}").touch()
+
+    sys.argv = [
+        "cryoemservices.dlq_rabbitmq",
+        "--config_file",
+        str(config_file),
+        "--messages",
+        "DLQ/msg00",
+        "DLQ/msg01",
+        "DLQ/msg02",
+    ]
+    dlq_rabbitmq.run()
+
+    # DLQ checks are always run
+    mock_check.assert_called_once()
+
+    # The provided messages should have been reinjected
+    mock_reinject.assert_called_once()
+    assert len(mock_reinject.call_args_list) == 1
+    assert len(mock_reinject.call_args_list[0][0]) == 4
+    assert sorted(mock_reinject.call_args_list[0][0][0]) == [
+        Path("DLQ/msg00"),
+        Path("DLQ/msg01"),
+        Path("DLQ/msg02"),
+    ]
+    assert mock_reinject.call_args_list[0][0][1] == 0.0
+    assert (
+        mock_reinject.call_args_list[0][0][2] == tmp_path / "rabbitmq-credentials.yaml"
+    )
+    assert mock_reinject.call_args_list[0][0][3] is False
+
+
 def test_dlq_rabbitmq_exists():
     """Test the DLQ check CLI is made"""
     result = subprocess.run(
@@ -382,5 +425,5 @@ def test_dlq_rabbitmq_exists():
     )
     assert cleaned_help_line == (
         "usage:cryoemservices.dlq_rabbitmq[-h]-cCONFIG_FILE[-qQUEUE]"
-        "[--reinject][-mMESSAGES][--remove][-wWAIT][--skip_checks]"
+        "[--reinject][-m[MESSAGES...]][--remove][-wWAIT][--skip_checks]"
     )
