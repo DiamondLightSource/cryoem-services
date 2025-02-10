@@ -80,4 +80,5 @@ repos:
     hooks:
       - id: prettier
         name: Formatting other file types according to Prettier
+        exclude: Helm/charts/.*?/templates/deployment\.yaml
         # types_or: [css, html, json, yaml]
