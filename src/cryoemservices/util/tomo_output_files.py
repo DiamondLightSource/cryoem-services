@@ -508,7 +508,7 @@ def _tomogram_output_files(
         str(relion_options.pixel_size),
         str(relion_options.invert_hand),
         "optics1",
-        str(relion_options.pixel_size_downscaled),
+        str(relion_options.pixel_size),
         f"AlignTiltSeries/job005/tilt_series/{tilt_series_name}.star",
         str(relion_options.pixel_size_downscaled / relion_options.pixel_size),
         str(relion_options.tomo_size_x),
@@ -569,7 +569,7 @@ def _denoising_output_files(
         str(relion_options.pixel_size),
         str(relion_options.invert_hand),
         "optics1",
-        str(relion_options.pixel_size_downscaled),
+        str(relion_options.pixel_size),
         f"AlignTiltSeries/job005/tilt_series/{tilt_series_name}.star",
         str(relion_options.pixel_size_downscaled / relion_options.pixel_size),
         str(relion_options.tomo_size_x),
@@ -664,9 +664,20 @@ def _cryolo_output_files(
         for particle in range(len(loop_x)):
             added_line = [
                 tilt_series_name,
-                str(float(loop_x[particle]) + float(loop_width[particle]) / 2),
-                str(float(loop_y[particle]) + float(loop_height[particle]) / 2),
-                loop_z[particle],
+                str(
+                    (float(loop_x[particle]) + float(loop_width[particle]) / 2)
+                    * relion_options.pixel_size_downscaled
+                    - relion_options.tomo_size_x / 2 * relion_options.pixel_size
+                ),
+                str(
+                    (float(loop_y[particle]) + float(loop_height[particle]) / 2)
+                    * relion_options.pixel_size_downscaled
+                    - relion_options.tomo_size_y / 2 * relion_options.pixel_size
+                ),
+                str(
+                    float(loop_z[particle]) * relion_options.pixel_size_downscaled
+                    - relion_options.vol_z / 2 * relion_options.pixel_size
+                ),
             ]
             output_cif.write(" ".join(added_line) + "\n")
 
