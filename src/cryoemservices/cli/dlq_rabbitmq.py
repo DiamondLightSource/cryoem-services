@@ -62,6 +62,7 @@ def dlq_purge(queue: str, rabbitmq_credentials: Path) -> list[Path]:
         filename = filepath / (
             f"{queue}-"
             + time.strftime("%Y%m%d-%H%M%S", timestamp)
+            + "-"
             + str(header["message-id"])
         )
 
@@ -178,6 +179,7 @@ def run() -> None:
     parser.add_argument(
         "-m",
         "--messages",
+        nargs="*",
         required=False,
         help="Path pattern to extra messages to be reinjected",
     )
@@ -229,7 +231,10 @@ def run() -> None:
             )
 
     if args.messages:
-        extra_messages = list(Path(".").glob(args.messages))
+        if isinstance(args.messages, str):
+            extra_messages = list(Path(".").glob(args.messages))
+        else:
+            extra_messages = args.messages
         dlq_reinject(
             extra_messages,
             float(args.wait),
