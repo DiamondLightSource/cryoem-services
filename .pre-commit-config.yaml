@@ -17,6 +17,7 @@ repos:
         name: Verifying JSON file syntax
       - id: check-yaml
         name: Verifying YAML file syntax
+        exclude: Helm/charts/.*?/templates/deployment.yaml
         args: [--allow-multiple-documents]
       - id: check-toml
         name: Verifying TOML file syntax
