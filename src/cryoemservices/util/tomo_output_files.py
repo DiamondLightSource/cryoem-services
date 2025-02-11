@@ -643,8 +643,7 @@ def _cryolo_output_files(
         with open(particles_file, "w") as pf:
             pf.write(
                 "data_particles\n\nloop_\n"
-                "_rlnTomoName\n_rlnCenteredCoordinateXAngst\n"
-                "_rlnCenteredCoordinateYAngst\n_rlnCenteredCoordinateZAngst\n"
+                "_rlnTomoName\n_rlnCoordinateX\n_rlnCoordinateY\n_rlnCoordinateZ\n"
             )
 
     # Read in the output particles
@@ -659,6 +658,9 @@ def _cryolo_output_files(
     loop_width = cryolo_block.find_loop("_EstWidth")
     loop_height = cryolo_block.find_loop("_EstHeight")
 
+    # Scale coordinates back to original tilt size
+    scaling_factor = relion_options.pixel_size_downscaled / relion_options.pixel_size
+
     # Append all the particles to the particles file
     with open(particles_file, "a") as output_cif:
         for particle in range(len(loop_x)):
@@ -666,18 +668,13 @@ def _cryolo_output_files(
                 tilt_series_name,
                 str(
                     (float(loop_x[particle]) + float(loop_width[particle]) / 2)
-                    * relion_options.pixel_size_downscaled
-                    - relion_options.tomo_size_x / 2 * relion_options.pixel_size
+                    * scaling_factor
                 ),
                 str(
                     (float(loop_y[particle]) + float(loop_height[particle]) / 2)
-                    * relion_options.pixel_size_downscaled
-                    - relion_options.tomo_size_y / 2 * relion_options.pixel_size
+                    * scaling_factor
                 ),
-                str(
-                    float(loop_z[particle]) * relion_options.pixel_size_downscaled
-                    - relion_options.vol_z / 2 * relion_options.pixel_size
-                ),
+                str(float(loop_z[particle]) * scaling_factor),
             ]
             output_cif.write(" ".join(added_line) + "\n")
 
