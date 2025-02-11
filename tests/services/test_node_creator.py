@@ -1362,7 +1362,7 @@ def test_node_creator_tomograms(offline_transport, tmp_path):
     ]
     assert list(global_block.find_loop("_rlnOpticsGroupName")) == ["optics1"]
     assert list(global_block.find_loop("_rlnTomoTiltSeriesPixelSize")) == [
-        str(relion_options.pixel_size_downscaled)
+        str(relion_options.pixel_size)
     ]
     assert list(global_block.find_loop("_rlnTomoTiltSeriesStarFile")) == [
         "AlignTiltSeries/job005/tilt_series/Position_1_2.star"
@@ -1430,7 +1430,7 @@ def test_node_creator_denoisetomo(offline_transport, tmp_path):
     ]
     assert list(global_block.find_loop("_rlnOpticsGroupName")) == ["optics1"]
     assert list(global_block.find_loop("_rlnTomoTiltSeriesPixelSize")) == [
-        str(relion_options.pixel_size_downscaled)
+        str(relion_options.pixel_size)
     ]
     assert list(global_block.find_loop("_rlnTomoTiltSeriesStarFile")) == [
         "AlignTiltSeries/job005/tilt_series/Position_1_2.star"
@@ -1469,6 +1469,8 @@ def test_node_creator_cryolo_tomo(offline_transport, tmp_path):
     relion_options = RelionServiceOptions()
 
     relion_options.cryolo_config_file = str(tmp_path / job_dir / "cryolo_config.json")
+    relion_options.pixel_size = 1.2
+    relion_options.pixel_size_downscaled = 4.8
     (tmp_path / job_dir / "cryolo_config.json").touch()
 
     with open(
@@ -1513,15 +1515,15 @@ def test_node_creator_cryolo_tomo(offline_transport, tmp_path):
         "Position_1_2",
         "Position_1_2",
     ]
-    assert list(particles_block.find_loop("_rlnCenteredCoordinateXAngst")) == [
-        "62.5",
-        "94.0",
-    ]
-    assert list(particles_block.find_loop("_rlnCenteredCoordinateYAngst")) == [
-        "73.0",
-        "105.0",
-    ]
-    assert list(particles_block.find_loop("_rlnCenteredCoordinateZAngst")) == [
-        "80",
-        "110",
-    ]
+    x_coords = list(particles_block.find_loop("_rlnCoordinateX"))
+    y_coords = list(particles_block.find_loop("_rlnCoordinateY"))
+    z_coords = list(particles_block.find_loop("_rlnCoordinateZ"))
+    assert len(x_coords) == 2
+    assert float(x_coords[0]) == 62.5 * 4
+    assert float(x_coords[1]) == 94.0 * 4
+    assert len(y_coords) == 2
+    assert float(y_coords[0]) == 73 * 4
+    assert float(y_coords[1]) == 105 * 4
+    assert len(z_coords) == 2
+    assert float(z_coords[0]) == 80 * 4
+    assert float(z_coords[1]) == 110 * 4
