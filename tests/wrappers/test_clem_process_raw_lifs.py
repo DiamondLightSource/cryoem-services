@@ -182,11 +182,17 @@ def dummy_result(
     """
 
     return {
-        "image_stack": str(processed_dir / series_name / f"{color}.tiff"),
-        "metadata": str(
-            processed_dir / series_name / "metadata" / f"{series_name}.xml"
+        "image_stack": str(
+            processed_dir / lif_file.stem / series_name / f"{color}.tiff"
         ),
-        "series_name": series_name,
+        "metadata": str(
+            processed_dir
+            / lif_file.stem
+            / series_name
+            / "metadata"
+            / f"{series_name}.xml"
+        ),
+        "series_name": f"{lif_file.stem}--{series_name}",
         "channel": color,
         "number_of_members": num_channels,
         "parent_lif": str(lif_file),
@@ -235,7 +241,22 @@ def test_process_lif_substack(
         metadata,
         processed_dir,
     )
-    assert results
+    assert results  # Verify that function completed successfully
+
+    # Verify against expected results
+    dummy_results = [
+        dummy_result(
+            lif_file,
+            f"test_series_{scene_num}",
+            color,
+            processed_dir,
+        )
+        for color in colors
+    ]
+    # Order of list of dictionaries should match exactly
+    for r, result in enumerate(results):
+        for key in result.keys():
+            assert result[key] == dummy_results[r][key]
 
 
 @mock.patch("multiprocessing.Pool")
