@@ -3,17 +3,22 @@ from __future__ import annotations
 import time
 import uuid
 import xml.etree.ElementTree as ET
+from collections import namedtuple
 from pathlib import Path
 from unittest import mock
 from unittest.mock import MagicMock
 from xml.etree.ElementTree import Element
 
+import numpy as np
 import pytest
-from readlif.reader import LifFile
+from readlif.reader import LifFile, LifImage
 from workflows.recipe.wrapper import RecipeWrapper
 from workflows.transport.offline_transport import OfflineTransport
 
-from cryoemservices.util.clem_raw_metadata import get_image_elements
+from cryoemservices.util.clem_raw_metadata import (
+    get_axis_resolution,
+    get_image_elements,
+)
 from cryoemservices.wrappers.clem_process_raw_lifs import (
     LIFToStackWrapper,
     convert_lif_to_stack,
@@ -30,7 +35,7 @@ processed_folder = "processed"
 series_name = "test_series"
 num_scenes = 8
 scene_num = 0
-num_z = 20
+num_z = 5
 colors = [
     "gray",
     "green",
@@ -188,6 +193,51 @@ def dummy_result(
     }
 
 
+@mock.patch("cryoemservices.wrappers.clem_process_raw_lifs.LifFile")
+def test_process_lif_substack(
+    mock_lif_file,
+    lif_file: Path,
+    raw_xml_metadata: Element,
+    processed_dir: Path,
+):
+    scene_num = 0
+
+    metadata = get_image_elements(raw_xml_metadata)[scene_num]
+
+    # Mock out the LifImage object generated in the function
+    mock_lif_image = MagicMock(spec=LifImage)
+
+    # Generate values for the 'dims' attribute
+    Dims = namedtuple("Dims", "x y z t m")
+    mock_lif_image.dims = Dims(2048, 2048, num_z, 0, 0)
+
+    # Generate values for the 'scale' attribute
+    dimensions = metadata.findall(
+        "Data/Image/ImageDescription/Dimensions/DimensionDescription"
+    )
+    mock_lif_image.scale = [get_axis_resolution(element) for element in dimensions]
+
+    # Create a NumPy array for the 'get_frame' attribute
+    mock_lif_image.get_frame.return_value = np.random.randint(
+        0, 256, (2048, 2048), dtype="uint16"
+    )
+
+    # Assign a return value to the 'bit_depth' attribute
+    mock_lif_image.bit_depth = [16 for c in range(num_channels)]
+
+    # Assign LifImage mock object LifFile function
+    mock_lif_file.return_value.get_image.return_value = mock_lif_image
+
+    # Run the function
+    results = process_lif_substack(
+        lif_file,
+        scene_num,
+        metadata,
+        processed_dir,
+    )
+    assert results
+
+
 @mock.patch("multiprocessing.Pool")
 @mock.patch("cryoemservices.wrappers.clem_process_raw_lifs.get_lif_xml_metadata")
 @mock.patch("cryoemservices.wrappers.clem_process_raw_lifs.LifFile")
@@ -248,7 +298,7 @@ def test_convert_lif_to_stack(
         number_of_processes=1,
     )
 
-    # Check that arguments were fed into the multiprocessing function the correct number of times
+    # Check that arguments were fed into the multiprocessing function correctly
     mock_pool_instance.starmap.assert_called_once_with(
         process_lif_substack,
         [
