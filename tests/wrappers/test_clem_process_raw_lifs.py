@@ -17,6 +17,7 @@ from cryoemservices.util.clem_raw_metadata import get_image_elements
 from cryoemservices.wrappers.clem_process_raw_lifs import (
     LIFToStackWrapper,
     convert_lif_to_stack,
+    get_lif_xml_metadata,
     process_lif_substack,
 )
 
@@ -147,6 +148,22 @@ def raw_xml_metadata(lif_file: Path):
         xml_metadata[element_index:element_index] = create_element(n, colors)
 
     return ET.fromstring("\n".join(xml_metadata))
+
+
+def test_get_lif_xml_metadata(
+    tmp_path: Path,
+    raw_xml_metadata: Element,
+):
+    # Mock out the XML Element object extracted from the LIF file
+    mock_lif_file = MagicMock(spec=LifFile)
+    mock_lif_file.xml_root = raw_xml_metadata
+
+    # Save to an arbitrary Path
+    xml_file = tmp_path / "test_file.xml"
+    get_lif_xml_metadata(mock_lif_file, xml_file)
+
+    # Assert that the xml file was created
+    assert xml_file.exists()
 
 
 def dummy_result(
