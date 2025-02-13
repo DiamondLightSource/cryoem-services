@@ -29,6 +29,29 @@ from cryoemservices.util.clem_raw_metadata import get_image_elements
 logger = logging.getLogger("cryoemservices.wrappers.clem_process_raw_lifs")
 
 
+def get_lif_xml_metadata(
+    file: LifFile,
+    save_xml: Optional[Path] = None,
+) -> ET.Element:
+    """
+    Extracts and returns the metadata from the LIF file as a formatted XML Element.
+    It can be optionally saved as an XML file to the specified file path.
+    """
+
+    # Use readlif function to get XML metadata
+    xml_root: ET.Element = file.xml_root  # This one for navigating
+    xml_tree = ET.ElementTree(xml_root)  # This one for saving
+
+    # Skip saving the metadata if save_xml not provided
+    if save_xml:
+        xml_file = str(save_xml)  # Convert Path to string
+        ET.indent(xml_tree, "  ")  # Format with proper indentation
+        xml_tree.write(xml_file, encoding="utf-8")  # Save
+        logger.info(f"File metadata saved to {xml_file!r}")
+
+    return xml_root
+
+
 def process_lif_substack(
     file: Path,
     scene_num: int,
@@ -212,28 +235,6 @@ def convert_lif_to_stack(
                 |   |__ tiffs       <- Save channels as individual image stacks
                 |   |__ metadata    <- Individual XML files saved here (not yet implemented)
     """
-
-    def get_lif_xml_metadata(
-        file: LifFile,
-        save_xml: Optional[Path] = None,
-    ) -> ET.Element:
-        """
-        Extracts and returns the metadata from the LIF file as a formatted XML Element.
-        It can be optionally saved as an XML file to the specified file path.
-        """
-
-        # Use readlif function to get XML metadata
-        xml_root: ET.Element = file.xml_root  # This one for navigating
-        xml_tree = ET.ElementTree(xml_root)  # This one for saving
-
-        # Skip saving the metadata if save_xml not provided
-        if save_xml:
-            xml_file = str(save_xml)  # Convert Path to string
-            ET.indent(xml_tree, "  ")  # Format with proper indentation
-            xml_tree.write(xml_file, encoding="utf-8")  # Save
-            logger.info(f"File metadata saved to {xml_file!r}")
-
-        return xml_root
 
     # Validate processor count input
     num_procs = number_of_processes  # Use shorter phrase in script
