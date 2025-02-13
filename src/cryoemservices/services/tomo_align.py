@@ -9,9 +9,11 @@ from pathlib import Path
 from typing import Any, List, Optional
 
 import mrcfile
+import numpy as np
 import plotly.express as px
 import workflows.recipe
 import workflows.transport
+from gemmi import cif
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 from workflows.services.common_service import CommonService
 
@@ -266,6 +268,25 @@ class TomoAlign(CommonService):
                 self.log.warning(f"Removing: {tilt[0]}")
                 indexes_to_remove.append(self.input_file_list_of_lists.index(tilt))
         for index in sorted(indexes_to_remove, reverse=True):
+            self.input_file_list_of_lists.remove(self.input_file_list_of_lists[index])
+
+        # Remove any images with very bad motion correction results
+        tilts_to_remove = []
+        for tilt in self.input_file_list_of_lists:
+            if Path(tilt[0]).with_suffix(".star").is_file():
+                star_doc = cif.read_file(str(Path(tilt[0]).with_suffix(".star")))
+                general_block = star_doc.find_block("general")
+                if int(general_block.find_value("_rlnMotionModelVersion")):
+                    motion_model_block = star_doc.find_block("local_motion_model")
+                    motion_model_coeffs = list(
+                        motion_model_block.find_loop("_rlnMotionModelCoeff")
+                    )
+                    if any(np.array(motion_model_coeffs, dtype=float) > 1000):
+                        self.log.info(f"Bad motion correction found for {tilt[0]}")
+                        tilts_to_remove.append(
+                            self.input_file_list_of_lists.index(tilt)
+                        )
+        for index in sorted(tilts_to_remove, reverse=True):
             self.input_file_list_of_lists.remove(self.input_file_list_of_lists[index])
 
         # Find the input image dimensions
