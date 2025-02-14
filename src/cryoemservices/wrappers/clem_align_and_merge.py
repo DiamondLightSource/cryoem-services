@@ -22,7 +22,6 @@ import numpy as np
 from defusedxml.ElementTree import parse
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 from tifffile import TiffFile, imwrite
-from zocalo.wrapper import BaseWrapper
 
 from cryoemservices.util.clem_array_functions import (
     align_image_to_reference,
@@ -504,7 +503,11 @@ class AlignAndMergeParameters(BaseModel):
         return value
 
 
-class AlignAndMergeWrapper(BaseWrapper):
+class AlignAndMergeWrapper:
+    def __init__(self, recwrap):
+        self.log = logging.LoggerAdapter(logger)
+        self.recwrap = recwrap
+
     def run(self) -> bool:
         """
         Reads the Zocalo wrapper recipe, loads the parameters, and pass them to the
@@ -512,9 +515,6 @@ class AlignAndMergeWrapper(BaseWrapper):
         them back to Murfey for the next stage in the workflow.
         """
 
-        if not hasattr(self, "recwrap"):
-            logger.error("No RecipeWrapper object found")
-            return False
         params_dict = self.recwrap.recipe_step["job_parameters"]
         try:
             params = AlignAndMergeParameters(**params_dict)

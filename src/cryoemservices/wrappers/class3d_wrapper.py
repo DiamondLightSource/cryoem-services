@@ -13,7 +13,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 from gemmi import cif
 from pydantic import BaseModel, Field, ValidationError
-from zocalo.wrapper import BaseWrapper
 
 from cryoemservices.util.relion_service_options import (
     RelionServiceOptions,
@@ -74,7 +73,7 @@ class Class3DParameters(BaseModel):
     relion_options: RelionServiceOptions
 
 
-class Class3DWrapper(BaseWrapper):
+class Class3DWrapper:
     """
     A wrapper for the Relion 3D classification job.
     """
@@ -97,8 +96,9 @@ class Class3DWrapper(BaseWrapper):
     }
 
     # Values for ISPyB lookups
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, recwrap):
+        self.log = logging.LoggerAdapter(logger)
+        self.recwrap = recwrap
         self.class_uuids_dict = {}
         self.class_uuids_keys = []
 
@@ -297,9 +297,6 @@ class Class3DWrapper(BaseWrapper):
         """
         Run the 3D classification and register results
         """
-        if not hasattr(self, "recwrap"):
-            logger.error("No recipewrapper object found")
-            return False
         params_dict = self.recwrap.recipe_step["job_parameters"]
         try:
             class3d_params = Class3DParameters(**params_dict)

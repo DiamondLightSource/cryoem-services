@@ -400,8 +400,7 @@ def test_lif_to_stack_wrapper(
     recipe_wrapper = RecipeWrapper(message=message, transport=offline_transport)
 
     # Manually start up the function wrapper
-    lif_to_stack_wrapper = LIFToStackWrapper()
-    lif_to_stack_wrapper.set_recipe_wrapper(recipe_wrapper)
+    lif_to_stack_wrapper = LIFToStackWrapper(recipe_wrapper)
     return_code = lif_to_stack_wrapper.run()
 
     # Start checking the calls that take place when running the function
