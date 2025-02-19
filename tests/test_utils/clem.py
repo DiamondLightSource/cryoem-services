@@ -162,7 +162,7 @@ def create_xml_metadata(
     series_names = [series_names] if isinstance(series_names, str) else series_names
     num_channels = len(colors)
 
-    # If a LIF file is provided, net elements in additional metadata
+    # If a LIF file is provided, multiple elements are nested in the metadata
     if lif_file:
         # External shell surrounding XML metadata elements for each scene in the LIF file
         xml_metadata = [
@@ -174,18 +174,26 @@ def create_xml_metadata(
             "  </Element>",
             "</LMSDataContainerHeader>",
         ]
+        indent = 6
+        search_key = "    </Children>"
 
-        for series_name in series_names:
-            # Find new index to insert next element at after previous insertion
-
-            element_index = xml_metadata.index("    </Children>")
-            element = create_element(series_name, colors)
-            element = [
-                f"{(' ' * 6)}{line}" for line in element
-            ]  # Indent as appropriate
-            xml_metadata[element_index:element_index] = element
     # Otherwise, the element is standalone
     else:
-        xml_metadata = create_element(series_names[0], colors)
+        # External shell surrounding XML metadata element for the TIFF file
+        xml_metadata = [
+            '<LMSDataContainerHeader Version="2">',
+            "</LMSDataContainerHeader>",
+        ]
+        indent = 2
+        search_key = "</LMSDataContainerHeader>"
+
+    # Find new index to insert next element at after previous insertion
+    for series_name in series_names:
+        element_index = xml_metadata.index(search_key)
+        element = create_element(series_name, colors)
+        element = [
+            f"{(' ' * indent)}{line}" for line in element
+        ]  # Indent as appropriate
+        xml_metadata[element_index:element_index] = element
 
     return ET.fromstring("\n".join(xml_metadata))
