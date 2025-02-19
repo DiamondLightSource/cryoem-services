@@ -1,12 +1,159 @@
 from __future__ import annotations
 
-from unittest import mock
+from pathlib import Path
+from unittest.mock import patch
+from xml.etree.ElementTree import Element
 
+import numpy as np
 import pytest
 from workflows.recipe.wrapper import RecipeWrapper
 from workflows.transport.offline_transport import OfflineTransport
 
-from cryoemservices.wrappers.clem_process_raw_tiffs import TIFFToStackWrapper
+from cryoemservices.wrappers.clem_process_raw_tiffs import (
+    TIFFToStackWrapper,
+    convert_tiff_to_stack,
+    process_tiff_files,
+)
+from tests.test_utils.clem import create_xml_metadata
+
+# Common settings
+visit_name = "test_visit"
+raw_folder = "images"
+processed_folder = "processed"
+area_name = "test_area"
+series_name = "test_series"
+
+# TIFF file settings
+colors = [
+    "gray",
+    "green",
+    "red",
+]
+num_channels = len(colors)
+num_z = 5
+
+
+# Create fixtures for use in subsequent tests
+@pytest.fixture
+def raw_dir(tmp_path):
+    raw_dir = tmp_path / visit_name / raw_folder
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    return raw_dir
+
+
+@pytest.fixture
+def tiff_list(raw_dir: Path):
+    # Generate list of file names
+    tiff_folder = raw_dir / area_name
+    tiff_folder.mkdir(parents=True, exist_ok=True)
+    tiff_list = [
+        tiff_folder / f"{series_name}--Z{str(z).zfill(2)}--C{str(c).zfill(2)}.tif"
+        for z in range(num_z)
+        for c in range(num_channels)
+    ]
+    # Create files
+    for tiff_file in tiff_list:
+        tiff_file.touch(exist_ok=True)
+
+    return tiff_list
+
+
+@pytest.fixture
+def metadata(raw_dir: Path):
+    # Create parent directory for metadata file
+    metadata_folder = raw_dir / area_name / "Metadata"
+    metadata_folder.mkdir(parents=True, exist_ok=True)
+    # Create metadata file
+    metadata = metadata_folder / f"{series_name}.xlif"
+    metadata.touch(exist_ok=True)
+    return metadata
+
+
+@pytest.fixture
+def raw_xml_metadata():
+    xml_metadata = create_xml_metadata(
+        series_names=series_name,
+        colors=colors,
+        num_z=num_z,
+    )
+    return xml_metadata
+
+
+@pytest.fixture
+def processed_dir(raw_dir: Path):
+    processed_dir = raw_dir.parent / processed_folder
+    processed_dir.mkdir(parents=True, exist_ok=True)
+    return processed_dir
+
+
+@patch("cryoemservices.wrappers.clem_process_raw_tiffs.Image")
+@patch("cryoemservices.wrappers.clem_process_raw_tiffs.parse")
+def test_process_tiff_files(
+    mock_parse,
+    mock_image,
+    tiff_list: list[Path],
+    metadata: Path,
+    processed_dir: Path,
+    raw_xml_metadata: Element,
+):
+
+    # Build short and long series names
+    series_name_short = series_name
+    series_name_long = f"{area_name}--{series_name}"
+
+    # Construct save directory
+    series_dir = processed_dir / area_name / series_name
+
+    # Mock results of the 'parse()' function
+    mock_parse.return_value.getroot.return_value = raw_xml_metadata
+
+    # Mock the result of 'Image.open()'
+    mock_image.open.return_value = np.random.randint(0, 255, (2048, 2048)).astype(
+        "uint16"
+    )
+
+    # Run the function
+    results = process_tiff_files(
+        tiff_list=tiff_list,
+        metadata_file=metadata,
+        series_name_short=series_name_short,
+        series_name_long=series_name_long,
+        save_dir=series_dir,
+    )
+
+    # Construct the expected results
+    dummry_results = [
+        {
+            "image_stack": str(series_dir / f"{color}.tiff"),
+            "metadata": str(series_dir / "metadata" / f"{series_name_short}.xml"),
+            "series_name": series_name_long,
+            "channel": color,
+            "number_of_members": len(colors),
+            "parent_tiffs": str(
+                [str(f) for f in tiff_list if f"--C{str(c).zfill(2)}.tif" in str(f)]
+            ),
+        }
+        for c, color in enumerate(colors)
+    ]
+
+    # Assert that the results match
+    for r, result in enumerate(results):
+        assert result == dummry_results[r]
+
+
+@pytest.mark.skip  # Not ready yet
+def test_convert_tiff_to_stack(
+    tiff_list: list[Path],
+    metadata: Path,
+):
+
+    # Run the functino with the mocked objects
+    results = convert_tiff_to_stack(
+        tiff_list=tiff_list,
+        root_folder=raw_folder,
+        metadata_file=metadata,
+    )
+    assert results
 
 
 # Set up a mock transport object
@@ -18,29 +165,19 @@ def offline_transport(mocker):
 
 
 # Patches are matched to input parameters on a last in, first out basis
-@mock.patch("workflows.recipe.wrapper.RecipeWrapper.send_to")  # = mock_send_to
-@mock.patch(
+@patch("workflows.recipe.wrapper.RecipeWrapper.send_to")  # = mock_send_to
+@patch(
     "cryoemservices.wrappers.clem_process_raw_tiffs.convert_tiff_to_stack"
 )  # = mock_tiff_to_stack
 def test_tiff_to_stack_wrapper(
     mock_tiff_to_stack,
     mock_send_to,
     offline_transport,  # 'offline_transport' fixture defined above
-    tmp_path,  # Pytest default working directory
+    tiff_list: list[Path],
+    metadata: Path,
+    processed_dir: Path,
 ):
     # Construct a dictionary to pass to the wrapper
-    root_folder = "images"
-    series_name = "test_series"
-    raw_dir = tmp_path / root_folder
-    colors = ("gray", "green", "red")  # The most common colour channels used
-    num_frames = 120
-    tiff_list = [
-        raw_dir / f"{series_name}--Z{str(z).zfill(2)}--C{str(c).zfill(2)}.tiff"
-        for z in range(num_frames)
-        for c in range(len(colors))
-    ]
-    raw_metadata = raw_dir / "Metadata" / f"{series_name}.xlif"
-
     message = {
         "recipe": {
             "start": [[1, []]],
@@ -48,8 +185,8 @@ def test_tiff_to_stack_wrapper(
                 "job_parameters": {
                     "tiff_list": str([str(file) for file in tiff_list]),
                     "tiff_file": None,
-                    "root_folder": root_folder,
-                    "metadata": raw_metadata,
+                    "root_folder": raw_folder,
+                    "metadata": metadata,
                 },
                 "parameters": {},
             },
@@ -59,7 +196,7 @@ def test_tiff_to_stack_wrapper(
     }
 
     # Generate the expected output result of the TIFF processing function
-    series_dir = tmp_path / "processed" / series_name
+    series_dir = processed_dir / area_name / series_name
     processed_metadata = series_dir / "metadata" / f"{series_name}.xml"
     outputs = [
         {
@@ -68,15 +205,7 @@ def test_tiff_to_stack_wrapper(
             "series_name": series_name,
             "channel": color,
             "number_of_members": len(colors),
-            "parents_tiffs": str(
-                [
-                    str(
-                        raw_dir
-                        / f"{series_name}--Z{str(z).zfill(2)}--C{str(c).zfill(2)}.tiff"
-                    )
-                    for z in range(num_frames)
-                ]
-            ),
+            "parents_tiffs": str([str(file) for file in tiff_list]),
         }
         for c, color in enumerate(colors)
     ]
@@ -93,8 +222,8 @@ def test_tiff_to_stack_wrapper(
     # Start checking the calls that take place when running the function
     mock_tiff_to_stack.assert_called_once_with(
         tiff_list=tiff_list,
-        root_folder=root_folder,
-        metadata_file=raw_metadata,
+        root_folder=raw_folder,
+        metadata_file=metadata,
     )
 
     # Check that all the results set up are sent out at the end of the function
