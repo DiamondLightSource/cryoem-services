@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-import time
-import uuid
-import xml.etree.ElementTree as ET
 from collections import namedtuple
 from pathlib import Path
 from unittest import mock
@@ -25,6 +22,7 @@ from cryoemservices.wrappers.clem_process_raw_lifs import (
     get_lif_xml_metadata,
     process_lif_substack,
 )
+from tests.test_utils.clem import create_xml_metadata
 
 # Directory structure
 visit_name = "test_visit"
@@ -70,89 +68,16 @@ def lif_file(raw_dir: Path):
     return lif_file
 
 
-def to_scientific_notation(value: float, precision=6):
-    """
-    Helper function to return stringified floats with the same degree of precision in
-    both the base and exponent as that found in the XML metadata of the LIF files.
-
-    E.g.:
-    2.661100e-004
-    0.000000e+000
-    """
-    scientific_str = f"{value:.{precision}e}"
-    base, exponent = scientific_str.split("e")
-    return f"{base}e{int(exponent):+04d}"
-
-
-def get_hexadecimal_timestamp(time_ns: int):
-    """
-    Helper function to convert a timestamp (in ns) into its hexadecimal Windows FILETIME
-    counterpart, which is what is stored in the XML metadata of the LIF files.
-    """
-
-    # Windows FILETIME epoch: Jan 1, 1601
-    filetime_epoch_ns = 116444736000000000
-    filetime = (time_ns - filetime_epoch_ns) // 100  # FILETIME is in 100-ns intervals
-
-    # Convert to hexadecimal string
-    return format(filetime, "x")
-
-
 @pytest.fixture
 def raw_xml_metadata(lif_file: Path):
-    """
-    Fixture to create a bare bones XML metadata object for use in the tests below
-    """
-
-    def create_element(order: int, colors: list[str]):
-        def create_color_channel(order: int, color: str):
-            return f'                <ChannelDescription DataType="0" ChannelTag="0" Resolution="16" NameOfMeasuredQuantity="" Min="0.000000e+000" Max="6.553500e+004" Unit="" LUTName="{color.title()}" IsLUTInverted="0" BytesInc="{int(order * 713031680)}" BitInc="0" />'
-
-        # Bare bones example of a single scene's XML element
-        element = [
-            f'      <Element Name="test_series_{order}" Visibility="1" CopyOption="1" UniqueID="{str(uuid.uuid4())}">',
-            "        <Data>",
-            '          <Image TextDescription="">',
-            "            <ImageDescription>",
-            "              <Channels>",
-            # Individual colour channels go here
-            "              </Channels>",
-            "              <Dimensions>",
-            '                <DimensionDescription DimID="1" NumberOfElements="2048" Origin="0.000000e+000" Length="2.661100e-004" Unit="m" BitInc="0" BytesInc="2" />',
-            '                <DimensionDescription DimID="2" NumberOfElements="2048" Origin="0.000000e+000" Length="2.661100e-004" Unit="m" BitInc="0" BytesInc="4096" />',
-            f'                <DimensionDescription DimID="3" NumberOfElements="{num_z}" Origin="6.999377e-003" Length="-{to_scientific_notation(float((num_z - 1) * 0.00000003))}" Unit="m" BitInc="0" BytesInc="8388608" />',
-            "              </Dimensions>",
-            "            </ImageDescription>",
-            f'            <TimeStampList NumberOfTimeStamps="{num_z * num_channels}">{" ".join([get_hexadecimal_timestamp(time.time_ns()) for t in range(num_z * num_channels)])} </TimeStampList>',
-            "          </Image>",
-            "        </Data>",
-            "        <Children />",
-            "      </Element>",
-        ]
-        # Insert channels in-place
-        for c, color in enumerate(colors):
-            # Find the new index after any previous channel insertions
-            channel_index = element.index("              </Channels>")
-            element.insert(channel_index, create_color_channel(c, color))
-        return element
-
-    # External shell surrounding XML metadata elements for each scene in the LIF file
-    xml_metadata = [
-        '<LMSDataContainerHeader Version="2">',
-        f'  <Element Name="{lif_file.name}" Visibility="1" CopyOption="1" UniqueID="{str(uuid.uuid4())}">',
-        "    <Children>",
-        # Elements (corresponding to individual image substacks) go here
-        "    </Children>",
-        "  </Element>",
-        "</LMSDataContainerHeader>",
-    ]
-
-    for n in range(num_scenes):
-        # Find new index to insert next element at after previous insertion
-        element_index = xml_metadata.index("    </Children>")
-        xml_metadata[element_index:element_index] = create_element(n, colors)
-
-    return ET.fromstring("\n".join(xml_metadata))
+    series_names = [f"{series_name}_{n}" for n in range(num_scenes)]
+    xml_metadata = create_xml_metadata(
+        series_names=series_names,
+        colors=colors,
+        num_z=num_z,
+        lif_file=lif_file,
+    )
+    return xml_metadata
 
 
 def test_get_lif_xml_metadata(
@@ -247,7 +172,7 @@ def test_process_lif_substack(
     dummy_results = [
         dummy_result(
             lif_file,
-            f"test_series_{scene_num}",
+            f"{series_name}_{scene_num}",
             color,
             processed_dir,
         )
@@ -302,7 +227,7 @@ def test_convert_lif_to_stack(
         [
             dummy_result(
                 lif_file,
-                f"test_series_{n}",
+                f"{series_name}{n}",
                 color,
                 processed_dir,
             )
@@ -354,11 +279,10 @@ def test_lif_to_stack_wrapper(
     mock_lif_to_stack,
     mock_send_to,
     offline_transport,
-    tmp_path,  # Pytest default working directory
+    lif_file: Path,
+    processed_dir: Path,
 ):
     # Construct a dictionary to pass to the wrapper
-    lif_file = tmp_path / "images" / "image.lif"
-    root_folder = "images"
     num_procs = 20
 
     message = {
@@ -367,7 +291,7 @@ def test_lif_to_stack_wrapper(
             "1": {
                 "job_parameters": {
                     "lif_file": str(lif_file),
-                    "root_folder": root_folder,
+                    "root_folder": raw_folder,
                 },
                 "parameters": {},
             },
@@ -378,9 +302,7 @@ def test_lif_to_stack_wrapper(
 
     # The result from the mocked function is also a mock object
     # Construct the expected output result
-    colors = ("gray", "green", "red")  # Typical color channels present in the LIF file
-    series_name = "test_series"
-    series_dir = tmp_path / "processed" / series_name
+    series_dir = processed_dir / series_name
     metadata = series_dir / "metadata" / f"{series_name}.xml"
 
     outputs = [
@@ -408,7 +330,7 @@ def test_lif_to_stack_wrapper(
     # Check that the LIF-to-stack wrapper is called correctly
     mock_lif_to_stack.assert_called_once_with(
         file=lif_file,
-        root_folder=root_folder,
+        root_folder=raw_folder,
         number_of_processes=num_procs,
     )
 
