@@ -286,6 +286,12 @@ class TomoAlign(CommonService):
                         tilts_to_remove.append(
                             self.input_file_list_of_lists.index(tilt)
                         )
+        removed_tilt_numbers = np.array(
+            [
+                _get_tilt_number_v5_12(Path(self.input_file_list_of_lists[index][0]))
+                for index in tilts_to_remove
+            ]
+        )
         for index in sorted(tilts_to_remove, reverse=True):
             self.input_file_list_of_lists.remove(self.input_file_list_of_lists[index])
 
@@ -332,6 +338,7 @@ class TomoAlign(CommonService):
             tilt_index = _get_tilt_number_v5_12(
                 Path(self.input_file_list_of_lists[i][0])
             )
+            tilt_index -= len(np.where(removed_tilt_numbers < tilt_index)[0])
             tilt_angles[tilt_index] = self.input_file_list_of_lists[i][1]
         with open(angle_file, "w") as angfile:
             for tilt_id in tilt_angles.keys():
