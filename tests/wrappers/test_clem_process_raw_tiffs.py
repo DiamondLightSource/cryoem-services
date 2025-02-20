@@ -86,6 +86,28 @@ def processed_dir(raw_dir: Path):
     return processed_dir
 
 
+def dummy_result(
+    save_dir: Path,
+    series_name_short: str,
+    series_name_long: str,
+    parent_tiffs: list[Path],
+    color: str,
+    num_channels: int,
+):
+    """
+    Helper function to generate the expected results for the TIFF file
+    processing workflow
+    """
+    return {
+        "image_stack": str(save_dir / f"{color}.tiff"),
+        "metadata": str(save_dir / "metadata" / f"{series_name_short}.xml"),
+        "series_name": series_name_long,
+        "channel": color,
+        "number_of_members": num_channels,
+        "parent_tiffs": str([str(f) for f in parent_tiffs]),
+    }
+
+
 @patch("cryoemservices.wrappers.clem_process_raw_tiffs.Image")
 @patch("cryoemservices.wrappers.clem_process_raw_tiffs.parse")
 def test_process_tiff_files(
@@ -123,18 +145,16 @@ def test_process_tiff_files(
 
     # Construct the expected results
     dummry_results = [
-        {
-            "image_stack": str(series_dir / f"{color}.tiff"),
-            "metadata": str(
-                series_dir / "metadata" / f"{series_name_short.replace(' ', '_')}.xml"
-            ),
-            "series_name": series_name_long,
-            "channel": color,
-            "number_of_members": len(colors),
-            "parent_tiffs": str(
-                [str(f) for f in tiff_list if f"--C{str(c).zfill(2)}.tif" in str(f)]
-            ),
-        }
+        dummy_result(
+            save_dir=series_dir,
+            series_name_short=series_name_short.replace(" ", "_"),
+            series_name_long=series_name_long,
+            parent_tiffs=[
+                f for f in tiff_list if f"--C{str(c).zfill(2)}.tif" in str(f)
+            ],
+            color=color,
+            num_channels=len(colors),
+        )
         for c, color in enumerate(colors)
     ]
 
@@ -143,17 +163,49 @@ def test_process_tiff_files(
         assert result == dummry_results[r]
 
 
-@pytest.mark.skip  # Not ready yet
+@patch("cryoemservices.wrappers.clem_process_raw_tiffs.process_tiff_files")
 def test_convert_tiff_to_stack(
+    mock_process_tiffs,
     tiff_list: list[Path],
     metadata: Path,
+    processed_dir: Path,
 ):
+    # Build short and long series names
+    series_name_short = series_name
+    series_name_long = f"{area_name}--{series_name.replace(' ', '_')}"
+
+    # Construct save directory
+    series_dir = processed_dir / area_name / series_name.replace(" ", "_")
+
+    # Mock out the result of the TIFF processing function
+    mock_process_tiffs.return_value = [
+        dummy_result(
+            save_dir=series_dir,
+            series_name_short=series_name_short.replace(" ", "_"),
+            series_name_long=series_name_long,
+            parent_tiffs=[
+                f for f in tiff_list if f"--C{str(c).zfill(2)}.tif" in str(f)
+            ],
+            color=color,
+            num_channels=len(colors),
+        )
+        for c, color in enumerate(colors)
+    ]
 
     # Run the functino with the mocked objects
     results = convert_tiff_to_stack(
         tiff_list=tiff_list,
         root_folder=raw_folder,
         metadata_file=metadata,
+    )
+
+    # Check that it was called with the correct parameters
+    mock_process_tiffs.assert_called_once_with(
+        tiff_list=tiff_list,
+        metadata_file=metadata,
+        series_name_short=series_name_short,
+        series_name_long=series_name_long,
+        save_dir=series_dir,
     )
     assert results
 
@@ -167,10 +219,8 @@ def offline_transport(mocker):
 
 
 # Patches are matched to input parameters on a last in, first out basis
-@patch("workflows.recipe.wrapper.RecipeWrapper.send_to")  # = mock_send_to
-@patch(
-    "cryoemservices.wrappers.clem_process_raw_tiffs.convert_tiff_to_stack"
-)  # = mock_tiff_to_stack
+@patch("workflows.recipe.wrapper.RecipeWrapper.send_to")
+@patch("cryoemservices.wrappers.clem_process_raw_tiffs.convert_tiff_to_stack")
 def test_tiff_to_stack_wrapper(
     mock_tiff_to_stack,
     mock_send_to,
