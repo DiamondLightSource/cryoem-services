@@ -27,30 +27,22 @@ def get_image_elements(root: ET.Element) -> list[ET.Element]:
     recursive approach is needed to avoid certain datasets breaking it.
     """
 
-    # Nested function which generates list of elements
     def _find_elements_recursively(
         node: ET.Element,
     ) -> Generator[ET.Element, None, None]:
 
-        # Find items labelled "Element" under current node
-        elem_list = node.findall("./Children/Element")
-        if len(elem_list) < 1:  # Try alternative path for top-level of XML tree
-            elem_list = node.findall("./Element")
-
-        # Recursively search for items tagged as Element under child branches
-        for elem in elem_list:
+        # Check if the node itself is labelled "Element"
+        if node.tag == "Element":
+            yield node
+        # Find all descendants that are labelled "Element"
+        for elem in node.findall(".//Element"):
             yield elem
-            new_node = elem  # New starting point for the search
-            new_elem_list = _find_elements_recursively(new_node)  # Call self
-            for new_elem in new_elem_list:
-                yield new_elem
+            # yield from _find_elements_recursively(elem)
 
-    # Get initial list of elements
-    elem_list = list(_find_elements_recursively(root))
-
-    # Keep only the element nodes that have image-related tags
-    elem_list = [elem for elem in elem_list if elem.find("./Data/Image")]
-
+    # Find all element nodes, but keep only ones that have image-related tags
+    elem_list = [
+        elem for elem in _find_elements_recursively(root) if elem.find("./Data/Image")
+    ]
     return elem_list
 
 
