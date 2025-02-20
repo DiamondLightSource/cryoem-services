@@ -21,7 +21,7 @@ visit_name = "test_visit"
 raw_folder = "images"
 processed_folder = "processed"
 area_name = "test_area"
-series_name = "test_series"
+series_name = "Test Series"
 
 # TIFF file settings
 colors = [
@@ -99,7 +99,7 @@ def test_process_tiff_files(
 
     # Build short and long series names
     series_name_short = series_name
-    series_name_long = f"{area_name}--{series_name}"
+    series_name_long = f"{area_name}--{series_name.replace(' ', '_')}"
 
     # Construct save directory
     series_dir = processed_dir / area_name / series_name
@@ -125,7 +125,9 @@ def test_process_tiff_files(
     dummry_results = [
         {
             "image_stack": str(series_dir / f"{color}.tiff"),
-            "metadata": str(series_dir / "metadata" / f"{series_name_short}.xml"),
+            "metadata": str(
+                series_dir / "metadata" / f"{series_name_short.replace(' ', '_')}.xml"
+            ),
             "series_name": series_name_long,
             "channel": color,
             "number_of_members": len(colors),

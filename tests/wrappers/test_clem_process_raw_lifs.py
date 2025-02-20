@@ -30,7 +30,7 @@ raw_folder = "images"
 processed_folder = "processed"
 
 # LIF file properties to mock
-series_name = "test_series"
+series_name = "Test Series"
 num_scenes = 8
 scene_num = 0
 num_z = 5
@@ -105,7 +105,7 @@ def dummy_result(
     """
     Helper function to populate the dummy result with the needed variables
     """
-
+    series_name = series_name.replace(" ", "_")
     return {
         "image_stack": str(
             processed_dir / lif_file.stem / series_name / f"{color}.tiff"
