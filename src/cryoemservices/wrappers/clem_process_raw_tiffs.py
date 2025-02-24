@@ -334,7 +334,7 @@ class TIFFToStackParameters(BaseModel):
                     eval_tiff_list: list[str] = literal_eval(value)
                     tiff_list = [Path(p) for p in eval_tiff_list]
                     return tiff_list
-                except (SyntaxError, ValueError):
+                except (SyntaxError, TypeError, ValueError):
                     logger.error("Unable to parse stringified list for file paths")
                     raise ValueError
         # Leave the value as-is; if it fails, it fails
