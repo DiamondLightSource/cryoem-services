@@ -493,7 +493,11 @@ class TomoAlign(CommonService):
                         {
                             "job_type": "relion.aligntiltseries",
                             "experiment_type": "tomography",
-                            "input_file": str(movie[0]),
+                            "input_file": str(
+                                project_dir
+                                / f"ExcludeTiltImages/job{job_number - 2:03}/tilts"
+                                / Path(movie[0]).name
+                            ),
                             "output_file": str(
                                 project_dir
                                 / f"AlignTiltSeries/job{job_number - 1:03}/tilts"
