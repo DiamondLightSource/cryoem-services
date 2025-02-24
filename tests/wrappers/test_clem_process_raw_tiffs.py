@@ -6,6 +6,7 @@ from xml.etree.ElementTree import Element
 
 import numpy as np
 import pytest
+from pydantic_core import ValidationError
 from workflows.recipe.wrapper import RecipeWrapper
 from workflows.transport.offline_transport import OfflineTransport
 
@@ -246,6 +247,39 @@ def test_tiff_to_stack_parameters(
         assert isinstance(file, Path)
     assert validated_params.root_folder == raw_folder
     assert isinstance(validated_params.metadata, Path)
+
+
+tiff_to_stack_params_failure_matrix = (
+    # Use TIFF list? | Use TIFF file? | Garbled string
+    (True, True, ""),
+    (False, False, ""),
+    (True, False, "[asdflkajsdlfkj]"),
+    (True, False, "[1, 2, 3, 4]"),
+)
+
+
+@pytest.mark.parametrize("test_params", tiff_to_stack_params_failure_matrix)
+def test_tiff_to_stack_parameters_fail(
+    test_params: tuple[bool, bool, str],
+    tiff_list: str | list[Path],
+    metadata: Path,
+    raw_folder=raw_folder,
+):
+
+    # Unpack test params
+    use_tiff_list, use_tiff_file, garbled_string = test_params
+
+    tiff_file = tiff_list[0] if use_tiff_file else "null"
+    tiff_list = tiff_list if use_tiff_list else "null"
+
+    params = {
+        "tiff_list": (garbled_string if garbled_string else tiff_list),
+        "tiff_file": tiff_file,
+        "root_folder": raw_folder,
+        "metadata": metadata,
+    }
+    with pytest.raises(ValidationError):
+        TIFFToStackParameters(**params)
 
 
 # Set up a mock transport object
