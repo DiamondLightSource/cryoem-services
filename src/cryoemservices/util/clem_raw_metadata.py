@@ -37,7 +37,6 @@ def get_image_elements(root: ET.Element) -> list[ET.Element]:
         # Find all descendants that are labelled "Element"
         for elem in node.findall(".//Element"):
             yield elem
-            # yield from _find_elements_recursively(elem)
 
     # Find all element nodes, but keep only ones that have image-related tags
     elem_list = [
