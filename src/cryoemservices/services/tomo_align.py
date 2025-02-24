@@ -531,6 +531,21 @@ class TomoAlign(CommonService):
         rw.send_to("ispyb_connector", ispyb_parameters)
 
         # Forward results to images service
+        self.log.info(f"Sending to images service {tomo_params.stack_file}")
+        rw.send_to(
+            "images",
+            {
+                "image_command": "mrc_central_slice",
+                "file": tomo_params.stack_file,
+            },
+        )
+        rw.send_to(
+            "images",
+            {
+                "image_command": "mrc_to_apng",
+                "file": tomo_params.stack_file,
+            },
+        )
         self.log.info(f"Sending to images service {aretomo_output_path}")
         rw.send_to(
             "images",
