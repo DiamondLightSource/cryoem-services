@@ -12,35 +12,31 @@ from typing import Optional
 import requests
 import workflows.recipe
 import yaml
-from pydantic import BaseModel, Field, RootModel
+from pydantic import BaseModel, Field
 from workflows.services.common_service import CommonService
 
 from cryoemservices.util.config import ServiceConfig, config_from_file
 
 
-class UintNoVal(BaseModel):
+class SlurmInt(BaseModel):
     set: bool = True
     infinite: bool = False
     number: int
 
 
-class StringArray(RootModel[list[str]]):
-    root: list[str]
-
-
 class JobParams(BaseModel):
     cpus_per_task: Optional[int] = None
     current_working_directory: Optional[str] = None
-    environment: Optional[StringArray] = None
+    environment: Optional[list] = None
     name: Optional[str] = None
     nodes: Optional[str] = None
     partition: Optional[str] = None
     prefer: Optional[str] = None
     tasks: Optional[int] = None
 
-    memory_per_cpu: Optional[UintNoVal] = None
-    memory_per_node: Optional[UintNoVal] = None
-    time_limit: Optional[UintNoVal] = None
+    memory_per_cpu: Optional[SlurmInt] = None
+    memory_per_node: Optional[SlurmInt] = None
+    time_limit: Optional[SlurmInt] = None
     tres_per_node: Optional[str] = None
     tres_per_job: Optional[str] = None
 
@@ -65,7 +61,7 @@ class SlurmRestApi:
         self.version = version
         self.session = requests.Session()
         self.session.headers["X-SLURM-USER-NAME"] = user_name
-        if user_token.is_file():
+        if Path(user_token).is_file():
             with open(user_token, "r") as f:
                 self.session.headers["X-SLURM-USER-TOKEN"] = f.read().strip()
         else:
@@ -150,12 +146,12 @@ def submit_to_slurm(
         "tasks": params.tasks,
     }
     if params.min_memory_per_cpu:
-        jdm_params["memory_per_cpu"] = UintNoVal(number=params.min_memory_per_cpu)
+        jdm_params["memory_per_cpu"] = SlurmInt(number=params.min_memory_per_cpu)
     if params.memory_per_node:
-        jdm_params["memory_per_node"] = UintNoVal(number=params.memory_per_node)
+        jdm_params["memory_per_node"] = SlurmInt(number=params.memory_per_node)
     if params.time_limit:
         time_limit_minutes = math.ceil(params.time_limit.total_seconds() / 60)
-        jdm_params["time_limit"] = UintNoVal(number=time_limit_minutes)
+        jdm_params["time_limit"] = SlurmInt(number=time_limit_minutes)
     if params.gpus_per_node:
         jdm_params["tres_per_node"] = f"gres/gpu:{params.gpus_per_node}"
     if params.gpus:
@@ -166,8 +162,8 @@ def submit_to_slurm(
             script=script,
             job=JobParams(**jdm_params),
         )
-    except requests.HTTPError as e:
-        logger.error(f"Failed Slurm job submission: {e}\n" f"{e.response.text}")
+    except Exception as e:
+        logger.error(f"Failed Slurm job submission: {e}\n" f"{e}")
         return None
     if response.error:
         error_message = f"{response.error_code}: {response.error}"
