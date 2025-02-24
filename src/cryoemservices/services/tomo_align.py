@@ -34,7 +34,8 @@ class TomoParameters(BaseModel):
     tilt_axis: Optional[float] = None
     tilt_cor: int = 1
     flip_int: Optional[int] = None
-    flip_vol: int = 1
+    flip_vol: int = 0
+    flip_vol_post_reconstruction: bool = True
     wbp: Optional[int] = None
     roi_file: Optional[list] = None
     patch: Optional[int] = None
@@ -272,8 +273,15 @@ class TomoAlign(CommonService):
         with mrcfile.open(self.input_file_list_of_lists[0][0]) as mrc:
             mrc_header = mrc.header
         # x and y get flipped on tomogram creation
-        tomo_params.relion_options.tomo_size_x = int(mrc_header["ny"])
-        tomo_params.relion_options.tomo_size_y = int(mrc_header["nx"])
+        tomo_params.relion_options.tomo_size_x = int(mrc_header["nx"])
+        tomo_params.relion_options.tomo_size_y = int(mrc_header["ny"])
+        scaled_x_size = tomo_params.relion_options.tomo_size_x / int(
+            tomo_params.out_bin
+        )
+        scaled_y_size = tomo_params.relion_options.tomo_size_y / int(
+            tomo_params.out_bin
+        )
+        scaled_z_size = tomo_params.vol_z / int(tomo_params.out_bin)
 
         # Get the names of the output files expected
         self.alignment_output_dir = Path(tomo_params.stack_file).parent
@@ -375,6 +383,29 @@ class TomoAlign(CommonService):
                 for file in _f.iterdir():
                     file.chmod(0o740)
 
+        # Flip the volume if AreTomo has not done this
+        if tomo_params.flip_vol_post_reconstruction and not tomo_params.flip_vol:
+            rotate_result = subprocess.run(
+                [
+                    "rotatevol",
+                    "-i",
+                    str(aretomo_output_path),
+                    "-ou",
+                    str(aretomo_output_path),
+                    "-size",
+                    f"{scaled_x_size},{scaled_y_size},{scaled_z_size}",
+                    "-a",
+                    "90,90,0",
+                ]
+            )
+            if rotate_result.returncode:
+                self.log.error(
+                    f"rotatevol failed with exitcode {rotate_result.returncode}:\n"
+                    + rotate_result.stderr.decode("utf8", "replace")
+                )
+                rw.transport.nack(header)
+                return
+
         # Names of the files made for ispyb images
         plot_file = stack_name + "_xy_shift_plot.json"
         self.plot_path = self.alignment_output_dir / plot_file
@@ -406,9 +437,9 @@ class TomoAlign(CommonService):
                     aretomo_output_path.relative_to(self.alignment_output_dir)
                 ),
                 "stack_file": tomo_params.stack_file,
-                "size_x": None,  # volume image size, pix
-                "size_y": None,
-                "size_z": None,
+                "size_x": scaled_x_size,  # volume image size, pix
+                "size_y": scaled_y_size,
+                "size_z": scaled_z_size,
                 "pixel_spacing": pixel_spacing,
                 "tilt_angle_offset": str(self.tilt_offset),
                 "z_shift": self.rot_centre_z,
