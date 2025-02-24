@@ -56,15 +56,15 @@ def get_axis_resolution(element: ET.Element) -> float:
     elem = element
 
     # Verify
-    if elem.tag != "DimensionDescription" and elem.attrib["Unit"] != "m":
+    if elem.tag != "DimensionDescription" and elem.attrib.get("Unit", "") != "m":
         logger.error("This element does not have dimensional information")
         raise ValueError("This element does not have dimensional information")
 
     # Calculate
     length = (
-        float(elem.attrib["Length"]) - float(elem.attrib["Origin"])
+        float(elem.attrib.get("Length", "")) - float(elem.attrib.get("Origin", ""))
     ) * 10**6  # Convert to um
-    pixels = int(elem.attrib["NumberOfElements"])
+    pixels = int(elem.attrib.get("NumberOfElements", ""))
     resolution = (pixels - 1) / length  # Pixels per um
 
     return resolution
