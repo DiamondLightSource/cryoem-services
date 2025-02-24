@@ -10,6 +10,7 @@ from workflows.recipe.wrapper import RecipeWrapper
 from workflows.transport.offline_transport import OfflineTransport
 
 from cryoemservices.wrappers.clem_process_raw_tiffs import (
+    TIFFToStackParameters,
     TIFFToStackWrapper,
     convert_tiff_to_stack,
     process_tiff_files,
@@ -208,6 +209,43 @@ def test_convert_tiff_to_stack(
         save_dir=series_dir,
     )
     assert results
+
+
+tiff_to_stack_params_matrix = (
+    # Use TIFF list? | Stringify file path? |
+    (True, False),
+    (True, True),
+    (False, True),
+)
+
+
+@pytest.mark.parametrize("test_params", tiff_to_stack_params_matrix)
+def test_tiff_to_stack_parameters(
+    test_params: tuple[bool, bool],
+    tiff_list: list[Path | str],
+    metadata: Path,
+    raw_folder=raw_folder,
+):
+
+    # Unpack test params
+    use_tiff_list, stringify = test_params
+
+    tiff_list = [str(file) if stringify else file for file in tiff_list]
+    tiff_file = "null" if use_tiff_list else tiff_list[0]
+
+    params = {
+        "tiff_list": (tiff_list if use_tiff_list else "null"),
+        "tiff_file": tiff_file,
+        "root_folder": raw_folder,
+        "metadata": (str(metadata) if stringify else metadata),
+    }
+    validated_params = TIFFToStackParameters(**params)
+
+    # Validate parameters that are used in the wrapper
+    for file in validated_params.tiff_list:
+        assert isinstance(file, Path)
+    assert validated_params.root_folder == raw_folder
+    assert isinstance(validated_params.metadata, Path)
 
 
 # Set up a mock transport object
