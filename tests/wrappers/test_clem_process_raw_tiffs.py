@@ -146,7 +146,7 @@ def test_process_tiff_files(
     )
 
     # Construct the expected results
-    dummry_results = [
+    dummy_results = [
         dummy_result(
             save_dir=series_dir,
             series_name_short=series_name_short.replace(" ", "_"),
@@ -162,7 +162,7 @@ def test_process_tiff_files(
 
     # Assert that the results match
     for r, result in enumerate(results):
-        assert result == dummry_results[r]
+        assert result == dummy_results[r]
 
 
 @patch("cryoemservices.wrappers.clem_process_raw_tiffs.process_tiff_files")
