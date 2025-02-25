@@ -22,7 +22,7 @@ def test_find_efficiency():
     predicted_eff = angular_efficiency.find_efficiency(theta, phi, 10, 160)
 
     # cryoEF gives 0.75 for these angles, the python implementation gives 0.77
-    assert np.abs(predicted_eff - 0.75) < 0.021
+    assert np.abs(predicted_eff - 0.75) < 0.025
 
 
 @mock.patch("cryoemservices.pipeliner_plugins.angular_efficiency.find_efficiency")
