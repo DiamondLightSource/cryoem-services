@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from datetime import datetime
+import argparse
 
 import healpy as hp
 import numpy as np
+import starfile
 
 
 def efficiency_from_map(Rmap: np.ndarray, boxsize: int) -> float:
@@ -40,7 +41,9 @@ def efficiency_from_map(Rmap: np.ndarray, boxsize: int) -> float:
     return 1 - 2 * stdev / average
 
 
-def map_from_angles(theta, phi, boxsize, pixel_size=0.5, bfactor=160):
+def map_from_angles(
+    theta, phi, boxsize: int, pixel_size: float = 0.5, bfactor: float = 160
+):
     hp_nside = 64
 
     pixel_bins = hp.pixelfunc.ang2pix(hp_nside, theta, phi)
@@ -110,7 +113,7 @@ def map_from_angles(theta, phi, boxsize, pixel_size=0.5, bfactor=160):
     return k_array
 
 
-def find_efficiency(theta_degrees, phi_degrees, boxsize, bfactor):
+def find_efficiency(theta_degrees, phi_degrees, boxsize: int, bfactor: float):
     fourier_map = map_from_angles(
         theta=theta_degrees * np.pi / 180,
         phi=phi_degrees * np.pi / 180,
@@ -138,173 +141,51 @@ def find_efficiency(theta_degrees, phi_degrees, boxsize, bfactor):
 
     eff = efficiency_from_map(normalised_psf, boxsize)
     print("Efficiency: ", eff)
-    return normalised_psf
+    return eff
 
 
-def Euler2Matrix(phi, theta, psi):
-    sinphi = np.sin(phi * np.pi / 180)
-    cosphi = np.cos(phi * np.pi / 180)
-    sintheta = np.sin(theta * np.pi / 180)
-    costheta = np.cos(theta * np.pi / 180)
-    sinpsi = np.sin(psi * np.pi / 180)
-    cospsi = np.cos(phi * np.pi / 180)
-
-    R = np.zeros((3, 3))
-    R[0, 0] = cospsi * costheta * cosphi - sinpsi * sinphi
-    R[0, 1] = cospsi * costheta * sinphi + sinpsi * cosphi
-    R[0, 2] = -cospsi * sintheta
-    R[1, 0] = -sinpsi * costheta * cosphi - cospsi * sinphi
-    R[1, 1] = cospsi * cosphi - sinpsi * costheta * sinphi
-    R[1, 2] = sinpsi * sintheta
-    R[2, 0] = sintheta * cosphi
-    R[2, 1] = sintheta * sinphi
-    R[2, 2] = costheta
-    return R
-
-
-def suggest_tilt(Rmap, boxsize, tiltmax=45):
-    # Discard all entries below the threshold
-    thr = np.max(Rmap) / np.exp(2)
-    Rmap[Rmap < thr] = 0
-
-    # Construct binary map of 1 inside boundary, 0 outside
-    volume_map = np.zeros((boxsize, boxsize, boxsize))
-    volume_map[Rmap != 0] = 1
-
-    res_worst = 0
-    theta_worst = 0
-    phi_worst = 0
-    for i in range(1, boxsize):
-        for j in range(1, boxsize):
-            for k in range(1, boxsize):
-                res = np.sqrt(
-                    (i - boxsize / 2) ** 2
-                    + (j - boxsize / 2) ** 2
-                    + (k - boxsize / 2) ** 2
-                )
-                if res > res_worst and np.sum(
-                    volume_map[i - 1 : i + 1, j - 1 : j + 1, k - 1 : k + 1]
-                ) not in [0, 8]:
-                    # Mixture of 0 and 1 volume values means on surface
-                    res_worst = res
-                    theta_worst = np.arccos(
-                        (k - boxsize / 2)
-                        / np.sqrt(
-                            (i - boxsize / 2) ** 2
-                            + (j - boxsize / 2) ** 2
-                            + (k - boxsize / 2) ** 2
-                        )
-                    )
-                    phi_worst = np.arctan((j - boxsize / 2) / (i - boxsize / 2 + 1e-10))
-
-    if phi_worst < 0:
-        phi_worst = phi_worst + np.pi
-        theta_worst = np.pi - theta_worst
-
-    print(phi_worst * 180 / np.pi, theta_worst * 180 / np.pi, res_worst)
-
-    # Find the surface radius
-    resmap = np.zeros((180, 180))
-    for i in range(1, boxsize):
-        for j in range(1, boxsize):
-            for k in range(1, boxsize):
-                res = np.sqrt(
-                    (i - boxsize / 2) ** 2
-                    + (j - boxsize / 2) ** 2
-                    + (k - boxsize / 2) ** 2
-                )
-                if res != 0 and np.sum(
-                    volume_map[i - 1 : i + 1, j - 1 : j + 1, k - 1 : k + 1]
-                ) not in [0, 8]:
-                    # Mixture of 0 and 1 volume values means on surface
-                    theta = np.arccos((k - dim / 2) / res) * 180 / np.pi
-                    phi = np.arctan((j - dim / 2) / (i - dim / 2 + 1e-10)) * 180 / np.pi
-                    if phi < 0:
-                        phi = phi + 180
-                        theta = 180 - theta
-                    thetaindex = int(theta)
-                    phiindex = int(phi)
-                    if phiindex == 180:
-                        phiindex = 0
-                    if thetaindex == 180:
-                        thetaindex = 0
-                    resmap[phiindex, thetaindex] = res
-
-    # Interpolation of the resolution map
-    for thetaindex in range(180):
-        for phiindex in range(180):
-            pickout_region = resmap[
-                max(phiindex - 1, 0) : min(phiindex + 2, 179),
-                max(thetaindex - 1, 0) : min(thetaindex + 2, 179),
-            ]
-            resmap[phiindex, thetaindex] = np.mean(pickout_region[pickout_region != 0])
-
-    # pass in theta, phi in radians
-    coverage = np.zeros((180, 180))
-    x1 = np.sin(theta_worst) * np.cos(phi_worst)
-    y1 = np.sin(theta_worst) * np.sin(phi_worst)
-    z1 = np.cos(theta_worst)
-
-    for theta in range(1, tiltmax):
-        for phi in range(180):
-            Rtilt = Euler2Matrix(phi + 90, theta, -90 - phi)
-            x2, y2, z2 = np.dot(Rtilt, [x1, y1, z1])
-            theta2 = np.arccos(z2) * 180 / np.pi
-            phi2 = np.arctan(y2 / x2) * 180 / np.pi
-            if phi2 < 0:
-                phi2 = phi2 + 180
-                theta2 = 180 - theta2
-            thetaindex = int(theta2)
-            phiindex = int(phi2)
-            if phiindex == 180:
-                phiindex = 0
-            if thetaindex == 180:
-                thetaindex = 0
-            coverage[phiindex, thetaindex] = theta * np.pi / 180
-
-    print(np.max(resmap), np.min(resmap[(resmap != 0) * (coverage != 0)]))
-
-    predict_res = resmap / np.cos(coverage)
-    expected_res = min(predict_res[(resmap != 0) * (coverage != 0)])
-    expected_tilt = coverage[predict_res == expected_res]
-    if expected_res < res_worst:
-        print(
-            "Found tilt", expected_tilt * 180 / np.pi, "with resolution", expected_res
-        )
-    else:
-        print("No tilt found")
-    return resmap, coverage
-
-
-if __name__ == "__main__":
-    start_time = datetime.now()
-    dim = 64
-    B = 160
-    inFile = "/dls/tmp/yxd92326/data_cef/phi27.dat"
-    angles_data = np.genfromtxt(inFile)
-    norm_psf = find_efficiency(
-        theta_degrees=angles_data[:, 1],
-        phi_degrees=angles_data[:, 0],
-        boxsize=dim,
-        bfactor=B,
+def run():
+    parser = argparse.ArgumentParser(
+        usage="cryoemservices.angular_efficiency [options]"
     )
+    parser.add_argument(
+        "-f",
+        "--file",
+        required=True,
+        help="Star file to process",
+    )
+    parser.add_argument(
+        "-c",
+        "--class_id",
+        default=-1,
+        help="Class to calculate efficiency for. Default (-1) does all particles",
+    )
+    parser.add_argument(
+        "--boxsize",
+        default=64,
+        help="Box size for efficiency calculations",
+    )
+    parser.add_argument(
+        "--bfactor",
+        default=160,
+        help="B-Factor for efficiency_calculations",
+    )
+    args = parser.parse_args()
 
-    resmap, coverage = suggest_tilt(norm_psf, boxsize=dim)
-    end_time = datetime.now()
-    print("Time", (end_time - start_time).total_seconds() / 3600)
-
-    import matplotlib.pyplot as plt
-
-    fig, ax = plt.subplots(3)
-    # resmap[coverage == 0] = 0
-    ax[0].imshow(resmap)
-    ax[1].imshow(coverage)
-    # plt.imshow(resmap)
-    pred_res = resmap / np.cos(coverage)
-    pred_res[coverage == 0] = 0
-    ax[2].imshow(pred_res)
-    plt.show()
-
-    # import mrcfile
-    # with mrcfile.new("/dls/tmp/yxd92326/cryoEF_v1.1.0/norm_psf.mrc", overwrite=True) as mrc:
-    #    mrc.set_data(norm_psf.astype(np.float32))
+    star_file_data = starfile.read(args.file)
+    theta_array = star_file_data["particles"]["rlnAngleTilt"]
+    phi_array = star_file_data["particles"]["rlnAngleRot"]
+    if args.class_id != -1:
+        theta_array = theta_array[
+            star_file_data["particles"]["rlnClassNumber"] == int(args.class_id)
+        ]
+        phi_array = phi_array[
+            star_file_data["particles"]["rlnClassNumber"] == int(args.class_id)
+        ]
+    print(f"Processing {len(theta_array)} particles")
+    find_efficiency(
+        theta_degrees=np.array(theta_array),
+        phi_degrees=np.array(phi_array),
+        boxsize=int(args.boxsize),
+        bfactor=args.bfactor,
+    )
