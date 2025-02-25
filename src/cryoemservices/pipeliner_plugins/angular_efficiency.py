@@ -42,21 +42,27 @@ def efficiency_from_map(Rmap: np.ndarray, boxsize: int) -> float:
 
 
 def map_from_angles(
-    theta, phi, boxsize: int, pixel_size: float = 0.5, bfactor: float = 160
+    theta,
+    phi,
+    boxsize: int,
+    pixel_size: float = 0.5,
+    bfactor: float = 160,
+    hp_nside: int = 64,
 ):
-    hp_nside = 64
-
+    # Convert angles to healpix bins
     pixel_bins = hp.pixelfunc.ang2pix(hp_nside, theta, phi)
     bin_ids, pixel_counts = np.unique(pixel_bins, return_counts=True)
     all_bins = np.zeros(hp.nside2npix(hp_nside))
     all_bins[bin_ids] = pixel_counts
 
+    # Find all unique occupied bins
     unique_coords, unique_indexes, all_bins = np.unique(
         theta * 1000 + phi, return_index=True, return_counts=True
     )
     theta = theta[unique_indexes]
     phi = phi[unique_indexes]
 
+    # Calculate plane for each point, which passes through the origin
     plane_x = np.sin(theta) * np.cos(phi)
     plane_y = np.sin(theta) * np.sin(phi)
     plane_z = np.cos(theta)
@@ -64,11 +70,11 @@ def map_from_angles(
     plane_coeff_squares = (
         plane_fits[:, 0] ** 2 + plane_fits[:, 1] ** 2 + plane_fits[:, 2] ** 2
     )
-
     unscaled_dist_x = plane_fits[:, 0] / plane_coeff_squares
     unscaled_dist_y = plane_fits[:, 1] / plane_coeff_squares
     unscaled_dist_z = plane_fits[:, 2] / plane_coeff_squares
 
+    # Find the number of crossing planes in each occupied bin
     counts = np.ones(len(theta))
     for i in range(boxsize):
         for j in range(boxsize):
@@ -86,6 +92,7 @@ def map_from_angles(
                     )
                     counts[plane_matches] += np.ones(len(np.where(plane_matches)[0]))
 
+    # Calculate the map
     k_array = np.zeros((boxsize, boxsize, boxsize))
     for i in range(boxsize):
         for j in range(boxsize):
@@ -113,7 +120,9 @@ def map_from_angles(
     return k_array
 
 
-def find_efficiency(theta_degrees, phi_degrees, boxsize: int, bfactor: float):
+def find_efficiency(
+    theta_degrees, phi_degrees, boxsize: int = 64, bfactor: float = 160
+):
     fourier_map = map_from_angles(
         theta=theta_degrees * np.pi / 180,
         phi=phi_degrees * np.pi / 180,

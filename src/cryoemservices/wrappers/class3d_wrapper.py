@@ -15,6 +15,7 @@ from gemmi import cif
 from pydantic import BaseModel, Field, ValidationError
 from zocalo.wrapper import BaseWrapper
 
+from cryoemservices.pipeliner_plugins.angular_efficiency import find_efficiency
 from cryoemservices.util.relion_service_options import (
     RelionServiceOptions,
     update_relion_options,
@@ -478,6 +479,14 @@ class Class3DWrapper(BaseWrapper):
                     )
                 except ValueError as e:
                     self.log.warning(f"Healpix failed with error {e}")
+
+                class_efficiency = find_efficiency(
+                    theta_degrees=angles_tilt[class_numbers == class_id + 1],
+                    phi_degrees=angles_rot[class_numbers == class_id + 1],
+                )
+                self.log.info(
+                    f"Efficiency of class {class_id + 1} is {class_efficiency}"
+                )
 
         # Send classification job information to ispyb
         ispyb_parameters = []
