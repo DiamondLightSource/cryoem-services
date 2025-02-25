@@ -131,11 +131,12 @@ def test_process_lif_substack(
     raw_xml_metadata: Element,
     processed_dir: Path,
 ):
-    scene_num = 0
 
+    # Pick a single scene from the LIF file to analyse
+    scene_num = 0
     metadata = get_image_elements(raw_xml_metadata)[scene_num]
 
-    # Mock out the LifImage object generated in the function
+    # Mock out the LifImage object
     mock_lif_image = MagicMock(spec=LifImage)
 
     # Generate values for the 'dims' attribute
@@ -282,9 +283,10 @@ def test_lif_to_stack_wrapper(
     lif_file: Path,
     processed_dir: Path,
 ):
-    # Construct a dictionary to pass to the wrapper
+    # Set the number of simultaneous processes to run
     num_procs = 20
 
+    # Construct a dictionary to pass to the wrapper
     message = {
         "recipe": {
             "start": [[1, []]],
@@ -300,11 +302,11 @@ def test_lif_to_stack_wrapper(
         "environment": {"ID": "envID"},
     }
 
-    # The result from the mocked function is also a mock object
-    # Construct the expected output result
+    # Set up path to the save directory and metadata file
     series_dir = processed_dir / series_name
     metadata = series_dir / "metadata" / f"{series_name}.xml"
 
+    # Construct the expected output result
     outputs = [
         {
             "image_stack": str(series_dir / f"{color}.tiff"),
