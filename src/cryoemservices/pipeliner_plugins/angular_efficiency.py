@@ -7,14 +7,14 @@ import numpy as np
 import starfile
 
 
-def efficiency_from_map(Rmap: np.ndarray, boxsize: int) -> float:
+def efficiency_from_map(psf_map: np.ndarray, boxsize: int) -> float:
     # Discard all entries below the threshold
-    thr = np.max(Rmap) / np.exp(2)
-    Rmap[Rmap < thr] = 0
+    thr = np.max(psf_map) / np.exp(2)
+    psf_map[psf_map < thr] = 0
 
     # Construct binary map of 1 inside boundary, 0 outside
     volume_map = np.zeros((boxsize, boxsize, boxsize))
-    volume_map[Rmap != 0] = 1
+    volume_map[psf_map != 0] = 1
 
     # Find the average surface radius
     area = 0.0
@@ -154,9 +154,7 @@ def find_efficiency(
 
 
 def run():
-    parser = argparse.ArgumentParser(
-        usage="cryoemservices.angular_efficiency [options]"
-    )
+    parser = argparse.ArgumentParser()
     parser.add_argument(
         "-f",
         "--file",
@@ -196,5 +194,5 @@ def run():
         theta_degrees=np.array(theta_array),
         phi_degrees=np.array(phi_array),
         boxsize=int(args.boxsize),
-        bfactor=args.bfactor,
+        bfactor=float(args.bfactor),
     )
