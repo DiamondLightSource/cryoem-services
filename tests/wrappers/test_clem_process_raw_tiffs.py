@@ -213,8 +213,9 @@ def test_convert_tiff_to_stack(
 
 
 tiff_to_stack_params_matrix = (
-    # Use TIFF list? | Stringify file path? |
+    # Use 'tiff_list'? Build from 'tiff_file' if False | Stringify file path?
     (True, False),
+    # Check that list of strings is converted correctly
     (True, True),
     (False, True),
 )
@@ -231,9 +232,11 @@ def test_tiff_to_stack_parameters(
     # Unpack test params
     use_tiff_list, stringify = test_params
 
+    # Modify 'tiff_list' and 'tiff_file' for the test
     tiff_list = [str(file) if stringify else file for file in tiff_list]
     tiff_file = "null" if use_tiff_list else tiff_list[0]
 
+    # Construct dictionary and validate it with the Pydantic model
     params = {
         "tiff_list": (tiff_list if use_tiff_list else "null"),
         "tiff_file": tiff_file,
@@ -242,7 +245,7 @@ def test_tiff_to_stack_parameters(
     }
     validated_params = TIFFToStackParameters(**params)
 
-    # Validate parameters that are used in the wrapper
+    # Check that parameters were validated correctly
     for file in validated_params.tiff_list:
         assert isinstance(file, Path)
     assert validated_params.root_folder == raw_folder
@@ -250,9 +253,11 @@ def test_tiff_to_stack_parameters(
 
 
 tiff_to_stack_params_failure_matrix = (
-    # Use TIFF list? | Use TIFF file? | Garbled string
+    # Use 'tiff_list' | Use 'tiff_file' | Garbled string
+    # tiff_list and tiff_file cannot both be populated or absent
     (True, True, ""),
     (False, False, ""),
+    # Cannot evaluate stringified list
     (True, False, "[asdflkajsdlfkj]"),
     (True, False, "[1, 2, 3, 4]"),
 )
@@ -269,9 +274,11 @@ def test_tiff_to_stack_parameters_fail(
     # Unpack test params
     use_tiff_list, use_tiff_file, garbled_string = test_params
 
+    # Modify 'tiff_file' and 'tiff_list' accordingly
     tiff_file = tiff_list[0] if use_tiff_file else "null"
     tiff_list = tiff_list if use_tiff_list else "null"
 
+    # Construct the dictionary and validate it with the Pydantic model
     params = {
         "tiff_list": (garbled_string if garbled_string else tiff_list),
         "tiff_file": tiff_file,
