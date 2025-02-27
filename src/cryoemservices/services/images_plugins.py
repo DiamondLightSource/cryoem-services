@@ -230,11 +230,7 @@ def mrc_central_slice(plugin_params: Callable):
     central_slice_data = central_slice_data.astype("uint8")
     im = PIL.Image.fromarray(central_slice_data, mode="L")
     im.thumbnail((512, 512))
-    try:
-        im.save(outfile)
-    except FileNotFoundError:
-        logger.error(f"Trying to save to file {outfile} but directory does not exist")
-        return False
+    im.save(outfile)
     timing = time.perf_counter() - start
 
     logger.info(
@@ -285,7 +281,7 @@ def mrc_to_apng(plugin_params: Callable):
         try:
             im_frame0 = images_to_append[0]
             im_frame0.save(outfile, save_all=True, append_images=images_to_append[1:])
-        except (IndexError, FileNotFoundError):
+        except IndexError:
             logger.error(f"Unable to save movie to file {outfile}")
             return False
     else:
@@ -403,11 +399,7 @@ def picked_particles_3d_central_slice(plugin_params: Callable):
     )
 
     outfile = str(Path(coords_file).with_suffix("")) + "_thumbnail.jpeg"
-    try:
-        colour_im.save(outfile)
-    except FileNotFoundError:
-        logger.error(f"Trying to save to file {outfile} but directory does not exist")
-        return False
+    colour_im.save(outfile)
 
     logger.info(f"3D particle picker central slice {outfile} saved")
     return outfile
@@ -447,7 +439,7 @@ def picked_particles_3d_apng(plugin_params: Callable):
     try:
         im_frame0 = images_to_append[0]
         im_frame0.save(outfile, save_all=True, append_images=images_to_append[1:])
-    except (IndexError, FileNotFoundError):
+    except IndexError:
         logger.error(f"Unable to save movie to file {outfile}")
         return False
 
