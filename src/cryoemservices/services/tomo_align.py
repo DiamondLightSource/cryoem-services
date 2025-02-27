@@ -606,6 +606,7 @@ class TomoAlign(CommonService):
                 {
                     "image_command": "mrc_to_jpeg",
                     "file": str(projection_mrc),
+                    "pixel_spacing": pixel_spacing,
                 },
             )
 
