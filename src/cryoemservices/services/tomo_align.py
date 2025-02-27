@@ -393,7 +393,7 @@ class TomoAlign(CommonService):
                     "-ou",
                     str(aretomo_output_path),
                     "-size",
-                    f"{scaled_x_size},{scaled_y_size},{scaled_z_size}",
+                    f"{int(scaled_x_size)},{int(scaled_y_size)},{int(scaled_z_size)}",
                     "-a",
                     "90,90,0",
                 ]
