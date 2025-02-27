@@ -689,10 +689,19 @@ class TomoAlign(CommonService):
                     "-TiltCor",
                     str(tomo_parameters.tilt_cor),
                     str(tomo_parameters.manual_tilt_offset),
+                    "-VolZ",
+                    str(int(tomo_parameters.vol_z * 4 / 3)),
                 )
             )
         elif tomo_parameters.tilt_cor:
-            command.extend(("-TiltCor", str(tomo_parameters.tilt_cor)))
+            command.extend(
+                (
+                    "-TiltCor",
+                    str(tomo_parameters.tilt_cor),
+                    "-VolZ",
+                    str(tomo_parameters.vol_z),
+                )
+            )
 
         if tomo_parameters.tilt_axis:
             command.extend(
@@ -712,7 +721,6 @@ class TomoAlign(CommonService):
             )
 
         aretomo_flags = {
-            "vol_z": "-VolZ",
             "out_bin": "-OutBin",
             "flip_int": "-FlipInt",
             "flip_vol": "-FlipVol",
