@@ -6,12 +6,12 @@ from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
-import topaz.utils.files as topaz_file_utils
 import workflows.recipe
 from pydantic import BaseModel, Field, ValidationError
 from topaz import extract
 from topaz.algorithms import non_maximum_suppression
 from topaz.stats import normalize_images
+from topaz.utils.files import write_table
 from workflows.services.common_service import CommonService
 
 from cryoemservices.util.models import MockRW
@@ -84,7 +84,7 @@ class TopazPick(CommonService):
                 }
             )
             with open(topaz_params.output_path, "w") as outfile:
-                topaz_file_utils.write_table(outfile, table)
+                write_table(outfile, table)
 
     def topaz(self, rw, header: dict, message: dict):
         """
@@ -190,6 +190,13 @@ class TopazPick(CommonService):
         self.topaz_extract_particles(
             stream_for_picking, topaz_params, radius=scaled_radius_pixels
         )
+
+        # Remove the scaled image topaz makes
+        (
+            Path(topaz_params.output_path).parent
+            / "scaled"
+            / Path(topaz_params.input_path).name
+        ).unlink(missing_ok=True)
 
         # Read picks for images service and find number of particles
         try:
