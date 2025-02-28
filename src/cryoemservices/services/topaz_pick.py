@@ -114,7 +114,7 @@ class TopazPick(CommonService):
                 )
         except (ValidationError, TypeError) as e:
             self.log.warning(
-                f"crYOLO parameter validation failed for message: {message} "
+                f"topaz parameter validation failed for message: {message} "
                 f"and recipe parameters: {rw.recipe_step.get('parameters', {})} "
                 f"with exception: {e}"
             )
@@ -224,7 +224,7 @@ class TopazPick(CommonService):
             topaz_params.input_path,
         ]
 
-        # Register the cryolo job with the node creator
+        # Register the topaz job with the node creator
         self.log.info(f"Sending {self.job_type} to node creator")
         node_creator_parameters: dict[str, Any] = {
             "job_type": self.job_type,

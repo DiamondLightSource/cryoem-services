@@ -118,6 +118,7 @@ torch = [
     SelectParticles = "cryoemservices.services.select_particles:SelectParticles"
     TomoAlign = "cryoemservices.services.tomo_align:TomoAlign"
     TomoAlignSlurm = "cryoemservices.services.tomo_align_slurm:TomoAlignSlurm"
+    TopazPick = "cryoemservices.services.topaz_pick:TopazPick"
 
 [tool.setuptools]
 package-dir = { "" = "src" }
