@@ -58,6 +58,10 @@ dev = [
     "pytest-datafiles",
     "pytest-mock",
 ]
+torch = [
+    "membrain-seg",
+    "topaz-em",
+]
 [project.urls]
     Bug-Tracker = "https://github.com/DiamondLightSource/cryoem-services/issues"
     GitHub = "https://github.com/DiamondLightSource/cryoem-services"
