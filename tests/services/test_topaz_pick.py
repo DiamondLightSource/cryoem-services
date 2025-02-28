@@ -59,7 +59,9 @@ def test_topaz_with_diameter(
         "ctf_values": {"dummy": "dummy"},
         "relion_options": {"batch_size": 20000, "downscale": True},
     }
-    output_relion_options = dict(RelionServiceOptions())
+    output_relion_options_model = RelionServiceOptions()
+    output_relion_options_model.particle_diameter = 1.1
+    output_relion_options = dict(output_relion_options_model)
     output_relion_options.update(topaz_test_message["relion_options"])
 
     # Set up the mock service and send the message to it
