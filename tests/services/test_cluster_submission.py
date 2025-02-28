@@ -115,27 +115,21 @@ def test_cluster_submission_recipeless(
     mock_requests.Session().post.assert_called_with(
         url="/slurm/url/slurm/v0.0.40/job/submit",
         json={
-            "job": cluster_submission.JobParams(
-                cpus_per_task=3,
-                current_working_directory=str(tmp_path),
-                environment=["USER=user"],
-                name="test_job",
-                nodes="1",
-                partition="part",
-                prefer="preferred_part",
-                tasks=2,
-                memory_per_cpu=cluster_submission.SlurmInt(
-                    set=True, infinite=False, number=10
-                ),
-                memory_per_node=cluster_submission.SlurmInt(
-                    set=True, infinite=False, number=20
-                ),
-                time_limit=cluster_submission.SlurmInt(
-                    set=True, infinite=False, number=5
-                ),
-                tres_per_node="gres/gpu:4",
-                tres_per_job="gres/gpu:4",
-            ),
+            "job": {
+                "cpus_per_task": 3,
+                "current_working_directory": str(tmp_path),
+                "environment": ["USER=user"],
+                "name": "test_job",
+                "nodes": "1",
+                "partition": "part",
+                "prefer": "preferred_part",
+                "tasks": 2,
+                "memory_per_cpu": {"set": True, "infinite": False, "number": 10},
+                "memory_per_node": {"set": True, "infinite": False, "number": 20},
+                "time_limit": {"set": True, "infinite": False, "number": 5},
+                "tres_per_node": "gres/gpu:4",
+                "tres_per_job": "gres/gpu:4",
+            },
             "script": "#!/bin/bash\n. /etc/profile.d/modules.sh\nsrun job",
         },
     )
@@ -204,16 +198,16 @@ def test_cluster_submission_recipefile(
     mock_requests.Session().post.assert_called_with(
         url="/slurm/url/slurm/v0.0.40/job/submit",
         json={
-            "job": cluster_submission.JobParams(
-                cpus_per_task=3,
-                current_working_directory=str(tmp_path),
-                environment=["USER=user"],
-                name="test_job",
-                nodes="1",
-                partition="part",
-                prefer="preferred_part",
-                tasks=2,
-            ),
+            "job": {
+                "cpus_per_task": 3,
+                "current_working_directory": str(tmp_path),
+                "environment": ["USER=user"],
+                "name": "test_job",
+                "nodes": "1",
+                "partition": "part",
+                "prefer": "preferred_part",
+                "tasks": 2,
+            },
             "script": f"#!/bin/bash\n. /etc/profile.d/modules.sh\nsrun {tmp_path}/recipefile",
         },
     )
@@ -281,16 +275,16 @@ def test_cluster_submission_recipeenvironment(
     mock_requests.Session().post.assert_called_with(
         url="/slurm/url/slurm/v0.0.40/job/submit",
         json={
-            "job": cluster_submission.JobParams(
-                cpus_per_task=3,
-                current_working_directory=str(tmp_path),
-                environment=["USER=user"],
-                name="test_job",
-                nodes="1",
-                partition="part",
-                prefer="preferred_part",
-                tasks=2,
-            ),
+            "job": {
+                "cpus_per_task": 3,
+                "current_working_directory": str(tmp_path),
+                "environment": ["USER=user"],
+                "name": "test_job",
+                "nodes": "1",
+                "partition": "part",
+                "prefer": "preferred_part",
+                "tasks": 2,
+            },
             "script": f"#!/bin/bash\n. /etc/profile.d/modules.sh\nsrun job {tmp_path}/recipe_env",
         },
     )
@@ -371,16 +365,16 @@ def test_cluster_submission_recipewrapper(
     mock_requests.Session().post.assert_called_with(
         url="/slurm/url/slurm/v0.0.40/job/submit",
         json={
-            "job": cluster_submission.JobParams(
-                cpus_per_task=3,
-                current_working_directory=str(tmp_path),
-                environment=["USER=user"],
-                name="test_job",
-                nodes="1",
-                partition="part",
-                prefer="preferred_part",
-                tasks=2,
-            ),
+            "job": {
+                "cpus_per_task": 3,
+                "current_working_directory": str(tmp_path),
+                "environment": ["USER=user"],
+                "name": "test_job",
+                "nodes": "1",
+                "partition": "part",
+                "prefer": "preferred_part",
+                "tasks": 2,
+            },
             "script": f"#!/bin/bash\n. /etc/profile.d/modules.sh\nsrun job {tmp_path}/recipe_wrapper",
         },
     )
@@ -456,27 +450,21 @@ def test_cluster_submission_extra_cluster(
     mock_requests.Session().post.assert_called_with(
         url="/slurm/extra/url/slurm/v0.0.41/job/submit",
         json={
-            "job": cluster_submission.JobParams(
-                cpus_per_task=3,
-                current_working_directory=str(tmp_path),
-                environment=["USER=user"],
-                name="test_job",
-                nodes="1",
-                partition="part",
-                prefer="preferred_part",
-                tasks=2,
-                memory_per_cpu=cluster_submission.SlurmInt(
-                    set=True, infinite=False, number=10
-                ),
-                memory_per_node=cluster_submission.SlurmInt(
-                    set=True, infinite=False, number=20
-                ),
-                time_limit=cluster_submission.SlurmInt(
-                    set=True, infinite=False, number=5
-                ),
-                tres_per_node="gres/gpu:4",
-                tres_per_job="gres/gpu:4",
-            ),
+            "job": {
+                "cpus_per_task": 3,
+                "current_working_directory": str(tmp_path),
+                "environment": ["USER=user"],
+                "name": "test_job",
+                "nodes": "1",
+                "partition": "part",
+                "prefer": "preferred_part",
+                "tasks": 2,
+                "memory_per_cpu": {"set": True, "infinite": False, "number": 10},
+                "memory_per_node": {"set": True, "infinite": False, "number": 20},
+                "time_limit": {"set": True, "infinite": False, "number": 5},
+                "tres_per_node": "gres/gpu:4",
+                "tres_per_job": "gres/gpu:4",
+            },
             "script": "#!/bin/bash\n. /etc/profile.d/modules.sh\nsrun job",
         },
     )

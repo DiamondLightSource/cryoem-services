@@ -12,16 +12,10 @@ from typing import Optional
 import requests
 import workflows.recipe
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from workflows.services.common_service import CommonService
 
 from cryoemservices.util.config import ServiceConfig, config_from_file
-
-
-class SlurmInt(BaseModel):
-    set: bool = True
-    infinite: bool = False
-    number: int
 
 
 class JobParams(BaseModel):
@@ -33,10 +27,9 @@ class JobParams(BaseModel):
     partition: Optional[str] = None
     prefer: Optional[str] = None
     tasks: Optional[int] = None
-
-    memory_per_cpu: Optional[SlurmInt] = None
-    memory_per_node: Optional[SlurmInt] = None
-    time_limit: Optional[SlurmInt] = None
+    memory_per_cpu: Optional[dict] = None
+    memory_per_node: Optional[dict] = None
+    time_limit: Optional[dict] = None
     tres_per_node: Optional[str] = None
     tres_per_job: Optional[str] = None
 
@@ -71,7 +64,7 @@ class SlurmRestApi:
     def submit_job(self, script: str, job: JobParams) -> JobSubmitResponseMsg:
         response = self.session.post(
             url=f"{self.url}/slurm/{self.version}/job/submit",
-            json={"script": script, "job": job},
+            json={"script": script, "job": job.model_dump(exclude_none=True)},
         )
         response.raise_for_status()
         return JobSubmitResponseMsg(**response.json())
@@ -88,9 +81,7 @@ class JobSubmissionParameters(BaseModel):
     nodes: Optional[int] = None
     memory_per_node: Optional[int] = None
     gpus_per_node: Optional[int] = None
-    min_memory_per_cpu: Optional[int] = Field(
-        None, description="Minimum real memory per cpu (MB)"
-    )
+    min_memory_per_cpu: Optional[int] = None
     time_limit: Optional[datetime.timedelta] = None
     gpus: Optional[int] = None
     exclusive: bool = False
@@ -135,33 +126,42 @@ def submit_to_slurm(
         return None
 
     logger.info(f"Submitting script to Slurm:\n{script}")
-    jdm_params = {
-        "cpus_per_task": params.cpus_per_task,
-        "current_working_directory": os.fspath(working_directory),
-        "environment": environment,
-        "name": params.job_name,
-        "nodes": str(params.nodes) if params.nodes else params.nodes,
-        "partition": params.partition,
-        "prefer": params.prefer,
-        "tasks": params.tasks,
-    }
+    jdm_params = JobParams(
+        cpus_per_task=params.cpus_per_task,
+        current_working_directory=os.fspath(working_directory),
+        environment=environment,
+        name=params.job_name,
+        nodes=str(params.nodes) if params.nodes else params.nodes,
+        partition=params.partition,
+        prefer=params.prefer,
+        tasks=params.tasks,
+    )
     if params.min_memory_per_cpu:
-        jdm_params["memory_per_cpu"] = SlurmInt(number=params.min_memory_per_cpu)
+        jdm_params.memory_per_cpu = {
+            "number": params.min_memory_per_cpu,
+            "set": True,
+            "infinite": False,
+        }
     if params.memory_per_node:
-        jdm_params["memory_per_node"] = SlurmInt(number=params.memory_per_node)
+        jdm_params.memory_per_node = {
+            "number": params.memory_per_node,
+            "set": True,
+            "infinite": False,
+        }
     if params.time_limit:
         time_limit_minutes = math.ceil(params.time_limit.total_seconds() / 60)
-        jdm_params["time_limit"] = SlurmInt(number=time_limit_minutes)
+        jdm_params.time_limit = {
+            "number": time_limit_minutes,
+            "set": True,
+            "infinite": False,
+        }
     if params.gpus_per_node:
-        jdm_params["tres_per_node"] = f"gres/gpu:{params.gpus_per_node}"
+        jdm_params.tres_per_node = f"gres/gpu:{params.gpus_per_node}"
     if params.gpus:
-        jdm_params["tres_per_job"] = f"gres/gpu:{params.gpus}"
+        jdm_params.tres_per_job = f"gres/gpu:{params.gpus}"
 
     try:
-        response = api.submit_job(
-            script=script,
-            job=JobParams(**jdm_params),
-        )
+        response = api.submit_job(script=script, job=jdm_params)
     except Exception as e:
         logger.error(f"Failed Slurm job submission: {e}\n" f"{e}")
         return None
