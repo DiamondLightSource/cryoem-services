@@ -491,6 +491,40 @@ def test_node_creator_ctffind(offline_transport, tmp_path):
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+def test_node_creator_ctffind_noicerings(offline_transport, tmp_path):
+    """
+    Send a test message to the node creator for
+    relion.ctffind.ctffind4, with no ice ring values generated
+    """
+    job_dir = "CtfFind/job006"
+    input_file = f"{tmp_path}/MotionCorr/job002/Movies/sample.mrc"
+    output_file = tmp_path / job_dir / "Movies/sample.ctf"
+    relion_options = RelionServiceOptions()
+
+    output_file.parent.mkdir(parents=True)
+    with open(output_file.with_suffix(".txt"), "w") as f:
+        f.write("0.0 1.0 2.0 3.0 4.0 5.0 6.0")
+    with open(f"{output_file.with_suffix('')}_avrot.txt", "w") as f:
+        f.write("header\nheader\nheader\nheader\nheader\n")
+
+    setup_and_run_node_creation(
+        relion_options,
+        offline_transport,
+        tmp_path,
+        job_dir,
+        "relion.ctffind.ctffind4",
+        input_file,
+        output_file,
+    )
+
+    # Check the output file structure
+    assert (tmp_path / job_dir / "micrographs_ctf.star").exists()
+    micrographs_file = cif.read_file(str(tmp_path / job_dir / "micrographs_ctf.star"))
+    micrographs_data = micrographs_file.find_block("micrographs")
+    assert list(micrographs_data.find_loop("_rlnCtfIceRingDensity")) == ["0"]
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 def test_node_creator_cryolo(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
