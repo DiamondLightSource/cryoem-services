@@ -8,8 +8,8 @@ import numpy as np
 import pandas as pd
 import workflows.recipe
 from pydantic import BaseModel, Field, ValidationError
-from topaz import extract
 from topaz.algorithms import non_maximum_suppression
+from topaz.extract import score_images
 from topaz.stats import normalize_images
 from topaz.utils.files import write_table
 from workflows.services.common_service import CommonService
@@ -24,6 +24,7 @@ class TopazPickParameters(BaseModel):
     pixel_size: float
     scale: int = 8
     log_threshold: float = -6
+    log_threshold_for_radius: float = 0
     max_particle_radius: int = 40
     topaz_model: str = "resnet16"
     particle_diameter: Optional[float] = None
@@ -45,7 +46,7 @@ class TopazPick(CommonService):
     _logger_name = "cryoemservices.services.topaz_pick"
 
     # Job name
-    job_type = "topaz.pick"
+    job_type = "relion.autopick.topaz.pick"
 
     def initializing(self):
         """Subscribe to a queue. Received messages must be acknowledged."""
@@ -60,31 +61,30 @@ class TopazPick(CommonService):
         )
 
     def topaz_extract_particles(
-        self, stream_for_picking, topaz_params: TopazPickParameters, radius: int
+        self, scores_for_picking, topaz_params: TopazPickParameters, radius: int
     ):
         # Extract coordinates using radius
-        for name, score in stream_for_picking:
-            score, coords = non_maximum_suppression(
-                score,
-                radius,
-                threshold=topaz_params.log_threshold,
-            )
-            self.log.info(
-                f"Extracted {len(score)} particles from {topaz_params.input_path}"
-            )
-            # Scale the coordinates
-            scaled_coords = np.round(coords * topaz_params.scale).astype(int)
-            # Save the coordinates
-            table = pd.DataFrame(
-                {
-                    "image_name": topaz_params.input_path,
-                    "x_coord": scaled_coords[:, 0],
-                    "y_coord": scaled_coords[:, 1],
-                    "score": score,
-                }
-            )
-            with open(topaz_params.output_path, "w") as outfile:
-                write_table(outfile, table)
+        score, coords = non_maximum_suppression(
+            scores_for_picking,
+            radius,
+            threshold=topaz_params.log_threshold,
+        )
+        self.log.info(
+            f"Extracted {len(score)} particles from {topaz_params.input_path}"
+        )
+        # Scale the coordinates
+        scaled_coords = np.round(coords * topaz_params.scale).astype(int)
+        # Save the coordinates
+        table = pd.DataFrame(
+            {
+                "image_name": [topaz_params.input_path] * len(score),
+                "x_coord": scaled_coords[:, 0],
+                "y_coord": scaled_coords[:, 1],
+                "score": score,
+            }
+        )
+        with open(topaz_params.output_path, "w") as outfile:
+            write_table(outfile, table)
 
     def topaz(self, rw, header: dict, message: dict):
         """
@@ -132,13 +132,12 @@ class TopazPick(CommonService):
         job_dir_search = re.search(".+/job[0-9]+/", topaz_params.output_path)
         job_num_search = re.search("/job[0-9]+/", topaz_params.output_path)
         if job_dir_search and job_num_search:
-            job_dir = Path(job_dir_search[0])
             job_number = int(job_num_search[0][4:7])
         else:
             self.log.warning(f"Invalid job directory in {topaz_params.output_path}")
             rw.transport.nack(header)
             return
-        job_dir.mkdir(parents=True, exist_ok=True)
+        Path(topaz_params.output_path).parent.mkdir(parents=True, exist_ok=True)
 
         # Construct a command to run topaz with the given parameters
         self.log.info(
@@ -160,7 +159,7 @@ class TopazPick(CommonService):
             use_cuda=True,
             verbose=False,
         )
-        stream_from_scoring = extract.score_images(
+        stream_from_scoring = score_images(
             topaz_params.topaz_model,
             [
                 f"{Path(topaz_params.output_path).parent}"
@@ -169,7 +168,7 @@ class TopazPick(CommonService):
             device=-1,
             batch_size=1,
         )
-        stream_for_picking = dict(stream_from_scoring).items()
+        scores_for_picking = [v for k, v in stream_from_scoring][0]
 
         if topaz_params.particle_diameter:
             scaled_radius_pixels = int(
@@ -179,16 +178,17 @@ class TopazPick(CommonService):
                 / 2
             )
         else:
+            # This uses a higher threshold for speed
             scaled_radius_pixels = predict_radius_scaled_pixels(
-                stream_for_picking,
+                scores_for_picking,
                 topaz_params.max_particle_radius,
-                topaz_params.log_threshold,
+                topaz_params.log_threshold_for_radius,
             )
             topaz_params.particle_diameter = (
                 scaled_radius_pixels * topaz_params.scale * topaz_params.pixel_size * 2
             )
         self.topaz_extract_particles(
-            stream_for_picking, topaz_params, radius=scaled_radius_pixels
+            scores_for_picking, topaz_params, radius=scaled_radius_pixels
         )
 
         # Remove the scaled image topaz makes
