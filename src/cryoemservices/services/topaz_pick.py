@@ -28,6 +28,7 @@ class TopazPickParameters(BaseModel):
     max_particle_radius: int = 40
     topaz_model: str = "resnet16"
     particle_diameter: Optional[float] = None
+    use_gpu: bool = True
     mc_uuid: int
     picker_uuid: int
     relion_options: RelionServiceOptions
@@ -114,7 +115,7 @@ class TopazPick(CommonService):
 
         # Construct a command to run topaz with the given parameters
         self.log.info(
-            f"Input: {topaz_params.input_path} " + f"Output: {topaz_params.output_path}"
+            f"Input: {topaz_params.input_path} Output: {topaz_params.output_path}"
         )
 
         normalize_images(
@@ -129,7 +130,7 @@ class TopazPick(CommonService):
             sample=10,
             metadata=False,
             formats=["mrc"],
-            use_cuda=True,
+            use_cuda=topaz_params.use_gpu,
             verbose=False,
         )
         stream_from_scoring = score_images(
@@ -138,7 +139,7 @@ class TopazPick(CommonService):
                 f"{Path(topaz_params.output_path).parent}"
                 f"/scaled/{Path(topaz_params.input_path).name}"
             ],
-            device=-1,
+            device=0 if topaz_params.use_gpu else -1,
             batch_size=1,
         )
         scores_for_picking = [v for k, v in stream_from_scoring][0]
