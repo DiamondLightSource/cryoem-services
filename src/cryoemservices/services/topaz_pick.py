@@ -60,32 +60,6 @@ class TopazPick(CommonService):
             allow_non_recipe_messages=True,
         )
 
-    def topaz_extract_particles(
-        self, scores_for_picking, topaz_params: TopazPickParameters, radius: int
-    ):
-        # Extract coordinates using radius
-        score, coords = non_maximum_suppression(
-            scores_for_picking,
-            radius,
-            threshold=topaz_params.log_threshold,
-        )
-        self.log.info(
-            f"Extracted {len(score)} particles from {topaz_params.input_path}"
-        )
-        # Scale the coordinates
-        scaled_coords = np.round(coords * topaz_params.scale).astype(int)
-        # Save the coordinates
-        table = pd.DataFrame(
-            {
-                "image_name": [topaz_params.input_path] * len(score),
-                "x_coord": scaled_coords[:, 0],
-                "y_coord": scaled_coords[:, 1],
-                "score": score,
-            }
-        )
-        with open(topaz_params.output_path, "w") as outfile:
-            write_table(outfile, table)
-
     def topaz(self, rw, header: dict, message: dict):
         """
         Main function which interprets received messages, runs topaz
@@ -129,9 +103,8 @@ class TopazPick(CommonService):
             job_is_rerun = False
 
         # Determine the project directory or job directory
-        job_dir_search = re.search(".+/job[0-9]+/", topaz_params.output_path)
         job_num_search = re.search("/job[0-9]+/", topaz_params.output_path)
-        if job_dir_search and job_num_search:
+        if job_num_search:
             job_number = int(job_num_search[0][4:7])
         else:
             self.log.warning(f"Invalid job directory in {topaz_params.output_path}")
@@ -179,6 +152,7 @@ class TopazPick(CommonService):
             )
         else:
             # This uses a higher threshold for speed
+            self.log.info("Estimating radius...")
             scaled_radius_pixels = predict_radius_scaled_pixels(
                 scores_for_picking,
                 topaz_params.max_particle_radius,
@@ -187,8 +161,12 @@ class TopazPick(CommonService):
             topaz_params.particle_diameter = (
                 scaled_radius_pixels * topaz_params.scale * topaz_params.pixel_size * 2
             )
-        self.topaz_extract_particles(
+            self.log.info(f"Predicted particle size: {topaz_params.particle_diameter}")
+        n_particles = topaz_extract_particles(
             scores_for_picking, topaz_params, radius=scaled_radius_pixels
+        )
+        self.log.info(
+            f"Extracted {n_particles} particles from {topaz_params.input_path}"
         )
 
         # Remove the scaled image topaz makes
@@ -197,14 +175,6 @@ class TopazPick(CommonService):
             / "scaled"
             / Path(topaz_params.input_path).name
         ).unlink(missing_ok=True)
-
-        # Read picks for images service and find number of particles
-        try:
-            with open(topaz_params.output_path, "r") as coords_file:
-                coords = [line.split()[1:3] for line in coords_file][1:]
-        except FileNotFoundError:
-            coords = []
-        n_particles = len(coords)
 
         # Construct the command we have replicated
         command = [
@@ -256,6 +226,13 @@ class TopazPick(CommonService):
         self.log.info(f"Sending to ispyb {ispyb_parameters_spa}")
         rw.send_to("ispyb_connector", ispyb_parameters_spa)
 
+        # Read picks for images service
+        try:
+            with open(topaz_params.output_path, "r") as coords_file:
+                coords = [line.split()[1:3] for line in coords_file][1:]
+        except FileNotFoundError:
+            coords = []
+
         # Forward results to images service
         self.log.info("Sending to images service")
         images_parameters = {
@@ -305,15 +282,11 @@ class TopazPick(CommonService):
 def profile_of_micrograph(
     scores_from_mic, particle_box_half_size: int, score_threshold: float
 ):
-    print("Finding peaks")
+    # Find peaks
     peaks = np.zeros(np.shape(scores_from_mic))
-    from tqdm import tqdm
-
-    for i in tqdm(
-        range(
-            particle_box_half_size,
-            np.shape(scores_from_mic)[0] - particle_box_half_size,
-        )
+    for i in range(
+        particle_box_half_size,
+        np.shape(scores_from_mic)[0] - particle_box_half_size,
     ):
         for j in range(
             particle_box_half_size,
@@ -331,7 +304,7 @@ def profile_of_micrograph(
                 ):
                     peaks[i, j] = 1
 
-    print("Finding average particle")
+    # Find average particle
     mean_particle = np.zeros(
         (particle_box_half_size * 2 + 1, particle_box_half_size * 2 + 1)
     )
@@ -351,7 +324,7 @@ def profile_of_micrograph(
                     ]
                 ) / np.exp(scores_from_mic[i, j])
 
-    print("Determining distances")
+    # Determine distances
     proj_dists = np.zeros(
         (particle_box_half_size * 2 + 1, particle_box_half_size * 2 + 1)
     )
@@ -361,13 +334,14 @@ def profile_of_micrograph(
                 (i - particle_box_half_size) ** 2 + (j - particle_box_half_size) ** 2
             )
 
+    # Find the average particle score profile
     mean_dist = np.zeros(int(particle_box_half_size * 1.25))
     for i in range(1, int(particle_box_half_size * 1.25)):
-        mean_dist[i] = np.mean(
-            mean_particle.flatten()[
-                (i - 1 < proj_dists.flatten()) * (proj_dists.flatten() < i)
-            ]
-        )
+        particles_in_bin = mean_particle.flatten()[
+            (i - 1 < proj_dists.flatten()) * (proj_dists.flatten() < i)
+        ]
+        if len(particles_in_bin):
+            mean_dist[i] = np.mean(particles_in_bin)
     return mean_dist, mean_particle
 
 
@@ -384,3 +358,28 @@ def predict_radius_scaled_pixels(
         ):
             return rad + 1
     return particle_box_half_size
+
+
+def topaz_extract_particles(
+    scores_for_picking, topaz_params: TopazPickParameters, radius: int
+) -> int:
+    # Extract coordinates using radius
+    score, coords = non_maximum_suppression(
+        scores_for_picking,
+        radius,
+        threshold=topaz_params.log_threshold,
+    )
+    # Scale the coordinates
+    scaled_coords = np.round(coords * topaz_params.scale).astype(int)
+    # Save the coordinates
+    table = pd.DataFrame(
+        {
+            "image_name": [topaz_params.input_path] * len(score),
+            "x_coord": scaled_coords[:, 0],
+            "y_coord": scaled_coords[:, 1],
+            "score": score,
+        }
+    )
+    with open(topaz_params.output_path, "w") as outfile:
+        write_table(outfile, table)
+    return len(score)
