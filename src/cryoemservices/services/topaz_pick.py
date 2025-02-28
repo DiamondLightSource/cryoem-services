@@ -164,6 +164,7 @@ class TopazPick(CommonService):
         n_particles = topaz_extract_particles(
             scores_for_picking, topaz_params, radius=scaled_radius_pixels
         )
+        topaz_params.relion_options.particle_diameter = topaz_params.particle_diameter
         self.log.info(
             f"Extracted {n_particles} particles from {topaz_params.input_path}"
         )
