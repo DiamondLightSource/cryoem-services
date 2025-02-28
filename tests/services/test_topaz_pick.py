@@ -5,6 +5,7 @@ from unittest import mock
 
 import numpy as np
 import pytest
+import starfile
 from workflows.transport.offline_transport import OfflineTransport
 
 from cryoemservices.services import topaz_pick
@@ -42,7 +43,7 @@ def test_topaz_with_diameter(
         "subscription": mock.sentinel,
     }
 
-    output_path = tmp_path / "AutoPick/job007/COORDS/sample.coords"
+    output_path = tmp_path / "AutoPick/job007/STAR/sample.star"
     topaz_test_message = {
         "pixel_size": 0.1,
         "input_path": "MotionCorr/job002/sample.mrc",
@@ -72,20 +73,14 @@ def test_topaz_with_diameter(
     mock_topaz_nms.assert_called_once()
 
     assert output_path.is_file()
-    written_coords = np.genfromtxt(output_path, skip_header=True, dtype=str)
-    assert len(written_coords) == 3
-    assert written_coords[0][0] == topaz_test_message["input_path"]
-    assert written_coords[0][1] == "9"
-    assert written_coords[0][2] == "10"
-    assert written_coords[0][3] == "1"
-    assert written_coords[1][0] == topaz_test_message["input_path"]
-    assert written_coords[1][1] == "17"
-    assert written_coords[1][2] == "18"
-    assert written_coords[1][3] == "2"
-    assert written_coords[2][0] == topaz_test_message["input_path"]
-    assert written_coords[2][1] == "25"
-    assert written_coords[2][2] == "26"
-    assert written_coords[2][3] == "3"
+    written_coords = starfile.read(output_path)
+    assert (
+        written_coords.keys()
+        == ["rlnCoordinateX", "rlnCoordinateY", "rlnAutopickFigureOfMerit"]
+    ).all()
+    assert (written_coords["rlnCoordinateX"] == [9, 17, 25]).all()
+    assert (written_coords["rlnCoordinateY"] == [10, 18, 26]).all()
+    assert (written_coords["rlnAutopickFigureOfMerit"] == [1, 2, 3]).all()
 
     # Check that the correct messages were sent
     assert offline_transport.send.call_count == 4

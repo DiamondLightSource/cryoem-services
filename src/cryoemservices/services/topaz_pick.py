@@ -5,13 +5,11 @@ from pathlib import Path
 from typing import Any, Optional
 
 import numpy as np
-import pandas as pd
 import workflows.recipe
 from pydantic import BaseModel, Field, ValidationError
 from topaz.algorithms import non_maximum_suppression
 from topaz.extract import score_images
 from topaz.stats import normalize_images
-from topaz.utils.files import write_table
 from workflows.services.common_service import CommonService
 
 from cryoemservices.util.models import MockRW
@@ -230,7 +228,7 @@ class TopazPick(CommonService):
         # Read picks for images service
         try:
             with open(topaz_params.output_path, "r") as coords_file:
-                coords = [line.split()[1:3] for line in coords_file][1:]
+                coords = [line.split()[:2] for line in coords_file][6:]
         except FileNotFoundError:
             coords = []
 
@@ -365,22 +363,22 @@ def topaz_extract_particles(
     scores_for_picking, topaz_params: TopazPickParameters, radius: int
 ) -> int:
     # Extract coordinates using radius
-    score, coords = non_maximum_suppression(
+    particle_scores, coords = non_maximum_suppression(
         scores_for_picking,
         radius,
         threshold=topaz_params.log_threshold,
     )
     # Scale the coordinates
     scaled_coords = np.round(coords * topaz_params.scale).astype(int)
-    # Save the coordinates
-    table = pd.DataFrame(
-        {
-            "image_name": [topaz_params.input_path] * len(score),
-            "x_coord": scaled_coords[:, 0],
-            "y_coord": scaled_coords[:, 1],
-            "score": score,
-        }
-    )
+    # Save the coordinates into a Relion-type star file
     with open(topaz_params.output_path, "w") as outfile:
-        write_table(outfile, table)
-    return len(score)
+        outfile.write(
+            "data_\n\nloop_\n"
+            "_rlnCoordinateX\n_rlnCoordinateY\n_rlnAutopickFigureOfMerit\n"
+        )
+        for particle in range(len(particle_scores)):
+            outfile.write(
+                f"{scaled_coords[particle, 0]}  {scaled_coords[particle, 1]}  "
+                f"{particle_scores[particle]}\n"
+            )
+    return len(particle_scores)
