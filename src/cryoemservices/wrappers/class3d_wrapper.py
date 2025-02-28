@@ -95,7 +95,6 @@ class Class3DWrapper:
         "threads": "--j",
     }
 
-    # Values for ISPyB lookups
     def __init__(self, recwrap):
         self.log = logging.LoggerAdapter(logger)
         self.recwrap = recwrap
