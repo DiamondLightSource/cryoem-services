@@ -47,7 +47,6 @@ dependencies = [
     "stomp-py==8.1.0",
     "tifffile", # CLEM workflow
     "workflows>=3",
-    "zocalo>=1.2",
 ]
 [project.optional-dependencies]
 dev = [

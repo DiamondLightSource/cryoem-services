@@ -144,8 +144,7 @@ def test_class3d_wrapper_do_initial_model(
     )
 
     # Set up and run the mock service
-    service_wrapper = class3d_wrapper.Class3DWrapper()
-    service_wrapper.set_recipe_wrapper(recipe_wrapper)
+    service_wrapper = class3d_wrapper.Class3DWrapper(recipe_wrapper)
     service_wrapper.run()
 
     # Check the initial model command
@@ -481,8 +480,7 @@ def test_class3d_wrapper_has_initial_model(
     )
 
     # Set up and run the mock service
-    service_wrapper = class3d_wrapper.Class3DWrapper()
-    service_wrapper.set_recipe_wrapper(recipe_wrapper)
+    service_wrapper = class3d_wrapper.Class3DWrapper(recipe_wrapper)
     service_wrapper.run()
 
     # Check the expected 3D classifcation command was run
@@ -720,8 +718,7 @@ def test_class3d_wrapper_for_refinement(
     )
 
     # Set up and run the mock service
-    service_wrapper = class3d_wrapper.Class3DWrapper()
-    service_wrapper.set_recipe_wrapper(recipe_wrapper)
+    service_wrapper = class3d_wrapper.Class3DWrapper(recipe_wrapper)
     service_wrapper.run()
 
     # No need to check classification command and ispyb messages again

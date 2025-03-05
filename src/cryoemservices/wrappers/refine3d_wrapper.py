@@ -11,7 +11,6 @@ import healpy as hp
 import matplotlib.pyplot as plt
 import mrcfile
 import numpy as np
-import zocalo.wrapper
 from gemmi import cif
 from pydantic import BaseModel, Field, ValidationError
 
@@ -93,7 +92,7 @@ class RefineParameters(BaseModel):
     relion_options: RelionServiceOptions
 
 
-class Refine3DWrapper(zocalo.wrapper.BaseWrapper):
+class Refine3DWrapper:
     """
     A wrapper for the Relion 3D refinement pipeline.
     """
@@ -102,13 +101,14 @@ class Refine3DWrapper(zocalo.wrapper.BaseWrapper):
     refine_job_type = "relion.refine3d"
     mask_job_type = "relion.maskcreate"
 
+    def __init__(self, recwrap):
+        self.log = logging.LoggerAdapter(logger)
+        self.recwrap = recwrap
+
     def run(self):
         """
         Run 3D refinement and postprocessing
         """
-        if not hasattr(self, "recwrap"):
-            logger.error("No recipewrapper object found")
-            return False
         params_dict = self.recwrap.recipe_step["job_parameters"]
         params_dict.update(self.recwrap.payload)
         try:

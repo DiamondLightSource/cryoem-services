@@ -16,7 +16,6 @@ import numpy as np
 from defusedxml.ElementTree import parse
 from PIL import Image
 from pydantic import BaseModel, ValidationError, field_validator, model_validator
-from zocalo.wrapper import BaseWrapper
 
 from cryoemservices.util.clem_array_functions import (
     estimate_int_dtype,
@@ -370,16 +369,17 @@ class TIFFToStackParameters(BaseModel):
         return model
 
 
-class TIFFToStackWrapper(BaseWrapper):
+class TIFFToStackWrapper:
+    def __init__(self, recwrap):
+        self.log = logging.LoggerAdapter(logger)
+        self.recwrap = recwrap
+
     def run(self) -> bool:
         """
         Reads the Zocalo wrapper recipe, loads the parameters, and passes them to the
         TIFF file processing function. Upon collecting the results, it sends them back
         to Murfey for the next stage of the workflow.
         """
-        if not hasattr(self, "recwrap"):
-            logger.error("No RecipeWrapper object found")
-            return False
         params_dict = self.recwrap.recipe_step["job_parameters"]
         try:
             params = TIFFToStackParameters(**params_dict)

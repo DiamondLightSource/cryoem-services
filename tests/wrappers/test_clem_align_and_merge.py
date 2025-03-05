@@ -350,11 +350,10 @@ def test_align_and_merge_wrapper(
     }
 
     # Set a recipe wrapper with the correct dictionaries
-    recipe_wraper = RecipeWrapper(message=message, transport=offline_transport)
+    recipe_wrapper = RecipeWrapper(message=message, transport=offline_transport)
 
     # Manually start up the function wrapper
-    align_and_merge_wrapper = AlignAndMergeWrapper()
-    align_and_merge_wrapper.set_recipe_wrapper(recipe_wraper)
+    align_and_merge_wrapper = AlignAndMergeWrapper(recipe_wrapper)
     result = align_and_merge_wrapper.run()
 
     # Start checking the calls that take place within the function

@@ -47,7 +47,7 @@ COPY cryolo_models/gmodel_phosnet_202005_N63_c17.h5 gmodel_phosnet_202005_N63_c1
 RUN chown "${userid}":"${groupid}" gmodel_phosnet_202005_N63_c17.h5
 USER "${userid}":"${groupid}"
 
-RUN echo '#!/bin/bash\n\nif [ ! -z ${RECURSION_PROTECTION} ]; then\n    echo "Unintended recursion detected in zocalo indirection ($0)"\n    exit 1\nfi\nexport RECURSION_PROTECTION=1\n\nexport PATH="/install/venv_cryolo/bin:${PATH}"\ncryolo_predict.py "$@"' > /install/venv_services/bin/cryolo_predict.py && \
+RUN echo '#!/bin/bash\n\nif [ ! -z ${RECURSION_PROTECTION} ]; then\n    echo "Unintended recursion detected in indirection ($0)"\n    exit 1\nfi\nexport RECURSION_PROTECTION=1\n\nexport PATH="/install/venv_cryolo/bin:${PATH}"\ncryolo_predict.py "$@"' > /install/venv_services/bin/cryolo_predict.py && \
     chmod +x /install/venv_services/bin/cryolo_predict.py
 
 ENV PATH="/install/venv_services/bin:${PATH}"
