@@ -432,6 +432,152 @@ def test_tomo_align_service_file_list_repeated_tilt(
 @mock.patch("cryoemservices.services.tomo_align.subprocess.run")
 @mock.patch("cryoemservices.services.tomo_align.px.scatter")
 @mock.patch("cryoemservices.services.tomo_align.mrcfile")
+def test_tomo_align_service_file_list_bad_tilts(
+    mock_mrcfile,
+    mock_plotly,
+    mock_subprocess,
+    offline_transport,
+    tmp_path,
+):
+    """
+    Send a test message to TomoAlign with a tilts with bad motion correction
+    This tilt should be removed
+    """
+    mock_subprocess().returncode = 0
+    mock_subprocess().stdout = "stdout".encode("ascii")
+    mock_subprocess().stderr = "stderr".encode("ascii")
+
+    mock_mrcfile.open().__enter__().header = {"nx": 3000, "ny": 4000}
+
+    # Create the Relion star files with different motion model results
+    (tmp_path / "MotionCorr/job002/Movies").mkdir(parents=True)
+    with open(
+        tmp_path / "MotionCorr/job002/Movies/Position_1_001_0.0.star", "w"
+    ) as mc_star:
+        # No local motion model
+        mc_star.write("data_general\n\nloop_\n_rlnMotionModelVersion\n0\n\n")
+    with open(
+        tmp_path / "MotionCorr/job002/Movies/Position_1_002_0.0.star", "w"
+    ) as mc_star:
+        # Local motion model succeeded
+        mc_star.write("data_general\n\nloop_\n_rlnMotionModelVersion\n1\n\n")
+        mc_star.write("data_local_motion_model\n\nloop_\n_rlnMotionModelCoeff\n1\n2\n")
+    with open(
+        tmp_path / "MotionCorr/job002/Movies/Position_1_003_0.0.star", "w"
+    ) as mc_star:
+        # Local motion model failed
+        mc_star.write("data_general\n\nloop_\n_rlnMotionModelVersion\n1\n\n")
+        mc_star.write(
+            "data_local_motion_model\n\nloop_\n_rlnMotionModelCoeff\n1\n2000\n"
+        )
+
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+    tomo_align_test_message = {
+        "stack_file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack.st",
+        "input_file_list": str(
+            [
+                [f"{tmp_path}/MotionCorr/job002/Movies/Position_1_001_0.0.mrc", "1.00"],
+                [f"{tmp_path}/MotionCorr/job002/Movies/Position_1_002_0.0.mrc", "2.00"],
+                [f"{tmp_path}/MotionCorr/job002/Movies/Position_1_003_0.0.mrc", "3.00"],
+            ]
+        ),
+        "pixel_size": 1e-10,
+        "relion_options": {},
+    }
+    output_relion_options = dict(RelionServiceOptions())
+    output_relion_options["pixel_size"] = 1e-10
+    output_relion_options["pixel_size_downscaled"] = 4e-10
+    output_relion_options["tomo_size_x"] = 4000
+    output_relion_options["tomo_size_y"] = 3000
+
+    # Set up the mock service
+    service = tomo_align.TomoAlign(environment={"queue": ""})
+    service.transport = offline_transport
+    service.start()
+
+    service.rot_centre_z_list = [1.1, 2.1]
+    service.tilt_offset = 1.1
+    service.alignment_quality = 0.5
+
+    # Set up outputs: stack_Imod file like AreTomo2, no exclusions but with space
+    (tmp_path / "Tomograms/job006/tomograms/test_stack_Imod").mkdir(parents=True)
+    (tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo.mrc").touch()
+    with open(
+        tmp_path / "Tomograms/job006/tomograms/test_stack_Imod/tilt.com", "w"
+    ) as dark_file:
+        dark_file.write("EXCLUDELIST ")
+    with open(tmp_path / "Tomograms/job006/tomograms/test_stack.aln", "w") as aln_file:
+        aln_file.write(
+            "dummy 0 1000 1.2 2.3 5 6 7 8 4.5\ndummy 0 1000 1.2 2.3 5 6 7 8 4.5"
+        )
+
+    # Send a message to the service
+    service.tomo_align(None, header=header, message=tomo_align_test_message)
+
+    # Check the expected calls were made
+    assert mock_plotly.call_count == 1
+    assert mock_subprocess.call_count == 5
+
+    # Check the angle file
+    assert (
+        tmp_path / "Tomograms/job006/tomograms/test_stack_tilt_angles.txt"
+    ).is_file()
+    with open(
+        tmp_path / "Tomograms/job006/tomograms/test_stack_tilt_angles.txt", "r"
+    ) as angfile:
+        angles_data = angfile.read()
+    assert angles_data == "1.00  1\n2.00  2\n"
+
+    # Check the stack file does not have the tilt where motion correction failed
+    with open(
+        tmp_path / "Tomograms/job006/tomograms/test_stack_newstack.txt", "r"
+    ) as newstack_file:
+        newstack_tilts = newstack_file.read()
+    assert newstack_tilts == (
+        f"2\n{tmp_path}/MotionCorr/job002/Movies/Position_1_001_0.0.mrc\n0\n"
+        f"{tmp_path}/MotionCorr/job002/Movies/Position_1_002_0.0.mrc\n0\n"
+    )
+
+    # Look at a sample of the messages to check they use input files 1 and 2
+    assert offline_transport.send.call_count == 12
+    offline_transport.send.assert_any_call(
+        "node_creator",
+        {
+            "job_type": "relion.excludetilts",
+            "experiment_type": "tomography",
+            "input_file": f"{tmp_path}/MotionCorr/job002/Movies/Position_1_001_0.0.mrc",
+            "output_file": f"{tmp_path}/ExcludeTiltImages/job004/tilts/Position_1_001_0.0.mrc",
+            "relion_options": output_relion_options,
+            "command": "",
+            "stdout": "",
+            "stderr": "",
+            "success": True,
+        },
+    )
+    offline_transport.send.assert_any_call(
+        "node_creator",
+        {
+            "job_type": "relion.excludetilts",
+            "experiment_type": "tomography",
+            "input_file": f"{tmp_path}/MotionCorr/job002/Movies/Position_1_002_0.0.mrc",
+            "output_file": f"{tmp_path}/ExcludeTiltImages/job004/tilts/Position_1_002_0.0.mrc",
+            "relion_options": output_relion_options,
+            "command": "",
+            "stdout": "",
+            "stderr": "",
+            "success": True,
+        },
+    )
+    offline_transport.send.assert_any_call("success", {})
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+@mock.patch("cryoemservices.services.tomo_align.subprocess.run")
+@mock.patch("cryoemservices.services.tomo_align.px.scatter")
+@mock.patch("cryoemservices.services.tomo_align.mrcfile")
 def test_tomo_align_service_path_pattern(
     mock_mrcfile,
     mock_plotly,

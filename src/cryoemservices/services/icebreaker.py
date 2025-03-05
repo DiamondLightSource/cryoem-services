@@ -27,6 +27,7 @@ class IceBreakerParameters(BaseModel):
     total_motion: float = 0
     early_motion: float = 0
     late_motion: float = 0
+    modulefile_name: str = "EM/icebreaker/dev"
     mc_uuid: int
     submit_to_slurm: bool = True
     relion_options: RelionServiceOptions
@@ -251,7 +252,7 @@ class IceBreaker(CommonService):
                     cpus=icebreaker_params.cpus,
                     use_gpu=False,
                     use_singularity=False,
-                    script_extras="module load EM/icebreaker/0.3.9",
+                    script_extras=f"module load {icebreaker_params.modulefile_name}",
                 )
                 if slurm_outcome.returncode:
                     # Mark failures only as success is True by default above
