@@ -9,9 +9,11 @@ from pathlib import Path
 from typing import Any, List, Optional
 
 import mrcfile
+import numpy as np
 import plotly.express as px
 import workflows.recipe
 import workflows.transport
+from gemmi import cif
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 from workflows.services.common_service import CommonService
 
@@ -268,6 +270,31 @@ class TomoAlign(CommonService):
         for index in sorted(indexes_to_remove, reverse=True):
             self.input_file_list_of_lists.remove(self.input_file_list_of_lists[index])
 
+        # Remove any images with very bad motion correction results
+        tilts_to_remove = []
+        for tilt in self.input_file_list_of_lists:
+            if Path(tilt[0]).with_suffix(".star").is_file():
+                star_doc = cif.read_file(str(Path(tilt[0]).with_suffix(".star")))
+                general_block = star_doc.find_block("general")
+                if int(general_block.find_value("_rlnMotionModelVersion")):
+                    motion_model_block = star_doc.find_block("local_motion_model")
+                    motion_model_coeffs = list(
+                        motion_model_block.find_loop("_rlnMotionModelCoeff")
+                    )
+                    if any(np.array(motion_model_coeffs, dtype=float) > 1000):
+                        self.log.info(f"Bad motion correction found for {tilt[0]}")
+                        tilts_to_remove.append(
+                            self.input_file_list_of_lists.index(tilt)
+                        )
+        removed_tilt_numbers = np.array(
+            [
+                _get_tilt_number_v5_12(Path(self.input_file_list_of_lists[index][0]))
+                for index in tilts_to_remove
+            ]
+        )
+        for index in sorted(tilts_to_remove, reverse=True):
+            self.input_file_list_of_lists.remove(self.input_file_list_of_lists[index])
+
         # Find the input image dimensions
         with mrcfile.open(self.input_file_list_of_lists[0][0]) as mrc:
             mrc_header = mrc.header
@@ -311,6 +338,7 @@ class TomoAlign(CommonService):
             tilt_index = _get_tilt_number_v5_12(
                 Path(self.input_file_list_of_lists[i][0])
             )
+            tilt_index -= len(np.where(removed_tilt_numbers < tilt_index)[0])
             tilt_angles[tilt_index] = self.input_file_list_of_lists[i][1]
         with open(angle_file, "w") as angfile:
             for tilt_id in tilt_angles.keys():

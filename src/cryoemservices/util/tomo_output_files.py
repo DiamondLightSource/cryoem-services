@@ -26,14 +26,14 @@ def _get_tilt_angle_v5_12(p: Path) -> str:
     return split_name[angle_idx]
 
 
-def _get_tilt_number_v5_12(p: Path) -> str:
+def _get_tilt_number_v5_12(p: Path) -> int:
     split_name = p.stem.split("_")
     angle_idx = _find_angle_index(split_name)
     try:
         int(split_name[angle_idx - 1])
     except ValueError:
-        return "0"
-    return split_name[angle_idx - 1]
+        return 0
+    return int(split_name[angle_idx - 1])
 
 
 def _get_tilt_name_v5_12(p: Path) -> str:
@@ -131,11 +131,7 @@ def _import_output_files(
         str(relion_options.frame_count),
         str(stage_tilt_angle),
         str(relion_options.tilt_axis_angle),
-        str(
-            int(tilt_number)
-            * relion_options.frame_count
-            * relion_options.dose_per_frame
-        ),
+        str(tilt_number * relion_options.frame_count * relion_options.dose_per_frame),
         str(relion_options.defocus),
     ]
 
@@ -194,11 +190,7 @@ def _motioncorr_output_files(
         str(relion_options.frame_count),
         str(stage_tilt_angle),
         str(relion_options.tilt_axis_angle),
-        str(
-            int(tilt_number)
-            * relion_options.frame_count
-            * relion_options.dose_per_frame
-        ),
+        str(tilt_number * relion_options.frame_count * relion_options.dose_per_frame),
         str(relion_options.defocus),
         str(output_file),
         str(output_file.with_suffix(".star")),
@@ -275,11 +267,7 @@ def _ctffind_output_files(
         str(relion_options.frame_count),
         str(stage_tilt_angle),
         str(relion_options.tilt_axis_angle),
-        str(
-            int(tilt_number)
-            * relion_options.frame_count
-            * relion_options.dose_per_frame
-        ),
+        str(tilt_number * relion_options.frame_count * relion_options.dose_per_frame),
         str(relion_options.defocus),
         str(input_file),
         str(output_file.with_suffix(".ctf")) + ":mrc",
@@ -354,11 +342,7 @@ def _exclude_tilt_output_files(
         str(relion_options.frame_count),
         str(stage_tilt_angle),
         str(relion_options.tilt_axis_angle),
-        str(
-            int(tilt_number)
-            * relion_options.frame_count
-            * relion_options.dose_per_frame
-        ),
+        str(tilt_number * relion_options.frame_count * relion_options.dose_per_frame),
         str(relion_options.defocus),
         str(input_file),
     ]
@@ -437,11 +421,7 @@ def _align_tilt_output_files(
         str(relion_options.frame_count),
         str(stage_tilt_angle),
         str(relion_options.tilt_axis_angle),
-        str(
-            int(tilt_number)
-            * relion_options.frame_count
-            * relion_options.dose_per_frame
-        ),
+        str(tilt_number * relion_options.frame_count * relion_options.dose_per_frame),
         str(relion_options.defocus),
         str(input_file),
         ctf_results[1],
