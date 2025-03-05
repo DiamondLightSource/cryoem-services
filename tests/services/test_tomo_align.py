@@ -484,14 +484,14 @@ def test_tomo_align_service_file_list_bad_tilts(
                 [f"{tmp_path}/MotionCorr/job002/Movies/Position_1_003_0.0.mrc", "3.00"],
             ]
         ),
-        "pixel_size": 1e-10,
+        "pixel_size": 1,
         "relion_options": {},
     }
     output_relion_options = dict(RelionServiceOptions())
-    output_relion_options["pixel_size"] = 1e-10
-    output_relion_options["pixel_size_downscaled"] = 4e-10
-    output_relion_options["tomo_size_x"] = 4000
-    output_relion_options["tomo_size_y"] = 3000
+    output_relion_options["pixel_size"] = 1
+    output_relion_options["pixel_size_downscaled"] = 4
+    output_relion_options["tomo_size_x"] = 3000
+    output_relion_options["tomo_size_y"] = 4000
 
     # Set up the mock service
     service = tomo_align.TomoAlign(environment={"queue": ""})
@@ -519,7 +519,7 @@ def test_tomo_align_service_file_list_bad_tilts(
 
     # Check the expected calls were made
     assert mock_plotly.call_count == 1
-    assert mock_subprocess.call_count == 5
+    assert mock_subprocess.call_count == 6
 
     # Check the angle file
     assert (
@@ -542,7 +542,7 @@ def test_tomo_align_service_file_list_bad_tilts(
     )
 
     # Look at a sample of the messages to check they use input files 1 and 2
-    assert offline_transport.send.call_count == 12
+    assert offline_transport.send.call_count == 14
     offline_transport.send.assert_any_call(
         "node_creator",
         {
