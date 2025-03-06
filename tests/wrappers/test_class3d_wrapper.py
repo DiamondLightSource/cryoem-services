@@ -19,10 +19,11 @@ def offline_transport(mocker):
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+@mock.patch("cryoemservices.wrappers.class3d_wrapper.find_efficiency")
 @mock.patch("cryoemservices.wrappers.class3d_wrapper.subprocess.run")
 @mock.patch("workflows.recipe.wrapper.RecipeWrapper.send_to")
 def test_class3d_wrapper_do_initial_model(
-    mock_recwrap_send, mock_subprocess, offline_transport, tmp_path
+    mock_recwrap_send, mock_subprocess, mock_efficiency, offline_transport, tmp_path
 ):
     """
     Send a test message to the Class3D wrapper for a first round of 50000 particles,
@@ -396,12 +397,15 @@ def test_class3d_wrapper_do_initial_model(
         },
     )
 
+    assert mock_efficiency.call_count == 2
+
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+@mock.patch("cryoemservices.wrappers.class3d_wrapper.find_efficiency")
 @mock.patch("cryoemservices.wrappers.class3d_wrapper.subprocess.run")
 @mock.patch("workflows.recipe.wrapper.RecipeWrapper.send_to")
 def test_class3d_wrapper_has_initial_model(
-    mock_recwrap_send, mock_subprocess, offline_transport, tmp_path
+    mock_recwrap_send, mock_subprocess, mock_efficiency, offline_transport, tmp_path
 ):
     """
     Send a test message to the Class3D wrapper for a second round of 100000 particles,
@@ -624,6 +628,8 @@ def test_class3d_wrapper_has_initial_model(
         },
     )
 
+    assert mock_efficiency.call_count == 2
+
 
 best_class_test_matrix = (
     # tuple of Fractions, Resolutions, Completenesses, Do refine?, Best class
@@ -642,11 +648,13 @@ best_class_test_matrix = (
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @pytest.mark.parametrize("test_classes", best_class_test_matrix)
+@mock.patch("cryoemservices.wrappers.class3d_wrapper.find_efficiency")
 @mock.patch("cryoemservices.wrappers.class3d_wrapper.subprocess.run")
 @mock.patch("workflows.recipe.wrapper.RecipeWrapper.send_to")
 def test_class3d_wrapper_for_refinement(
     mock_recwrap_send,
     mock_subprocess,
+    mock_efficiency,
     test_classes: tuple[list[float], list[float], list[float], bool, int],
     offline_transport,
     tmp_path,
@@ -737,3 +745,5 @@ def test_class3d_wrapper_for_refinement(
             "do_refinement": test_classes[3],
         },
     )
+
+    assert mock_efficiency.call_count == 2
