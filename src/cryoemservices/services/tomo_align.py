@@ -33,7 +33,7 @@ class TomoParameters(BaseModel):
     vol_z: int = 1200
     align: Optional[int] = None
     out_bin: int = 4
-    tilt_axis: Optional[float] = None
+    tilt_axis: Optional[float] = 90
     tilt_cor: int = 1
     flip_int: Optional[int] = None
     flip_vol: int = 0
@@ -46,7 +46,7 @@ class TomoParameters(BaseModel):
     frame_count: Optional[int] = None
     align_file: Optional[str] = None
     align_z: Optional[int] = None
-    refine_flag: int = 1
+    refine_flag: int = -1
     make_angle_file: bool = True
     out_imod: int = 1
     out_imod_xf: Optional[int] = None
@@ -731,7 +731,7 @@ class TomoAlign(CommonService):
                 )
             )
 
-        if tomo_parameters.tilt_axis:
+        if tomo_parameters.tilt_axis is not None:
             command.extend(
                 (
                     "-TiltAxis",
