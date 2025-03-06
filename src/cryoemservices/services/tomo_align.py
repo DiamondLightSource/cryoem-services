@@ -423,7 +423,7 @@ class TomoAlign(CommonService):
                     "-size",
                     f"{int(scaled_x_size)},{int(scaled_y_size)},{int(scaled_z_size)}",
                     "-a",
-                    "90,90,0",
+                    "90,-90,0",
                 ]
             )
             if rotate_result.returncode:

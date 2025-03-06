@@ -385,7 +385,7 @@ def test_tomo_align_service_file_list_repeated_tilt(
             "-size",
             "750,1000,300",
             "-a",
-            "90,90,0",
+            "90,-90,0",
         ]
     )
 
