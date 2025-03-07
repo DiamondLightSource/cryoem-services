@@ -87,7 +87,7 @@ def test_tomo_align_slurm_service(
         "vol_z": 1200,
         "align": None,
         "out_bin": 4,
-        "tilt_axis": None,
+        "tilt_axis": 85,
         "tilt_cor": 1,
         "flip_int": None,
         "flip_vol": 1,
