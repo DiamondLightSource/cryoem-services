@@ -6,7 +6,7 @@ import mrcfile
 import numpy as np
 import workflows.recipe
 from gemmi import cif
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, Field, ValidationError, field_validator
 from workflows.services.common_service import CommonService
 
 from cryoemservices.util.models import MockRW
@@ -18,11 +18,11 @@ from cryoemservices.util.tomo_output_files import _get_tilt_name_v5_12
 
 
 class ExtractSubTomoParameters(BaseModel):
-    tomogram: str = Field(..., min_length=1)
-    coord_list_file: str = Field(..., min_length=1)
+    cbox_3d_file: str = Field(..., min_length=1)
     tilt_alignment_file: str = Field(..., min_length=1)
     newstack_file: str = Field(..., min_length=1)
-    output_file: str = Field(..., min_length=1)
+    output_star: str = Field(..., min_length=1)
+    scaled_tomogram_shape: list[int]
     pixel_size: float
     refined_tilt_axis: float
     particle_diameter: float = 0
@@ -35,6 +35,13 @@ class ExtractSubTomoParameters(BaseModel):
     invert_contrast: bool = True
     bg_radius: int = -1
     relion_options: RelionServiceOptions
+
+    @field_validator("scaled_tomogram_shape")
+    @classmethod
+    def check_shape_is_3d(cls, v):
+        if len(v) != 3:
+            raise ValueError("Tomogram shape must be 3D")
+        return v
 
 
 class ExtractSubTomo(CommonService):
@@ -96,9 +103,8 @@ class ExtractSubTomo(CommonService):
             return
 
         self.log.info(
-            f"Inputs: {extract_subtomo_params.tomogram}, "
-            f"{extract_subtomo_params.tilt_alignment_file}, "
-            f"{extract_subtomo_params.coord_list_file} "
+            f"Inputs: {extract_subtomo_params.tilt_alignment_file}, "
+            f"{extract_subtomo_params.cbox_3d_file} "
             f"Output: {extract_subtomo_params.output_file}"
         )
 
@@ -118,11 +124,18 @@ class ExtractSubTomo(CommonService):
             )
 
         # Find the locations of the particles
-        coords_file = cif.read(extract_subtomo_params.coord_list_file)
+        coords_file = cif.read(extract_subtomo_params.cbox_3d_file)
         coords_block = coords_file.find_block("cryolo")
-        particles_x = np.array(coords_block.find_loop("_CoordinateX"))
-        particles_y = np.array(coords_block.find_loop("_CoordinateY"))
-        particles_z = np.array(coords_block.find_loop("_CoordinateZ"))
+        pick_radius = float(coords_block.find_loop("_Width")[0]) / 2
+        particles_x = (
+            np.array(coords_block.find_loop("_CoordinateX"), dtype=float) + pick_radius
+        )
+        particles_y = (
+            np.array(coords_block.find_loop("_CoordinateY"), dtype=float) + pick_radius
+        )
+        particles_z = (
+            np.array(coords_block.find_loop("_CoordinateZ"), dtype=float) + pick_radius
+        )
 
         # Get the shifts between tilts
         shift_data = np.genfromtxt(extract_subtomo_params.tilt_alignment_file)
@@ -132,12 +145,8 @@ class ExtractSubTomo(CommonService):
         tilt_count = len(x_shifts)
 
         # Extraction
-        with mrcfile.open(extract_subtomo_params.tomogram) as input_tomogram:
-            input_tomogram_image = np.array(input_tomogram.data, dtype=np.float32)
-        image_size = np.shape(input_tomogram_image)
-
         centre_x = 0
-        centre_y = image_size[1] / 2
+        centre_y = extract_subtomo_params.scaled_tomogram_shape[1] / 2
         tilt_axis_radians = extract_subtomo_params.refined_tilt_axis * np.pi / 180
 
         x_coords_in_tilts = centre_x + (
@@ -190,17 +199,19 @@ class ExtractSubTomo(CommonService):
                 x_right = (
                     x_coords_in_tilts[particle] + extract_width - x_shifts[particle]
                 )
-                if x_right >= image_size[1]:
-                    x_right_pad = x_right - image_size[1]
-                    x_right = image_size[1]
+                if x_right >= extract_subtomo_params.scaled_tomogram_shape[1]:
+                    x_right_pad = (
+                        x_right - extract_subtomo_params.scaled_tomogram_shape[1]
+                    )
+                    x_right = extract_subtomo_params.scaled_tomogram_shape[1]
                 y_top = y_coords_in_tilts[particle] - extract_width - y_shifts[particle]
                 if y_top < 0:
                     y_top_pad = -y_top
                     y_top = 0
                 y_bot = y_coords_in_tilts[particle] + extract_width - y_shifts[particle]
-                if y_bot >= image_size[0]:
-                    y_bot_pad = y_bot - image_size[0]
-                    y_bot = image_size[0]
+                if y_bot >= extract_subtomo_params.scaled_tomogram_shape[0]:
+                    y_bot_pad = y_bot - extract_subtomo_params.scaled_tomogram_shape[0]
+                    y_bot = extract_subtomo_params.scaled_tomogram_shape[0]
 
                 with mrcfile.open(tilt_images[tilt]) as mrc:
                     input_micrograph_image = mrc.data
@@ -304,15 +315,21 @@ class ExtractSubTomo(CommonService):
                 [
                     str(
                         float(particles_x[particle])
-                        - image_size[2] / 2 * extract_subtomo_params.tomogram_binning
+                        - extract_subtomo_params.scaled_tomogram_shape[2]
+                        / 2
+                        * extract_subtomo_params.tomogram_binning
                     ),
                     str(
                         float(particles_y[particle])
-                        - image_size[1] / 2 * extract_subtomo_params.tomogram_binning
+                        - extract_subtomo_params.scaled_tomogram_shape[1]
+                        / 2
+                        * extract_subtomo_params.tomogram_binning
                     ),
                     str(
                         float(particles_z[particle])
-                        - image_size[0] / 2 * extract_subtomo_params.tomogram_binning
+                        - extract_subtomo_params.scaled_tomogram_shape[0]
+                        / 2
+                        * extract_subtomo_params.tomogram_binning
                     ),
                     "1",
                     f"{_get_tilt_name_v5_12(Path(extract_subtomo_params.tomogram))}/{particle}",
@@ -331,7 +348,7 @@ class ExtractSubTomo(CommonService):
         self.log.info(f"Sending {self.job_type} to node creator")
         node_creator_parameters = {
             "job_type": self.job_type,
-            "input_file": extract_subtomo_params.coord_list_file,
+            "input_file": extract_subtomo_params.cbox_3d_file,
             "output_file": extract_subtomo_params.output_file,
             "relion_options": dict(extract_subtomo_params.relion_options),
             "command": "",
@@ -342,6 +359,6 @@ class ExtractSubTomo(CommonService):
         rw.send_to("node_creator", node_creator_parameters)
 
         self.log.info(
-            f"Done {self.job_type} for {extract_subtomo_params.coord_list_file}."
+            f"Done {self.job_type} for {extract_subtomo_params.cbox_3d_file}."
         )
         rw.transport.ack(header)
