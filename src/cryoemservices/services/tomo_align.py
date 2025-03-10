@@ -107,13 +107,10 @@ class TomoAlign(CommonService):
     x_shift: List[float]
     y_shift: List[float]
     rot_centre_z_list: List[str]
-    tilt_offset: float | None = None
-    rot_centre_z: str | None = None
+    tilt_offset: Optional[float] = None
     rot: float | None = None
     mag: float | None = None
-    plot_path: Path
-    alignment_output_dir: Path
-    alignment_quality: float | None = None
+    alignment_quality: Optional[float] = None
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -133,6 +130,9 @@ class TomoAlign(CommonService):
         )
 
     def parse_tomo_output(self, tomo_stdout: str):
+        self.rot_centre_z_list = []
+        self.tilt_offset = None
+        self.alignment_quality = None
         for line in tomo_stdout.split("\n"):
             if line.startswith("Rot center Z"):
                 self.rot_centre_z_list.append(line.split()[5])
@@ -141,12 +141,14 @@ class TomoAlign(CommonService):
             if line.startswith("Best tilt axis"):
                 self.alignment_quality = float(line.split()[5])
 
-    def extract_from_aln(self, tomo_parameters):
+    def extract_from_aln(self, tomo_parameters, alignment_output_dir, plot_path):
         tomo_aln_file = None
+        self.rot = None
+        self.mag = None
         self.x_shift = []
         self.y_shift = []
         self.refined_tilts = []
-        aln_files = list(self.alignment_output_dir.glob("*.aln"))
+        aln_files = list(alignment_output_dir.glob("*.aln"))
 
         file_name = Path(tomo_parameters.stack_file).stem
         for aln_file in aln_files:
@@ -167,7 +169,7 @@ class TomoAlign(CommonService):
                     self.y_shift.append(float(line_split[4]))
                     self.refined_tilts.append(float(line_split[9]))
         fig = px.scatter(x=self.x_shift, y=self.y_shift)
-        fig.write_json(self.plot_path)
+        fig.write_json(plot_path)
         return tomo_aln_file  # not needed anywhere atm
 
     def tomo_align(self, rw, header: dict, message: dict):
@@ -311,7 +313,7 @@ class TomoAlign(CommonService):
         scaled_z_size = tomo_params.vol_z / int(tomo_params.out_bin)
 
         # Get the names of the output files expected
-        self.alignment_output_dir = Path(tomo_params.stack_file).parent
+        alignment_output_dir = Path(tomo_params.stack_file).parent
         Path(tomo_params.stack_file).parent.mkdir(parents=True, exist_ok=True)
         stack_name = str(Path(tomo_params.stack_file).stem)
 
@@ -326,7 +328,7 @@ class TomoAlign(CommonService):
             return
 
         # Stack the tilts with newstack
-        newstack_path = self.alignment_output_dir / f"{stack_name}_newstack.txt"
+        newstack_path = alignment_output_dir / f"{stack_name}_newstack.txt"
         newstack_result = self.newstack(tomo_params, newstack_path)
         if newstack_result.returncode:
             self.log.error(
@@ -353,7 +355,7 @@ class TomoAlign(CommonService):
                 angfile.write(f"{tilt_angles[tilt_id]}  {int(tilt_id)}\n")
 
         # Do alignment with AreTomo
-        aretomo_output_path = self.alignment_output_dir / f"{stack_name}_aretomo.mrc"
+        aretomo_output_path = alignment_output_dir / f"{stack_name}_aretomo.mrc"
         aretomo_result, aretomo_command = self.aretomo(
             tomo_params, aretomo_output_path, angle_file
         )
@@ -387,10 +389,8 @@ class TomoAlign(CommonService):
             rw.transport.nack(header)
             return
 
-        imod_directory_option1 = (
-            self.alignment_output_dir / f"{stack_name}_aretomo_Imod"
-        )
-        imod_directory_option2 = self.alignment_output_dir / f"{stack_name}_Imod"
+        imod_directory_option1 = alignment_output_dir / f"{stack_name}_aretomo_Imod"
+        imod_directory_option2 = alignment_output_dir / f"{stack_name}_Imod"
         if tomo_params.out_imod:
             start_time = time.time()
             while (
@@ -436,21 +436,22 @@ class TomoAlign(CommonService):
 
         # Names of the files made for ispyb images
         plot_file = stack_name + "_xy_shift_plot.json"
-        self.plot_path = self.alignment_output_dir / plot_file
+        plot_path = alignment_output_dir / plot_file
         xy_proj_file = stack_name + "_aretomo_projXY.jpeg"
         xz_proj_file = stack_name + "_aretomo_projXZ.jpeg"
         central_slice_file = stack_name + "_aretomo_thumbnail.jpeg"
         tomogram_movie_file = stack_name + "_aretomo_movie.png"
 
         # Extract results for ispyb
-        aln_file = self.extract_from_aln(tomo_params)
+        aln_file = self.extract_from_aln(tomo_params, alignment_output_dir, plot_path)
         if not aln_file:
             self.log.error("Failed to read alignment file")
             rw.transport.nack(header)
             return
+        rot_centre_z = None
         if tomo_params.tilt_cor:
             try:
-                self.rot_centre_z = self.rot_centre_z_list[-1]
+                rot_centre_z = self.rot_centre_z_list[-1]
             except IndexError:
                 self.log.warning(f"No rot Z {self.rot_centre_z_list}")
 
@@ -462,7 +463,7 @@ class TomoAlign(CommonService):
             {
                 "ispyb_command": "insert_tomogram",
                 "volume_file": str(
-                    aretomo_output_path.relative_to(self.alignment_output_dir)
+                    aretomo_output_path.relative_to(alignment_output_dir)
                 ),
                 "stack_file": tomo_params.stack_file,
                 "size_x": scaled_x_size,  # volume image size, pix
@@ -470,8 +471,8 @@ class TomoAlign(CommonService):
                 "size_z": scaled_z_size,
                 "pixel_spacing": pixel_spacing,
                 "tilt_angle_offset": str(self.tilt_offset),
-                "z_shift": self.rot_centre_z,
-                "file_directory": str(self.alignment_output_dir),
+                "z_shift": rot_centre_z,
+                "file_directory": str(alignment_output_dir),
                 "central_slice_image": central_slice_file,
                 "tomogram_movie": tomogram_movie_file,
                 "xy_shift_plot": plot_file,
@@ -625,8 +626,8 @@ class TomoAlign(CommonService):
             },
         )
 
-        xy_input = self.alignment_output_dir / Path(xy_proj_file).with_suffix(".mrc")
-        xz_input = self.alignment_output_dir / Path(xz_proj_file).with_suffix(".mrc")
+        xy_input = alignment_output_dir / Path(xy_proj_file).with_suffix(".mrc")
+        xz_input = alignment_output_dir / Path(xz_proj_file).with_suffix(".mrc")
         self.log.info(f"Sending to images service {xy_input}, {xz_input}")
         for projection_mrc in [xy_input, xz_input]:
             rw.send_to(

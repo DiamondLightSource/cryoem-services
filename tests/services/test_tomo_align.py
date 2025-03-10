@@ -35,7 +35,12 @@ def test_tomo_align_service_file_list(
     the denoising, ispyb_connector and images services.
     """
     mock_subprocess().returncode = 0
-    mock_subprocess().stdout = "stdout".encode("ascii")
+    mock_subprocess().stdout = (
+        "Rot center Z 100.0 200.0 3.1\n"
+        "Rot center Z 150.0 250.0 2.1\n"
+        "Tilt offset 1.1, CC: 0.5\n"
+        "Best tilt axis:   57, Score:   0.5\n"
+    ).encode("ascii")
     mock_subprocess().stderr = "stderr".encode("ascii")
 
     mock_mrcfile.open().__enter__().header = {"nx": 3000, "ny": 4000}
@@ -89,10 +94,6 @@ def test_tomo_align_service_file_list(
     service = tomo_align.TomoAlign(environment={"queue": ""})
     service.transport = offline_transport
     service.start()
-
-    service.rot_centre_z_list = [1.1, 2.1]
-    service.tilt_offset = 1.1
-    service.alignment_quality = 0.5
 
     # Set up outputs: stack_Imod file like AreTomo2, no exclusions but with space
     (tmp_path / "Tomograms/job006/tomograms/test_stack_Imod").mkdir(parents=True)
@@ -206,7 +207,12 @@ def test_tomo_align_service_file_list(
             "output_file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
             "relion_options": output_relion_options,
             "command": " ".join(aretomo_command),
-            "stdout": "stdout",
+            "stdout": (
+                "Rot center Z 100.0 200.0 3.1\n"
+                "Rot center Z 150.0 250.0 2.1\n"
+                "Tilt offset 1.1, CC: 0.5\n"
+                "Best tilt axis:   57, Score:   0.5\n"
+            ),
             "stderr": "stderr",
             "success": True,
         },
@@ -225,7 +231,7 @@ def test_tomo_align_service_file_list(
                     "size_z": 300,
                     "pixel_spacing": "4.0",
                     "tilt_angle_offset": "1.1",
-                    "z_shift": 2.1,
+                    "z_shift": "2.1",
                     "file_directory": f"{tmp_path}/Tomograms/job006/tomograms",
                     "central_slice_image": "test_stack_aretomo_thumbnail.jpeg",
                     "tomogram_movie": "test_stack_aretomo_movie.png",
@@ -355,10 +361,6 @@ def test_tomo_align_service_file_list_repeated_tilt(
     service = tomo_align.TomoAlign(environment={"queue": ""})
     service.transport = offline_transport
     service.start()
-
-    service.rot_centre_z_list = [1.1, 2.1]
-    service.tilt_offset = 1.1
-    service.alignment_quality = 0.5
 
     # Set up outputs: stack_Imod file like AreTomo2, no exclusions but with space
     (tmp_path / "Tomograms/job006/tomograms/test_stack_Imod").mkdir(parents=True)
@@ -500,10 +502,6 @@ def test_tomo_align_service_file_list_bad_tilts(
     service = tomo_align.TomoAlign(environment={"queue": ""})
     service.transport = offline_transport
     service.start()
-
-    service.rot_centre_z_list = [1.1, 2.1]
-    service.tilt_offset = 1.1
-    service.alignment_quality = 0.5
 
     # Set up outputs: stack_Imod file like AreTomo2, no exclusions but with space
     (tmp_path / "Tomograms/job006/tomograms/test_stack_Imod").mkdir(parents=True)
@@ -651,10 +649,6 @@ def test_tomo_align_service_path_pattern(
     service.transport = offline_transport
     service.start()
 
-    service.rot_centre_z_list = [1.1, 2.1]
-    service.tilt_offset = 1.1
-    service.alignment_quality = 0.5
-
     # Set up outputs: stack_Imod file like AreTomo2, no exclusions without space
     (tmp_path / "Tomograms/job006/tomograms/test_stack_Imod").mkdir(parents=True)
     (tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo.mrc").touch()
@@ -777,7 +771,12 @@ def test_tomo_align_service_dark_images(
     Send a test message to TomoAlign for a case with dark images which are removed
     """
     mock_subprocess().returncode = 0
-    mock_subprocess().stdout = "stdout".encode("ascii")
+    mock_subprocess().stdout = (
+        "Rot center Z 100.0 200.0 3.1\n"
+        "Rot center Z 150.0 250.0 2.1\n"
+        "Tilt offset 1.1, CC: 0.5\n"
+        "Best tilt axis:   57, Score:   0.5\n"
+    ).encode("ascii")
     mock_subprocess().stderr = "stderr".encode("ascii")
 
     mock_mrcfile.open().__enter__().header = {"nx": 3000, "ny": 4000}
@@ -821,10 +820,6 @@ def test_tomo_align_service_dark_images(
     service = tomo_align.TomoAlign(environment={"queue": ""})
     service.transport = offline_transport
     service.start()
-
-    service.rot_centre_z_list = [1.1, 2.1]
-    service.tilt_offset = 1.1
-    service.alignment_quality = 0.5
 
     x_tilts = ["1.2", "2.4", "3.2", "3.4", "4.2"]
     y_tilts = ["2.3", "2.5", "4.3", "4.5", "6.3"]
@@ -942,7 +937,7 @@ def test_tomo_align_service_dark_images(
                     "size_z": 300,
                     "pixel_spacing": "4.0",
                     "tilt_angle_offset": "1.1",
-                    "z_shift": 2.1,
+                    "z_shift": "2.1",
                     "file_directory": f"{tmp_path}/Tomograms/job006/tomograms",
                     "central_slice_image": "test_stack_aretomo_thumbnail.jpeg",
                     "tomogram_movie": "test_stack_aretomo_movie.png",
@@ -996,7 +991,12 @@ def test_tomo_align_service_all_dark(
     Send a test message to TomoAlign for a case where all images are dark
     """
     mock_subprocess().returncode = 0
-    mock_subprocess().stdout = "stdout".encode("ascii")
+    mock_subprocess().stdout = (
+        "Rot center Z 100.0 200.0 3.1\n"
+        "Rot center Z 150.0 250.0 2.1\n"
+        "Tilt offset 1.1, CC: 0.5\n"
+        "Best tilt axis:   57, Score:   0.5\n"
+    ).encode("ascii")
     mock_subprocess().stderr = "stderr".encode("ascii")
 
     mock_mrcfile.open().__enter__().header = {"nx": 3000, "ny": 4000}
@@ -1035,10 +1035,6 @@ def test_tomo_align_service_all_dark(
     service = tomo_align.TomoAlign(environment={"queue": ""})
     service.transport = offline_transport
     service.start()
-
-    service.rot_centre_z_list = [1.1, 2.1]
-    service.tilt_offset = 1.1
-    service.alignment_quality = 0.5
 
     # Set up outputs: stack_Imod file like AreTomo2, with exclusions and no spaces
     (tmp_path / "Tomograms/job006/tomograms/test_stack_Imod").mkdir(parents=True)
@@ -1080,7 +1076,7 @@ def test_tomo_align_service_all_dark(
                     "size_z": 300,
                     "pixel_spacing": "4.0",
                     "tilt_angle_offset": "1.1",
-                    "z_shift": 2.1,
+                    "z_shift": "2.1",
                     "file_directory": f"{tmp_path}/Tomograms/job006/tomograms",
                     "central_slice_image": "test_stack_aretomo_thumbnail.jpeg",
                     "tomogram_movie": "test_stack_aretomo_movie.png",
@@ -1104,11 +1100,12 @@ def test_parse_tomo_align_output(offline_transport):
     service.transport = offline_transport
     service.start()
 
-    tomo_align.TomoAlign.parse_tomo_output(service, "Rot center Z 100.0 200.0 300.0")
-    tomo_align.TomoAlign.parse_tomo_output(service, "Rot center Z 150.0 250.0 350.0")
-    tomo_align.TomoAlign.parse_tomo_output(service, "Tilt offset 1.0, CC: 0.5")
     tomo_align.TomoAlign.parse_tomo_output(
-        service, "Best tilt axis:   57, Score:   0.07568"
+        service,
+        "Rot center Z 100.0 200.0 300.0\n"
+        "Rot center Z 150.0 250.0 350.0\n"
+        "Tilt offset 1.0, CC: 0.5\n"
+        "Best tilt axis:   57, Score:   0.07568",
     )
 
     assert service.rot_centre_z_list == ["300.0", "350.0"]
