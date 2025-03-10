@@ -33,10 +33,7 @@
       "workingdir": "{session_dir}/processed/"
     },
     "queue": "cluster.submission",
-    "service": "LIF2STACK",
-    "wrapper": {
-      "task_information": "lif-to-stack"
-    }
+    "service": "LIF2STACK"
   },
   "2": {
     "parameters": {

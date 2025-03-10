@@ -35,10 +35,7 @@
       "workingdir": "{session_dir}/processed/"
     },
     "queue": "cluster.submission",
-    "service": "TIFF2STACK",
-    "wrapper": {
-      "task_information": "tiff-to-stack"
-    }
+    "service": "TIFF2STACK"
   },
   "2": {
     "parameters": {

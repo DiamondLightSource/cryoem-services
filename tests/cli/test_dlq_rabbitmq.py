@@ -9,6 +9,7 @@ from queue import Empty
 from unittest import mock
 
 import pytest
+from requests import Response
 
 from cryoemservices.cli import dlq_rabbitmq
 
@@ -40,18 +41,25 @@ def config_file(rabbitmq_credentials, tmp_path):
     return config_file
 
 
-@mock.patch("cryoemservices.cli.dlq_rabbitmq.RabbitMQAPI")
-def test_check_rabbitmq_dlq(mock_rmq_api, rabbitmq_credentials, tmp_path):
-    mock_queue = mock.Mock()
-    mock_queue.name = "dlq.dummy"
-    mock_queue.vhost = "host"
-    mock_queue.messages = 2
-    mock_rmq_api().queues.return_value = [mock_queue]
+@mock.patch("cryoemservices.cli.dlq_rabbitmq.requests")
+def test_check_rabbitmq_dlq(mock_requests, rabbitmq_credentials, tmp_path):
+    response_object = Response()
+    response_object._content = (
+        '[{"name": "dlq.mock_queue", "vhost": "host", "messages": "2"}]'
+    ).encode("utf8")
+    mock_requests.Session().get.return_value = response_object
 
     queue_info = dlq_rabbitmq.check_dlq_rabbitmq(rabbitmq_credentials)
+
+    mock_requests.Session.assert_called()
+    assert mock_requests.Session().auth == ("dummy-user", "dummy-pass")
+    mock_requests.Session().get.assert_called_with(
+        "http://rabbitmq-dummy.com/api/queues"
+    )
+
     assert len(queue_info.keys()) == 1
-    assert "dlq.dummy" in queue_info.keys()
-    assert queue_info["dlq.dummy"] == 2
+    assert "dlq.mock_queue" in queue_info.keys()
+    assert queue_info["dlq.mock_queue"] == 2
 
 
 def test_check_rabbitmq_dlq_fails_no_creds(tmp_path):
@@ -163,14 +171,15 @@ def test_dlq_reinject(mock_transport, mock_time, tmp_path):
     mock_transport().disconnect.assert_called_once()
 
 
-@mock.patch("cryoemservices.cli.dlq_rabbitmq.RabbitMQAPI")
-def test_rabbitmq_dlq_check(mock_rmq_api, capsys, config_file, tmp_path):
+@mock.patch("cryoemservices.cli.dlq_rabbitmq.requests")
+def test_rabbitmq_dlq_check(mock_requests, capsys, config_file, tmp_path):
     """Test the DLQ checks through the CLI"""
-    mock_queue = mock.Mock()
-    mock_queue.name = "dlq.dummy"
-    mock_queue.vhost = "host"
-    mock_queue.messages = 2
-    mock_rmq_api().queues.return_value = [mock_queue]
+    response_object = Response()
+    response_object._content = (
+        '[{"name": "dlq.mock_queue", "vhost": "host", "messages": "2"},'
+        '{"name": "dlq.second_queue", "vhost": "host", "messages": "1"}]'
+    ).encode("utf8")
+    mock_requests.Session().get.return_value = response_object
 
     sys.argv = [
         "cryoemservices.dlq_rabbitmq",
@@ -179,17 +188,12 @@ def test_rabbitmq_dlq_check(mock_rmq_api, capsys, config_file, tmp_path):
     ]
     dlq_rabbitmq.run()
 
-    mock_rmq_api.assert_called_with(
-        url="http://rabbitmq-dummy.com/api",
-        user="dummy-user",
-        password="dummy-pass",
-    )
-    mock_rmq_api().queues.assert_called_once()
     captured = capsys.readouterr()
     assert captured.out == (
         "Connecting to: http://rabbitmq-dummy.com/api\n"
-        "dlq.dummy contains 2 entries\n"
-        "Total of 2 DLQ messages found\n"
+        "dlq.mock_queue contains 2 entries\n"
+        "dlq.second_queue contains 1 entries\n"
+        "Total of 3 DLQ messages found\n"
     )
 
 

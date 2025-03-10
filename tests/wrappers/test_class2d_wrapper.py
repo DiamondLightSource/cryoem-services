@@ -123,8 +123,7 @@ def test_class2d_wrapper_incomplete_batch(
     )
 
     # Set up and run the mock service
-    service_wrapper = class2d_wrapper.Class2DWrapper()
-    service_wrapper.set_recipe_wrapper(recipe_wrapper)
+    service_wrapper = class2d_wrapper.Class2DWrapper(recipe_wrapper)
     service_wrapper.run()
 
     # Check the expected command was run
@@ -331,8 +330,7 @@ def test_class2d_wrapper_complete_batch(
     )
 
     # Set up and run the mock service
-    service_wrapper = class2d_wrapper.Class2DWrapper()
-    service_wrapper.set_recipe_wrapper(recipe_wrapper)
+    service_wrapper = class2d_wrapper.Class2DWrapper(recipe_wrapper)
     service_wrapper.run()
 
     # Check the expected command was run
@@ -467,8 +465,7 @@ def test_class2d_wrapper_rerun_buffer_lookup(
     )
 
     # Set up and run the mock service
-    service_wrapper = class2d_wrapper.Class2DWrapper()
-    service_wrapper.set_recipe_wrapper(recipe_wrapper)
+    service_wrapper = class2d_wrapper.Class2DWrapper(recipe_wrapper)
     service_wrapper.run()
 
     # Check the expected message send to ispyb
@@ -572,8 +569,7 @@ def test_class2d_wrapper_failure_releases_hold(
     )
 
     # Set up and run the mock service
-    service_wrapper = class2d_wrapper.Class2DWrapper()
-    service_wrapper.set_recipe_wrapper(recipe_wrapper)
+    service_wrapper = class2d_wrapper.Class2DWrapper(recipe_wrapper)
     service_wrapper.run()
 
     # Check the expected message sends to the node creator and murfey

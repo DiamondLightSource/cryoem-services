@@ -59,10 +59,7 @@
       "workingdir": "{refine_job_dir}/"
     },
     "queue": "cluster.submission",
-    "service": "RefineWrapper",
-    "wrapper": {
-      "task_information": "Refine3D"
-    }
+    "service": "RefineWrapper"
   },
   "4": {
     "output": {
@@ -134,10 +131,7 @@
       "workingdir": "{refine_job_dir}/"
     },
     "queue": "cluster.submission",
-    "service": "RefineWrapper",
-    "wrapper": {
-      "task_information": "Refine3D"
-    }
+    "service": "RefineWrapper"
   },
   "8": {
     "output": {

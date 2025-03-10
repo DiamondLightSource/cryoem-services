@@ -137,8 +137,7 @@ def test_refine3d_wrapper_with_mask(
     )
 
     # Set up and run the mock service
-    service_wrapper = refine3d_wrapper.Refine3DWrapper()
-    service_wrapper.set_recipe_wrapper(recipe_wrapper)
+    service_wrapper = refine3d_wrapper.Refine3DWrapper(recipe_wrapper)
     service_wrapper.run()
 
     # Check the expected refinement command was run
@@ -341,8 +340,7 @@ def test_refine3d_wrapper_no_mask(
     )
 
     # Set up and run the mock service
-    service_wrapper = refine3d_wrapper.Refine3DWrapper()
-    service_wrapper.set_recipe_wrapper(recipe_wrapper)
+    service_wrapper = refine3d_wrapper.Refine3DWrapper(recipe_wrapper)
     service_wrapper.run()
 
     # Check the expected refinement command was run
