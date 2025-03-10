@@ -128,7 +128,7 @@ class TomoAlignSlurm(TomoAlign, CommonService):
             slurm_cluster=self._environment["slurm_cluster"],
             job_name="AreTomo2",
             command=command,
-            project_dir=Path(self.alignment_output_dir),
+            project_dir=aretomo_output_path.parent,
             output_file=aretomo_output_path,
             cpus=1,
             use_gpu=True,
@@ -142,7 +142,7 @@ class TomoAlignSlurm(TomoAlign, CommonService):
         # Get back any output files and clean up
         self.log.info("Retrieving output files...")
         retrieve_files(
-            job_directory=Path(self.alignment_output_dir),
+            job_directory=aretomo_output_path.parent,
             files_to_skip=[Path(tomo_parameters.stack_file), angle_file],
             basepath=str(Path(tomo_parameters.stack_file).stem),
         )

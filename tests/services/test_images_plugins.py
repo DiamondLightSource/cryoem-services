@@ -16,12 +16,13 @@ from cryoemservices.services.images_plugins import (
 )
 
 
-def plugin_params(jpeg_path: Path, all_frames: bool):
+def plugin_params(jpeg_path: Path, all_frames: bool, pixel_size: float = 0):
     def params(key):
         p = {
             "parameters": {"images_command": "mrc_to_jpeg"},
             "file": jpeg_path.with_suffix(".mrc"),
             "all_frames": all_frames,
+            "pixel_spacing": pixel_size,
         }
         return p.get(key)
 
@@ -78,6 +79,15 @@ def test_mrc_to_jpeg_2d_ack_when_file_exists(tmp_path):
     with mrcfile.new(jpeg_path.with_suffix(".mrc")) as mrc:
         mrc.set_data(test_data)
     assert mrc_to_jpeg(plugin_params(jpeg_path, False)) == jpeg_path
+    assert jpeg_path.is_file()
+
+
+def test_mrc_to_jpeg_2d_ack_with_scalebar(tmp_path):
+    jpeg_path = tmp_path / "convert_test.jpeg"
+    test_data = np.arange(9, dtype=np.int8).reshape(3, 3)
+    with mrcfile.new(jpeg_path.with_suffix(".mrc")) as mrc:
+        mrc.set_data(test_data)
+    assert mrc_to_jpeg(plugin_params(jpeg_path, False, 1.2)) == jpeg_path
     assert jpeg_path.is_file()
 
 

@@ -24,12 +24,16 @@ def parameters_with_replacement(param: str, message: dict, all_parameters: Calla
     """
     if message.get(param) and "$" not in str(message[param]):
         # Precedence for command list items
-        return message[param]
+        value_to_return = message[param]
     elif message.get(param):
         # Run lookup on dollar parameters
-        return all_parameters(message[param])
-    # Lookup anything else
-    return all_parameters(param)
+        value_to_return = all_parameters(message[param])
+    else:
+        # Lookup anything else
+        value_to_return = all_parameters(param)
+    if value_to_return == "None":
+        value_to_return = None
+    return value_to_return
 
 
 def multipart_message(

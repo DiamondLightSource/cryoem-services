@@ -534,7 +534,7 @@ def test_insert_particle_classification_group_update():
 def test_insert_initial_model_new(mock_models):
     def mock_model_parameters(p):
         model_parameters = {
-            "cryoem_initial_model_id": None,
+            "cryoem_initial_model_id": "None",
             "particle_classification_id": 401,
             "resolution": 15.1,
             "number_of_particles": 21000,
