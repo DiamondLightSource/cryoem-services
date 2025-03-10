@@ -54,10 +54,7 @@
       "workingdir": "{class2d_dir}/"
     },
     "queue": "cluster.submission",
-    "service": "Class2DWrapper",
-    "wrapper": {
-      "task_information": "Class2D"
-    }
+    "service": "Class2DWrapper"
   },
   "2": {
     "queue": "node_creator",
