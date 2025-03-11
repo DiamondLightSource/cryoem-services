@@ -632,16 +632,60 @@ def test_class3d_wrapper_has_initial_model(
 
 
 best_class_test_matrix = (
-    # tuple of Fractions, Resolutions, Completenesses, Do refine?, Best class
-    ([0.1, 0.2, 0.3, 0.4], [8, 9, 10, 11], [0.95, 0.95, 0.95, 0.95], True, 1),
+    # tuple of Fractions, Resolutions, Completeness, Efficiency, Do refine?, Best class
+    (
+        [0.1, 0.2, 0.3, 0.4],
+        [8, 9, 10, 11],
+        [0.95, 0.95, 0.95, 0.95],
+        [0.5, 0.5, 0.5, 0.5],
+        True,
+        1,
+    ),
     # ^ Pick best resolution
-    ([0.1, 0.2, 0.3, 0.4], [8, 9, 10, 11], [0.8, 0.95, 0.95, 0.95], True, 2),
+    (
+        [0.1, 0.2, 0.3, 0.4],
+        [8, 9, 10, 11],
+        [0.8, 0.95, 0.95, 0.95],
+        [0.5, 0.5, 0.5, 0.5],
+        True,
+        2,
+    ),
     # ^ Pick second best resolution due to completeness
-    ([0.1, 0.4, 0.3, 0.2], [8, 8, 8, 8], [0.95, 0.95, 0.95, 0.95], True, 2),
-    # ^ Pick highest particle count at best resolution
-    ([0.1, 0.2, 0.3, 0.4], [11, 12, 13, 14], [0.95, 0.95, 0.95, 0.95], False, 0),
+    (
+        [0.1, 0.2, 0.3, 0.4],
+        [8, 8, 8, 9],
+        [0.95, 0.95, 0.95, 0.95],
+        [0.5, 0.6, 0.5, 0.6],
+        True,
+        2,
+    ),
+    # ^ Pick best efficiency at best resolution
+    (
+        [0.1, 0.4, 0.3, 0.1],
+        [8, 8, 8, 9],
+        [0.95, 0.95, 0.95, 0.95],
+        [0.5, 0.5, 0.5, 0.5],
+        True,
+        1,
+    ),
+    # ^ Pick lowest particle count at best resolution
+    (
+        [0.1, 0.2, 0.3, 0.4],
+        [11, 12, 13, 14],
+        [0.95, 0.95, 0.95, 0.95],
+        [0.5, 0.5, 0.5, 0.5],
+        False,
+        0,
+    ),
     # ^ Don't refine, bad resolution
-    ([0.1, 0.2, 0.3, 0.4], [8, 9, 8, 11], [0.9, 0.8, 0.7, 0.6], False, 0),
+    (
+        [0.1, 0.2, 0.3, 0.4],
+        [8, 9, 8, 11],
+        [0.9, 0.8, 0.7, 0.6],
+        [0.5, 0.5, 0.5, 0.5],
+        False,
+        0,
+    ),
     # ^ Don't refine, bad completeness
 )
 
@@ -655,7 +699,7 @@ def test_class3d_wrapper_for_refinement(
     mock_recwrap_send,
     mock_subprocess,
     mock_efficiency,
-    test_classes: tuple[list[float], list[float], list[float], bool, int],
+    test_classes: tuple[list[float], list[float], list[float], list[float], bool, int],
     offline_transport,
     tmp_path,
 ):
@@ -667,6 +711,7 @@ def test_class3d_wrapper_for_refinement(
     Runs a variety of different cases to test the estimation of the best class
     """
     mock_subprocess().returncode = 0
+    mock_efficiency.side_effect = test_classes[3]
 
     # Example recipe wrapper message to run the service with a few parameters varied
     class3d_test_message = {
@@ -705,7 +750,7 @@ def test_class3d_wrapper_for_refinement(
     with open(tmp_path / "Class3D/job015/run_it020_data.star", "w") as data_star:
         data_star.write(
             "data_particles\nloop_\n_rlnAngleRot\n_rlnAngleTilt\n_rlnClassNumber\n"
-            "0.5 1.0 1\n1.5 2.0 1\n2.5 3.0 2\n3.5 4.0 2\n"
+            "0.5 1.0 1\n1.5 2.0 1\n2.5 3.0 2\n3.5 4.0 2\n2.5 3.0 3\n3.5 4.0 4\n"
         )
     with open(tmp_path / "Class3D/job015/run_it020_model.star", "w") as model_star:
         model_star.write(
@@ -741,9 +786,9 @@ def test_class3d_wrapper_for_refinement(
             "register": "done_3d_batch",
             "refine_dir": f"{tmp_path}/Refine3D/job",
             "class3d_dir": f"{tmp_path}/Class3D/job015",
-            "best_class": test_classes[4],
-            "do_refinement": test_classes[3],
+            "best_class": test_classes[5],
+            "do_refinement": test_classes[4],
         },
     )
 
-    assert mock_efficiency.call_count == 2
+    assert mock_efficiency.call_count == 4

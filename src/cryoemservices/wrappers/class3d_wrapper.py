@@ -435,6 +435,7 @@ class Class3DWrapper(BaseWrapper):
             str(job_dir / f"run_it{class3d_params.class3d_nr_iter:03}_data.star")
         )
         particles_block = data.find_block("particles")
+        class_efficiencies = np.zeros(class3d_params.class3d_nr_classes)
         if particles_block:
             angles_rot = np.array(
                 particles_block.find_loop("_rlnAngleRot"), dtype=float
@@ -477,15 +478,16 @@ class Class3DWrapper(BaseWrapper):
                         job_dir
                         / f"run_it{class3d_params.class3d_nr_iter:03}_class{class_id+1:03}_angdist.jpeg"
                     )
+                    plt.close()
                 except ValueError as e:
                     self.log.warning(f"Healpix failed with error {e}")
 
-                class_efficiency = find_efficiency(
+                class_efficiencies[class_id] = find_efficiency(
                     theta_degrees=angles_tilt[class_numbers == class_id + 1],
                     phi_degrees=angles_rot[class_numbers == class_id + 1],
                 )
                 self.log.info(
-                    f"Efficiency of class {class_id + 1} is {class_efficiency}"
+                    f"Efficiency of class {class_id + 1} is {class_efficiencies[class_id]}"
                 )
 
         # Send classification job information to ispyb
@@ -576,11 +578,14 @@ class Class3DWrapper(BaseWrapper):
             class_completenesses.append(
                 class_ispyb_parameters["overall_fourier_completeness"]
             )
+
+            # Sorting criteria are resolution, descending efficiency and reversed particle count
             class_sort_criteria.append(
                 (
                     class_ispyb_parameters["estimated_resolution"],
-                    class3d_params.batch_size
-                    - class_ispyb_parameters["particles_per_class"],
+                    1 - class_efficiencies[class_id],
+                    class_ispyb_parameters["particles_per_class"]
+                    - class3d_params.batch_size,
                 )
             )
 
@@ -611,10 +616,11 @@ class Class3DWrapper(BaseWrapper):
 
         # Work out the best class and request refinement if it meets the target criteria
         class_sorting_array = np.array(
-            class_sort_criteria, dtype=[("resolutions", "<i"), ("particles", "<i")]
+            class_sort_criteria,
+            dtype=[("resolutions", "<f"), ("efficiencies", "<f"), ("particles", "<i")],
         )
         class_sorting = np.argsort(
-            class_sorting_array, order=("resolutions", "particles")
+            class_sorting_array, order=("resolutions", "efficiencies", "particles")
         )
         for cid in class_sorting:
             if (
