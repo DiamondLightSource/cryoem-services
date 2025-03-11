@@ -50,22 +50,19 @@ def setup_and_run_node_creation(
     output_file.parent.mkdir(parents=True, exist_ok=True)
     output_file.touch()
     test_message = {
-        "parameters": {
-            "job_type": job_type,
-            "input_file": str(input_file),
-            "output_file": str(output_file),
-            "relion_options": relion_options,
-            "command": "command",
-            "stdout": "stdout",
-            "stderr": "stderr",
-            "results": results,
-            "experiment_type": experiment_type,
-        },
-        "content": "dummy",
+        "job_type": job_type,
+        "input_file": str(input_file),
+        "output_file": str(output_file),
+        "relion_options": relion_options,
+        "command": "command",
+        "stdout": "stdout",
+        "stderr": "stderr",
+        "results": results,
+        "experiment_type": experiment_type,
     }
 
     # set up the mock service and send the message to it
-    service = node_creator.NodeCreator()
+    service = node_creator.NodeCreator(environment={"queue": ""})
     service.transport = transport
     service.start()
     service.node_creator(None, header=header, message=test_message)
@@ -108,21 +105,18 @@ def test_node_creator_failed_job(offline_transport, tmp_path):
     output_file.parent.mkdir(parents=True, exist_ok=True)
     output_file.touch()
     test_message = {
-        "parameters": {
-            "job_type": "relion.motioncorr.motioncor2",
-            "input_file": str(input_file),
-            "output_file": str(output_file),
-            "relion_options": relion_options,
-            "command": "command",
-            "stdout": "stdout",
-            "stderr": "stderr",
-            "success": False,
-        },
-        "content": "dummy",
+        "job_type": "relion.motioncorr.motioncor2",
+        "input_file": str(input_file),
+        "output_file": str(output_file),
+        "relion_options": relion_options,
+        "command": "command",
+        "stdout": "stdout",
+        "stderr": "stderr",
+        "success": False,
     }
 
     # set up the mock service and send the message to it
-    service = node_creator.NodeCreator()
+    service = node_creator.NodeCreator(environment={"queue": ""})
     service.transport = offline_transport
     service.start()
     service.node_creator(None, header=header, message=test_message)
@@ -160,22 +154,19 @@ def test_node_creator_rerun_job(offline_transport, tmp_path):
     output_file.touch()
     (tmp_path / job_dir / "PIPELINER_JOB_EXIT_SUCCESS").touch()
     test_message = {
-        "parameters": {
-            "job_type": "relion.motioncorr.motioncor2",
-            "input_file": str(input_file),
-            "output_file": str(output_file),
-            "relion_options": relion_options,
-            "command": "command",
-            "stdout": "stdout",
-            "stderr": "stderr",
-            "success": True,
-            "results": {"total_motion": "10", "early_motion": "4", "late_motion": "6"},
-        },
-        "content": "dummy",
+        "job_type": "relion.motioncorr.motioncor2",
+        "input_file": str(input_file),
+        "output_file": str(output_file),
+        "relion_options": relion_options,
+        "command": "command",
+        "stdout": "stdout",
+        "stderr": "stderr",
+        "success": True,
+        "results": {"total_motion": "10", "early_motion": "4", "late_motion": "6"},
     }
 
     # set up the mock service and send the message to it
-    service = node_creator.NodeCreator()
+    service = node_creator.NodeCreator(environment={"queue": ""})
     service.transport = offline_transport
     service.start()
     service.node_creator(None, header=header, message=test_message)
@@ -500,6 +491,40 @@ def test_node_creator_ctffind(offline_transport, tmp_path):
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+def test_node_creator_ctffind_noicerings(offline_transport, tmp_path):
+    """
+    Send a test message to the node creator for
+    relion.ctffind.ctffind4, with no ice ring values generated
+    """
+    job_dir = "CtfFind/job006"
+    input_file = f"{tmp_path}/MotionCorr/job002/Movies/sample.mrc"
+    output_file = tmp_path / job_dir / "Movies/sample.ctf"
+    relion_options = RelionServiceOptions()
+
+    output_file.parent.mkdir(parents=True)
+    with open(output_file.with_suffix(".txt"), "w") as f:
+        f.write("0.0 1.0 2.0 3.0 4.0 5.0 6.0")
+    with open(f"{output_file.with_suffix('')}_avrot.txt", "w") as f:
+        f.write("header\nheader\nheader\nheader\nheader\n")
+
+    setup_and_run_node_creation(
+        relion_options,
+        offline_transport,
+        tmp_path,
+        job_dir,
+        "relion.ctffind.ctffind4",
+        input_file,
+        output_file,
+    )
+
+    # Check the output file structure
+    assert (tmp_path / job_dir / "micrographs_ctf.star").exists()
+    micrographs_file = cif.read_file(str(tmp_path / job_dir / "micrographs_ctf.star"))
+    micrographs_data = micrographs_file.find_block("micrographs")
+    assert list(micrographs_data.find_loop("_rlnCtfIceRingDensity")) == ["0"]
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 def test_node_creator_cryolo(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
@@ -517,10 +542,7 @@ def test_node_creator_cryolo(offline_transport, tmp_path):
     (tmp_path / "MotionCorr/job002/corrected_micrographs.star").touch()
 
     (tmp_path / job_dir / "DISTR").mkdir(parents=True)
-    with open(
-        tmp_path / job_dir / "DISTR/confidence_distribution_summary_1.txt", "w"
-    ) as f:
-        f.write("Metric, Value\nMEAN, 1.0\nSD, 1.0\nQ25, 0.5\nQ50, 1.0\nQ75, 1.5")
+    (tmp_path / job_dir / "DISTR/confidence_distribution_summary_1.txt").touch()
 
     setup_and_run_node_creation(
         relion_options,
@@ -1374,7 +1396,7 @@ def test_node_creator_tomograms(offline_transport, tmp_path):
     ]
     assert list(global_block.find_loop("_rlnOpticsGroupName")) == ["optics1"]
     assert list(global_block.find_loop("_rlnTomoTiltSeriesPixelSize")) == [
-        str(relion_options.pixel_size_downscaled)
+        str(relion_options.pixel_size)
     ]
     assert list(global_block.find_loop("_rlnTomoTiltSeriesStarFile")) == [
         "AlignTiltSeries/job005/tilt_series/Position_1_2.star"
@@ -1442,7 +1464,7 @@ def test_node_creator_denoisetomo(offline_transport, tmp_path):
     ]
     assert list(global_block.find_loop("_rlnOpticsGroupName")) == ["optics1"]
     assert list(global_block.find_loop("_rlnTomoTiltSeriesPixelSize")) == [
-        str(relion_options.pixel_size_downscaled)
+        str(relion_options.pixel_size)
     ]
     assert list(global_block.find_loop("_rlnTomoTiltSeriesStarFile")) == [
         "AlignTiltSeries/job005/tilt_series/Position_1_2.star"
@@ -1463,3 +1485,79 @@ def test_node_creator_denoisetomo(offline_transport, tmp_path):
     assert list(global_block.find_loop("_rlnTomoReconstructedTomogramDenoised")) == [
         str(output_file.relative_to(tmp_path))
     ]
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+def test_node_creator_cryolo_tomo(offline_transport, tmp_path):
+    """
+    Send a test message to the node creator for
+    cryolo.autopick running on a tomogram
+    """
+    job_dir = "AutoPick/job009"
+    (tmp_path / job_dir / "CBOX_3D").mkdir(parents=True)
+
+    input_file = f"{tmp_path}/Denoise/job007/Movies/tomograms/Position_1_2_stack_aretomo.denoised.mrc"
+    output_file = (
+        tmp_path / job_dir / "CBOX_3D/Position_1_2_stack_aretomo.denoised.cbox"
+    )
+    relion_options = RelionServiceOptions()
+
+    relion_options.cryolo_config_file = str(tmp_path / job_dir / "cryolo_config.json")
+    relion_options.pixel_size = 1.2
+    relion_options.pixel_size_downscaled = 4.8
+    (tmp_path / job_dir / "cryolo_config.json").touch()
+
+    with open(
+        tmp_path / job_dir / "CBOX_3D/Position_1_2_stack_aretomo.denoised.cbox", "w"
+    ) as particles_file:
+        particles_file.write(
+            "data_global\n\n_cbox_format_version   1.0\n"
+            "data_cryolo\n\nloop_\n"
+            "_CoordinateX\n_CoordinateY\n_CoordinateZ\n_EstWidth\n_EstHeight\n"
+            "60 70 80 5 6\n90 100 110 8 10\n"
+        )
+
+    (tmp_path / job_dir / "DISTR").mkdir(parents=True)
+    (tmp_path / job_dir / "DISTR/confidence_distribution_summary_1.txt").touch()
+
+    setup_and_run_node_creation(
+        relion_options,
+        offline_transport,
+        tmp_path,
+        job_dir,
+        "cryolo.autopick",
+        input_file,
+        output_file,
+        experiment_type="tomography",
+    )
+
+    # Check the output file structure
+    assert (tmp_path / job_dir / "optimisation_set.star").exists()
+    optimiser_file = cif.read_file(str(tmp_path / job_dir / "optimisation_set.star"))
+    optimiser_block = optimiser_file.find_block("optimisation_set")
+    assert list(optimiser_block.find_loop("_rlnTomoParticlesFile")) == [
+        "AutoPick/job009/particles.star"
+    ]
+    assert list(optimiser_block.find_loop("_rlnTomoTomogramsFile")) == [
+        "Denoise/job007/tomograms.star"
+    ]
+
+    assert (tmp_path / job_dir / "particles.star").exists()
+    particles_file = cif.read_file(str(tmp_path / job_dir / "particles.star"))
+    particles_block = particles_file.find_block("particles")
+    assert list(particles_block.find_loop("_rlnTomoName")) == [
+        "Position_1_2",
+        "Position_1_2",
+    ]
+    x_coords = list(particles_block.find_loop("_rlnCoordinateX"))
+    y_coords = list(particles_block.find_loop("_rlnCoordinateY"))
+    z_coords = list(particles_block.find_loop("_rlnCoordinateZ"))
+    assert len(x_coords) == 2
+    assert float(x_coords[0]) == 62.5 * 4
+    assert float(x_coords[1]) == 94.0 * 4
+    assert len(y_coords) == 2
+    assert float(y_coords[0]) == 73 * 4
+    assert float(y_coords[1]) == 105 * 4
+    assert len(z_coords) == 2
+    assert float(z_coords[0]) == 80 * 4
+    assert float(z_coords[1]) == 110 * 4

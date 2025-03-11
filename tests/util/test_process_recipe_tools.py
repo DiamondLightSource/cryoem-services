@@ -48,18 +48,17 @@ def test_get_processing_info(mock_select):
 
 
 @mock.patch("cryoemservices.util.process_recipe_tools.select")
-def test_get_dc_info(mock_select):
-    """Test the lookup calls for data collections"""
+def test_get_image_directory(mock_select):
+    """Test the lookup calls for image directory from data collections"""
 
     class MockParameters:
         imageDirectory = "/path/to/images/"
-        fileTemplate = "template_*/for/*.tiff"
 
     # A mock for the query results
     mock_session = mock.MagicMock()
     mock_session.execute().scalars().first.return_value = MockParameters()
 
-    output_parameters = process_recipe_tools.get_dc_info(1, mock_session)
+    output_parameters = process_recipe_tools.get_image_directory(1, mock_session)
 
     # Check the sqlalchemy calls
     assert mock_session.execute.call_count == 2
@@ -70,18 +69,16 @@ def test_get_dc_info(mock_select):
     mock_select().where.assert_called_once()
 
     # Check the return value
-    assert list(output_parameters.keys()) == ["imageDirectory", "fileTemplate"]
-    assert output_parameters["imageDirectory"] == "/path/to/images/"
-    assert output_parameters["fileTemplate"] == "template_*/for/*.tiff"
+    assert output_parameters == "/path/to/images/"
 
 
 @mock.patch("cryoemservices.util.process_recipe_tools.models")
 @mock.patch("cryoemservices.util.process_recipe_tools.sessionmaker")
 @mock.patch("cryoemservices.util.process_recipe_tools.create_engine")
 @mock.patch("cryoemservices.util.process_recipe_tools.get_processing_info")
-@mock.patch("cryoemservices.util.process_recipe_tools.get_dc_info")
+@mock.patch("cryoemservices.util.process_recipe_tools.get_image_directory")
 def test_ispyb_filter(
-    mock_dc_info,
+    mock_image_directory,
     mock_processing_info,
     mock_engine,
     mock_sessionmaker,
@@ -103,10 +100,7 @@ def test_ispyb_filter(
         "recipe": Recipe(),
     }
 
-    mock_dc_info.return_value = {
-        "imageDirectory": "/facility/microscope/data/year/visit/raw",
-        "fileTemplate": "GridSquare_*/Data/*.tiff",
-    }
+    mock_image_directory.return_value = "/facility/microscope/data/year/visit/raw"
     mock_processing_info.return_value = {
         "recipe": "example",
         "ispyb_dcid": 10,
@@ -128,7 +122,7 @@ def test_ispyb_filter(
 
     # Check the calls for the mocked functions
     mock_processing_info.assert_called_with("dummy_process", mock.ANY)
-    mock_dc_info.assert_called_with(10, mock.ANY)
+    mock_image_directory.assert_called_with(10, mock.ANY)
 
     # Check the outputs
     assert list(output_message.keys()) == ["parameters", "recipe", "recipes"]
@@ -141,7 +135,7 @@ def test_ispyb_filter(
         "ispyb_dcid",
         "ispyb_reprocessing_parameters",
         "ispyb_beamline",
-        "ispyb_dc_info",
+        "ispyb_image_directory",
         "ispyb_visit_directory",
         "ispyb_working_directory",
         "ispyb_results_directory",
@@ -153,10 +147,10 @@ def test_ispyb_filter(
         "parameter_a": "A",
         "parameter_b": "B",
     }
-    assert output_parameters["ispyb_dc_info"] == {
-        "imageDirectory": "/facility/microscope/data/year/visit/raw",
-        "fileTemplate": "GridSquare_*/Data/*.tiff",
-    }
+    assert (
+        output_parameters["ispyb_image_directory"]
+        == "/facility/microscope/data/year/visit/raw"
+    )
     assert output_parameters["ispyb_beamline"] == "microscope"
     assert (
         output_parameters["ispyb_visit_directory"]

@@ -1,16 +1,10 @@
 from __future__ import annotations
 
 from importlib.metadata import entry_points
-from typing import Any, Callable, NamedTuple
+from typing import Callable
 
 import workflows.recipe
 from workflows.services.common_service import CommonService
-
-
-class PluginInterface(NamedTuple):
-    rw: workflows.recipe.wrapper.RecipeWrapper
-    parameters: Callable
-    message: dict[str, Any]
 
 
 class Images(CommonService):
@@ -18,10 +12,8 @@ class Images(CommonService):
     A service that generates images and thumbnails.
     Plugin functions can be registered under the entry point
     'cryoemservices.services.images.plugins'. The contract is that a plugin function
-    takes a single argument of type PluginInterface, and returns a truthy value
+    takes a parameters callable, and returns a truthy value
     to acknowledge success, and a falsy value to reject the related message.
-    Functions may choose to return a list of files that were generated, but
-    this is optional at this time.
     """
 
     # Human readable service name
@@ -48,7 +40,7 @@ class Images(CommonService):
         )
         workflows.recipe.wrap_subscribe(
             self._transport,
-            "images",
+            self._environment["queue"] or "images",
             self.image_call,
             acknowledgement=True,
             log_extender=self.extend_log,
@@ -69,9 +61,7 @@ class Images(CommonService):
             return
 
         try:
-            result = self.image_functions[command](
-                PluginInterface(rw, parameters, message)
-            )
+            result = self.image_functions[command](parameters)
         except (PermissionError, FileNotFoundError) as e:
             self.log.error(f"Command {command!r} raised {e}", exc_info=True)
             rw.transport.nack(header)

@@ -57,40 +57,34 @@ def test_select_particles_service(offline_transport, tmp_path):
     output_relion_options.update(input_relion_options)
 
     select_test_message = {
-        "parameters": {
-            "input_file": str(extract_file),
-            "batch_size": 2,
-            "image_size": 64,
-            "relion_options": input_relion_options,
-        },
-        "content": "dummy",
+        "input_file": str(extract_file),
+        "batch_size": 2,
+        "image_size": 64,
+        "relion_options": input_relion_options,
     }
 
     # Set up the mock service and send the message to it
-    service = select_particles.SelectParticles()
+    service = select_particles.SelectParticles(environment={"queue": ""})
     service.transport = offline_transport
     service.start()
     service.select_particles(None, header=header, message=select_test_message)
 
     # Check that the correct messages were sent
     offline_transport.send.assert_any_call(
-        destination="node_creator",
-        message={
-            "parameters": {
-                "job_type": "relion.select.split",
-                "input_file": str(extract_file),
-                "output_file": f"{output_dir}/particles_split3.star",
-                "relion_options": output_relion_options,
-                "command": "",
-                "stdout": "",
-                "stderr": "",
-            },
-            "content": "dummy",
+        "node_creator",
+        {
+            "job_type": "relion.select.split",
+            "input_file": str(extract_file),
+            "output_file": f"{output_dir}/particles_split3.star",
+            "relion_options": output_relion_options,
+            "command": "",
+            "stdout": "",
+            "stderr": "",
         },
     )
     offline_transport.send.assert_any_call(
-        destination="murfey_feedback",
-        message={
+        "murfey_feedback",
+        {
             "register": "complete_particles_file",
             "class2d_message": {
                 "class2d_dir": f"{tmp_path}/Class2D/job",
@@ -100,8 +94,8 @@ def test_select_particles_service(offline_transport, tmp_path):
         },
     )
     offline_transport.send.assert_any_call(
-        destination="murfey_feedback",
-        message={
+        "murfey_feedback",
+        {
             "register": "done_particle_selection",
         },
     )

@@ -80,30 +80,25 @@ def test_extract_class_service(mock_subprocess, offline_transport, tmp_path):
         "subscription": mock.sentinel,
     }
     extract_class_test_message = {
-        "parameters": {
-            "extraction_executable": "EM/cryoemservices.reextract",
-            "class3d_dir": str(tmp_path / "Class3D/job010"),
-            "refine_job_dir": str(tmp_path / "Refine3D/job013"),
-            "refine_class_nr": 1,
-            "original_pixel_size": 0.5,
-            "boxsize": 200,
-            "nr_iter_3d": 25,
-            "bg_radius": -1,
-            "downscale_factor": 2,
-            "downscale": True,
-            "normalise": True,
-            "invert_contrast": True,
-            "relion_options": {},
-        },
-        "content": "dummy",
+        "extraction_executable": "EM/cryoemservices.reextract",
+        "class3d_dir": str(tmp_path / "Class3D/job010"),
+        "refine_job_dir": str(tmp_path / "Refine3D/job013"),
+        "refine_class_nr": 1,
+        "original_pixel_size": 0.5,
+        "boxsize": 200,
+        "nr_iter_3d": 25,
+        "bg_radius": -1,
+        "downscale_factor": 2,
+        "downscale": True,
+        "normalise": True,
+        "invert_contrast": True,
+        "relion_options": {},
     }
     output_relion_options = RelionServiceOptions()
     output_relion_options.downscale = True
     output_relion_options.pixel_size_downscaled = 1.0
     output_relion_options = dict(output_relion_options)
-    output_relion_options.update(
-        extract_class_test_message["parameters"]["relion_options"]
-    )
+    output_relion_options.update(extract_class_test_message["relion_options"])
     output_relion_options["boxsize"] = 228
     output_relion_options["small_boxsize"] = 114
 
@@ -117,7 +112,11 @@ def test_extract_class_service(mock_subprocess, offline_transport, tmp_path):
 
     # Set up the mock service and call it
     service = extract_class.ExtractClass(
-        environment={"config": f"{tmp_path}/config.yaml", "slurm_cluster": "default"}
+        environment={
+            "config": f"{tmp_path}/config.yaml",
+            "slurm_cluster": "default",
+            "queue": "",
+        }
     )
     service.transport = offline_transport
     service.start()
@@ -187,56 +186,47 @@ def test_extract_class_service(mock_subprocess, offline_transport, tmp_path):
 
     # Check that the correct messages were sent
     offline_transport.send.assert_any_call(
-        destination="refine_wrapper",
-        message={
-            "content": "dummy",
-            "parameters": {
-                "refine_job_dir": f"{tmp_path}/Refine3D/job013",
-                "particles_file": f"{tmp_path}/Extract/job012/particles.star",
-                "rescaling_command": rescaling_command,
-                "rescaled_class_reference": str(
-                    tmp_path / "Extract/job012/refinement_reference_class001.mrc"
-                ),
-                "is_first_refinement": True,
-                "number_of_particles": 1,
-                "batch_size": 1,
-                "pixel_size": "1.0",
-                "class_number": 1,
-            },
+        "refine_wrapper",
+        {
+            "refine_job_dir": f"{tmp_path}/Refine3D/job013",
+            "particles_file": f"{tmp_path}/Extract/job012/particles.star",
+            "rescaling_command": rescaling_command,
+            "rescaled_class_reference": str(
+                tmp_path / "Extract/job012/refinement_reference_class001.mrc"
+            ),
+            "is_first_refinement": True,
+            "number_of_particles": 1,
+            "batch_size": 1,
+            "pixel_size": "1.0",
+            "class_number": 1,
         },
     )
     offline_transport.send.assert_any_call(
-        destination="node_creator",
-        message={
-            "parameters": {
-                "job_type": "relion.select.onvalue",
-                "input_file": str(tmp_path / "Class3D/job010/run_it025_data.star"),
-                "output_file": f"{tmp_path}/Select/job011/particles.star",
-                "relion_options": output_relion_options,
-                "command": "",
-                "stdout": "",
-                "stderr": "",
-                "success": True,
-            },
-            "content": "dummy",
+        "node_creator",
+        {
+            "job_type": "relion.select.onvalue",
+            "input_file": str(tmp_path / "Class3D/job010/run_it025_data.star"),
+            "output_file": f"{tmp_path}/Select/job011/particles.star",
+            "relion_options": output_relion_options,
+            "command": "",
+            "stdout": "",
+            "stderr": "",
+            "success": True,
         },
     )
     offline_transport.send.assert_any_call(
-        destination="node_creator",
-        message={
-            "parameters": {
-                "job_type": "relion.extract",
-                "input_file": (
-                    f"{tmp_path}/Select/job011/particles.star"
-                    f":CtfFind/job003/micrographs_ctf.star"
-                ),
-                "output_file": f"{tmp_path}/Extract/job012/particles.star",
-                "relion_options": output_relion_options,
-                "command": " ".join(extract_command),
-                "stdout": "",
-                "stderr": "",
-                "success": True,
-            },
-            "content": "dummy",
+        "node_creator",
+        {
+            "job_type": "relion.extract",
+            "input_file": (
+                f"{tmp_path}/Select/job011/particles.star"
+                f":CtfFind/job003/micrographs_ctf.star"
+            ),
+            "output_file": f"{tmp_path}/Extract/job012/particles.star",
+            "relion_options": output_relion_options,
+            "command": " ".join(extract_command),
+            "stdout": "",
+            "stderr": "",
+            "success": True,
         },
     )

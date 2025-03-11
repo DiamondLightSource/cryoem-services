@@ -2,9 +2,7 @@ from __future__ import annotations
 
 import os
 import re
-import string
 import subprocess
-from collections import ChainMap
 from math import hypot
 from pathlib import Path
 from typing import Any, List, Optional
@@ -59,6 +57,7 @@ class MotionCorrParameters(BaseModel):
     defect_file: Optional[str] = None
     arc_dir: Optional[str] = None
     in_fm_motion: Optional[int] = None
+    frame_count: Optional[int] = None
     split_sum: Optional[int] = None
     dose_motionstats_cutoff: float = 4.0
     do_icebreaker_jobs: bool = True
@@ -75,19 +74,6 @@ class MotionCorrParameters(BaseModel):
         return experiment
 
     model_config = ConfigDict(extra="allow")
-
-
-class ChainMapWithReplacement(ChainMap):
-    def __init__(self, *maps, substitutions=None) -> None:
-        super().__init__(*maps)
-        self._substitutions = substitutions
-
-    def __getitem__(self, k):
-        v = super().__getitem__(k)
-        if self._substitutions and isinstance(v, str) and "$" in v:
-            template = string.Template(v)
-            return template.substitute(**self._substitutions)
-        return v
 
 
 class MotionCorr(CommonService):
@@ -115,7 +101,7 @@ class MotionCorr(CommonService):
         self.log.info("Motion correction service starting")
         workflows.recipe.wrap_subscribe(
             self._transport,
-            "motioncorr",
+            self._environment["queue"] or "motioncorr",
             self.motion_correction,
             acknowledgement=True,
             log_extender=self.extend_log,
@@ -263,11 +249,7 @@ class MotionCorr(CommonService):
         """Main function which interprets and processes received messages"""
         if not rw:
             self.log.info("Received a simple message")
-            if (
-                not isinstance(message, dict)
-                or not message.get("parameters")
-                or not message.get("content")
-            ):
+            if not isinstance(message, dict):
                 self.log.error("Rejected invalid simple message")
                 self._transport.nack(header)
                 return
@@ -275,20 +257,17 @@ class MotionCorr(CommonService):
             # Create a wrapper-like object that can be passed to functions
             # as if a recipe wrapper was present.
             rw = MockRW(self._transport)
-            rw.recipe_step = {"parameters": message["parameters"]}
-            message = message["content"]
-
-        parameter_map = ChainMapWithReplacement(
-            message if isinstance(message, dict) else {},
-            rw.recipe_step["parameters"],
-            substitutions=rw.environment,
-        )
+            rw.recipe_step = {"parameters": message}
 
         try:
             if isinstance(message, dict):
-                mc_params = MotionCorrParameters(**{**dict(parameter_map), **message})
+                mc_params = MotionCorrParameters(
+                    **{**rw.recipe_step.get("parameters", {}), **message}
+                )
             else:
-                mc_params = MotionCorrParameters(**{**dict(parameter_map)})
+                mc_params = MotionCorrParameters(
+                    **{**rw.recipe_step.get("parameters", {})}
+                )
         except (ValidationError, TypeError) as e:
             self.log.warning(
                 f"Motion correction parameter validation failed for message: {message} "
@@ -490,16 +469,7 @@ class MotionCorr(CommonService):
                 "stderr": result.stderr.decode("utf8", "replace"),
                 "success": False,
             }
-            if isinstance(rw, MockRW):
-                rw.transport.send(
-                    destination="node_creator",
-                    message={
-                        "parameters": node_creator_parameters,
-                        "content": "dummy",
-                    },
-                )
-            else:
-                rw.send_to("node_creator", node_creator_parameters)
+            rw.send_to("node_creator", node_creator_parameters)
             rw.transport.nack(header)
             return
 
@@ -549,16 +519,7 @@ class MotionCorr(CommonService):
             "dose_per_frame": mc_params.dose_per_frame,
         }
         self.log.info(f"Sending to ispyb {ispyb_parameters}")
-        if isinstance(rw, MockRW):
-            rw.transport.send(
-                destination="ispyb_connector",
-                message={
-                    "parameters": ispyb_parameters,
-                    "content": {"dummy": "dummy"},
-                },
-            )
-        else:
-            rw.send_to("ispyb_connector", ispyb_parameters)
+        rw.send_to("ispyb_connector", ispyb_parameters)
 
         # Determine and set up the next jobs
         if mc_params.experiment_type == "spa":
@@ -592,16 +553,7 @@ class MotionCorr(CommonService):
                     "early_motion": early_motion,
                     "late_motion": late_motion,
                 }
-                if isinstance(rw, MockRW):
-                    rw.transport.send(
-                        destination="icebreaker",
-                        message={
-                            "parameters": icebreaker_job003_params,
-                            "content": "dummy",
-                        },
-                    )
-                else:
-                    rw.send_to("icebreaker", icebreaker_job003_params)
+                rw.send_to("icebreaker", icebreaker_job003_params)
 
                 self.log.info(
                     f"Sending to IceBreaker contrast enhancement: {mc_params.mrc_out}"
@@ -620,16 +572,7 @@ class MotionCorr(CommonService):
                     "early_motion": early_motion,
                     "late_motion": late_motion,
                 }
-                if isinstance(rw, MockRW):
-                    rw.transport.send(
-                        destination="icebreaker",
-                        message={
-                            "parameters": icebreaker_job004_params,
-                            "content": "dummy",
-                        },
-                    )
-                else:
-                    rw.send_to("icebreaker", icebreaker_job004_params)
+                rw.send_to("icebreaker", icebreaker_job004_params)
             elif mc_params.do_icebreaker_jobs and icebreaker_output.is_file():
                 # On a rerun, skip IceBreaker jobs but mark the CtfFind job as MC+4
                 ctf_job_number = 6
@@ -656,32 +599,17 @@ class MotionCorr(CommonService):
                 )
             ).with_suffix(".ctf")
         )
-        if isinstance(rw, MockRW):
-            rw.transport.send(  # type: ignore
-                destination="ctffind",
-                message={"parameters": mc_params.ctf, "content": "dummy"},
-            )
-        else:
-            rw.send_to("ctffind", mc_params.ctf)
+        rw.send_to("ctffind", mc_params.ctf)
 
         # Forward results to images service
         self.log.info(f"Sending to images service {mc_params.mrc_out}")
-        if isinstance(rw, MockRW):
-            rw.transport.send(
-                destination="images",
-                message={
-                    "image_command": "mrc_to_jpeg",
-                    "file": mc_params.mrc_out,
-                },
-            )
-        else:
-            rw.send_to(
-                "images",
-                {
-                    "image_command": "mrc_to_jpeg",
-                    "file": mc_params.mrc_out,
-                },
-            )
+        rw.send_to(
+            "images",
+            {
+                "image_command": "mrc_to_jpeg",
+                "file": mc_params.mrc_out,
+            },
+        )
 
         # If this is a new run, send the results to be processed by the node creator
         if not job_is_rerun:
@@ -728,13 +656,7 @@ class MotionCorr(CommonService):
                     "stdout": "",
                     "stderr": "",
                 }
-            if isinstance(rw, MockRW):
-                rw.transport.send(
-                    destination="node_creator",
-                    message={"parameters": import_parameters, "content": "dummy"},
-                )
-            else:
-                rw.send_to("node_creator", import_parameters)
+            rw.send_to("node_creator", import_parameters)
 
             # Then register the motion correction job with the node creator
             self.log.info(f"Sending {self.job_type} to node creator")
@@ -753,35 +675,19 @@ class MotionCorr(CommonService):
                     "late_motion": late_motion,
                 },
             }
-            if isinstance(rw, MockRW):
-                rw.transport.send(
-                    destination="node_creator",
-                    message={"parameters": node_creator_parameters, "content": "dummy"},
-                )
-            else:
-                rw.send_to("node_creator", node_creator_parameters)
+            rw.send_to("node_creator", node_creator_parameters)
 
         # Register completion with Murfey if this is tomography
         if mc_params.experiment_type == "tomography":
             self.log.info("Sending to Murfey")
-            if isinstance(rw, MockRW):
-                rw.transport.send(
-                    "murfey_feedback",
-                    {
-                        "register": "motion_corrected",
-                        "movie": mc_params.movie,
-                        "mrc_out": mc_params.mrc_out,
-                    },
-                )
-            else:
-                rw.send_to(
-                    "murfey_feedback",
-                    {
-                        "register": "motion_corrected",
-                        "movie": mc_params.movie,
-                        "mrc_out": mc_params.mrc_out,
-                    },
-                )
+            rw.send_to(
+                "murfey_feedback",
+                {
+                    "register": "motion_corrected",
+                    "movie": mc_params.movie,
+                    "mrc_out": mc_params.mrc_out,
+                },
+            )
 
         self.log.info(f"Done {self.job_type} for {mc_params.movie}.")
         rw.transport.ack(header)

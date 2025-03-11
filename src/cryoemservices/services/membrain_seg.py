@@ -46,7 +46,7 @@ class MembrainSeg(CommonService):
         self.log.info("membrain-seg service starting")
         workflows.recipe.wrap_subscribe(
             self._transport,
-            "segmentation",
+            self._environment["queue"] or "segmentation",
             self.membrain_seg,
             acknowledgement=True,
             log_extender=self.extend_log,
@@ -57,11 +57,7 @@ class MembrainSeg(CommonService):
         """Main function which interprets and processes received messages"""
         if not rw:
             self.log.info("Received a simple message")
-            if (
-                not isinstance(message, dict)
-                or not message.get("parameters")
-                or not message.get("content")
-            ):
+            if not isinstance(message, dict):
                 self.log.error("Rejected invalid simple message")
                 self._transport.nack(header)
                 return
@@ -69,8 +65,7 @@ class MembrainSeg(CommonService):
             # Create a wrapper-like object that can be passed to functions
             # as if a recipe wrapper was present.
             rw = MockRW(self._transport)
-            rw.recipe_step = {"parameters": message["parameters"]}
-            message = message["content"]
+            rw.recipe_step = {"parameters": message}
 
         try:
             if isinstance(message, dict):
@@ -182,40 +177,22 @@ class MembrainSeg(CommonService):
 
         # Forward results to images service
         self.log.info(f"Sending to images service {segmented_path}")
-        if isinstance(rw, MockRW):
-            rw.transport.send(
-                destination="images",
-                message={
-                    "image_command": "mrc_central_slice",
-                    "file": str(segmented_path),
-                    "skip_rescaling": True,
-                },
-            )
-            rw.transport.send(
-                destination="movie",
-                message={
-                    "image_command": "mrc_to_apng",
-                    "file": str(segmented_path),
-                    "skip_rescaling": True,
-                },
-            )
-        else:
-            rw.send_to(
-                "images",
-                {
-                    "image_command": "mrc_central_slice",
-                    "file": str(segmented_path),
-                    "skip_rescaling": True,
-                },
-            )
-            rw.send_to(
-                "movie",
-                {
-                    "image_command": "mrc_to_apng",
-                    "file": str(segmented_path),
-                    "skip_rescaling": True,
-                },
-            )
+        rw.send_to(
+            "images",
+            {
+                "image_command": "mrc_central_slice",
+                "file": str(segmented_path),
+                "skip_rescaling": True,
+            },
+        )
+        rw.send_to(
+            "movie",
+            {
+                "image_command": "mrc_to_apng",
+                "file": str(segmented_path),
+                "skip_rescaling": True,
+            },
+        )
 
         # Insert the segmented tomogram into ISPyB
         ispyb_parameters = {
@@ -223,16 +200,7 @@ class MembrainSeg(CommonService):
             "file_path": str(segmented_path),
             "processing_type": "Segmented",
         }
-        if isinstance(rw, MockRW):
-            rw.transport.send(
-                destination="ispyb_connector",
-                message={
-                    "parameters": ispyb_parameters,
-                    "content": {"dummy": "dummy"},
-                },
-            )
-        else:
-            rw.send_to("ispyb_connector", ispyb_parameters)
+        rw.send_to("ispyb_connector", ispyb_parameters)
 
         self.log.info(f"Done segmentation for {membrain_seg_params.tomogram}")
         rw.transport.ack(header)

@@ -60,10 +60,7 @@
       "workingdir": "{bfactor_directory}/"
     },
     "queue": "cluster.submission",
-    "service": "RefineWrapper",
-    "wrapper": {
-      "task_information": "Refine3D"
-    }
+    "service": "RefineWrapper"
   },
   "4": {
     "output": {

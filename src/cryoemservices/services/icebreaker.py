@@ -27,6 +27,7 @@ class IceBreakerParameters(BaseModel):
     total_motion: float = 0
     early_motion: float = 0
     late_motion: float = 0
+    modulefile_name: str = "EM/icebreaker/dev"
     mc_uuid: int
     submit_to_slurm: bool = True
     relion_options: RelionServiceOptions
@@ -51,7 +52,7 @@ class IceBreaker(CommonService):
         self.log.info("IceBreaker service starting")
         workflows.recipe.wrap_subscribe(
             self._transport,
-            "icebreaker",
+            self._environment["queue"] or "icebreaker",
             self.icebreaker,
             acknowledgement=True,
             log_extender=self.extend_log,
@@ -65,11 +66,7 @@ class IceBreaker(CommonService):
         """
         if not rw:
             self.log.info("Received a simple message")
-            if (
-                not isinstance(message, dict)
-                or not message.get("parameters")
-                or not message.get("content")
-            ):
+            if not isinstance(message, dict):
                 self.log.error("Rejected invalid simple message")
                 self._transport.nack(header)
                 return
@@ -77,8 +74,7 @@ class IceBreaker(CommonService):
             # Create a wrapper-like object that can be passed to functions
             # as if a recipe wrapper was present.
             rw = MockRW(self._transport)
-            rw.recipe_step = {"parameters": message["parameters"]}
-            message = message["content"]
+            rw.recipe_step = {"parameters": message}
 
         try:
             if isinstance(message, dict):
@@ -256,7 +252,7 @@ class IceBreaker(CommonService):
                     cpus=icebreaker_params.cpus,
                     use_gpu=False,
                     use_singularity=False,
-                    script_extras="module load EM/icebreaker/0.3.9",
+                    script_extras=f"module load {icebreaker_params.modulefile_name}",
                 )
                 if slurm_outcome.returncode:
                     # Mark failures only as success is True by default above
@@ -296,13 +292,7 @@ class IceBreaker(CommonService):
             node_creator_parameters[
                 "input_file"
             ] += f":{icebreaker_params.input_particles}"
-        if isinstance(rw, MockRW):
-            rw.transport.send(
-                destination="node_creator",
-                message={"parameters": node_creator_parameters, "content": "dummy"},
-            )
-        else:
-            rw.send_to("node_creator", node_creator_parameters)
+        rw.send_to("node_creator", node_creator_parameters)
 
         # End here if the command failed
         if not icebreaker_success:
@@ -342,13 +332,7 @@ class IceBreaker(CommonService):
                 f"IceBreaker/job{job_number + 2:03}/",
                 icebreaker_params.output_path,
             )
-            if isinstance(rw, MockRW):
-                rw.transport.send(
-                    destination="icebreaker",
-                    message={"parameters": next_icebreaker_params, "content": "dummy"},
-                )
-            else:
-                rw.send_to("icebreaker", next_icebreaker_params)
+            rw.send_to("icebreaker", next_icebreaker_params)
 
         # Send results to ispyb
         if icebreaker_params.icebreaker_type == "summary":
@@ -363,13 +347,7 @@ class IceBreaker(CommonService):
                 "maximum": summary_results[5],
             }
             self.log.info(f"Sending to ispyb: {ispyb_parameters}")
-            if isinstance(rw, MockRW):
-                rw.transport.send(
-                    destination="ispyb_connector",
-                    message={"parameters": ispyb_parameters, "content": "dummy"},
-                )
-            else:
-                rw.send_to("ispyb_connector", ispyb_parameters)
+            rw.send_to("ispyb_connector", ispyb_parameters)
 
         # Create symlink for the particle grouping jobs
         if (

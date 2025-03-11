@@ -1,4 +1,4 @@
 apiVersion: v2
 name: denoise_slurm
 description: A Helm chart for EM Denoise service which submits jobs to the IRIS cluster
-version: 1.0.0
+version: 1.0.3

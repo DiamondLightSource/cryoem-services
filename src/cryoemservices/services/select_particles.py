@@ -40,7 +40,7 @@ class SelectParticles(CommonService):
         self.log.info("Select particles service starting")
         workflows.recipe.wrap_subscribe(
             self._transport,
-            "select_particles",
+            self._environment["queue"] or "select_particles",
             self.select_particles,
             acknowledgement=True,
             log_extender=self.extend_log,
@@ -51,11 +51,7 @@ class SelectParticles(CommonService):
         """Main function which interprets and processes received messages"""
         if not rw:
             self.log.info("Received a simple message")
-            if (
-                not isinstance(message, dict)
-                or not message.get("parameters")
-                or not message.get("content")
-            ):
+            if not isinstance(message, dict):
                 self.log.error("Rejected invalid simple message")
                 self._transport.nack(header)
                 return
@@ -63,8 +59,7 @@ class SelectParticles(CommonService):
             # Create a wrapper-like object that can be passed to functions
             # as if a recipe wrapper was present.
             rw = MockRW(self._transport)
-            rw.recipe_step = {"parameters": message["parameters"]}
-            message = message["content"]
+            rw.recipe_step = {"parameters": message}
 
         try:
             if isinstance(message, dict):
@@ -219,13 +214,7 @@ class SelectParticles(CommonService):
                 "stdout": "",
                 "stderr": "",
             }
-            if isinstance(rw, MockRW):
-                rw.transport.send(
-                    destination="node_creator",
-                    message={"parameters": node_creator_params, "content": "dummy"},
-                )
-            else:
-                rw.send_to("node_creator", node_creator_params)
+            rw.send_to("node_creator", node_creator_params)
 
         class2d_params = {
             "class2d_dir": f"{project_dir}/Class2D/job",
@@ -257,10 +246,7 @@ class SelectParticles(CommonService):
                     "register": "incomplete_particles_file",
                     "class2d_message": class2d_params,
                 }
-                if isinstance(rw, MockRW):
-                    rw.transport.send("murfey_feedback", murfey_params)
-                else:
-                    rw.send_to("murfey_feedback", murfey_params)
+                rw.send_to("murfey_feedback", murfey_params)
 
         if new_finished_files:
             for new_split in new_finished_files:
@@ -277,22 +263,12 @@ class SelectParticles(CommonService):
                     "register": "complete_particles_file",
                     "class2d_message": class2d_params,
                 }
-                if isinstance(rw, MockRW):
-                    rw.transport.send(
-                        destination="murfey_feedback", message=murfey_params
-                    )
-                else:
-                    rw.send_to("murfey_feedback", murfey_params)
+                rw.send_to("murfey_feedback", murfey_params)
 
         murfey_confirmation = {
             "register": "done_particle_selection",
         }
-        if isinstance(rw, MockRW):
-            rw.transport.send(
-                destination="murfey_feedback", message=murfey_confirmation
-            )
-        else:
-            rw.send_to("murfey_feedback", murfey_confirmation)
+        rw.send_to("murfey_feedback", murfey_confirmation)
 
         self.log.info(f"Done {self.job_type} for {select_params.input_file}.")
         rw.transport.ack(header)

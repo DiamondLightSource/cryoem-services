@@ -45,7 +45,7 @@ class BFactor(CommonService):
         self.log.info("BFactor setup service starting")
         workflows.recipe.wrap_subscribe(
             self._transport,
-            "bfactor",
+            self._environment["queue"] or "bfactor",
             self.bfactor_setup,
             acknowledgement=True,
             log_extender=self.extend_log,
@@ -56,11 +56,7 @@ class BFactor(CommonService):
         """Main function which interprets and processes received messages"""
         if not rw:
             self.log.info("Received a simple message")
-            if (
-                not isinstance(message, dict)
-                or not message.get("parameters")
-                or not message.get("content")
-            ):
+            if not isinstance(message, dict):
                 self.log.error("Rejected invalid simple message")
                 self._transport.nack(header)
                 return
@@ -68,8 +64,7 @@ class BFactor(CommonService):
             # Create a wrapper-like object that can be passed to functions
             # as if a recipe wrapper was present.
             rw = MockRW(self._transport)
-            rw.recipe_step = {"parameters": message["parameters"]}
-            message = message["content"]
+            rw.recipe_step = {"parameters": message}
 
         try:
             if isinstance(message, dict):
@@ -152,9 +147,10 @@ class BFactor(CommonService):
             replace=False,
         )
         particle_id = 0
-        with open(linked_class_particles, "r") as particles_file, open(
-            split_job_dir / "particles_split1.star", "w"
-        ) as particles_split:
+        with (
+            open(linked_class_particles, "r") as particles_file,
+            open(split_job_dir / "particles_split1.star", "w") as particles_split,
+        ):
             while True:
                 line = particles_file.readline()
                 if not line:
@@ -179,13 +175,7 @@ class BFactor(CommonService):
             "stderr": "",
             "success": True,
         }
-        if isinstance(rw, MockRW):
-            rw.transport.send(
-                destination="node_creator",
-                message={"parameters": node_creator_select, "content": "dummy"},
-            )
-        else:
-            rw.send_to("node_creator", node_creator_select)
+        rw.send_to("node_creator", node_creator_select)
 
         # Send on to the refinement wrapper
         refine_params = {
@@ -199,13 +189,7 @@ class BFactor(CommonService):
             "mask": str(linked_mask_file),
             "class_number": bfactor_params.class_number,
         }
-        if isinstance(rw, MockRW):
-            rw.transport.send(
-                destination="refine_wrapper",
-                message={"parameters": refine_params, "content": "dummy"},
-            )
-        else:
-            rw.send_to("refine_wrapper", refine_params)
+        rw.send_to("refine_wrapper", refine_params)
 
         self.log.info(f"Set up b-factor run for {bfactor_params.bfactor_directory}")
         rw.transport.ack(header)

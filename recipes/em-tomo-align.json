@@ -17,18 +17,22 @@
       "images": 6,
       "ispyb_connector": 4,
       "movie": 6,
-      "node_creator": 10,
+      "node_creator": 11,
       "projxy": 6,
       "projxz": 6,
       "success": 7
     },
     "parameters": {
+      "dose_per_frame": "{dose_per_frame}",
+      "frame_count": "{frame_count}",
       "input_file_list": "{input_file_list}",
+      "kv": "{kv}",
       "manual_tilt_offset": "{manual_tilt_offset}",
       "path_pattern": "{path_pattern}",
       "pixel_size": "{pixel_size}",
       "relion_options": {},
-      "stack_file": "{stack_file}"
+      "stack_file": "{stack_file}",
+      "tilt_axis": "{tilt_axis}"
     },
     "queue": "tomo_align",
     "service": "TomoAlign"
@@ -55,10 +59,11 @@
   },
   "5": {
     "output": {
+      "cryolo": 9,
       "images": 6,
-      "ispyb_connector": 9,
+      "ispyb_connector": 10,
       "movie": 6,
-      "node_creator": 10,
+      "node_creator": 11,
       "segmentation": 8
     },
     "queue": "denoise",
@@ -81,13 +86,23 @@
   "8": {
     "output": {
       "images": 6,
-      "ispyb_connector": 9,
+      "ispyb_connector": 10,
       "movie": 6
     },
     "queue": "segmentation",
     "service": "MembrainSeg"
   },
   "9": {
+    "output": {
+      "images": 6,
+      "ispyb_connector": 10,
+      "movie": 6,
+      "node_creator": 11
+    },
+    "queue": "cryolo_gpu",
+    "service": "CrYOLO"
+  },
+  "10": {
     "parameters": {
       "ispyb_command": "insert_processed_tomogram",
       "tomogram_id": "$ispyb_tomogram_id"
@@ -95,7 +110,7 @@
     "queue": "ispyb_connector",
     "service": "EMISPyB"
   },
-  "10": {
+  "11": {
     "queue": "node_creator",
     "service": "NodeCreator"
   },

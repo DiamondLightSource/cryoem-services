@@ -59,7 +59,7 @@ class PostProcess(CommonService):
         self.log.info("Postprocessing service starting")
         workflows.recipe.wrap_subscribe(
             self._transport,
-            "postprocess",
+            self._environment["queue"] or "postprocess",
             self.postprocess,
             acknowledgement=True,
             log_extender=self.extend_log,
@@ -70,11 +70,7 @@ class PostProcess(CommonService):
         """Main function which interprets and processes received messages"""
         if not rw:
             self.log.info("Received a simple message")
-            if (
-                not isinstance(message, dict)
-                or not message.get("parameters")
-                or not message.get("content")
-            ):
+            if not isinstance(message, dict):
                 self.log.error("Rejected invalid simple message")
                 self._transport.nack(header)
                 return
@@ -82,8 +78,7 @@ class PostProcess(CommonService):
             # Create a wrapper-like object that can be passed to functions
             # as if a recipe wrapper was present.
             rw = MockRW(self._transport)
-            rw.recipe_step = {"parameters": message["parameters"]}
-            message = message["content"]
+            rw.recipe_step = {"parameters": message}
 
         try:
             if isinstance(message, dict):
@@ -146,13 +141,7 @@ class PostProcess(CommonService):
                 "symmetry": estimated_symmetry,
                 "relion_options": dict(postprocess_params.relion_options),
             }
-            if isinstance(rw, MockRW):
-                rw.transport.send(
-                    destination="refine_wrapper",
-                    message={"parameters": refine_params, "content": "dummy"},
-                )
-            else:
-                rw.send_to("refine_wrapper", refine_params)
+            rw.send_to("refine_wrapper", refine_params)
 
         # Use the Relion success file to determine if this is a rerun
         if (Path(postprocess_params.job_dir) / "RELION_JOB_EXIT_SUCCESS").exists():
@@ -200,13 +189,7 @@ class PostProcess(CommonService):
             node_creator_params["success"] = False
         else:
             node_creator_params["success"] = True
-        if isinstance(rw, MockRW):
-            rw.transport.send(
-                destination="node_creator",
-                message={"parameters": node_creator_params, "content": "dummy"},
-            )
-        else:
-            rw.send_to("node_creator", node_creator_params)
+        rw.send_to("node_creator", node_creator_params)
 
         # End here if the command failed
         if postprocess_result.returncode:
@@ -347,25 +330,13 @@ class PostProcess(CommonService):
         }
         ispyb_parameters.append(bfactor_ispyb_parameters)
 
-        if isinstance(rw, MockRW):
-            rw.transport.send(
-                destination="ispyb_connector",
-                message={
-                    "parameters": {
-                        "ispyb_command": "multipart_message",
-                        "ispyb_command_list": ispyb_parameters,
-                    },
-                    "content": "dummy",
-                },
-            )
-        else:
-            rw.send_to(
-                "ispyb_connector",
-                {
-                    "ispyb_command": "multipart_message",
-                    "ispyb_command_list": ispyb_parameters,
-                },
-            )
+        rw.send_to(
+            "ispyb_connector",
+            {
+                "ispyb_command": "multipart_message",
+                "ispyb_command_list": ispyb_parameters,
+            },
+        )
 
         # Tell Murfey the refinement has finished
         if postprocess_params.is_first_refinement:
@@ -389,13 +360,7 @@ class PostProcess(CommonService):
                 "number_of_particles": postprocess_params.number_of_particles,
                 "refined_class_uuid": postprocess_params.refined_class_uuid,
             }
-        if isinstance(rw, MockRW):
-            rw.transport.send(
-                destination="murfey_feedback",
-                message={"parameters": murfey_postprocess_params, "content": "dummy"},
-            )
-        else:
-            rw.send_to("murfey_feedback", murfey_postprocess_params)
+        rw.send_to("murfey_feedback", murfey_postprocess_params)
 
         (Path(postprocess_params.job_dir) / "RELION_JOB_EXIT_SUCCESS").touch(
             exist_ok=True

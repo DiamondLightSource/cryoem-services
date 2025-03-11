@@ -24,6 +24,7 @@
       "eer_sampling": 1,
       "experiment_type": "tomography",
       "fm_int_file": "{fm_int_file}",
+      "frame_count": "{frame_count}",
       "gain_ref": "{gain_ref}",
       "mc_uuid": "{mc_uuid}",
       "motion_corr_binning": "{ft_bin}",

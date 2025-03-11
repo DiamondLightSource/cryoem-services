@@ -3,6 +3,7 @@
     "output": 2,
     "parameters": {
       "dcid": "{dcid}",
+      "foil_hole_id": "{foil_hole_id}",
       "ispyb_command": "insert_movie",
       "movie_number": "{image_number}",
       "movie_path": "{movie}",

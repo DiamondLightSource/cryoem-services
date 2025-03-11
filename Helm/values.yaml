@@ -52,6 +52,15 @@ cryolo:
   minReplicaCount: 0
   maxReplicaCount: 4
 
+cryolo_gpu:
+  replicas: 1
+  image: gcr.io/image/path
+  command: cryoemservices.service -s CrYOLO -c /cryoemservices/config/cryoemservices_config.yaml --queue cryolo_gpu
+  cpuRequest: "1"
+  cpuLimit: "1"
+  memoryLimit: 6Gi
+  scaleOnQueueLength: false
+
 ctffind:
   replicas: 1
   image: gcr.io/image/path
@@ -150,13 +159,10 @@ membrain_seg:
   replicas: 1
   image: gcr.io/image/path
   command: cryoemservices.service -s MembrainSeg -c /cryoemservices/config/cryoemservices_config.yaml
-  cpuRequest: "0.25"
-  cpuLimit: "0.5"
-  memoryLimit: 1Gi
-  scaleOnQueueLength: true
-  queueLengthTrigger: "10"
-  minReplicaCount: 0
-  maxReplicaCount: 2
+  cpuRequest: "1"
+  cpuLimit: "1"
+  memoryLimit: 25Gi
+  scaleOnQueueLength: false
 
 motioncorr:
   motioncorSIF: motioncor2.sif

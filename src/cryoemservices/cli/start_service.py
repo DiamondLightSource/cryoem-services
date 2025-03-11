@@ -36,6 +36,12 @@ def run():
         default="default",
         help="Optional slurm cluster name, matching a key present in the config file",
     )
+    parser.add_argument(
+        "--queue",
+        required=False,
+        default="",
+        help="Optional override for the default queue used by the service",
+    )
     args = parser.parse_args()
 
     service_config = config_from_file(args.config_file)
@@ -64,7 +70,11 @@ def run():
         "transport": transport_factory,
         "transport_command_channel": "command",
         "verbose_service": True,
-        "environment": {"config": args.config_file, "slurm_cluster": args.slurm},
+        "environment": {
+            "config": args.config_file,
+            "slurm_cluster": args.slurm,
+            "queue": args.queue,
+        },
     }
 
     # Create and start workflows Frontend object

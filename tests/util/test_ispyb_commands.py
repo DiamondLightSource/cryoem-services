@@ -7,10 +7,11 @@ from cryoemservices.util import ispyb_commands
 
 
 @mock.patch("cryoemservices.util.ispyb_commands.models")
-def test_insert_movie_notime(mock_models):
+def test_insert_movie_id_notime(mock_models):
     def mock_movie_parameters(p):
         movie_params = {
             "dcid": 101,
+            "foil_hole_id": 2,
             "movie_number": 1,
             "movie_path": "/path/to/movie",
             "timestamp": None,
@@ -24,7 +25,10 @@ def test_insert_movie_notime(mock_models):
     assert return_value["return_value"]
 
     mock_models.Movie.assert_called_with(
-        dataCollectionId=101, movieNumber=1, movieFullPath="/path/to/movie"
+        dataCollectionId=101,
+        foilHoleId=2,
+        movieNumber=1,
+        movieFullPath="/path/to/movie",
     )
 
     mock_session.add.assert_called()
@@ -32,10 +36,11 @@ def test_insert_movie_notime(mock_models):
 
 
 @mock.patch("cryoemservices.util.ispyb_commands.models")
-def test_insert_movie_timestamp(mock_models):
+def test_insert_movie_id_timestamp(mock_models):
     def mock_movie_parameters(p):
         movie_params = {
             "dcid": 101,
+            "foil_hole_id": 2,
             "movie_number": 1,
             "movie_path": "/path/to/movie",
             "timestamp": 1,
@@ -49,10 +54,70 @@ def test_insert_movie_timestamp(mock_models):
 
     mock_models.Movie.assert_called_with(
         dataCollectionId=101,
+        foilHoleId=2,
         movieNumber=1,
         movieFullPath="/path/to/movie",
         createdTimeStamp=datetime.fromtimestamp(1).strftime("%Y-%m-%d %H:%M:%S"),
     )
+    mock_session.add.assert_called()
+    mock_session.commit.assert_called()
+
+
+@mock.patch("cryoemservices.util.ispyb_commands.models")
+def test_insert_movie_noid_timestamp(mock_models):
+    def mock_movie_parameters(p):
+        movie_params = {
+            "dcid": 101,
+            "foil_hole_id": "None",
+            "movie_number": 1,
+            "movie_path": "/path/to/movie",
+            "timestamp": 1,
+        }
+        return movie_params[p]
+
+    mock_session = mock.MagicMock()
+
+    return_value = ispyb_commands.insert_movie({}, mock_movie_parameters, mock_session)
+    assert return_value.get("success")
+    assert return_value["return_value"]
+
+    mock_models.Movie.assert_called_with(
+        dataCollectionId=101,
+        foilHoleId=None,
+        movieNumber=1,
+        movieFullPath="/path/to/movie",
+        createdTimeStamp=datetime.fromtimestamp(1).strftime("%Y-%m-%d %H:%M:%S"),
+    )
+
+    mock_session.add.assert_called()
+    mock_session.commit.assert_called()
+
+
+@mock.patch("cryoemservices.util.ispyb_commands.models")
+def test_insert_movie_noid_notime(mock_models):
+    def mock_movie_parameters(p):
+        movie_params = {
+            "dcid": 101,
+            "foil_hole_id": None,
+            "movie_number": 1,
+            "movie_path": "/path/to/movie",
+            "timestamp": None,
+        }
+        return movie_params[p]
+
+    mock_session = mock.MagicMock()
+
+    return_value = ispyb_commands.insert_movie({}, mock_movie_parameters, mock_session)
+    assert return_value.get("success")
+    assert return_value["return_value"]
+
+    mock_models.Movie.assert_called_with(
+        dataCollectionId=101,
+        foilHoleId=None,
+        movieNumber=1,
+        movieFullPath="/path/to/movie",
+    )
+
     mock_session.add.assert_called()
     mock_session.commit.assert_called()
 
@@ -135,6 +200,7 @@ def test_insert_motion_correction_without_movie(mock_models):
 
     mock_models.Movie.assert_called_with(
         dataCollectionId=101,
+        foilHoleId=1,
         movieNumber=3,
         movieFullPath="/path/to/micrograph",
         createdTimeStamp=datetime.fromtimestamp(1).strftime("%Y-%m-%d %H:%M:%S"),
@@ -468,7 +534,7 @@ def test_insert_particle_classification_group_update():
 def test_insert_initial_model_new(mock_models):
     def mock_model_parameters(p):
         model_parameters = {
-            "cryoem_initial_model_id": None,
+            "cryoem_initial_model_id": "None",
             "particle_classification_id": 401,
             "resolution": 15.1,
             "number_of_particles": 21000,

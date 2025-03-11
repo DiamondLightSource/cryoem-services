@@ -69,7 +69,7 @@ class SelectClasses(CommonService):
         self.log.info("Select classes service starting")
         workflows.recipe.wrap_subscribe(
             self._transport,
-            "select_classes",
+            self._environment["queue"] or "select_classes",
             self.select_classes,
             acknowledgement=True,
             log_extender=self.extend_log,
@@ -93,11 +93,7 @@ class SelectClasses(CommonService):
         """Main function which interprets and processes received messages"""
         if not rw:
             self.log.info("Received a simple message")
-            if (
-                not isinstance(message, dict)
-                or not message.get("parameters")
-                or not message.get("content")
-            ):
+            if not isinstance(message, dict):
                 self.log.error("Rejected invalid simple message")
                 self._transport.nack(header)
                 return
@@ -105,8 +101,7 @@ class SelectClasses(CommonService):
             # Create a wrapper-like object that can be passed to functions
             # as if a recipe wrapper was present.
             rw = MockRW(self._transport)
-            rw.recipe_step = {"parameters": message["parameters"]}
-            message = message["content"]
+            rw.recipe_step = {"parameters": message}
 
         try:
             if isinstance(message, dict):
@@ -206,10 +201,7 @@ class SelectClasses(CommonService):
                 "register": "save_class_selection_score",
                 "class_selection_score": quantile_threshold,
             }
-            if isinstance(rw, MockRW):
-                rw.transport.send(destination="murfey_feedback", message=murfey_params)
-            else:
-                rw.send_to("murfey_feedback", murfey_params)
+            rw.send_to("murfey_feedback", murfey_params)
 
             self.log.info(
                 f"Re-running class selection with new threshold {quantile_threshold}"
@@ -236,16 +228,7 @@ class SelectClasses(CommonService):
             autoselect_node_creator_params["success"] = False
         else:
             autoselect_node_creator_params["success"] = True
-        if isinstance(rw, MockRW):
-            rw.transport.send(
-                destination="node_creator",
-                message={
-                    "parameters": autoselect_node_creator_params,
-                    "content": "dummy",
-                },
-            )
-        else:
-            rw.send_to("node_creator", autoselect_node_creator_params)
+        rw.send_to("node_creator", autoselect_node_creator_params)
 
         # End here if the command failed
         if autoselect_result.returncode:
@@ -291,16 +274,7 @@ class SelectClasses(CommonService):
             "ispyb_command_list": ispyb_command_list,
         }
         self.log.info(f"Sending to ispyb {ispyb_parameters}")
-        if isinstance(rw, MockRW):
-            rw.transport.send(
-                destination="ispyb_connector",
-                message={
-                    "parameters": ispyb_parameters,
-                    "content": {"dummy": "dummy"},
-                },
-            )
-        else:
-            rw.send_to("ispyb_connector", ispyb_parameters)
+        rw.send_to("ispyb_connector", ispyb_parameters)
 
         # Run the combine star files job to combine the files into particles_all.star
         self.log.info("Running star file combination and splitting")
@@ -349,16 +323,7 @@ class SelectClasses(CommonService):
 
             # Send combination job to node creator
             self.log.info("Sending combine_star_files_job (combine) to node creator")
-            if isinstance(rw, MockRW):
-                rw.transport.send(
-                    destination="node_creator",
-                    message={
-                        "parameters": combine_node_creator_params,
-                        "content": "dummy",
-                    },
-                )
-            else:
-                rw.send_to("node_creator", combine_node_creator_params)
+            rw.send_to("node_creator", combine_node_creator_params)
 
             # End here if the command failed
             if not combine_node_creator_params["success"]:
@@ -387,9 +352,12 @@ class SelectClasses(CommonService):
             add_header = True
         else:
             add_header = False
-        with open(select_dir / autoselect_params.classes_file, "r") as class_file, open(
-            combine_star_dir / autoselect_params.classes_file, "a"
-        ) as combined_classes:
+        with (
+            open(select_dir / autoselect_params.classes_file, "r") as class_file,
+            open(
+                combine_star_dir / autoselect_params.classes_file, "a"
+            ) as combined_classes,
+        ):
             while True:
                 line = class_file.readline()
                 if not line:
@@ -468,13 +436,7 @@ class SelectClasses(CommonService):
 
         # Send splitting job to node creator
         self.log.info("Sending combine_star_files_job (split) to node creator")
-        if isinstance(rw, MockRW):
-            rw.transport.send(
-                destination="node_creator",
-                message={"parameters": split_node_creator_params, "content": "dummy"},
-            )
-        else:
-            rw.send_to("node_creator", split_node_creator_params)
+        rw.send_to("node_creator", split_node_creator_params)
 
         # End here if the command failed
         if not split_node_creator_params["success"]:
@@ -552,32 +514,18 @@ class SelectClasses(CommonService):
                 coords = []
 
             # Generate image of selected and non-selected picks
-            if isinstance(rw, MockRW):
-                rw.transport.send(
-                    destination="images",
-                    message={
-                        "image_command": "picked_particles",
-                        "file": str(motioncorr_file),
-                        "coordinates": coords,
-                        "selected_coordinates": selected_coords,
-                        "pixel_size": original_pixel_size,
-                        "diameter": autoselect_params.particle_diameter,
-                        "outfile": str(Path(cryolo_output_path).with_suffix(".jpeg")),
-                    },
-                )
-            else:
-                rw.send_to(
-                    "images",
-                    {
-                        "image_command": "picked_particles",
-                        "file": str(motioncorr_file),
-                        "coordinates": coords,
-                        "selected_coordinates": selected_coords,
-                        "pixel_size": original_pixel_size,
-                        "diameter": autoselect_params.particle_diameter,
-                        "outfile": str(Path(cryolo_output_path).with_suffix(".jpeg")),
-                    },
-                )
+            rw.send_to(
+                "images",
+                {
+                    "image_command": "picked_particles",
+                    "file": str(motioncorr_file),
+                    "coordinates": coords,
+                    "selected_coordinates": selected_coords,
+                    "pixel_size": original_pixel_size,
+                    "diameter": autoselect_params.particle_diameter,
+                    "outfile": str(Path(cryolo_output_path).with_suffix(".jpeg")),
+                },
+            )
 
         # Create 3D classification jobs
         if send_to_3d_classification:
@@ -601,20 +549,12 @@ class SelectClasses(CommonService):
                 "register": "run_class3d",
                 "class3d_message": class3d_params,
             }
-            if isinstance(rw, MockRW):
-                rw.transport.send("murfey_feedback", murfey_3d_params)
-            else:
-                rw.send_to("murfey_feedback", murfey_3d_params)
+            rw.send_to("murfey_feedback", murfey_3d_params)
 
         murfey_confirmation = {
             "register": "done_class_selection",
         }
-        if isinstance(rw, MockRW):
-            rw.transport.send(
-                destination="murfey_feedback", message=murfey_confirmation
-            )
-        else:
-            rw.send_to("murfey_feedback", murfey_confirmation)
+        rw.send_to("murfey_feedback", murfey_confirmation)
 
         # Remove the temporary hold file
         (combine_star_dir / f".done_{autoselect_params.particles_file}").unlink(

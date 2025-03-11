@@ -14,6 +14,7 @@ from cryoemservices.services import ispyb_connector
 def offline_transport(mocker):
     transport = OfflineTransport()
     mocker.spy(transport, "send")
+    mocker.spy(transport, "nack")
     return transport
 
 
@@ -42,17 +43,16 @@ def test_ispyb_service_run(
         "subscription": mock.sentinel,
     }
     ispyb_test_message = {
-        "parameters": {
-            "ispyb_command": "insert_movie",
-        },
-        "content": {"dummy": "dummy"},
+        "ispyb_command": "insert_movie",
     }
 
     mock_command.return_value = {"success": True, "return_value": "dummy_result"}
     write_config_file(tmp_path)
 
     # Set up the mock service and call it
-    service = ispyb_connector.EMISPyB(environment={"config": f"{tmp_path}/config.yaml"})
+    service = ispyb_connector.EMISPyB(
+        environment={"config": f"{tmp_path}/config.yaml", "queue": ""}
+    )
     service.transport = offline_transport
     service.start()
     service.insert_into_ispyb(None, header=header, message=ispyb_test_message)
@@ -64,7 +64,6 @@ def test_ispyb_service_run(
 
     mock_command.assert_called_with(
         message={
-            "dummy": "dummy",
             "expiry_time": mock.ANY,
             "ispyb_command": "insert_movie",
         },
@@ -93,11 +92,8 @@ def test_ispyb_service_store_result(
         "subscription": mock.sentinel,
     }
     ispyb_test_message = {
-        "parameters": {
-            "ispyb_command": "insert_movie",
-            "store_result": "full_result",
-        },
-        "content": "dummy",
+        "ispyb_command": "insert_movie",
+        "store_result": "full_result",
     }
 
     mock_command.return_value = {
@@ -107,12 +103,14 @@ def test_ispyb_service_store_result(
     }
 
     mock_rw = mock.MagicMock()
-    mock_rw.recipe_step = {"parameters": ispyb_test_message["parameters"]}
+    mock_rw.recipe_step = {"parameters": ispyb_test_message}
     mock_rw.environment = {}
     write_config_file(tmp_path)
 
     # Set up the mock service and call it
-    service = ispyb_connector.EMISPyB(environment={"config": f"{tmp_path}/config.yaml"})
+    service = ispyb_connector.EMISPyB(
+        environment={"config": f"{tmp_path}/config.yaml", "queue": ""}
+    )
     service.transport = offline_transport
     service.start()
     service.insert_into_ispyb(rw=mock_rw, header=header, message=ispyb_test_message)
@@ -142,11 +140,8 @@ def test_ispyb_service_env_keys(
         "subscription": mock.sentinel,
     }
     ispyb_test_message = {
-        "parameters": {
-            "ispyb_command": "${command}",
-            "store_result": "$output",
-        },
-        "content": "dummy",
+        "ispyb_command": "${command}",
+        "store_result": "$output",
     }
     ispyb_test_environment = {"command": "insert_movie", "output": "full_result"}
 
@@ -157,12 +152,14 @@ def test_ispyb_service_env_keys(
     }
 
     mock_rw = mock.MagicMock()
-    mock_rw.recipe_step = {"parameters": ispyb_test_message["parameters"]}
+    mock_rw.recipe_step = {"parameters": ispyb_test_message}
     mock_rw.environment = ispyb_test_environment
     write_config_file(tmp_path)
 
     # Set up the mock service and call it
-    service = ispyb_connector.EMISPyB(environment={"config": f"{tmp_path}/config.yaml"})
+    service = ispyb_connector.EMISPyB(
+        environment={"config": f"{tmp_path}/config.yaml", "queue": ""}
+    )
     service.transport = offline_transport
     service.start()
     service.insert_into_ispyb(rw=mock_rw, header=header, message=ispyb_test_message)
@@ -180,6 +177,60 @@ def test_ispyb_service_env_keys(
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.ispyb_connector.ispyb.sqlalchemy")
 @mock.patch("cryoemservices.services.ispyb_connector.sqlalchemy")
+@mock.patch("cryoemservices.util.ispyb_commands.models")
+def test_ispyb_service_multipart_env_keys(
+    mock_models, mock_sqlalchemy, mock_ispyb_api, offline_transport, tmp_path
+):
+    """
+    Test as above, but with a nested $ key in a multipart message
+    Using initial model as example of where this happens
+    """
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+    ispyb_test_message = {
+        "ispyb_command": "multipart_message",
+        "ispyb_command_list": [
+            {
+                "ispyb_command": "insert_cryoem_initial_model",
+                "particle_classification_id": 401,
+                "cryoem_initial_model_id": "$ispyb_initial_model_id",
+                "number_of_particles": 10000,
+                "resolution": "6.6",
+            }
+        ],
+    }
+    ispyb_test_environment = {"output": "full_result", "ispyb_initial_model_id": 601}
+
+    mock_rw = mock.MagicMock()
+    mock_rw.recipe_step = {"parameters": ispyb_test_message}
+    mock_rw.environment = ispyb_test_environment
+    write_config_file(tmp_path)
+
+    # Set up the mock service and call it
+    service = ispyb_connector.EMISPyB(
+        environment={"config": f"{tmp_path}/config.yaml", "queue": ""}
+    )
+    service.transport = offline_transport
+    service.start()
+    service.insert_into_ispyb(rw=mock_rw, header=header, message=ispyb_test_message)
+
+    # Check the sub-command calls were made
+    mock_models.CryoemInitialModel.assert_not_called()
+    mock_models.t_ParticleClassification_has_CryoemInitialModel.insert().values.assert_called_with(
+        cryoemInitialModelId="601",
+        particleClassificationId=401,
+    )
+
+    # Check that the correct messages were sent
+    mock_rw.set_default_channel.assert_called_with("output")
+    mock_rw.send.assert_called_with({"result": "601"})
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+@mock.patch("cryoemservices.services.ispyb_connector.ispyb.sqlalchemy")
+@mock.patch("cryoemservices.services.ispyb_connector.sqlalchemy")
 @mock.patch("cryoemservices.services.ispyb_connector.ispyb_commands.insert_movie")
 def test_ispyb_service_checkpoint(
     mock_command, mock_sqlalchemy, mock_ispyb_api, offline_transport, tmp_path
@@ -192,10 +243,7 @@ def test_ispyb_service_checkpoint(
         "subscription": mock.sentinel,
     }
     ispyb_test_message = {
-        "parameters": {
-            "ispyb_command": "insert_movie",
-        },
-        "content": "dummy",
+        "ispyb_command": "insert_movie",
     }
 
     mock_command.return_value = {
@@ -205,11 +253,13 @@ def test_ispyb_service_checkpoint(
     }
 
     mock_rw = mock.MagicMock()
-    mock_rw.recipe_step = {"parameters": ispyb_test_message["parameters"]}
+    mock_rw.recipe_step = {"parameters": ispyb_test_message}
     write_config_file(tmp_path)
 
     # Set up the mock service and call it
-    service = ispyb_connector.EMISPyB(environment={"config": f"{tmp_path}/config.yaml"})
+    service = ispyb_connector.EMISPyB(
+        environment={"config": f"{tmp_path}/config.yaml", "queue": ""}
+    )
     service.transport = offline_transport
     service.start()
     service.insert_into_ispyb(rw=mock_rw, header=header, message=ispyb_test_message)
@@ -250,61 +300,54 @@ def test_ispyb_multipart_message(
         "subscription": mock.sentinel,
     }
     ispyb_test_message = {
-        "parameters": {"dcid": 1000, "program_id": 100},
-        "content": {
-            "ispyb_command": "multipart_message",
-            "ispyb_command_list": [
-                {
-                    "batch_number": "1",
-                    "buffer_command": {
-                        "ispyb_command": "insert_particle_classification_group"
-                    },
-                    "buffer_store": 5,
-                    "ispyb_command": "buffer",
-                    "number_of_classes_per_batch": 2,
-                    "number_of_particles_per_batch": 50000,
-                    "particle_picker_id": 6,
-                    "symmetry": "C1",
-                    "type": "3D",
+        "ispyb_command": "multipart_message",
+        "ispyb_command_list": [
+            {
+                "batch_number": "1",
+                "buffer_command": {
+                    "ispyb_command": "insert_particle_classification_group"
                 },
-                {
-                    "buffer_command": {
-                        "ispyb_command": "insert_particle_classification"
-                    },
-                    "buffer_lookup": {"particle_classification_group_id": 5},
-                    "buffer_store": 10,
-                    "class_distribution": "0.4",
-                    "class_image_full_path": (
-                        "/path/to/Class3D/job015/run_it025_class001.mrc"
-                    ),
-                    "class_number": 1,
-                    "estimated_resolution": 12.2,
-                    "ispyb_command": "buffer",
-                    "overall_fourier_completeness": 1.0,
-                    "particles_per_class": 20000.0,
-                    "rotation_accuracy": "30.3",
-                    "translation_accuracy": "33.3",
-                },
-                {
-                    "buffer_command": {"ispyb_command": "insert_cryoem_initial_model"},
-                    "buffer_lookup": {"particle_classification_id": 10},
-                    "ispyb_command": "buffer",
-                    "number_of_particles": 20000.0,
-                    "resolution": "30.3",
-                    "store_result": "ispyb_initial_model_id",
-                },
-            ],
-        },
+                "buffer_store": 5,
+                "ispyb_command": "buffer",
+                "number_of_classes_per_batch": 2,
+                "number_of_particles_per_batch": 50000,
+                "particle_picker_id": 6,
+                "symmetry": "C1",
+                "type": "3D",
+            },
+            {
+                "buffer_command": {"ispyb_command": "insert_particle_classification"},
+                "buffer_lookup": {"particle_classification_group_id": 5},
+                "buffer_store": 10,
+                "class_distribution": "0.4",
+                "class_image_full_path": (
+                    "/path/to/Class3D/job015/run_it025_class001.mrc"
+                ),
+                "class_number": 1,
+                "estimated_resolution": 12.2,
+                "ispyb_command": "buffer",
+                "overall_fourier_completeness": 1.0,
+                "particles_per_class": 20000.0,
+                "rotation_accuracy": "30.3",
+                "translation_accuracy": "33.3",
+            },
+            {
+                "buffer_command": {"ispyb_command": "insert_cryoem_initial_model"},
+                "buffer_lookup": {"particle_classification_id": 10},
+                "ispyb_command": "buffer",
+                "number_of_particles": 20000.0,
+                "resolution": "30.3",
+                "store_result": "ispyb_initial_model_id",
+            },
+        ],
     }
 
     # The output will be the input, but without the first command as that has run
-    output_commands = copy.deepcopy(ispyb_test_message["content"]["ispyb_command_list"])
+    output_commands = copy.deepcopy(ispyb_test_message["ispyb_command_list"])
     output_commands.pop(0)
 
     # After a second run two commands will have been removed
-    second_output_commands = copy.deepcopy(
-        ispyb_test_message["content"]["ispyb_command_list"]
-    )
+    second_output_commands = copy.deepcopy(ispyb_test_message["ispyb_command_list"])
     second_output_commands.pop(0)
     second_output_commands.pop(0)
 
@@ -314,17 +357,17 @@ def test_ispyb_multipart_message(
     mock_insert_model.return_value = {"success": True, "return_value": "dummy_model"}
 
     mock_rw = mock.MagicMock()
-    mock_rw.recipe_step = {"parameters": ispyb_test_message["parameters"]}
+    mock_rw.recipe_step = {"parameters": {"dcid": 1000, "program_id": 100}}
     mock_rw.environment = {}
     write_config_file(tmp_path)
 
     # Set up the mock service and call it
-    service = ispyb_connector.EMISPyB(environment={"config": f"{tmp_path}/config.yaml"})
+    service = ispyb_connector.EMISPyB(
+        environment={"config": f"{tmp_path}/config.yaml", "queue": ""}
+    )
     service.transport = offline_transport
     service.start()
-    service.insert_into_ispyb(
-        rw=mock_rw, header=header, message=ispyb_test_message["content"]
-    )
+    service.insert_into_ispyb(rw=mock_rw, header=header, message=ispyb_test_message)
 
     # Check that the correct messages were sent - this checkpoints but does not send
     mock_rw.send.assert_not_called()
@@ -394,27 +437,26 @@ def test_ispyb_service_failed_lookup(
 ):
     """
     Send a test message to the ispyb service for a command which fails
-    This should checkpoint ready for rerunning
+    This currently nacks, but maybe should checkpoint ready for rerunning
     """
     header = {
         "message-id": mock.sentinel,
         "subscription": mock.sentinel,
     }
     ispyb_test_message = {
-        "parameters": {
-            "ispyb_command": "insert_movie",
-        },
-        "content": "dummy",
+        "ispyb_command": "insert_movie",
     }
 
     mock_command.return_value = False
 
     mock_rw = mock.MagicMock(environment={"config": f"{tmp_path}/config.yaml"})
-    mock_rw.recipe_step = {"parameters": ispyb_test_message["parameters"]}
+    mock_rw.recipe_step = {"parameters": ispyb_test_message}
     write_config_file(tmp_path)
 
     # Set up the mock service and call it
-    service = ispyb_connector.EMISPyB(environment={"config": f"{tmp_path}/config.yaml"})
+    service = ispyb_connector.EMISPyB(
+        environment={"config": f"{tmp_path}/config.yaml", "queue": ""}
+    )
     service.transport = offline_transport
     service.start()
     service.insert_into_ispyb(rw=mock_rw, header=header, message=ispyb_test_message)
@@ -422,4 +464,5 @@ def test_ispyb_service_failed_lookup(
     # Check that the correct messages were sent - this checkpoints but does not send
     mock_rw.set_default_channel.assert_not_called()
     mock_rw.send.assert_not_called()
-    mock_rw.checkpoint.assert_called_with(ispyb_test_message, delay=20)
+    mock_rw.checkpoint.assert_not_called()
+    mock_rw.transport.nack.assert_called()

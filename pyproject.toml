@@ -7,7 +7,7 @@ requires = [
 
 [project]
 name = "cryoemservices"
-version = "1.0.0"
+version = "1.0.3"
 description = "Services for CryoEM processing"
 readme = "README.md"
 keywords = [
@@ -47,7 +47,6 @@ dependencies = [
     "stomp-py==8.1.0",
     "tifffile", # CLEM workflow
     "workflows>=3",
-    "zocalo>=1.2",
 ]
 [project.optional-dependencies]
 dev = [
@@ -66,6 +65,7 @@ dev = [
     "clem.lif_to_stack" = "cryoemservices.cli.clem_lif_to_stack:run"
     "clem.tiff_to_stack" = "cryoemservices.cli.clem_tiff_to_stack:run"
     "combine_star_files" = "cryoemservices.pipeliner_plugins.combine_star_files:main"
+    "cryoemservices.dlq_rabbitmq" = "cryoemservices.cli.dlq_rabbitmq:run"
     "cryoemservices.find_symmetry" = "cryoemservices.pipeliner_plugins.symmetry_finder:run"
     "cryoemservices.reextract" = "cryoemservices.pipeliner_plugins.reextract:run"
     "cryoemservices.resubmit_wrapper" = "cryoemservices.cli.resubmit_wrapper:run"
@@ -81,6 +81,8 @@ dev = [
     "mrc_to_apng" = "cryoemservices.services.images_plugins:mrc_to_apng"
     "mrc_to_jpeg" = "cryoemservices.services.images_plugins:mrc_to_jpeg"
     "picked_particles" = "cryoemservices.services.images_plugins:picked_particles"
+    "picked_particles_3d_apng" = "cryoemservices.services.images_plugins:picked_particles_3d_apng"
+    "picked_particles_3d_central_slice" = "cryoemservices.services.images_plugins:picked_particles_3d_central_slice"
 [project.entry-points."cryoemservices.services.process_recipe.filters"]
     ispyb = "cryoemservices.util.process_recipe_tools:ispyb_filter"
 [project.entry-points."cryoemservices.wrappers"]
@@ -169,3 +171,6 @@ max-line-length = "88"
 indent = 4
 keep_full_version = true
 max_supported_python = "3.12"
+
+[tool.pytest.ini_options]
+pythonpath= ["."]

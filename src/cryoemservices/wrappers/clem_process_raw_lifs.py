@@ -16,7 +16,6 @@ from xml.etree import ElementTree as ET
 import numpy as np
 from pydantic import BaseModel, ValidationError
 from readlif.reader import LifFile
-from zocalo.wrapper import BaseWrapper
 
 from cryoemservices.util.clem_array_functions import (
     estimate_int_dtype,
@@ -27,6 +26,29 @@ from cryoemservices.util.clem_raw_metadata import get_image_elements
 
 # Create logger object to output messages with
 logger = logging.getLogger("cryoemservices.wrappers.clem_process_raw_lifs")
+
+
+def get_lif_xml_metadata(
+    file: LifFile,
+    save_xml: Optional[Path] = None,
+) -> ET.Element:
+    """
+    Extracts and returns the metadata from the LIF file as a formatted XML Element.
+    It can be optionally saved as an XML file to the specified file path.
+    """
+
+    # Use readlif function to get XML metadata
+    xml_root: ET.Element = file.xml_root  # This one for navigating
+    xml_tree = ET.ElementTree(xml_root)  # This one for saving
+
+    # Skip saving the metadata if save_xml not provided
+    if save_xml:
+        xml_file = str(save_xml)  # Convert Path to string
+        ET.indent(xml_tree, "  ")  # Format with proper indentation
+        xml_tree.write(xml_file, encoding="utf-8")  # Save
+        logger.info(f"File metadata saved to {xml_file!r}")
+
+    return xml_root
 
 
 def process_lif_substack(
@@ -192,7 +214,7 @@ def convert_lif_to_stack(
     file: Path,
     root_folder: str,  # Name of the folder to treat as the root folder for LIF files
     number_of_processes: int = 1,  # Number of processing threads to run
-) -> list[dict] | None:
+) -> list[dict]:
     """
     Takes a LIF file, extracts its metadata as an XML tree, then parses through the
     sub-images stored inside it, saving each channel in the sub-image as a separate
@@ -212,28 +234,6 @@ def convert_lif_to_stack(
                 |   |__ tiffs       <- Save channels as individual image stacks
                 |   |__ metadata    <- Individual XML files saved here (not yet implemented)
     """
-
-    def get_lif_xml_metadata(
-        file: LifFile,
-        save_xml: Optional[Path] = None,
-    ) -> ET.Element:
-        """
-        Extracts and returns the metadata from the LIF file as a formatted XML Element.
-        It can be optionally saved as an XML file to the specified file path.
-        """
-
-        # Use readlif function to get XML metadata
-        xml_root: ET.Element = file.xml_root  # This one for navigating
-        xml_tree = ET.ElementTree(xml_root)  # This one for saving
-
-        # Skip saving the metadata if save_xml not provided
-        if save_xml:
-            xml_file = str(save_xml)  # Convert Path to string
-            ET.indent(xml_tree, "  ")  # Format with proper indentation
-            xml_tree.write(xml_file, encoding="utf-8")  # Save
-            logger.info(f"File metadata saved to {xml_file!r}")
-
-        return xml_root
 
     # Validate processor count input
     num_procs = number_of_processes  # Use shorter phrase in script
@@ -257,7 +257,7 @@ def convert_lif_to_stack(
         logger.error(
             f"Subpath {root_folder!r} was not found in image path " f"{str(file)!r}"
         )
-        return None
+        return []
     processed_dir = Path("/".join(path_parts[: root_index + 1]))
 
     # Save master metadata relative to raw file
@@ -294,7 +294,7 @@ def convert_lif_to_stack(
             f"Metadata entries: {len(metadata_list)} "
             f"Sub-images: {len(scene_list)} "
         )
-        return None
+        return []
 
     # Iterate through scenes
     logger.info("Examining sub-images")
@@ -338,7 +338,11 @@ class LIFToStackParameters(BaseModel):
     num_procs: int = 20  # Number of processing threads to run
 
 
-class LIFToStackWrapper(BaseWrapper):
+class LIFToStackWrapper:
+    def __init__(self, recwrap):
+        self.log = logging.LoggerAdapter(logger)
+        self.recwrap = recwrap
+
     def run(self) -> bool:
         """
         Reads the Zocalo wrapper recipe, loads the parameters, and passes them to the
@@ -346,9 +350,6 @@ class LIFToStackWrapper(BaseWrapper):
         back to Murfey for the next stage in the workflow.
         """
 
-        if not hasattr(self, "recwrap"):
-            logger.error("No RecipeWrapper object found")
-            return False
         params_dict = self.recwrap.recipe_step["job_parameters"]
         try:
             params = LIFToStackParameters(**params_dict)

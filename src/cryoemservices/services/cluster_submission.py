@@ -12,11 +12,62 @@ from typing import Optional
 import requests
 import workflows.recipe
 import yaml
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from workflows.services.common_service import CommonService
-from zocalo.util import slurm
 
 from cryoemservices.util.config import ServiceConfig, config_from_file
+
+
+class JobParams(BaseModel):
+    cpus_per_task: Optional[int] = None
+    current_working_directory: Optional[str] = None
+    environment: Optional[list] = None
+    name: Optional[str] = None
+    nodes: Optional[str] = None
+    partition: Optional[str] = None
+    prefer: Optional[str] = None
+    tasks: Optional[int] = None
+    memory_per_cpu: Optional[dict] = None
+    memory_per_node: Optional[dict] = None
+    time_limit: Optional[dict] = None
+    tres_per_node: Optional[str] = None
+    tres_per_job: Optional[str] = None
+
+
+class JobSubmitResponseMsg(BaseModel):
+    job_id: Optional[int] = None
+    step_id: Optional[str] = None
+    error_code: Optional[int] = None
+    error: Optional[str] = None
+    job_submit_user_msg: Optional[str] = None
+
+
+class SlurmRestApi:
+    def __init__(
+        self,
+        url: str,
+        user_name: str,
+        user_token: Path,
+        version: str = "v0.0.40",
+    ):
+        self.url = url
+        self.version = version
+        self.session = requests.Session()
+        self.session.headers["X-SLURM-USER-NAME"] = user_name
+        if Path(user_token).is_file():
+            with open(user_token, "r") as f:
+                self.session.headers["X-SLURM-USER-TOKEN"] = f.read().strip()
+        else:
+            # We got passed a path, but it isn't a valid one
+            raise RuntimeError(f"SLURM: API token file {user_token} does not exist")
+
+    def submit_job(self, script: str, job: JobParams) -> JobSubmitResponseMsg:
+        response = self.session.post(
+            url=f"{self.url}/slurm/{self.version}/job/submit",
+            json={"script": script, "job": job.model_dump(exclude_none=True)},
+        )
+        response.raise_for_status()
+        return JobSubmitResponseMsg(**response.json())
 
 
 class JobSubmissionParameters(BaseModel):
@@ -30,9 +81,7 @@ class JobSubmissionParameters(BaseModel):
     nodes: Optional[int] = None
     memory_per_node: Optional[int] = None
     gpus_per_node: Optional[int] = None
-    min_memory_per_cpu: Optional[int] = Field(
-        None, description="Minimum real memory per cpu (MB)"
-    )
+    min_memory_per_cpu: Optional[int] = None
     time_limit: Optional[datetime.timedelta] = None
     gpus: Optional[int] = None
     exclusive: bool = False
@@ -52,11 +101,11 @@ def submit_to_slurm(
         return None
     with open(slurm_credentials, "r") as f:
         slurm_rest = yaml.safe_load(f)
-    api = slurm.SlurmRestApi(
+    api = SlurmRestApi(
         url=slurm_rest["url"],
-        version=slurm_rest["api_version"],
         user_name=slurm_rest["user"],
         user_token=slurm_rest["user_token"],
+        version=slurm_rest["api_version"],
     )
 
     script = params.commands
@@ -77,41 +126,44 @@ def submit_to_slurm(
         return None
 
     logger.info(f"Submitting script to Slurm:\n{script}")
-    jdm_params = {
-        "cpus_per_task": params.cpus_per_task,
-        "current_working_directory": os.fspath(working_directory),
-        "environment": environment,
-        "name": params.job_name,
-        "nodes": str(params.nodes) if params.nodes else params.nodes,
-        "partition": params.partition,
-        "prefer": params.prefer,
-        "tasks": params.tasks,
-    }
+    jdm_params = JobParams(
+        cpus_per_task=params.cpus_per_task,
+        current_working_directory=os.fspath(working_directory),
+        environment=environment,
+        name=params.job_name,
+        nodes=str(params.nodes) if params.nodes else params.nodes,
+        partition=params.partition,
+        prefer=params.prefer,
+        tasks=params.tasks,
+    )
     if params.min_memory_per_cpu:
-        jdm_params["memory_per_cpu"] = slurm.models.Uint64NoVal(
-            number=params.min_memory_per_cpu, set=True
-        )
+        jdm_params.memory_per_cpu = {
+            "number": params.min_memory_per_cpu,
+            "set": True,
+            "infinite": False,
+        }
     if params.memory_per_node:
-        jdm_params["memory_per_node"] = slurm.models.Uint64NoVal(
-            number=params.memory_per_node, set=True
-        )
+        jdm_params.memory_per_node = {
+            "number": params.memory_per_node,
+            "set": True,
+            "infinite": False,
+        }
     if params.time_limit:
         time_limit_minutes = math.ceil(params.time_limit.total_seconds() / 60)
-        jdm_params["time_limit"] = slurm.models.Uint32NoVal(
-            number=time_limit_minutes, set=True
-        )
+        jdm_params.time_limit = {
+            "number": time_limit_minutes,
+            "set": True,
+            "infinite": False,
+        }
     if params.gpus_per_node:
-        jdm_params["tres_per_node"] = f"gres/gpu:{params.gpus_per_node}"
+        jdm_params.tres_per_node = f"gres/gpu:{params.gpus_per_node}"
     if params.gpus:
-        jdm_params["tres_per_job"] = f"gres/gpu:{params.gpus}"
+        jdm_params.tres_per_job = f"gres/gpu:{params.gpus}"
 
-    job_submission = slurm.models.JobSubmitReq(
-        script=script, job=slurm.models.JobDescMsg(**jdm_params)
-    )
     try:
-        response = api.submit_job(job_submission)
-    except requests.HTTPError as e:
-        logger.error(f"Failed Slurm job submission: {e}\n" f"{e.response.text}")
+        response = api.submit_job(script=script, job=jdm_params)
+    except Exception as e:
+        logger.error(f"Failed Slurm job submission: {e}\n" f"{e}")
         return None
     if response.error:
         error_message = f"{response.error_code}: {response.error}"
@@ -145,7 +197,7 @@ class ClusterSubmission(CommonService):
         self.log.info(f"Supported schedulers: {', '.join(self.schedulers.keys())}")
         workflows.recipe.wrap_subscribe(
             self._transport,
-            "cluster.submission",
+            self._environment["queue"] or "cluster.submission",
             self.run_submit_job,
             acknowledgement=True,
             log_extender=self.extend_log,

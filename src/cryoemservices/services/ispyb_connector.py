@@ -38,7 +38,7 @@ class EMISPyB(CommonService):
         self.log.info("ISPyB service ready")
         workflows.recipe.wrap_subscribe(
             self._transport,
-            "ispyb_connector",
+            self._environment["queue"] or "ispyb_connector",
             self.insert_into_ispyb,
             acknowledgement=True,
             log_extender=self.extend_log,
@@ -50,24 +50,20 @@ class EMISPyB(CommonService):
         if not rw:
             # Incoming message is not a recipe message. Simple messages can be valid
             self.log.info("Received a simple message")
-            if (
-                not isinstance(message, dict)
-                or not message.get("parameters")
-                or not message.get("content")
-            ):
+            if not isinstance(message, dict):
                 self.log.error("Rejected invalid simple message")
                 self._transport.nack(header)
                 return
 
+            if message.get("parameters"):
+                # TODO: remove this when Murfey doesn't send messages of this format
+                self.log.warning("Received a deprecated message format")
+                message = message["parameters"]
+
             # Create a wrapper-like object that can be passed to functions
             # as if a recipe wrapper was present.
             rw = MockRW(self._transport)
-            rw.recipe_step = {"parameters": message["parameters"]}
-            if isinstance(message["content"], dict) and isinstance(
-                message["parameters"], dict
-            ):
-                message["content"].update(message["parameters"])
-            message = message["content"]
+            rw.recipe_step = {"parameters": message}
 
         if not message:
             # Message must be a dictionary, but at this point it could be None or ""
@@ -75,26 +71,31 @@ class EMISPyB(CommonService):
         elif type(message) is str:
             message = {"status_message": message}
 
+        def replace_with_environment(env_value):
+            """Replace any $ keys with their value provided in the environment"""
+            for key in rw.environment:
+                if "${" + str(key) + "}" == env_value:
+                    env_value = env_value.replace(
+                        "${" + str(key) + "}", str(rw.environment[key])
+                    )
+                if f"${key}" == env_value:
+                    env_value = env_value.replace(f"${key}", str(rw.environment[key]))
+            return env_value
+
         def parameters(parameter):
+            if "$" in parameter:
+                # If given a $ dollar parameter, go ahead and replace it
+                return replace_with_environment(parameter)
+
+            # Otherwise look up the parameter value
             if message.get(parameter):
                 base_value = message[parameter]
             else:
                 base_value = rw.recipe_step["parameters"].get(parameter)
-            if (
-                not base_value
-                or not isinstance(base_value, str)
-                or "$" not in base_value
-            ):
-                return base_value
-            for key in sorted(rw.environment, key=len, reverse=True):
-                if "${" + str(key) + "}" in base_value:
-                    base_value = base_value.replace(
-                        "${" + str(key) + "}", str(rw.environment[key])
-                    )
-                # Replace longest keys first, as the following replacement is
-                # not well-defined when one key is a prefix of another:
-                if f"${key}" in base_value:
-                    base_value = base_value.replace(f"${key}", str(rw.environment[key]))
+            if base_value and isinstance(base_value, str) and "$" in base_value:
+                # Replace the found value if it has a $
+                return replace_with_environment(base_value)
+            # Return the value or None
             return base_value
 
         command = parameters("ispyb_command")
@@ -153,11 +154,8 @@ class EMISPyB(CommonService):
             rw.checkpoint(result.get("checkpoint_dict"))
             rw.transport.ack(header)
         elif message["expiry_time"] > time.time():
-            self.log.warning(
-                f"Failed call {command}. Checkpointing for delayed resubmission"
-            )
-            rw.checkpoint(message, delay=20)
-            rw.transport.ack(header)
+            self.log.warning(f"Failed call {command} due to timeout")
+            rw.transport.nack(header)
         else:
             self.log.error(f"ISPyB request for {command} failed")
             rw.transport.nack(header)
