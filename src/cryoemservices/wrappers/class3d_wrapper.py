@@ -626,7 +626,7 @@ class Class3DWrapper(BaseWrapper):
             if (
                 class3d_params.batch_size == 200000
                 and class_resolutions[cid] < 11
-                and class_completenesses[cid] > 0.9
+                and class_efficiencies[cid] > 0.65
             ):
                 murfey_params["do_refinement"] = True
                 murfey_params["best_class"] = class_ids[cid]
