@@ -53,10 +53,7 @@
       "workingdir": "{class3d_dir}/"
     },
     "queue": "cluster.submission",
-    "service": "Class3DWrapper",
-    "wrapper": {
-      "task_information": "Class3D"
-    }
+    "service": "Class3DWrapper"
   },
   "2": {
     "queue": "node_creator",

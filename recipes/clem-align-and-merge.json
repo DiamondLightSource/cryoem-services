@@ -38,10 +38,7 @@
       "workingdir": "{session_dir}/processed/"
     },
     "queue": "cluster.submission",
-    "service": "ALIGN-AND-MERGE",
-    "wrapper": {
-      "task_information": "align-and-merge"
-    }
+    "service": "ALIGN-AND-MERGE"
   },
   "2": {
     "parameters": {

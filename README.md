@@ -87,8 +87,7 @@ using [Relion](https://relion.readthedocs.io).
 # Running services
 
 The services in this package are run using
-[zocalo](https://github.com/DiamondLightSource/python-zocalo)
-and [python-workflows](https://github.com/DiamondLightSource/python-workflows).
+[python-workflows](https://github.com/DiamondLightSource/python-workflows).
 They consume messages off a [RabbitMQ](https://www.rabbitmq.com/)
 instance and processing happens in sequences defined by the recipes in the `recipes` folder.
 To start a service run the `cryoemservices.service` command and specify the service name.

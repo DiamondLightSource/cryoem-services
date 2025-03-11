@@ -346,8 +346,7 @@ def test_tiff_to_stack_wrapper(
     recipe_wrapper = RecipeWrapper(message=message, transport=offline_transport)
 
     # Manually start up the function wrapper
-    tiff_to_stack_wrapper = TIFFToStackWrapper()
-    tiff_to_stack_wrapper.set_recipe_wrapper(recipe_wrapper)
+    tiff_to_stack_wrapper = TIFFToStackWrapper(recipe_wrapper)
     return_code = tiff_to_stack_wrapper.run()
 
     # Start checking the calls that take place when running the function

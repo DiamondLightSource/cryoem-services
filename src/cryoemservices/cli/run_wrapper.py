@@ -70,33 +70,21 @@ def run():
     transport.load_configuration_file(service_config.rabbitmq_credentials)
     transport.connect()
 
-    # Instantiate chosen wrapper
-    instance = known_wrappers[args.wrapper]()()
-
     # If specified, read in a serialized recipe wrapper
     with open(args.recipe_wrapper) as fh:
         recwrap = RecipeWrapper(message=json.load(fh), transport=transport)
-    instance.set_recipe_wrapper(recwrap)
 
-    instance.prepare({"status_message": "Starting processing"})
     log.info("Setup complete, starting processing")
     try:
+        # Instantiate chosen wrapper
+        instance = known_wrappers[args.wrapper]()(recwrap)
         if instance.run():
             log.info("Successfully finished processing")
-            instance.success(
-                {"status_message": "Finished processing", "status": "success"}
-            )
         else:
             log.info("Processing failed")
-            instance.failure(
-                {"status_message": "Processing failed", "status": "failure"}
-            )
     except KeyboardInterrupt:
         log.info("Shutdown via Ctrl+C")
     except Exception as e:
         log.error(str(e), exc_info=True)
-        instance.failure(
-            {"status_message": "Exception in processing", "status": "failure"}
-        )
     log.info("Wrapper terminating")
     transport.disconnect()

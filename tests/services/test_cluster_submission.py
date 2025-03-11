@@ -6,6 +6,7 @@ import sys
 from unittest import mock
 
 import pytest
+from requests import Response
 from workflows.transport.offline_transport import OfflineTransport
 
 from cryoemservices.services import cluster_submission
@@ -34,19 +35,24 @@ def cluster_submission_configuration(tmp_path):
         slurm_creds.write("url: /slurm/url\n")
         slurm_creds.write("api_version: v0.0.40\n")
         slurm_creds.write("user: user\n")
-        slurm_creds.write("user_token: /path/to/token.txt\n")
+        slurm_creds.write(f"user_token: {tmp_path}/token.txt\n")
     with open(tmp_path / "slurm_credentials_extra.yaml", "w") as slurm_creds:
         slurm_creds.write("url: /slurm/extra/url\n")
         slurm_creds.write("api_version: v0.0.41\n")
         slurm_creds.write("user: user2\n")
-        slurm_creds.write("user_token: /path/to/token_user2.txt\n")
+        slurm_creds.write(f"user_token: {tmp_path}/token_user2.txt\n")
+
+    with open(tmp_path / "token.txt", "w") as token_file:
+        token_file.write("token")
+    with open(tmp_path / "token_user2.txt", "w") as token_file:
+        token_file.write("token2")
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("workflows.recipe.RecipeWrapper")
-@mock.patch("cryoemservices.services.cluster_submission.slurm")
+@mock.patch("cryoemservices.services.cluster_submission.requests")
 def test_cluster_submission_recipeless(
-    mock_restapi, mock_rw, offline_transport, tmp_path
+    mock_requests, mock_rw, offline_transport, tmp_path
 ):
     """
     Send a test message to ClusterSubmission without any recipe information
@@ -54,8 +60,12 @@ def test_cluster_submission_recipeless(
     cluster_submission_configuration(tmp_path)
 
     # Set up the returned job number
-    mock_restapi.SlurmRestApi().submit_job().error = ""
-    mock_restapi.SlurmRestApi().submit_job().job_id = 1
+    response_object = Response()
+    response_object._content = (
+        '{"job_id": 1, "step_id": "0", "error_code": 0, "error": "", "job_submit_user_msg": "message"}'
+    ).encode("utf8")
+    response_object.status_code = 200
+    mock_requests.Session().post.return_value = response_object
 
     header = {
         "message-id": mock.sentinel,
@@ -95,36 +105,33 @@ def test_cluster_submission_recipeless(
     service.run_submit_job(mock_rw, header=header, message={})
 
     # Check the calls to the job setup and submission
-    mock_restapi.SlurmRestApi.assert_called_with(
-        url="/slurm/url",
-        version="v0.0.40",
-        user_name="user",
-        user_token="/path/to/token.txt",
+    mock_requests.Session.assert_called()
+    mock_requests.Session().headers.__setitem__.assert_any_call(
+        "X-SLURM-USER-NAME", "user"
     )
-    mock_restapi.models.Uint64NoVal.assert_any_call(number=10, set=True)
-    mock_restapi.models.Uint64NoVal.assert_called_with(number=20, set=True)
-    mock_restapi.models.Uint32NoVal.assert_called_with(number=5, set=True)
-    mock_restapi.models.JobDescMsg.assert_called_with(
-        cpus_per_task=3,
-        current_working_directory=str(tmp_path),
-        environment=["USER=user"],
-        memory_per_cpu=mock_restapi.models.Uint64NoVal(),
-        memory_per_node=mock_restapi.models.Uint64NoVal(),
-        name="test_job",
-        nodes="1",
-        partition="part",
-        prefer="preferred_part",
-        tasks=2,
-        time_limit=mock_restapi.models.Uint32NoVal(),
-        tres_per_node="gres/gpu:4",
-        tres_per_job="gres/gpu:4",
+    mock_requests.Session().headers.__setitem__.assert_any_call(
+        "X-SLURM-USER-TOKEN", "token"
     )
-    mock_restapi.models.JobSubmitReq.assert_called_with(
-        script="#!/bin/bash\n. /etc/profile.d/modules.sh\nsrun job",
-        job=mock_restapi.models.JobDescMsg(),
-    )
-    mock_restapi.SlurmRestApi().submit_job.assert_called_with(
-        mock_restapi.models.JobSubmitReq()
+    mock_requests.Session().post.assert_called_with(
+        url="/slurm/url/slurm/v0.0.40/job/submit",
+        json={
+            "job": {
+                "cpus_per_task": 3,
+                "current_working_directory": str(tmp_path),
+                "environment": ["USER=user"],
+                "name": "test_job",
+                "nodes": "1",
+                "partition": "part",
+                "prefer": "preferred_part",
+                "tasks": 2,
+                "memory_per_cpu": {"set": True, "infinite": False, "number": 10},
+                "memory_per_node": {"set": True, "infinite": False, "number": 20},
+                "time_limit": {"set": True, "infinite": False, "number": 5},
+                "tres_per_node": "gres/gpu:4",
+                "tres_per_job": "gres/gpu:4",
+            },
+            "script": "#!/bin/bash\n. /etc/profile.d/modules.sh\nsrun job",
+        },
     )
 
     # Check the service registered success
@@ -134,9 +141,9 @@ def test_cluster_submission_recipeless(
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("workflows.recipe.RecipeWrapper")
-@mock.patch("cryoemservices.services.cluster_submission.slurm")
+@mock.patch("cryoemservices.services.cluster_submission.requests")
 def test_cluster_submission_recipefile(
-    mock_restapi, mock_rw, offline_transport, tmp_path
+    mock_requests, mock_rw, offline_transport, tmp_path
 ):
     """
     Send a test message to ClusterSubmission with a recipefile set
@@ -144,8 +151,12 @@ def test_cluster_submission_recipefile(
     cluster_submission_configuration(tmp_path)
 
     # Set up the returned job number
-    mock_restapi.SlurmRestApi().submit_job().error = ""
-    mock_restapi.SlurmRestApi().submit_job().job_id = 1
+    response_object = Response()
+    response_object._content = (
+        '{"job_id": 1, "step_id": "0", "error_code": 0, "error": "", "job_submit_user_msg": "message"}'
+    ).encode("utf8")
+    response_object.status_code = 200
+    mock_requests.Session().post.return_value = response_object
 
     header = {
         "message-id": mock.sentinel,
@@ -184,9 +195,21 @@ def test_cluster_submission_recipefile(
     # Check the calls to the job setup and submission
     assert (tmp_path / "recipefile").is_file()
     mock_rw.recipe.pretty.assert_called()
-    mock_restapi.models.JobSubmitReq.assert_called_with(
-        script=f"#!/bin/bash\n. /etc/profile.d/modules.sh\nsrun {tmp_path}/recipefile",
-        job=mock_restapi.models.JobDescMsg(),
+    mock_requests.Session().post.assert_called_with(
+        url="/slurm/url/slurm/v0.0.40/job/submit",
+        json={
+            "job": {
+                "cpus_per_task": 3,
+                "current_working_directory": str(tmp_path),
+                "environment": ["USER=user"],
+                "name": "test_job",
+                "nodes": "1",
+                "partition": "part",
+                "prefer": "preferred_part",
+                "tasks": 2,
+            },
+            "script": f"#!/bin/bash\n. /etc/profile.d/modules.sh\nsrun {tmp_path}/recipefile",
+        },
     )
 
     # Check the service registered success
@@ -196,9 +219,9 @@ def test_cluster_submission_recipefile(
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("workflows.recipe.RecipeWrapper")
-@mock.patch("cryoemservices.services.cluster_submission.slurm")
+@mock.patch("cryoemservices.services.cluster_submission.requests")
 def test_cluster_submission_recipeenvironment(
-    mock_restapi, mock_rw, offline_transport, tmp_path
+    mock_requests, mock_rw, offline_transport, tmp_path
 ):
     """
     Send a test message to ClusterSubmission with a recipeenvironment set
@@ -206,8 +229,12 @@ def test_cluster_submission_recipeenvironment(
     cluster_submission_configuration(tmp_path)
 
     # Set up the returned job number
-    mock_restapi.SlurmRestApi().submit_job().error = ""
-    mock_restapi.SlurmRestApi().submit_job().job_id = 1
+    response_object = Response()
+    response_object._content = (
+        '{"job_id": 1, "step_id": "0", "error_code": 0, "error": "", "job_submit_user_msg": "message"}'
+    ).encode("utf8")
+    response_object.status_code = 200
+    mock_requests.Session().post.return_value = response_object
 
     header = {
         "message-id": mock.sentinel,
@@ -245,9 +272,21 @@ def test_cluster_submission_recipeenvironment(
 
     # Check the calls to the job setup and submission
     assert (tmp_path / "recipe_env").is_file()
-    mock_restapi.models.JobSubmitReq.assert_called_with(
-        script=f"#!/bin/bash\n. /etc/profile.d/modules.sh\nsrun job {tmp_path}/recipe_env",
-        job=mock_restapi.models.JobDescMsg(),
+    mock_requests.Session().post.assert_called_with(
+        url="/slurm/url/slurm/v0.0.40/job/submit",
+        json={
+            "job": {
+                "cpus_per_task": 3,
+                "current_working_directory": str(tmp_path),
+                "environment": ["USER=user"],
+                "name": "test_job",
+                "nodes": "1",
+                "partition": "part",
+                "prefer": "preferred_part",
+                "tasks": 2,
+            },
+            "script": f"#!/bin/bash\n. /etc/profile.d/modules.sh\nsrun job {tmp_path}/recipe_env",
+        },
     )
 
     # Check the service registered success
@@ -257,9 +296,9 @@ def test_cluster_submission_recipeenvironment(
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("workflows.recipe.RecipeWrapper")
-@mock.patch("cryoemservices.services.cluster_submission.slurm")
+@mock.patch("cryoemservices.services.cluster_submission.requests")
 def test_cluster_submission_recipewrapper(
-    mock_restapi, mock_rw, offline_transport, tmp_path
+    mock_requests, mock_rw, offline_transport, tmp_path
 ):
     """
     Send a test message to ClusterSubmission with a recipewrapper set
@@ -267,8 +306,12 @@ def test_cluster_submission_recipewrapper(
     cluster_submission_configuration(tmp_path)
 
     # Set up the returned job number
-    mock_restapi.SlurmRestApi().submit_job().error = ""
-    mock_restapi.SlurmRestApi().submit_job().job_id = 1
+    response_object = Response()
+    response_object._content = (
+        '{"job_id": 1, "step_id": "0", "error_code": 0, "error": "", "job_submit_user_msg": "message"}'
+    ).encode("utf8")
+    response_object.status_code = 200
+    mock_requests.Session().post.return_value = response_object
 
     header = {
         "message-id": mock.sentinel,
@@ -319,9 +362,21 @@ def test_cluster_submission_recipewrapper(
     assert output_json["recipe-path"] == "/path/to/recipe"
     assert output_json["payload"] == "payload"
 
-    mock_restapi.models.JobSubmitReq.assert_called_with(
-        script=f"#!/bin/bash\n. /etc/profile.d/modules.sh\nsrun job {tmp_path}/recipe_wrapper",
-        job=mock_restapi.models.JobDescMsg(),
+    mock_requests.Session().post.assert_called_with(
+        url="/slurm/url/slurm/v0.0.40/job/submit",
+        json={
+            "job": {
+                "cpus_per_task": 3,
+                "current_working_directory": str(tmp_path),
+                "environment": ["USER=user"],
+                "name": "test_job",
+                "nodes": "1",
+                "partition": "part",
+                "prefer": "preferred_part",
+                "tasks": 2,
+            },
+            "script": f"#!/bin/bash\n. /etc/profile.d/modules.sh\nsrun job {tmp_path}/recipe_wrapper",
+        },
     )
 
     # Check the service registered success
@@ -331,9 +386,9 @@ def test_cluster_submission_recipewrapper(
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("workflows.recipe.RecipeWrapper")
-@mock.patch("cryoemservices.services.cluster_submission.slurm")
+@mock.patch("cryoemservices.services.cluster_submission.requests")
 def test_cluster_submission_extra_cluster(
-    mock_restapi, mock_rw, offline_transport, tmp_path
+    mock_requests, mock_rw, offline_transport, tmp_path
 ):
     """
     Send a test message to ClusterSubmission for the second configured cluster
@@ -341,8 +396,12 @@ def test_cluster_submission_extra_cluster(
     cluster_submission_configuration(tmp_path)
 
     # Set up the returned job number
-    mock_restapi.SlurmRestApi().submit_job().error = ""
-    mock_restapi.SlurmRestApi().submit_job().job_id = 1
+    response_object = Response()
+    response_object._content = (
+        '{"job_id": 1, "step_id": "0", "error_code": 0, "error": "", "job_submit_user_msg": "message"}'
+    ).encode("utf8")
+    response_object.status_code = 200
+    mock_requests.Session().post.return_value = response_object
 
     header = {
         "message-id": mock.sentinel,
@@ -382,11 +441,32 @@ def test_cluster_submission_extra_cluster(
     service.run_submit_job(mock_rw, header=header, message={})
 
     # Check the calls to the job setup and submission
-    mock_restapi.SlurmRestApi.assert_called_with(
-        url="/slurm/extra/url",
-        version="v0.0.41",
-        user_name="user2",
-        user_token="/path/to/token_user2.txt",
+    mock_requests.Session().headers.__setitem__.assert_any_call(
+        "X-SLURM-USER-NAME", "user2"
+    )
+    mock_requests.Session().headers.__setitem__.assert_any_call(
+        "X-SLURM-USER-TOKEN", "token2"
+    )
+    mock_requests.Session().post.assert_called_with(
+        url="/slurm/extra/url/slurm/v0.0.41/job/submit",
+        json={
+            "job": {
+                "cpus_per_task": 3,
+                "current_working_directory": str(tmp_path),
+                "environment": ["USER=user"],
+                "name": "test_job",
+                "nodes": "1",
+                "partition": "part",
+                "prefer": "preferred_part",
+                "tasks": 2,
+                "memory_per_cpu": {"set": True, "infinite": False, "number": 10},
+                "memory_per_node": {"set": True, "infinite": False, "number": 20},
+                "time_limit": {"set": True, "infinite": False, "number": 5},
+                "tres_per_node": "gres/gpu:4",
+                "tres_per_job": "gres/gpu:4",
+            },
+            "script": "#!/bin/bash\n. /etc/profile.d/modules.sh\nsrun job",
+        },
     )
 
     # Check the service registered success
