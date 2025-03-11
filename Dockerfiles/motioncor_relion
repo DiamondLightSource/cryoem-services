@@ -35,4 +35,4 @@ ENV PATH="/install/relion5.0/bin:${PATH}"
 ENV VIRTUAL_ENV=/venv
 RUN python3.11 -m venv $VIRTUAL_ENV
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
-RUN python3.11 -m pip install --upgrade pip && python3.11 -m pip install cryoemservices
+RUN python3.11 -m pip install cryoemservices
