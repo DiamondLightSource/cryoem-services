@@ -462,6 +462,7 @@ def insert_particle_classification_group(
             numberOfParticlesPerBatch=full_parameters("number_of_particles_per_batch"),
             numberOfClassesPerBatch=full_parameters("number_of_classes_per_batch"),
             symmetry=full_parameters("symmetry"),
+            binnedPixelSize=full_parameters("binned_pixel_size"),
         )
         particle_classification_group = (
             session.query(models.ParticleClassificationGroup)

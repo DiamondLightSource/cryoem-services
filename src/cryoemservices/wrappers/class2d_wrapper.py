@@ -224,10 +224,12 @@ class Class2DWrapper:
             return False
 
         # Send classification job information to ispyb
+        class_particles_file = cif.read_file(
+            f"{class2d_params.class2d_dir}/run_it{class2d_params.class2d_nr_iter:03}_data.star"
+        )
+        optics_block = class_particles_file.find_block("optics")
+        binned_pixel_size = optics_block.find_loop("_rlnImagePixelSize")[0]
         if not class2d_params.batch_is_complete:
-            class_particles_file = cif.read_file(
-                f"{class2d_params.class2d_dir}/run_it{class2d_params.class2d_nr_iter:03}_data.star"
-            )
             particles_block = class_particles_file.find_block("particles")
             particles_in_batch = len(particles_block.find_loop("_rlnCoordinateX"))
         else:
@@ -244,6 +246,7 @@ class Class2DWrapper:
             "number_of_particles_per_batch": particles_in_batch,
             "number_of_classes_per_batch": class2d_params.class2d_nr_classes,
             "symmetry": "C1",
+            "binned_pixel_size": binned_pixel_size,
             "particle_picker_id": class2d_params.picker_id,
         }
         if job_is_rerun:

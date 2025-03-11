@@ -126,6 +126,7 @@ def test_class3d_wrapper_do_initial_model(
     (tmp_path / "Class3D/job015").mkdir(parents=True, exist_ok=True)
     with open(tmp_path / "Class3D/job015/run_it025_data.star", "w") as data_star:
         data_star.write(
+            "data_optics\nloop_\n_rlnImagePixelSize\n2.5\n\n"
             "data_particles\nloop_\n_rlnAngleRot\n_rlnAngleTilt\n_rlnClassNumber\n"
             "0.5 1.0 1\n1.5 2.0 1\n2.5 3.0 2\n3.5 4.0 2\n"
         )
@@ -318,6 +319,7 @@ def test_class3d_wrapper_do_initial_model(
             "ispyb_command_list": [
                 {
                     "batch_number": "1",
+                    "binned_pixel_size": "2.5",
                     "buffer_command": {
                         "ispyb_command": "insert_particle_classification_group"
                     },
@@ -462,6 +464,7 @@ def test_class3d_wrapper_has_initial_model(
     (tmp_path / "Class3D/job015").mkdir(parents=True, exist_ok=True)
     with open(tmp_path / "Class3D/job015/run_it020_data.star", "w") as data_star:
         data_star.write(
+            "data_optics\nloop_\n_rlnImagePixelSize\n2.5\n\n"
             "data_particles\nloop_\n_rlnAngleRot\n_rlnAngleTilt\n_rlnClassNumber\n"
             "0.5 1.0 1\n1.5 2.0 1\n2.5 3.0 2\n3.5 4.0 2\n"
         )
@@ -561,6 +564,7 @@ def test_class3d_wrapper_has_initial_model(
             "ispyb_command_list": [
                 {
                     "batch_number": "1",
+                    "binned_pixel_size": "2.5",
                     "buffer_command": {
                         "ispyb_command": "insert_particle_classification_group"
                     },
@@ -694,6 +698,7 @@ def test_class3d_wrapper_for_refinement(
     (tmp_path / "Class3D/job015").mkdir(parents=True, exist_ok=True)
     with open(tmp_path / "Class3D/job015/run_it020_data.star", "w") as data_star:
         data_star.write(
+            "data_optics\nloop_\n_rlnImagePixelSize\n2.5\n\n"
             "data_particles\nloop_\n_rlnAngleRot\n_rlnAngleTilt\n_rlnClassNumber\n"
             "0.5 1.0 1\n1.5 2.0 1\n2.5 3.0 2\n3.5 4.0 2\n"
         )

@@ -249,6 +249,7 @@ class PostProcess(CommonService):
                 "number_of_particles_per_batch": postprocess_params.number_of_particles,
                 "number_of_classes_per_batch": "1",
                 "symmetry": postprocess_params.symmetry,
+                "binned_pixel_size": str(postprocess_params.pixel_size),
                 "particle_picker_id": postprocess_params.picker_id,
             }
             if job_is_rerun:

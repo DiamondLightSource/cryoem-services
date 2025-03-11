@@ -124,6 +124,7 @@ def test_postprocess_first_refine_has_symmetry(
             "ispyb_command_list": [
                 {
                     "batch_number": "1",
+                    "binned_pixel_size": "1.0",
                     "buffer_command": {
                         "ispyb_command": "insert_particle_classification_group"
                     },
