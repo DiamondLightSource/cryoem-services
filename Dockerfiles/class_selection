@@ -41,7 +41,8 @@ RUN yum install fftw-devel libtiff-devel libpng-devel libjpeg-devel zlib-devel -
 
 # Build Relion - need to be on the ver5.0-mc-devolve tag
 RUN mkdir -p /install/relion5.0
-RUN curl https://github.com/d-j-hatton/relion/archive/ver5.0-mc-devolve.tar.gz | tar -xf -C /install
+RUN curl -L -o relion.tar.gz https://github.com/d-j-hatton/relion/archive/ver5.0-mc-devolve.tar.gz
+RUN tar -xf relion.tar.gz -C /install
 RUN mkdir /install/relion-ver5.0-mc-devolve/build
 
 RUN mkdir /torch_home
