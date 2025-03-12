@@ -454,8 +454,6 @@ class CrYOLO(CommonService):
             )
             / (Path(cryolo_params.input_path).stem + "_extract.star")
         )
-        # Load the CTF values returned by the CTFFind service
-        ctf_values: dict[str, Any] = extraction_params["ctf_values"]
 
         # Forward results to murfey
         self.log.info("Sending to Murfey for particle extraction")
@@ -467,9 +465,14 @@ class CrYOLO(CommonService):
                 "micrograph": cryolo_params.input_path,
                 "particle_diameters": list(cryolo_particle_sizes),
                 "particle_count": len(cryolo_particle_sizes),
-                "resolution": ctf_values["CtfMaxResolution"],
-                "astigmatism": ctf_values["DefocusV"] - ctf_values["DefocusU"],
-                "defocus": (ctf_values["DefocusU"] + ctf_values["DefocusV"]) / 2,
+                "resolution": cryolo_params.ctf_values["CtfMaxResolution"],
+                "astigmatism": cryolo_params.ctf_values["DefocusV"]
+                - cryolo_params.ctf_values["DefocusU"],
+                "defocus": (
+                    cryolo_params.ctf_values["DefocusU"]
+                    + cryolo_params.ctf_values["DefocusV"]
+                )
+                / 2,
                 "extraction_parameters": extraction_params,
             },
         )
