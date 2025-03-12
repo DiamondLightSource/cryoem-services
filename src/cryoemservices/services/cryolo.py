@@ -468,8 +468,8 @@ class CrYOLO(CommonService):
                 "particle_diameters": list(cryolo_particle_sizes),
                 "particle_count": len(cryolo_particle_sizes),
                 "resolution": ctf_values["CtfMaxResolution"],
-                "astigmatism": ctf_values["DefocusAngle"],
-                "defocus": ((ctf_values["DefocusU"]) + (ctf_values["DefocusV"])) / 2,
+                "astigmatism": ctf_values["DefocusV"] - ctf_values["DefocusU"],
+                "defocus": (ctf_values["DefocusU"] + ctf_values["DefocusV"]) / 2,
                 "extraction_parameters": extraction_params,
             },
         )
