@@ -439,7 +439,7 @@ class CrYOLO(CommonService):
         rw.send_to("images", images_parameters)
 
         # Gather results needed for particle extraction
-        extraction_params = {
+        extraction_params: dict[str, Any] = {
             "ctf_values": cryolo_params.ctf_values,
             "micrographs_file": cryolo_params.input_path,
             "coord_list_file": cryolo_params.output_path,
@@ -464,6 +464,15 @@ class CrYOLO(CommonService):
                 "motion_correction_id": cryolo_params.mc_uuid,
                 "micrograph": cryolo_params.input_path,
                 "particle_diameters": list(cryolo_particle_sizes),
+                "particle_count": len(cryolo_particle_sizes),
+                "resolution": cryolo_params.ctf_values["CtfMaxResolution"],
+                "astigmatism": cryolo_params.ctf_values["DefocusV"]
+                - cryolo_params.ctf_values["DefocusU"],
+                "defocus": (
+                    cryolo_params.ctf_values["DefocusU"]
+                    + cryolo_params.ctf_values["DefocusV"]
+                )
+                / 2,
                 "extraction_parameters": extraction_params,
             },
         )

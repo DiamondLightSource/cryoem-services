@@ -39,6 +39,11 @@ def test_cryolo_service_spa(mock_subprocess, offline_transport, tmp_path):
 
     output_path = tmp_path / "AutoPick/job007/STAR/sample.star"
     cbox_path = tmp_path / "AutoPick/job007/CBOX/sample.cbox"
+    ctf_test_values = {
+        "CtfMaxResolution": 0.00001,
+        "DefocusU": 0.05,
+        "DefocusV": 0.08,
+    }
     cryolo_test_message = {
         "pixel_size": 0.1,
         "input_path": "MotionCorr/job002/sample.mrc",
@@ -52,7 +57,7 @@ def test_cryolo_service_spa(mock_subprocess, offline_transport, tmp_path):
         "mc_uuid": 0,
         "picker_uuid": 0,
         "particle_diameter": 1.1,
-        "ctf_values": {"dummy": "dummy"},
+        "ctf_values": ctf_test_values,
         "cryolo_command": "cryolo_predict.py",
         "relion_options": {"batch_size": 20000, "downscale": True},
     }
@@ -161,6 +166,10 @@ def test_cryolo_service_spa(mock_subprocess, offline_transport, tmp_path):
             "motion_correction_id": cryolo_test_message["mc_uuid"],
             "micrograph": cryolo_test_message["input_path"],
             "particle_diameters": [10.0, 20.0],
+            "particle_count": 2,
+            "resolution": ctf_test_values["CtfMaxResolution"],
+            "astigmatism": ctf_test_values["DefocusV"] - ctf_test_values["DefocusU"],
+            "defocus": (ctf_test_values["DefocusU"] + ctf_test_values["DefocusV"]) / 2,
             "extraction_parameters": extraction_params,
         },
     )
