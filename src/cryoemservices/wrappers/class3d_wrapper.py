@@ -429,6 +429,9 @@ class Class3DWrapper:
         data = cif.read_file(
             str(job_dir / f"run_it{class3d_params.class3d_nr_iter:03}_data.star")
         )
+        optics_block = data.find_block("optics")
+        binned_pixel_size = optics_block.find_loop("_rlnImagePixelSize")[0]
+
         particles_block = data.find_block("particles")
         if particles_block:
             angles_rot = np.array(
@@ -485,6 +488,7 @@ class Class3DWrapper:
             "number_of_particles_per_batch": class3d_params.batch_size,
             "number_of_classes_per_batch": class3d_params.class3d_nr_classes,
             "symmetry": class3d_params.symmetry,
+            "binned_pixel_size": binned_pixel_size,
             "particle_picker_id": class3d_params.picker_id,
         }
         if job_is_rerun:

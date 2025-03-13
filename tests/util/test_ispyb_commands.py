@@ -455,6 +455,7 @@ def test_insert_particle_classification_group_new(mock_models):
             "number_of_particles_per_batch": 50000,
             "number_of_classes_per_batch": 50,
             "symmetry": "C1",
+            "binned_pixel_size": "2.5",
         }
         return group_parameters[p]
 
@@ -481,6 +482,7 @@ def test_insert_particle_classification_group_new(mock_models):
         numberOfParticlesPerBatch=50000,
         numberOfClassesPerBatch=50,
         symmetry="C1",
+        binnedPixelSize="2.5",
     )
     mock_session.add.assert_called()
     mock_session.commit.assert_called()
@@ -497,6 +499,7 @@ def test_insert_particle_classification_group_update():
             "number_of_particles_per_batch": 50000,
             "number_of_classes_per_batch": 50,
             "symmetry": "C1",
+            "binned_pixel_size": "3.0",
         }
         return group_parameters[p]
 
@@ -524,6 +527,7 @@ def test_insert_particle_classification_group_update():
             "numberOfParticlesPerBatch": 50000,
             "numberOfClassesPerBatch": 50,
             "symmetry": "C1",
+            "binnedPixelSize": "3.0",
         }
     )
     mock_session.add.assert_not_called()

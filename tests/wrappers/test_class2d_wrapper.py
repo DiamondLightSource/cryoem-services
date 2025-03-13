@@ -107,7 +107,10 @@ def test_class2d_wrapper_incomplete_batch(
     # Create the expected output files
     (tmp_path / "Class2D/job010").mkdir(parents=True, exist_ok=True)
     with open(tmp_path / "Class2D/job010/run_it025_data.star", "w") as data_star:
-        data_star.write("data_particles\nloop_\n_rlnCoordinateX\n1\n2\n3\n4\n5")
+        data_star.write(
+            "data_optics\nloop_\n_rlnImagePixelSize\n2.5\n\n"
+            "data_particles\nloop_\n_rlnCoordinateX\n1\n2\n3\n4\n5"
+        )
     with open(tmp_path / "Class2D/job010/run_it025_model.star", "w") as model_star:
         model_star.write(
             "data_model_classes\nloop_\n"
@@ -209,6 +212,7 @@ def test_class2d_wrapper_incomplete_batch(
             "ispyb_command_list": [
                 {
                     "batch_number": 1,
+                    "binned_pixel_size": "2.5",
                     "buffer_command": {
                         "ispyb_command": "insert_particle_classification_group"
                     },
@@ -315,7 +319,10 @@ def test_class2d_wrapper_complete_batch(
     # Create the expected output files
     (tmp_path / "Class2D/job010").mkdir(parents=True, exist_ok=True)
     with open(tmp_path / "Class2D/job010/run_it020_data.star", "w") as data_star:
-        data_star.write("data_particles\nloop_\n_rlnCoordinateX\n1\n2\n3\n4\n5")
+        data_star.write(
+            "data_optics\nloop_\n_rlnImagePixelSize\n2.5\n\n"
+            "data_particles\nloop_\n_rlnCoordinateX\n1\n2\n3\n4\n5"
+        )
     with open(tmp_path / "Class2D/job010/run_it020_model.star", "w") as model_star:
         model_star.write(
             "data_model_classes\nloop_\n"
@@ -450,7 +457,10 @@ def test_class2d_wrapper_rerun_buffer_lookup(
     (tmp_path / "Class2D/job010").mkdir(parents=True, exist_ok=True)
     (tmp_path / "Class2D/job010/RELION_JOB_EXIT_SUCCESS").touch()
     with open(tmp_path / "Class2D/job010/run_it020_data.star", "w") as data_star:
-        data_star.write("data_particles\nloop_\n_rlnCoordinateX\n1\n2\n3\n4\n5")
+        data_star.write(
+            "data_optics\nloop_\n_rlnImagePixelSize\n2.5\n\n"
+            "data_particles\nloop_\n_rlnCoordinateX\n1\n2\n3\n4\n5"
+        )
     with open(tmp_path / "Class2D/job010/run_it020_model.star", "w") as model_star:
         model_star.write(
             "data_model_classes\nloop_\n"
@@ -476,6 +486,7 @@ def test_class2d_wrapper_rerun_buffer_lookup(
             "ispyb_command_list": [
                 {
                     "batch_number": 1,
+                    "binned_pixel_size": "2.5",
                     "buffer_command": {
                         "ispyb_command": "insert_particle_classification_group"
                     },
@@ -554,7 +565,10 @@ def test_class2d_wrapper_failure_releases_hold(
     (tmp_path / "Class2D/job010").mkdir(parents=True, exist_ok=True)
     (tmp_path / "Class2D/job010/RELION_JOB_EXIT_SUCCESS").touch()
     with open(tmp_path / "Class2D/job010/run_it020_data.star", "w") as data_star:
-        data_star.write("data_particles\nloop_\n_rlnCoordinateX\n1\n2\n3\n4\n5")
+        data_star.write(
+            "data_optics\nloop_\n_rlnImagePixelSize\n2.5\n\n"
+            "data_particles\nloop_\n_rlnCoordinateX\n1\n2\n3\n4\n5"
+        )
     with open(tmp_path / "Class2D/job010/run_it020_model.star", "w") as model_star:
         model_star.write(
             "data_model_classes\nloop_\n"
