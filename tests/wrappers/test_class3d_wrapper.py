@@ -19,10 +19,11 @@ def offline_transport(mocker):
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+@mock.patch("cryoemservices.wrappers.class3d_wrapper.find_efficiency")
 @mock.patch("cryoemservices.wrappers.class3d_wrapper.subprocess.run")
 @mock.patch("workflows.recipe.wrapper.RecipeWrapper.send_to")
 def test_class3d_wrapper_do_initial_model(
-    mock_recwrap_send, mock_subprocess, offline_transport, tmp_path
+    mock_recwrap_send, mock_subprocess, mock_efficiency, offline_transport, tmp_path
 ):
     """
     Send a test message to the Class3D wrapper for a first round of 50000 particles,
@@ -397,12 +398,15 @@ def test_class3d_wrapper_do_initial_model(
         },
     )
 
+    assert mock_efficiency.call_count == 2
+
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+@mock.patch("cryoemservices.wrappers.class3d_wrapper.find_efficiency")
 @mock.patch("cryoemservices.wrappers.class3d_wrapper.subprocess.run")
 @mock.patch("workflows.recipe.wrapper.RecipeWrapper.send_to")
 def test_class3d_wrapper_has_initial_model(
-    mock_recwrap_send, mock_subprocess, offline_transport, tmp_path
+    mock_recwrap_send, mock_subprocess, mock_efficiency, offline_transport, tmp_path
 ):
     """
     Send a test message to the Class3D wrapper for a second round of 100000 particles,
@@ -626,29 +630,71 @@ def test_class3d_wrapper_has_initial_model(
         },
     )
 
+    assert mock_efficiency.call_count == 2
+
 
 best_class_test_matrix = (
-    # tuple of Fractions, Resolutions, Completenesses, Do refine?, Best class
-    ([0.1, 0.2, 0.3, 0.4], [8, 9, 10, 11], [0.95, 0.95, 0.95, 0.95], True, 1),
+    # tuple of Fractions, Resolutions, Efficiency, Do refine?, Best class
+    (
+        [0.1, 0.2, 0.3, 0.4],
+        [8, 9, 10, 11],
+        [0.7, 0.7, 0.7, 0.7],
+        True,
+        1,
+    ),
     # ^ Pick best resolution
-    ([0.1, 0.2, 0.3, 0.4], [8, 9, 10, 11], [0.8, 0.95, 0.95, 0.95], True, 2),
-    # ^ Pick second best resolution due to completeness
-    ([0.1, 0.4, 0.3, 0.2], [8, 8, 8, 8], [0.95, 0.95, 0.95, 0.95], True, 2),
-    # ^ Pick highest particle count at best resolution
-    ([0.1, 0.2, 0.3, 0.4], [11, 12, 13, 14], [0.95, 0.95, 0.95, 0.95], False, 0),
+    (
+        [0.1, 0.2, 0.3, 0.4],
+        [8, 9, 10, 11],
+        [0.6, 0.7, 0.7, 0.7],
+        True,
+        2,
+    ),
+    # ^ Pick second best resolution due to efficiency
+    (
+        [0.1, 0.2, 0.3, 0.4],
+        [8, 8, 8, 9],
+        [0.7, 0.8, 0.7, 0.8],
+        True,
+        2,
+    ),
+    # ^ Pick best efficiency at best resolution
+    (
+        [0.1, 0.4, 0.3, 0.1],
+        [8, 8, 8, 9],
+        [0.7, 0.7, 0.7, 0.7],
+        True,
+        1,
+    ),
+    # ^ Pick lowest particle count at best resolution
+    (
+        [0.1, 0.2, 0.3, 0.4],
+        [11, 12, 13, 14],
+        [0.7, 0.7, 0.7, 0.7],
+        False,
+        0,
+    ),
     # ^ Don't refine, bad resolution
-    ([0.1, 0.2, 0.3, 0.4], [8, 9, 8, 11], [0.9, 0.8, 0.7, 0.6], False, 0),
-    # ^ Don't refine, bad completeness
+    (
+        [0.1, 0.2, 0.3, 0.4],
+        [8, 9, 8, 11],
+        [0.5, 0.6, 0.64, 0.5],
+        False,
+        0,
+    ),
+    # ^ Don't refine, bad efficiency
 )
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @pytest.mark.parametrize("test_classes", best_class_test_matrix)
+@mock.patch("cryoemservices.wrappers.class3d_wrapper.find_efficiency")
 @mock.patch("cryoemservices.wrappers.class3d_wrapper.subprocess.run")
 @mock.patch("workflows.recipe.wrapper.RecipeWrapper.send_to")
 def test_class3d_wrapper_for_refinement(
     mock_recwrap_send,
     mock_subprocess,
+    mock_efficiency,
     test_classes: tuple[list[float], list[float], list[float], bool, int],
     offline_transport,
     tmp_path,
@@ -661,6 +707,7 @@ def test_class3d_wrapper_for_refinement(
     Runs a variety of different cases to test the estimation of the best class
     """
     mock_subprocess().returncode = 0
+    mock_efficiency.side_effect = test_classes[2]
 
     # Example recipe wrapper message to run the service with a few parameters varied
     class3d_test_message = {
@@ -700,7 +747,7 @@ def test_class3d_wrapper_for_refinement(
         data_star.write(
             "data_optics\nloop_\n_rlnImagePixelSize\n2.5\n\n"
             "data_particles\nloop_\n_rlnAngleRot\n_rlnAngleTilt\n_rlnClassNumber\n"
-            "0.5 1.0 1\n1.5 2.0 1\n2.5 3.0 2\n3.5 4.0 2\n"
+            "0.5 1.0 1\n1.5 2.0 1\n2.5 3.0 2\n3.5 4.0 2\n2.5 3.0 3\n3.5 4.0 4\n"
         )
     with open(tmp_path / "Class3D/job015/run_it020_model.star", "w") as model_star:
         model_star.write(
@@ -739,3 +786,5 @@ def test_class3d_wrapper_for_refinement(
             "do_refinement": test_classes[3],
         },
     )
+
+    assert mock_efficiency.call_count == 4

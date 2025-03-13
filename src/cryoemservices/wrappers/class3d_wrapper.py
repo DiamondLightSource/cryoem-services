@@ -14,6 +14,7 @@ import numpy as np
 from gemmi import cif
 from pydantic import BaseModel, Field, ValidationError
 
+from cryoemservices.pipeliner_plugins.angular_efficiency import find_efficiency
 from cryoemservices.util.relion_service_options import (
     RelionServiceOptions,
     update_relion_options,
@@ -433,6 +434,7 @@ class Class3DWrapper:
         binned_pixel_size = optics_block.find_loop("_rlnImagePixelSize")[0]
 
         particles_block = data.find_block("particles")
+        class_efficiencies = np.zeros(class3d_params.class3d_nr_classes)
         if particles_block:
             angles_rot = np.array(
                 particles_block.find_loop("_rlnAngleRot"), dtype=float
@@ -475,8 +477,17 @@ class Class3DWrapper:
                         job_dir
                         / f"run_it{class3d_params.class3d_nr_iter:03}_class{class_id+1:03}_angdist.jpeg"
                     )
+                    plt.close()
                 except ValueError as e:
                     self.log.warning(f"Healpix failed with error {e}")
+
+                class_efficiencies[class_id] = find_efficiency(
+                    theta_degrees=angles_tilt[class_numbers == class_id + 1],
+                    phi_degrees=angles_rot[class_numbers == class_id + 1],
+                )
+                self.log.info(
+                    f"Efficiency of class {class_id + 1} is {class_efficiencies[class_id]}"
+                )
 
         # Send classification job information to ispyb
         ispyb_parameters = []
@@ -567,11 +578,14 @@ class Class3DWrapper:
             class_completenesses.append(
                 class_ispyb_parameters["overall_fourier_completeness"]
             )
+
+            # Sorting criteria are resolution, descending efficiency and reversed particle count
             class_sort_criteria.append(
                 (
                     class_ispyb_parameters["estimated_resolution"],
-                    class3d_params.batch_size
-                    - class_ispyb_parameters["particles_per_class"],
+                    1 - class_efficiencies[class_id],
+                    class_ispyb_parameters["particles_per_class"]
+                    - class3d_params.batch_size,
                 )
             )
 
@@ -602,16 +616,17 @@ class Class3DWrapper:
 
         # Work out the best class and request refinement if it meets the target criteria
         class_sorting_array = np.array(
-            class_sort_criteria, dtype=[("resolutions", "<i"), ("particles", "<i")]
+            class_sort_criteria,
+            dtype=[("resolutions", "<f"), ("efficiencies", "<f"), ("particles", "<i")],
         )
         class_sorting = np.argsort(
-            class_sorting_array, order=("resolutions", "particles")
+            class_sorting_array, order=("resolutions", "efficiencies", "particles")
         )
         for cid in class_sorting:
             if (
                 class3d_params.batch_size == 200000
                 and class_resolutions[cid] < 11
-                and class_completenesses[cid] > 0.9
+                and class_efficiencies[cid] > 0.65
             ):
                 murfey_params["do_refinement"] = True
                 murfey_params["best_class"] = class_ids[cid]
