@@ -15,7 +15,10 @@ from cryoemservices.util.relion_service_options import (
     RelionServiceOptions,
     update_relion_options,
 )
-from cryoemservices.util.tomo_output_files import _get_tilt_name_v5_12
+from cryoemservices.util.tomo_output_files import (
+    _get_tilt_name_v5_12,
+    _get_tilt_number_v5_12,
+)
 
 
 class ExtractSubTomoParameters(BaseModel):
@@ -25,6 +28,7 @@ class ExtractSubTomoParameters(BaseModel):
     output_star: str = Field(..., min_length=1)
     scaled_tomogram_shape: list[int] | str
     pixel_size: float
+    dose_per_tilt: float
     particle_diameter: float = 0
     boxsize: int = 256
     small_boxsize: int = 64
@@ -194,6 +198,7 @@ class ExtractSubTomo(CommonService):
         # Read in tilt images
         self.log.info("Reading tilt images")
         tilt_images = []
+        tilt_numbers = []
         with open(extract_subtomo_params.newstack_file) as ns_file:
             while True:
                 line = ns_file.readline()
@@ -201,12 +206,20 @@ class ExtractSubTomo(CommonService):
                     break
                 elif line.startswith("/"):
                     tilt_name = line.strip()
+                    tilt_numbers.append(_get_tilt_number_v5_12(Path(tilt_name)))
                     with mrcfile.open(tilt_name) as mrc:
                         tilt_images.append(mrc.data)
 
+        frames = np.zeros((len(particles_x), tilt_count), dtype=int)
         for particle in range(len(particles_x)):
             output_mrc_stack = np.array([])
             for tilt in range(tilt_count):
+                if (
+                    extract_subtomo_params.dose_per_tilt * tilt_numbers[tilt]
+                    < extract_subtomo_params.maximum_dose
+                ):
+                    continue
+
                 # Extract the particle image and pad the edges if it is not square
                 x_left_pad = 0
                 x_right_pad = 0
@@ -307,6 +320,7 @@ class ExtractSubTomo(CommonService):
                     )
                 else:
                     output_mrc_stack = np.array([particle_subimage], dtype=np.float32)
+                frames[particle, tilt] = 1
 
             if not len(output_mrc_stack):
                 self.log.warning(f"Could not extract particle {particle}")
@@ -333,9 +347,7 @@ class ExtractSubTomo(CommonService):
         extracted_parts_loop = extracted_parts_block.init_loop(
             "_rln",
             [
-                "CenteredCoordinateXAngst",
-                "CenteredCoordinateYAngst",
-                "CenteredCoordinateZAngst",
+                "TomoName",
                 "OpticsGroup",
                 "TomoParticleName",
                 "TomoVisibleFrames",
@@ -343,12 +355,24 @@ class ExtractSubTomo(CommonService):
                 "OriginXAngst",
                 "OriginYAngst",
                 "OriginZAngst",
+                "CenteredCoordinateXAngst",
+                "CenteredCoordinateYAngst",
+                "CenteredCoordinateZAngst",
             ],
         )
-        frames = "?????"
         for particle in range(len(particles_x)):
             extracted_parts_loop.add_row(
                 [
+                    _get_tilt_name_v5_12(
+                        Path(extract_subtomo_params.tilt_alignment_file)
+                    ),
+                    "1",
+                    f"{_get_tilt_name_v5_12(Path(extract_subtomo_params.tilt_alignment_file))}/{particle}",
+                    f"[{frames[particle]}]",
+                    f"{Path(extract_subtomo_params.output_star).parent}/{particle}_stack2d.mrcs",
+                    "0.0",
+                    "0.0",
+                    "0.0",
                     str(
                         float(particles_x[particle])
                         - float(extract_subtomo_params.scaled_tomogram_shape[2])
@@ -367,13 +391,6 @@ class ExtractSubTomo(CommonService):
                         / 2
                         * extract_subtomo_params.tomogram_binning
                     ),
-                    "1",
-                    f"{_get_tilt_name_v5_12(Path(extract_subtomo_params.tilt_alignment_file))}/{particle}",
-                    f"[{frames}]",
-                    f"{Path(extract_subtomo_params.output_star).parent}/{particle}_stack2d.mrcs",
-                    "0.0",
-                    "0.0",
-                    "0.0",
                 ]
             )
         extracted_parts_doc.write_file(
