@@ -216,7 +216,7 @@ class ExtractSubTomo(CommonService):
             for tilt in range(tilt_count):
                 if (
                     extract_subtomo_params.dose_per_tilt * tilt_numbers[tilt]
-                    < extract_subtomo_params.maximum_dose
+                    > extract_subtomo_params.maximum_dose
                 ):
                     continue
 
