@@ -34,7 +34,7 @@
         "tasks": 8,
         "time_limit": "3:00:00"
       },
-      "recipewrapper": "{session_dir}/tmp/.recipewrap--clem_align_and_merge--{job_name}",
+      "wrapper": "{session_dir}/tmp/.recipewrap--clem_align_and_merge--{job_name}",
       "workingdir": "{session_dir}/processed/"
     },
     "queue": "cluster.submission",

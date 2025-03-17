@@ -55,7 +55,7 @@
         "tasks": 5,
         "time_limit": "24:00:00"
       },
-      "recipewrapper": "{refine_job_dir}/.recipewrap",
+      "wrapper": "{refine_job_dir}/.recipewrap",
       "workingdir": "{refine_job_dir}/"
     },
     "queue": "cluster.submission",
@@ -127,7 +127,7 @@
         "tasks": 5,
         "time_limit": "24:00:00"
       },
-      "recipewrapper": "{refine_job_dir}/.recipewrap",
+      "wrapper": "{refine_job_dir}/.recipewrap",
       "workingdir": "{refine_job_dir}/"
     },
     "queue": "cluster.submission",

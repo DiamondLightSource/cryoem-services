@@ -56,7 +56,7 @@
         "tasks": 5,
         "time_limit": "12:00:00"
       },
-      "recipewrapper": "{bfactor_directory}/.recipewrap",
+      "wrapper": "{bfactor_directory}/.recipewrap",
       "workingdir": "{bfactor_directory}/"
     },
     "queue": "cluster.submission",

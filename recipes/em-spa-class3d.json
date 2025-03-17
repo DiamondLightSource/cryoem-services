@@ -49,7 +49,7 @@
         "tasks": 9,
         "time_limit": "6:00:00"
       },
-      "recipewrapper": "{class3d_dir}/.recipewrap",
+      "wrapper": "{class3d_dir}/.recipewrap",
       "workingdir": "{class3d_dir}/"
     },
     "queue": "cluster.submission",

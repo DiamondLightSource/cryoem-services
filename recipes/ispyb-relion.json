@@ -45,7 +45,7 @@
           "zocalo.wrap --wrap relion --recipewrapper \"$RECIPEWRAP\" >runinfo"
         ]
       },
-      "recipewrapper": "{ispyb_working_directory}/relion/.recipewrap",
+      "wrapper": "{ispyb_working_directory}/relion/.recipewrap",
       "workingdir": "{ispyb_working_directory}/relion/.launch"
     },
     "wrapper": { "task_information": "{ispyb_beamline}" },

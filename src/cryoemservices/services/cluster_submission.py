@@ -212,49 +212,19 @@ class ClusterSubmission(CommonService):
         if not isinstance(cluster_params.commands, str):
             cluster_params.commands = "\n".join(cluster_params.commands)
 
-        if "recipefile" in parameters:
-            recipefile = parameters["recipefile"]
+        if "wrapper" in parameters:
+            wrapper = parameters["wrapper"]
             try:
-                Path(recipefile).parent.mkdir(parents=True, exist_ok=True)
+                Path(wrapper).parent.mkdir(parents=True, exist_ok=True)
             except OSError:
-                self.log.error(f"Cannot make directory for {recipefile}")
+                self.log.error(f"Cannot make directory for {wrapper}")
                 self._transport.nack(header)
                 return
-            self.log.info("Writing recipe to %s", recipefile)
+            self.log.info(f"Storing serialized recipe wrapper in {wrapper}")
             cluster_params.commands = cluster_params.commands.replace(
-                "$RECIPEFILE", recipefile
+                "$RECIPEWRAP", wrapper
             )
-            with open(recipefile, "w") as fh:
-                fh.write(rw.recipe.pretty())
-        if "recipeenvironment" in parameters:
-            recipeenvironment = parameters["recipeenvironment"]
-            try:
-                Path(recipeenvironment).parent.mkdir(parents=True, exist_ok=True)
-            except OSError:
-                self.log.error(f"Cannot make directory for {recipeenvironment}")
-                self._transport.nack(header)
-                return
-            self.log.info("Writing recipe environment to %s", recipeenvironment)
-            cluster_params.commands = cluster_params.commands.replace(
-                "$RECIPEENV", recipeenvironment
-            )
-            with open(recipeenvironment, "w") as fh:
-                json.dump(
-                    rw.environment, fh, sort_keys=True, indent=2, separators=(",", ": ")
-                )
-        if "recipewrapper" in parameters:
-            recipewrapper = parameters["recipewrapper"]
-            try:
-                Path(recipewrapper).parent.mkdir(parents=True, exist_ok=True)
-            except OSError:
-                self.log.error(f"Cannot make directory for {recipewrapper}")
-                self._transport.nack(header)
-                return
-            self.log.info("Storing serialized recipe wrapper in %s", recipewrapper)
-            cluster_params.commands = cluster_params.commands.replace(
-                "$RECIPEWRAP", recipewrapper
-            )
-            with open(recipewrapper, "w") as fh:
+            with open(wrapper, "w") as fh:
                 json.dump(
                     {
                         "recipe": rw.recipe.recipe,

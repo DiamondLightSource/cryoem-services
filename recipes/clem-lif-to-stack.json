@@ -29,7 +29,7 @@
         "tasks": 20,
         "time_limit": "3:00:00"
       },
-      "recipewrapper": "{session_dir}/tmp/.recipewrap--clem_lif_to_stack--{job_name}",
+      "wrapper": "{session_dir}/tmp/.recipewrap--clem_lif_to_stack--{job_name}",
       "workingdir": "{session_dir}/processed/"
     },
     "queue": "cluster.submission",
