@@ -1,0 +1,132 @@
+{
+  "1": {
+    "service": "ISPyB connector",
+    "queue": "ispyb_connector",
+    "parameters": {
+      "ispyb_command": "multipart_message",
+      "dcid": "{ispyb_dcid}",
+      "ispyb_command_list": [
+        {
+          "ispyb_command": "register_processing",
+          "program": "relion",
+          "cmdline": "RELION (dummy)",
+          "environment": "{$REPLACE:ispyb_reprocessing_parameters}",
+          "rpid": "{ispyb_process}",
+          "store_result": "ispyb_autoprocprogram_id"
+        }
+      ]
+    },
+    "output": 2
+  },
+  "2": {
+    "service": "Cluster submission",
+    "queue": "cluster.submission",
+    "parameters": {
+      "cluster": {
+        "scheduler": "slurm",
+        "partition": "{partition}",
+        "account": "{account}",
+        "memory_per_node": 32000,
+        "time_limit": "168:00:00",
+        "job_name": "zoc-relion",
+        "cpus_per_task": 1,
+        "environment": {
+          "PATH": "/bin/:/usr/bin/:/usr/local/bin/",
+          "USER": "k8s-em"
+        },
+        "commands": [
+          "source /etc/profile.d/modules.sh",
+          "[[ \"{module_version}\" = {{* ]] && module load relion-zocalo-dev",
+          "[[ \"{module_version}\" = {{* ]] || module load relion-zocalo-dev/{module_version}",
+          "module load EM/relion/4.0-slurm",
+          "export RELION_QSUB_COMMAND=sbatch",
+          "export PIPELINER_MPIRUN_COMMAND='srun -n XXXmpinodesXXX'",
+          "export ZOCALO_CONFIG=zocalo-staging-config-k8s-slurm.yaml",
+          "echo zocalo.wrap --wrap relion4 --recipewrapper \"$RECIPEWRAP\" >runinfo",
+          "zocalo.wrap --wrap relion --recipewrapper \"$RECIPEWRAP\" >runinfo"
+        ]
+      },
+      "recipewrapper": "{ispyb_working_directory}/relion/.recipewrap",
+      "workingdir": "{ispyb_working_directory}/relion/.launch"
+    },
+    "wrapper": { "task_information": "{ispyb_beamline}" },
+    "job_parameters": {
+      "image_directory": "{ispyb_image_directory}",
+      "ispyb_parameters": "{$REPLACE:ispyb_reprocessing_parameters}",
+      "working_directory": "{ispyb_working_directory}/relion",
+      "results_directory": "{ispyb_results_directory}/relion",
+      "create_symlink": "relion",
+      "stop_file": "{ispyb_visit_directory}/tmp/{ispyb_process}.stop",
+      "cryolo_version": "EM/cryolo/1.7.6",
+      "latest_movie_timeout": 2880,
+      "relion_version": 4
+    },
+    "output": {
+      "success": 3,
+      "failure": 4,
+      "ispyb": 5,
+      "starting": 6,
+      "updates": 7,
+      "images": 8,
+      "images_particles": 9
+    }
+  },
+  "3": {
+    "service": "ISPyB connector",
+    "queue": "ispyb_connector",
+    "parameters": {
+      "ispyb_command": "update_processing_status",
+      "program_id": "$ispyb_autoprocprogram_id",
+      "message": "processing successful",
+      "status": "success"
+    }
+  },
+  "4": {
+    "service": "ISPyB connector",
+    "queue": "ispyb_connector",
+    "parameters": {
+      "ispyb_command": "update_processing_status",
+      "program_id": "$ispyb_autoprocprogram_id",
+      "message": "processing failure",
+      "status": "failure"
+    }
+  },
+  "5": {
+    "service": "ISPyB connector",
+    "queue": "ispyb_connector",
+    "parameters": {
+      "ispyb_command": "multipart_message",
+      "dcid": "{ispyb_dcid}",
+      "program_id": "$ispyb_autoprocprogram_id"
+    }
+  },
+  "6": {
+    "service": "ISPyB connector",
+    "queue": "ispyb_connector",
+    "parameters": {
+      "ispyb_command": "update_processing_status",
+      "program_id": "$ispyb_autoprocprogram_id",
+      "message": "starting"
+    }
+  },
+  "7": {
+    "service": "ISPyB connector",
+    "queue": "ispyb_connector",
+    "parameters": {
+      "ispyb_command": "update_processing_status",
+      "program_id": "$ispyb_autoprocprogram_id",
+      "message": "processing"
+    }
+  },
+  "8": {
+    "service": "Images",
+    "queue": "images",
+    "parameters": { "image_command": "mrc_to_jpeg" }
+  },
+  "9": {
+    "service": "Images",
+    "queue": "images",
+    "parameters": { "image_command": "picked_particles" }
+  },
+  "start": [[1, []]]
+}
