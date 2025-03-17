@@ -36,8 +36,7 @@
         },
         "commands": [
           "source /etc/profile.d/modules.sh",
-          "[[ \"{module_version}\" = {{* ]] && module load relion-zocalo-dev",
-          "[[ \"{module_version}\" = {{* ]] || module load relion-zocalo-dev/{module_version}",
+          "module load relion-zocalo-dev",
           "module load EM/relion/4.0-slurm",
           "export RELION_QSUB_COMMAND=sbatch",
           "export PIPELINER_MPIRUN_COMMAND='srun -n XXXmpinodesXXX'",
@@ -53,11 +52,11 @@
     "job_parameters": {
       "image_directory": "{ispyb_image_directory}",
       "ispyb_parameters": "{$REPLACE:ispyb_reprocessing_parameters}",
-      "working_directory": "{ispyb_working_directory}/relion",
-      "results_directory": "{ispyb_results_directory}/relion",
-      "create_symlink": "relion",
+      "working_directory": "{ispyb_working_directory}/relion_reprocess",
+      "results_directory": "{ispyb_results_directory}/relion_reprocess",
+      "create_symlink": "relion_reprocess",
       "stop_file": "{ispyb_visit_directory}/tmp/{ispyb_process}.stop",
-      "cryolo_version": "EM/cryolo/1.7.6",
+      "cryolo_version": "EM/cryolo",
       "latest_movie_timeout": 2880,
       "relion_version": 4
     },
