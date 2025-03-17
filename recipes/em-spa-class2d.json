@@ -50,7 +50,7 @@
         "tasks": 9,
         "time_limit": "3:00:00"
       },
-      "recipewrapper": "{class2d_dir}/.recipewrap",
+      "wrapper": "{class2d_dir}/.recipewrap",
       "workingdir": "{class2d_dir}/"
     },
     "queue": "cluster.submission",
