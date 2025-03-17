@@ -5,7 +5,6 @@ import json
 import logging
 import math
 import os
-from importlib.metadata import entry_points
 from pathlib import Path
 from typing import Optional
 
@@ -73,8 +72,6 @@ class SlurmRestApi:
 class JobSubmissionParameters(BaseModel):
     scheduler: str = "slurm"
     job_name: str
-    partition: str
-    prefer: Optional[str] = None
     environment: Optional[dict[str, str]] = None
     cpus_per_task: Optional[int] = None
     tasks: Optional[int] = None
@@ -132,8 +129,8 @@ def submit_to_slurm(
         environment=environment,
         name=params.job_name,
         nodes=str(params.nodes) if params.nodes else params.nodes,
-        partition=params.partition,
-        prefer=params.prefer,
+        partition=slurm_rest.get("partition"),
+        prefer=slurm_rest.get("partition_preference"),
         tasks=params.tasks,
     )
     if params.min_memory_per_cpu:
@@ -181,20 +178,10 @@ class ClusterSubmission(CommonService):
     # Logger name
     _logger_name = "cryoemservices.services.cluster"
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.schedulers = {}
-
     def initializing(self):
         """Subscribe to the cluster submission queue.
         Received messages must be acknowledged."""
-        self.log.info("Cluster submission service starting")
-
-        self.schedulers = {
-            f.name: f.load()
-            for f in entry_points(group="cryoemservices.services.cluster.schedulers")
-        }
-        self.log.info(f"Supported schedulers: {', '.join(self.schedulers.keys())}")
+        self.log.info("Cluster submission service starting for slurm")
         workflows.recipe.wrap_subscribe(
             self._transport,
             self._environment["queue"] or "cluster.submission",
@@ -256,10 +243,8 @@ class ClusterSubmission(CommonService):
             self._transport.nack(header)
             return
 
-        submit_to_scheduler = self.schedulers.get(cluster_params.scheduler)
-
         service_config = config_from_file(self._environment["config"])
-        jobnumber = submit_to_scheduler(
+        jobnumber = submit_to_slurm(
             cluster_params,
             working_directory,
             self.log,

@@ -24,10 +24,6 @@
         "job_name": "tiff-to-stack",
         "memory_per_node": 32768,
         "nodes": 1,
-        "partition": "{partition}",
-        "scheduler": "slurm",
-        "standard_error": "{session_dir}/tmp/run.err",
-        "standard_output": "{session_dir}/tmp/run.out",
         "tasks": 1,
         "time_limit": "3:00:00"
       },
