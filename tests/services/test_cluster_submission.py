@@ -36,11 +36,15 @@ def cluster_submission_configuration(tmp_path):
         slurm_creds.write("api_version: v0.0.40\n")
         slurm_creds.write("user: user\n")
         slurm_creds.write(f"user_token: {tmp_path}/token.txt\n")
+        slurm_creds.write("partition: part\n")
+        slurm_creds.write("partition_preference: preferred_part\n")
     with open(tmp_path / "slurm_credentials_extra.yaml", "w") as slurm_creds:
         slurm_creds.write("url: /slurm/extra/url\n")
         slurm_creds.write("api_version: v0.0.41\n")
         slurm_creds.write("user: user2\n")
         slurm_creds.write(f"user_token: {tmp_path}/token_user2.txt\n")
+        slurm_creds.write("partition: part\n")
+        slurm_creds.write("partition_preference: preferred_part\n")
 
     with open(tmp_path / "token.txt", "w") as token_file:
         token_file.write("token")
@@ -83,9 +87,6 @@ def test_cluster_submission_recipeless(
                 "memory_per_node": 20,
                 "min_memory_per_cpu": 10,
                 "nodes": 1,
-                "partition": "part",
-                "prefer": "preferred_part",
-                "scheduler": "slurm",
                 "tasks": 2,
                 "time_limit": 300,
             },
@@ -171,9 +172,6 @@ def test_cluster_submission_wrapper(
                 "cpus_per_task": 3,
                 "job_name": "test_job",
                 "nodes": 1,
-                "partition": "part",
-                "prefer": "preferred_part",
-                "scheduler": "slurm",
                 "tasks": 2,
             },
         }
@@ -264,9 +262,6 @@ def test_cluster_submission_extra_cluster(
                 "memory_per_node": 20,
                 "min_memory_per_cpu": 10,
                 "nodes": 1,
-                "partition": "part",
-                "prefer": "preferred_part",
-                "scheduler": "slurm",
                 "tasks": 2,
                 "time_limit": 300,
             },

@@ -22,10 +22,6 @@
         "job_name": "lif-to-stack",
         "memory_per_node": 65536,
         "nodes": 1,
-        "partition": "{partition}",
-        "scheduler": "slurm",
-        "standard_error": "{session_dir}/tmp/run.err",
-        "standard_output": "{session_dir}/tmp/run.out",
         "tasks": 20,
         "time_limit": "3:00:00"
       },

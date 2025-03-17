@@ -47,11 +47,6 @@
         "job_name": "Refine3D-EM",
         "min_memory_per_gpu": 4096,
         "nodes": 1,
-        "partition": "{partition}",
-        "prefer": "{partition_preference}",
-        "scheduler": "slurm",
-        "standard_error": "{refine_job_dir}/run.err",
-        "standard_output": "{refine_job_dir}/run.out",
         "tasks": 5,
         "time_limit": "24:00:00"
       },
@@ -119,11 +114,6 @@
         "job_name": "Symmetry3D-EM",
         "min_memory_per_gpu": 4096,
         "nodes": 1,
-        "partition": "{partition}",
-        "prefer": "{partition_preference}",
-        "scheduler": "slurm",
-        "standard_error": "{refine_job_dir}/run_sym.err",
-        "standard_output": "{refine_job_dir}/run_sym.out",
         "tasks": 5,
         "time_limit": "24:00:00"
       },
