@@ -159,7 +159,7 @@ class ExtractSubTomo(CommonService):
         # Or possibly not, sometimes seems to be (width/2, height/2), needs exploration
         centre_x = 0
         centre_y = float(extract_subtomo_params.scaled_tomogram_shape[1]) / 2
-        tilt_axis_radians = (90 - refined_tilt_axis) * np.pi / 180
+        tilt_axis_radians = (refined_tilt_axis - 90) * np.pi / 180
 
         x_coords_in_tilts = centre_x + (
             (particles_x - centre_x) * np.cos(tilt_axis_radians)
@@ -171,6 +171,14 @@ class ExtractSubTomo(CommonService):
         )
         x_coords_in_tilts *= extract_subtomo_params.tomogram_binning
         y_coords_in_tilts *= extract_subtomo_params.tomogram_binning
+
+        with open(
+            Path(extract_subtomo_params.output_star).parent / "coords_in_tilts.txt", "w"
+        ) as f:
+            for particle in range(len(x_coords_in_tilts)):
+                f.write(
+                    f"{x_coords_in_tilts[particle]} {y_coords_in_tilts[particle]}\n"
+                )
 
         # Downscaling dimensions
         extract_subtomo_params.relion_options.pixel_size_downscaled = (
@@ -269,14 +277,16 @@ class ExtractSubTomo(CommonService):
 
                 if y_bot <= y_top or x_left >= x_right:
                     self.log.warning(f"Invalid {tilt} for particle {particle}")
-                    continue
-
-                particle_subimage = tilt_images[tilt][y_top:y_bot, x_left:x_right]
-                particle_subimage = np.pad(
-                    particle_subimage,
-                    ((y_bot_pad, y_top_pad), (x_left_pad, x_right_pad)),
-                    mode="edge",
-                )
+                    particle_subimage = np.random.random((box_len, box_len)) * np.max(
+                        tilt_images[tilt]
+                    )
+                else:
+                    particle_subimage = tilt_images[tilt][y_top:y_bot, x_left:x_right]
+                    particle_subimage = np.pad(
+                        particle_subimage,
+                        ((y_bot_pad, y_top_pad), (x_left_pad, x_right_pad)),
+                        mode="edge",
+                    )
 
                 # Flip all the values on inversion
                 if extract_subtomo_params.invert_contrast:
@@ -368,7 +378,7 @@ class ExtractSubTomo(CommonService):
                     ),
                     "1",
                     f"{_get_tilt_name_v5_12(Path(extract_subtomo_params.tilt_alignment_file))}/{particle}",
-                    f"[{frames[particle]}]",
+                    f"[{','.join([str(frm) for frm in frames[particle]])}]",
                     f"{Path(extract_subtomo_params.output_star).parent}/{particle}_stack2d.mrcs",
                     "0.0",
                     "0.0",
