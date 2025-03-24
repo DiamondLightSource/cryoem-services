@@ -244,7 +244,6 @@ def mrc_to_apng(plugin_params: Callable):
     if not required_parameters(plugin_params, ["file"]):
         return False
     filepath = Path(plugin_params("file"))
-    skip_rescaling = plugin_params("skip_rescaling")
     if not filepath.is_file():
         logger.error(f"File {filepath} not found")
         return False
@@ -263,7 +262,7 @@ def mrc_to_apng(plugin_params: Callable):
         images_to_append = []
         for frame in data:
             frame = np.ndarray.copy(frame)
-            if not skip_rescaling:
+            if not plugin_params("skip_rescaling"):
                 mean = np.mean(frame)
                 sdev = np.std(frame)
                 sigma_min = mean - 3 * sdev
@@ -272,9 +271,10 @@ def mrc_to_apng(plugin_params: Callable):
                 frame[frame > sigma_max] = sigma_max
             frame = frame - frame.min()
             frame = frame * 255 / frame.max()
-            clipped_frame = np.random.choice([0, 1], np.shape(frame))
-            clipped_frame[2:-2, 2:-2] = frame[2:-2, 2:-2]
-            frame = clipped_frame.astype("uint8")
+            if plugin_params("jitter_edge"):
+                clipped_frame = np.random.choice([0, 1], np.shape(frame))
+                clipped_frame[2:-2, 2:-2] = frame[2:-2, 2:-2]
+                frame = clipped_frame.astype("uint8")
             im = PIL.Image.fromarray(frame, mode="L")
             im.thumbnail((512, 512))
             images_to_append.append(im)

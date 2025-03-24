@@ -29,11 +29,13 @@ def plugin_params(jpeg_path: Path, all_frames: bool, pixel_size: float = 0):
     return params
 
 
-def plugin_params_central(jpeg_path):
+def plugin_params_central(jpeg_path, skip_rescaling=False, jitter_edge=False):
     def params(key):
         p = {
             "parameters": {"images_command": "mrc_central_slice"},
             "file": jpeg_path.with_suffix(".mrc"),
+            "skip_rescaling": skip_rescaling,
+            "jitter_edge": jitter_edge,
         }
         return p.get(key)
 
@@ -166,6 +168,75 @@ def test_mrc_to_apng_works_with_3d(tmp_path):
     assert mrc_to_apng(plugin_params_central(tmp_mrc_path)) == str(
         tmp_path / "tmp_movie.png"
     )
+
+
+@mock.patch("cryoemservices.services.images_plugins.PIL.Image")
+def test_mrc_to_apng_skip_rescaling(mock_pil, tmp_path):
+    tmp_mrc_path = tmp_path / "tmp.mrc"
+    data_3d = np.linspace(0, 49, 50, dtype=np.int16).reshape((2, 5, 5))
+    with mrcfile.new(tmp_mrc_path, overwrite=True) as mrc:
+        mrc.set_data(data_3d)
+    assert mrc_to_apng(plugin_params_central(tmp_mrc_path, skip_rescaling=True)) == str(
+        tmp_path / "tmp_movie.png"
+    )
+
+    # Check the image creation
+    assert mock_pil.fromarray.call_count == 2
+    mock_pil.fromarray.assert_called_with(mock.ANY, mode="L")
+    assert (mock_pil.fromarray.mock_calls[0][1] == data_3d[0] * 255 / 24).all()
+    assert (mock_pil.fromarray.mock_calls[2][1] == (data_3d[1] - 25) * 255 / 24).all()
+    mock_pil.fromarray().thumbnail.assert_called_with((512, 512))
+
+
+@mock.patch("cryoemservices.services.images_plugins.PIL.Image")
+def test_mrc_to_apng_jitter_edge(mock_pil, tmp_path):
+    tmp_mrc_path = tmp_path / "tmp.mrc"
+    data_3d = np.linspace(0, 49, 50, dtype=np.int16).reshape((2, 5, 5))
+    with mrcfile.new(tmp_mrc_path, overwrite=True) as mrc:
+        mrc.set_data(data_3d)
+    assert mrc_to_apng(
+        plugin_params_central(tmp_mrc_path, skip_rescaling=True, jitter_edge=True)
+    ) == str(tmp_path / "tmp_movie.png")
+
+    # Check the image creation
+    # This time the centre should match but the edge has changed
+    assert mock_pil.fromarray.call_count == 2
+    mock_pil.fromarray.assert_called_with(mock.ANY, mode="L")
+    assert (mock_pil.fromarray.mock_calls[0][1] != data_3d[0] * 255 / 24).any()
+    assert (mock_pil.fromarray.mock_calls[2][1] != (data_3d[1] - 25) * 255 / 24).any()
+    assert (mock_pil.fromarray.mock_calls[0][1] == data_3d[0] * 255 / 24)[
+        2:-2, 2:-2
+    ].all()
+    assert (mock_pil.fromarray.mock_calls[2][1] == (data_3d[1] - 25) * 255 / 24)[
+        2:-2, 2:-2
+    ].all()
+    mock_pil.fromarray().thumbnail.assert_called_with((512, 512))
+
+
+@mock.patch("cryoemservices.services.images_plugins.PIL.Image")
+def test_mrc_to_apng_rescaling(mock_pil, tmp_path):
+    tmp_mrc_path = tmp_path / "tmp.mrc"
+    data_3d = np.linspace(0, 49, 50, dtype=np.int16).reshape((2, 5, 5))
+    with mrcfile.new(tmp_mrc_path, overwrite=True) as mrc:
+        mrc.set_data(data_3d)
+    assert mrc_to_apng(plugin_params_central(tmp_mrc_path)) == str(
+        tmp_path / "tmp_movie.png"
+    )
+
+    mean = np.mean(data_3d[0])
+    sdev = np.std(data_3d[0])
+    sigma_min = mean - 3 * sdev
+    sigma_max = mean + 3 * sdev
+    rescaled_frame = data_3d[0]
+    rescaled_frame[rescaled_frame < sigma_min] = sigma_min
+    rescaled_frame[rescaled_frame > sigma_max] = sigma_max
+
+    # Check the image creation for the first frame
+    # This time the frame has been rescaled
+    assert mock_pil.fromarray.call_count == 2
+    mock_pil.fromarray.assert_called_with(mock.ANY, mode="L")
+    assert (mock_pil.fromarray.mock_calls[0][1] == rescaled_frame * 255 / 24).any()
+    mock_pil.fromarray().thumbnail.assert_called_with((512, 512))
 
 
 def test_picked_particles_3d_central_slice_fails_with_2d(tmp_path):
