@@ -437,6 +437,82 @@ def test_tomo_align_service_file_list_repeated_tilt(
 @mock.patch("cryoemservices.services.tomo_align.subprocess.run")
 @mock.patch("cryoemservices.services.tomo_align.px.scatter")
 @mock.patch("cryoemservices.services.tomo_align.mrcfile")
+def test_tomo_align_service_file_list_zero_rotation(
+    mock_mrcfile,
+    mock_plotly,
+    mock_subprocess,
+    offline_transport,
+    tmp_path,
+):
+    """
+    Send a test message to TomoAlign with a tilt axis of zero to test rotation of volume
+    """
+    mock_subprocess().returncode = 0
+    mock_subprocess().stdout = "stdout".encode("ascii")
+    mock_subprocess().stderr = "stderr".encode("ascii")
+
+    mock_mrcfile.open().__enter__().header = {"nx": 3000, "ny": 4000}
+
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+    tomo_align_test_message = {
+        "stack_file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack.st",
+        "input_file_list": str(
+            [
+                [f"{tmp_path}/MotionCorr/job002/Movies/Position_1_001_0.0.mrc", "1.00"],
+            ]
+        ),
+        "pixel_size": 1,
+        "tilt_axis": 0,
+        "relion_options": {},
+    }
+
+    # Create the input files. Needs sleeps to ensure distinct timestamps
+    (tmp_path / "MotionCorr/job002/Movies").mkdir(parents=True)
+    (tmp_path / "MotionCorr/job002/Movies/Position_1_001_0.0.mrc").touch()
+
+    # Set up the mock service
+    service = tomo_align.TomoAlign(environment={"queue": ""})
+    service.transport = offline_transport
+    service.start()
+
+    # Set up outputs: stack_Imod file like AreTomo2, no exclusions but with space
+    (tmp_path / "Tomograms/job006/tomograms/test_stack_Imod").mkdir(parents=True)
+    (tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo.mrc").touch()
+    (tmp_path / "Tomograms/job006/tomograms/test_stack_Imod/tilt.com").touch()
+    with open(tmp_path / "Tomograms/job006/tomograms/test_stack.aln", "w") as aln_file:
+        aln_file.write("dummy 0 1000 1.2 2.3 5 6 7 8 4.5")
+
+    # Send a message to the service
+    service.tomo_align(None, header=header, message=tomo_align_test_message)
+
+    # Check the expected calls were made
+    assert mock_plotly.call_count == 1
+    assert mock_subprocess.call_count == 6
+    assert offline_transport.send.call_count == 12
+
+    # This one runs the post-reconstruction volume flip
+    mock_subprocess.assert_any_call(
+        [
+            "rotatevol",
+            "-i",
+            f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
+            "-ou",
+            f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
+            "-size",
+            "750,1000,300",
+            "-a",
+            "0,0,-90",
+        ]
+    )
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+@mock.patch("cryoemservices.services.tomo_align.subprocess.run")
+@mock.patch("cryoemservices.services.tomo_align.px.scatter")
+@mock.patch("cryoemservices.services.tomo_align.mrcfile")
 def test_tomo_align_service_file_list_bad_tilts(
     mock_mrcfile,
     mock_plotly,
