@@ -285,6 +285,7 @@ class MotionCorr(CommonService):
 
         # Check if the gain file exists:
         if mc_params.gain_ref and not Path(mc_params.gain_ref).is_file():
+            self.log.warning(f"Gain reference {mc_params.gain_ref} does not exist")
             mc_params.gain_ref = ""
 
         # Generate the plotting paths
