@@ -36,8 +36,6 @@ class ExtractSubTomoParameters(BaseModel):
     min_frames: int = 1
     maximum_dose: int = -1
     tomogram_binning: int = 4
-    invert_contrast: bool = True
-    bg_radius: int = -1
     relion_options: RelionServiceOptions
 
     @field_validator("scaled_tomogram_shape")
@@ -127,12 +125,6 @@ class ExtractSubTomo(CommonService):
         if not Path(extract_subtomo_params.output_star).parent.exists():
             Path(extract_subtomo_params.output_star).parent.mkdir(parents=True)
 
-        # If no background radius set diameter as 75% of box
-        if extract_subtomo_params.bg_radius == -1:
-            extract_subtomo_params.bg_radius = round(
-                0.375 * extract_subtomo_params.relion_options.small_boxsize
-            )
-
         # Find the locations of the particles
         coords_file = cif.read(extract_subtomo_params.cbox_3d_file)
         coords_block = coords_file.find_block("cryolo")
@@ -187,21 +179,8 @@ class ExtractSubTomo(CommonService):
             / extract_subtomo_params.relion_options.small_boxsize
         )
         extract_width = round(extract_subtomo_params.relion_options.boxsize / 2)
-        scaled_extract_width = round(
-            extract_subtomo_params.relion_options.small_boxsize / 2
-        )
-        box_len = extract_subtomo_params.relion_options.small_boxsize
-        pixel_size = extract_subtomo_params.relion_options.pixel_size_downscaled
 
-        # Distance of each pixel from the centre for background normalization
-        grid_indexes = np.meshgrid(
-            np.arange(2 * scaled_extract_width),
-            np.arange(2 * scaled_extract_width),
-        )
-        distance_from_centre = np.sqrt(
-            (grid_indexes[0] - scaled_extract_width + 0.5) ** 2
-            + (grid_indexes[1] - scaled_extract_width + 0.5) ** 2
-        )
+        pixel_size = extract_subtomo_params.relion_options.pixel_size_downscaled
 
         # Read in tilt images
         self.log.info("Reading tilt images")
@@ -228,100 +207,21 @@ class ExtractSubTomo(CommonService):
                 ):
                     continue
 
-                # Extract the particle image and pad the edges if it is not square
-                x_left_pad = 0
-                x_right_pad = 0
-                y_top_pad = 0
-                y_bot_pad = 0
-
-                x_left = round(
-                    x_coords_in_tilts[particle] - extract_width - x_shifts[tilt]
+                particle_subimage, invalid_tilt = extract_particle_in_tilt(
+                    tilt_image=tilt_images[tilt],
+                    x_coord=x_coords_in_tilts[particle],
+                    y_coord=y_coords_in_tilts[particle],
+                    x_shift=x_shifts[tilt],
+                    y_shift=y_shifts[tilt],
+                    extract_width=extract_width,
+                    scaled_tomogram_shape=[
+                        int(i) for i in extract_subtomo_params.scaled_tomogram_shape
+                    ],
+                    tomogram_binning=extract_subtomo_params.tomogram_binning,
+                    small_boxsize=extract_subtomo_params.small_boxsize,
                 )
-                if x_left < 0:
-                    x_left_pad = -x_left
-                    x_left = 0
-                x_right = round(
-                    x_coords_in_tilts[particle] + extract_width - x_shifts[tilt]
-                )
-                if (
-                    x_right
-                    >= extract_subtomo_params.scaled_tomogram_shape[0]
-                    * extract_subtomo_params.tomogram_binning
-                ):
-                    x_right_pad = (
-                        x_right - extract_subtomo_params.scaled_tomogram_shape[0]
-                    )
-                    x_right = (
-                        extract_subtomo_params.scaled_tomogram_shape[0]
-                        * extract_subtomo_params.tomogram_binning
-                    )
-                y_top = round(
-                    y_coords_in_tilts[particle] - extract_width - y_shifts[tilt]
-                )
-                if y_top < 0:
-                    y_top_pad = -y_top
-                    y_top = 0
-                y_bot = round(
-                    y_coords_in_tilts[particle] + extract_width - y_shifts[tilt]
-                )
-                if (
-                    y_bot
-                    >= extract_subtomo_params.scaled_tomogram_shape[1]
-                    * extract_subtomo_params.tomogram_binning
-                ):
-                    y_bot_pad = y_bot - extract_subtomo_params.scaled_tomogram_shape[1]
-                    y_bot = (
-                        extract_subtomo_params.scaled_tomogram_shape[1]
-                        * extract_subtomo_params.tomogram_binning
-                    )
-
-                if y_bot <= y_top or x_left >= x_right:
+                if invalid_tilt:
                     self.log.warning(f"Invalid {tilt} for particle {particle}")
-                    particle_subimage = np.random.random((box_len, box_len)) * np.max(
-                        tilt_images[tilt]
-                    )
-                else:
-                    particle_subimage = tilt_images[tilt][y_top:y_bot, x_left:x_right]
-                    particle_subimage = np.pad(
-                        particle_subimage,
-                        ((y_bot_pad, y_top_pad), (x_left_pad, x_right_pad)),
-                        mode="edge",
-                    )
-
-                # Flip all the values on inversion
-                if extract_subtomo_params.invert_contrast:
-                    particle_subimage = -1 * particle_subimage
-
-                # Downscale the image size
-                subimage_ft = np.fft.fftshift(np.fft.fft2(particle_subimage))
-                deltax = (
-                    subimage_ft.shape[0]
-                    - extract_subtomo_params.relion_options.small_boxsize
-                )
-                deltay = (
-                    subimage_ft.shape[1]
-                    - extract_subtomo_params.relion_options.small_boxsize
-                )
-                particle_subimage = np.real(
-                    np.fft.ifft2(
-                        np.fft.ifftshift(
-                            subimage_ft[
-                                deltax // 2 : subimage_ft.shape[0] - deltax // 2,
-                                deltay // 2 : subimage_ft.shape[1] - deltay // 2,
-                            ]
-                        )
-                    )
-                )
-
-                # Background normalisation
-                bg_region = (
-                    distance_from_centre
-                    > np.ones(np.shape(particle_subimage))
-                    * extract_subtomo_params.bg_radius
-                )
-                bg_mean = np.mean(particle_subimage[bg_region])
-                bg_std = np.std(particle_subimage[bg_region])
-                particle_subimage = (particle_subimage - bg_mean) / bg_std
 
                 # Add to output stack
                 if len(output_mrc_stack):
@@ -344,11 +244,15 @@ class ExtractSubTomo(CommonService):
             self.log.info(f"Extracted particle {particle} of {len(particles_x)}")
             with mrcfile.new(str(output_mrc_file), overwrite=True) as mrc:
                 mrc.set_data(output_mrc_stack.astype(np.float32))
-                mrc.header.mx = box_len
-                mrc.header.my = box_len
+                mrc.header.mx = extract_subtomo_params.relion_options.small_boxsize
+                mrc.header.my = extract_subtomo_params.relion_options.small_boxsize
                 mrc.header.mz = 1
-                mrc.header.cella.x = pixel_size * box_len
-                mrc.header.cella.y = pixel_size * box_len
+                mrc.header.cella.x = (
+                    pixel_size * extract_subtomo_params.relion_options.small_boxsize
+                )
+                mrc.header.cella.y = (
+                    pixel_size * extract_subtomo_params.relion_options.small_boxsize
+                )
                 mrc.header.cella.z = 1
 
         # Construct the output star file
@@ -417,7 +321,9 @@ class ExtractSubTomo(CommonService):
             "command": "",
             "stdout": "",
             "stderr": "",
-            "results": {"box_size": box_len},
+            "results": {
+                "box_size": extract_subtomo_params.relion_options.small_boxsize
+            },
         }
         rw.send_to("node_creator", node_creator_parameters)
 
@@ -425,3 +331,88 @@ class ExtractSubTomo(CommonService):
             f"Done {self.job_type} for {extract_subtomo_params.cbox_3d_file}."
         )
         rw.transport.ack(header)
+
+
+def extract_particle_in_tilt(
+    tilt_image: np.ndarray,
+    x_coord: float,
+    y_coord: float,
+    x_shift: float,
+    y_shift: float,
+    extract_width: float,
+    scaled_tomogram_shape: list[int],
+    tomogram_binning: int,
+    small_boxsize: int,
+):
+    # Extract the particle image and pad the edges if it is not square
+    x_left_pad = 0
+    x_right_pad = 0
+    y_top_pad = 0
+    y_bot_pad = 0
+
+    x_left = round(x_coord - extract_width - x_shift)
+    if x_left < 0:
+        x_left_pad = -x_left
+        x_left = 0
+    x_right = round(x_coord + extract_width - x_shift)
+    if x_right >= scaled_tomogram_shape[0] * tomogram_binning:
+        x_right_pad = x_right - scaled_tomogram_shape[0]
+        x_right = scaled_tomogram_shape[0] * tomogram_binning
+    y_top = round(y_coord - extract_width - y_shift)
+    if y_top < 0:
+        y_top_pad = -y_top
+        y_top = 0
+    y_bot = round(y_coord + extract_width - y_shift)
+    if y_bot >= scaled_tomogram_shape[1] * tomogram_binning:
+        y_bot_pad = y_bot - scaled_tomogram_shape[1]
+        y_bot = scaled_tomogram_shape[1] * tomogram_binning
+
+    if y_bot <= y_top or x_left >= x_right:
+        invalid = True
+        particle_subimage = np.random.random(
+            (extract_width * 2, extract_width * 2)
+        ) * np.max(tilt_image)
+    else:
+        invalid = False
+        particle_subimage = tilt_image[y_top:y_bot, x_left:x_right]
+        particle_subimage = np.pad(
+            particle_subimage,
+            ((y_bot_pad, y_top_pad), (x_left_pad, x_right_pad)),
+            mode="edge",
+        )
+
+    # Flip all the values on inversion
+    particle_subimage = -1 * particle_subimage
+
+    # Downscale the image size
+    subimage_ft = np.fft.fftshift(np.fft.fft2(particle_subimage))
+    deltax = subimage_ft.shape[0] - small_boxsize
+    deltay = subimage_ft.shape[1] - small_boxsize
+    particle_subimage = np.real(
+        np.fft.ifft2(
+            np.fft.ifftshift(
+                subimage_ft[
+                    deltax // 2 : subimage_ft.shape[0] - deltax // 2,
+                    deltay // 2 : subimage_ft.shape[1] - deltay // 2,
+                ]
+            )
+        )
+    )
+
+    # Distance of each pixel from the centre for background normalization
+    grid_indexes = np.meshgrid(
+        np.arange(small_boxsize),
+        np.arange(small_boxsize),
+    )
+    distance_from_centre = np.sqrt(
+        (grid_indexes[0] - round(small_boxsize / 2) + 0.5) ** 2
+        + (grid_indexes[1] - round(small_boxsize / 2) + 0.5) ** 2
+    )
+
+    # Background normalisation
+    bg_radius = round(0.375 * small_boxsize)
+    bg_region = distance_from_centre > np.ones(np.shape(particle_subimage)) * bg_radius
+    bg_mean = np.mean(particle_subimage[bg_region])
+    bg_std = np.std(particle_subimage[bg_region])
+    particle_subimage = (particle_subimage - bg_mean) / bg_std
+    return particle_subimage, invalid
