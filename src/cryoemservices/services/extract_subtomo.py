@@ -416,3 +416,14 @@ def extract_particle_in_tilt(
     bg_std = np.std(particle_subimage[bg_region])
     particle_subimage = (particle_subimage - bg_mean) / bg_std
     return particle_subimage, invalid
+
+
+"""
+python /dls_sw/apps/EM/aretomo3/2.1.0/AreTomo3/tools/Remap3D_0.3_07dec24/remap3D.py
+-ovs 1022 1440 300 -nvs 1022 1440 300 -ops 1.34 -nps 1.34
+-os AutoPick/job009/CBOX_3D/Position_5_5_stack.star
+-ns AutoPick/Position_5_5_remap.star
+-oa Tomograms/job006/tomograms/
+-na AlignTiltSeries/job080/external/Position_5_5/
+-oap Position_
+"""
