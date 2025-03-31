@@ -413,6 +413,12 @@ class TomoAlign(CommonService):
 
         # Flip the volume if AreTomo has not done this
         if tomo_params.flip_vol_post_reconstruction and not tomo_params.flip_vol:
+            if tomo_params.tilt_axis is not None and -45 < tomo_params.tilt_axis < 45:
+                # If given tilt axis of around 0, don't do rotations
+                angles_to_flip = "0,0,-90"
+            else:
+                # Otherwise assume we need to flip (which is the behaviour for axis 90)
+                angles_to_flip = "90,-90,0"
             rotate_result = subprocess.run(
                 [
                     "rotatevol",
@@ -423,7 +429,7 @@ class TomoAlign(CommonService):
                     "-size",
                     f"{int(scaled_x_size)},{int(scaled_y_size)},{int(scaled_z_size)}",
                     "-a",
-                    "90,-90,0",
+                    angles_to_flip,
                 ]
             )
             if rotate_result.returncode:
