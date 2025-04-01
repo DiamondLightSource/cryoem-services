@@ -360,9 +360,20 @@ class NodeCreator(CommonService):
             pipeline_options["movie_files"] = job_info.input_file.split(":")[0]
             pipeline_options["mdoc_files"] = job_info.input_file.split(":")[1]
 
+        # Mark the job completion status
+        job_is_continue = False
+        for exit_file in job_dir.glob("PIPELINER_JOB_EXIT_*"):
+            if exit_file.name == "PIPELINER_JOB_EXIT_SUCCESS" and job_info.success:
+                job_is_continue = True
+            exit_file.unlink()
+        if job_info.success:
+            (job_dir / SUCCESS_FILE).touch()
+        else:
+            (job_dir / FAIL_FILE).touch()
+
         try:
-            # If this is a new job we need a job.star
-            if not Path(f"{job_info.job_type.replace('.', '_')}_job.star").is_file():
+            # If this is a new job number we need a job.star
+            if not job_is_continue:
                 self.log.info(f"Generating options for new job: {job_info.job_type}")
                 write_default_jobstar(job_info.job_type)
                 params = job_default_parameters_dict(job_info.job_type)
@@ -392,17 +403,6 @@ class NodeCreator(CommonService):
         (job_dir / "job.star").write_bytes(
             Path(f"{job_info.job_type.replace('.', '_')}_job.star").read_bytes()
         )
-
-        # Mark the job completion status
-        job_is_continue = False
-        for exit_file in job_dir.glob("PIPELINER_JOB_EXIT_*"):
-            if exit_file.name == "PIPELINER_JOB_EXIT_SUCCESS" and job_info.success:
-                job_is_continue = True
-            exit_file.unlink()
-        if job_info.success:
-            (job_dir / SUCCESS_FILE).touch()
-        else:
-            (job_dir / FAIL_FILE).touch()
 
         # Get the files and directories relative to the project if possible
         relative_job_dir = (
