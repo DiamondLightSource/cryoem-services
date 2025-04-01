@@ -16,6 +16,7 @@ from cryoemservices.util.relion_service_options import (
     update_relion_options,
 )
 from cryoemservices.util.tomo_output_files import (
+    _get_tilt_angle_v5_12,
     _get_tilt_name_v5_12,
     _get_tilt_number_v5_12,
 )
@@ -149,28 +150,10 @@ class ExtractSubTomo(CommonService):
 
         # Rotation around the tilt axis is about (0, height/2)
         # Or possibly not, sometimes seems to be (width/2, height/2), needs exploration
-        centre_x = 0
+        centre_x = float(extract_subtomo_params.scaled_tomogram_shape[0]) / 2
         centre_y = float(extract_subtomo_params.scaled_tomogram_shape[1]) / 2
+        centre_z = float(extract_subtomo_params.scaled_tomogram_shape[2]) / 2
         tilt_axis_radians = (refined_tilt_axis - 90) * np.pi / 180
-
-        x_coords_in_tilts = centre_x + (
-            (particles_x - centre_x) * np.cos(tilt_axis_radians)
-            - (particles_y - centre_y) * np.sin(tilt_axis_radians)
-        )
-        y_coords_in_tilts = centre_y + (
-            (particles_x - centre_x) * np.sin(tilt_axis_radians)
-            + (particles_y - centre_y) * np.cos(tilt_axis_radians)
-        )
-        x_coords_in_tilts *= extract_subtomo_params.tomogram_binning
-        y_coords_in_tilts *= extract_subtomo_params.tomogram_binning
-
-        with open(
-            Path(extract_subtomo_params.output_star).parent / "coords_in_tilts.txt", "w"
-        ) as f:
-            for particle in range(len(x_coords_in_tilts)):
-                f.write(
-                    f"{x_coords_in_tilts[particle]} {y_coords_in_tilts[particle]}\n"
-                )
 
         # Downscaling dimensions
         extract_subtomo_params.relion_options.pixel_size_downscaled = (
@@ -186,6 +169,7 @@ class ExtractSubTomo(CommonService):
         self.log.info("Reading tilt images")
         tilt_images = []
         tilt_numbers = []
+        tilt_angles = []
         with open(extract_subtomo_params.newstack_file) as ns_file:
             while True:
                 line = ns_file.readline()
@@ -194,6 +178,8 @@ class ExtractSubTomo(CommonService):
                 elif line.startswith("/"):
                     tilt_name = line.strip()
                     tilt_numbers.append(_get_tilt_number_v5_12(Path(tilt_name)))
+                    # TODO: want exact tilt angles
+                    tilt_angles.append(float(_get_tilt_angle_v5_12(Path(tilt_name))))
                     with mrcfile.open(tilt_name) as mrc:
                         tilt_images.append(mrc.data)
 
@@ -207,12 +193,32 @@ class ExtractSubTomo(CommonService):
                 ):
                     continue
 
+                x_in_tilt, y_in_tilt = get_coord_in_tilt(
+                    x=particles_x[particle],
+                    y=particles_y[particle],
+                    z=particles_z[particle],
+                    cen_x=centre_x,
+                    cen_y=centre_y,
+                    cen_z=centre_z,
+                    theta_y=tilt_angles[tilt],
+                    theta_z=tilt_axis_radians,
+                    delta_x=x_shifts[tilt],
+                    delta_y=y_shifts[tilt],
+                )
+                if tilt_angles[tilt] == 0:
+                    with open(
+                        Path(extract_subtomo_params.output_star).parent
+                        / "coords_in_tilts.txt",
+                        "a",
+                    ) as f:
+                        f.write(
+                            f"{particles_x[particle]} {particles_y[particle]} {x_in_tilt} {y_in_tilt}\n"
+                        )
+
                 particle_subimage, invalid_tilt = extract_particle_in_tilt(
                     tilt_image=tilt_images[tilt],
-                    x_coord=x_coords_in_tilts[particle],
-                    y_coord=y_coords_in_tilts[particle],
-                    x_shift=x_shifts[tilt],
-                    y_shift=y_shifts[tilt],
+                    x_coord=x_in_tilt,
+                    y_coord=y_in_tilt,
                     extract_width=extract_width,
                     scaled_tomogram_shape=[
                         int(i) for i in extract_subtomo_params.scaled_tomogram_shape
@@ -337,8 +343,6 @@ def extract_particle_in_tilt(
     tilt_image: np.ndarray,
     x_coord: float,
     y_coord: float,
-    x_shift: float,
-    y_shift: float,
     extract_width: float,
     scaled_tomogram_shape: list[int],
     tomogram_binning: int,
@@ -350,19 +354,19 @@ def extract_particle_in_tilt(
     y_top_pad = 0
     y_bot_pad = 0
 
-    x_left = round(x_coord - extract_width - x_shift)
+    x_left = round(x_coord - extract_width)
     if x_left < 0:
         x_left_pad = -x_left
         x_left = 0
-    x_right = round(x_coord + extract_width - x_shift)
+    x_right = round(x_coord + extract_width)
     if x_right >= scaled_tomogram_shape[0] * tomogram_binning:
         x_right_pad = x_right - scaled_tomogram_shape[0]
         x_right = scaled_tomogram_shape[0] * tomogram_binning
-    y_top = round(y_coord - extract_width - y_shift)
+    y_top = round(y_coord - extract_width)
     if y_top < 0:
         y_top_pad = -y_top
         y_top = 0
-    y_bot = round(y_coord + extract_width - y_shift)
+    y_bot = round(y_coord + extract_width)
     if y_bot >= scaled_tomogram_shape[1] * tomogram_binning:
         y_bot_pad = y_bot - scaled_tomogram_shape[1]
         y_bot = scaled_tomogram_shape[1] * tomogram_binning
@@ -418,12 +422,31 @@ def extract_particle_in_tilt(
     return particle_subimage, invalid
 
 
-"""
-python /dls_sw/apps/EM/aretomo3/2.1.0/AreTomo3/tools/Remap3D_0.3_07dec24/remap3D.py
--ovs 1022 1440 300 -nvs 1022 1440 300 -ops 1.34 -nps 1.34
--os AutoPick/job009/CBOX_3D/Position_5_5_stack.star
--ns AutoPick/Position_5_5_remap.star
--oa Tomograms/job006/tomograms/
--na AlignTiltSeries/job080/external/Position_5_5/
--oap Position_
-"""
+def get_coord_in_tilt(
+    x: float,
+    y: float,
+    z: float,
+    cen_x: float,
+    cen_y: float,
+    cen_z: float,
+    theta_y: float,
+    theta_z: float,
+    delta_x: float,
+    delta_y: float,
+):
+    x_centred = x - cen_x
+    y_centred = y - cen_y + cen_x * np.tan(theta_z)  # TODO: last factor depends on rot
+    z_centred = z - cen_z
+    x_2d = (
+        x_centred * np.cos(theta_z) * np.cos(theta_y)
+        - y_centred * np.sin(theta_z)
+        + z_centred * np.cos(theta_z) * np.sin(theta_y)
+        + delta_x
+    )
+    y_2d = (
+        x_centred * np.sin(theta_z) * np.cos(theta_y)
+        + y_centred * np.cos(theta_z)
+        + z_centred * np.sin(theta_z) * np.sin(theta_y)
+        + delta_y
+    )
+    return cen_x + x_2d, cen_y + y_2d
