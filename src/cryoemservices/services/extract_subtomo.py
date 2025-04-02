@@ -10,6 +10,7 @@ from gemmi import cif
 from pydantic import BaseModel, Field, ValidationError, field_validator
 from workflows.services.common_service import CommonService
 
+from cryoemservices.services.extract import extract_single_particle
 from cryoemservices.util.models import MockRW
 from cryoemservices.util.relion_service_options import (
     RelionServiceOptions,
@@ -169,7 +170,7 @@ class ExtractSubTomo(CommonService):
         self.log.info("Reading tilt images")
         tilt_images = []
         tilt_numbers = []
-        tilt_angles = []
+        tilt_angles_radians = []
         with open(extract_subtomo_params.newstack_file) as ns_file:
             while True:
                 line = ns_file.readline()
@@ -179,7 +180,9 @@ class ExtractSubTomo(CommonService):
                     tilt_name = line.strip()
                     tilt_numbers.append(_get_tilt_number_v5_12(Path(tilt_name)))
                     # TODO: want exact tilt angles
-                    tilt_angles.append(float(_get_tilt_angle_v5_12(Path(tilt_name))))
+                    tilt_angles_radians.append(
+                        float(_get_tilt_angle_v5_12(Path(tilt_name))) * np.pi / 180
+                    )
                     with mrcfile.open(tilt_name) as mrc:
                         tilt_images.append(mrc.data)
 
@@ -200,12 +203,12 @@ class ExtractSubTomo(CommonService):
                     cen_x=centre_x,
                     cen_y=centre_y,
                     cen_z=centre_z,
-                    theta_y=tilt_angles[tilt],
+                    theta_y=tilt_angles_radians[tilt],
                     theta_z=tilt_axis_radians,
                     delta_x=x_shifts[tilt],
                     delta_y=y_shifts[tilt],
                 )
-                if tilt_angles[tilt] == 0:
+                if tilt_angles_radians[tilt] == 0:
                     with open(
                         Path(extract_subtomo_params.output_star).parent
                         / "coords_in_tilts.txt",
@@ -215,19 +218,34 @@ class ExtractSubTomo(CommonService):
                             f"{particles_x[particle]} {particles_y[particle]} {x_in_tilt} {y_in_tilt}\n"
                         )
 
-                particle_subimage, invalid_tilt = extract_particle_in_tilt(
-                    tilt_image=tilt_images[tilt],
+                particle_subimage, failure_reason = extract_single_particle(
+                    input_image=tilt_images[tilt],
                     x_coord=x_in_tilt,
                     y_coord=y_in_tilt,
                     extract_width=extract_width,
-                    scaled_tomogram_shape=[
-                        int(i) for i in extract_subtomo_params.scaled_tomogram_shape
+                    shape=[
+                        int(i * extract_subtomo_params.tomogram_binning)
+                        for i in extract_subtomo_params.scaled_tomogram_shape
                     ],
-                    tomogram_binning=extract_subtomo_params.tomogram_binning,
                     small_boxsize=extract_subtomo_params.small_boxsize,
+                    bg_radius=round(0.375 * extract_subtomo_params.small_boxsize),
+                    invert_contrast=True,
+                    downscale=True,
+                    norm=True,
+                    plane_fit=True,
                 )
-                if invalid_tilt:
-                    self.log.warning(f"Invalid {tilt} for particle {particle}")
+
+                if failure_reason:
+                    self.log.warning(
+                        f"Extraction failed for {particle} in {tilt}. "
+                        f"Reason was {failure_reason}."
+                    )
+                    particle_subimage = np.zeros(
+                        (
+                            extract_subtomo_params.small_boxsize,
+                            extract_subtomo_params.small_boxsize,
+                        )
+                    )
 
                 # Add to output stack
                 if len(output_mrc_stack):
