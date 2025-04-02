@@ -31,6 +31,7 @@ class ExtractSubTomoParameters(BaseModel):
     scaled_tomogram_shape: list[int] | str
     pixel_size: float
     dose_per_tilt: float
+    tilt_offset: float
     particle_diameter: float = 0
     boxsize: int = 256
     small_boxsize: int = 64
@@ -181,9 +182,14 @@ class ExtractSubTomo(CommonService):
                 elif line.startswith("/"):
                     tilt_name = line.strip()
                     tilt_numbers.append(_get_tilt_number_v5_12(Path(tilt_name)))
-                    # TODO: want exact tilt angles
+                    tilt_axis_from_file = float(_get_tilt_angle_v5_12(Path(tilt_name)))
                     tilt_angles_radians.append(
-                        float(_get_tilt_angle_v5_12(Path(tilt_name))) * np.pi / 180
+                        (
+                            tilt_axis_from_file
+                            + extract_subtomo_params.refined_tilt_offset
+                        )
+                        * np.pi
+                        / 180
                     )
                     with mrcfile.open(tilt_name) as mrc:
                         tilt_images.append(mrc.data)
@@ -310,9 +316,9 @@ class ExtractSubTomo(CommonService):
                     f"{_get_tilt_name_v5_12(Path(extract_subtomo_params.tilt_alignment_file))}/{particle}",
                     f"[{','.join([str(frm) for frm in frames[particle]])}]",
                     f"{Path(extract_subtomo_params.output_star).parent}/{particle}_stack2d.mrcs",
-                    str(centre_x),
-                    str(centre_y),
-                    str(centre_z),
+                    str(centre_x * extract_subtomo_params.tomogram_binning),
+                    str(centre_y * extract_subtomo_params.tomogram_binning),
+                    str(centre_z * extract_subtomo_params.tomogram_binning),
                     str(
                         float(particles_x[particle])
                         - centre_x * extract_subtomo_params.tomogram_binning
