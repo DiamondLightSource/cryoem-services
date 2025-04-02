@@ -373,7 +373,10 @@ class NodeCreator(CommonService):
 
         try:
             # If this is a new job number we need a job.star
-            if not job_is_continue:
+            if (
+                not job_is_continue
+                or not Path(f"{job_info.job_type.replace('.', '_')}_job.star").is_file()
+            ):
                 self.log.info(f"Generating options for new job: {job_info.job_type}")
                 write_default_jobstar(job_info.job_type)
                 params = job_default_parameters_dict(job_info.job_type)
