@@ -34,7 +34,6 @@ class ExtractSubTomoParameters(BaseModel):
     particle_diameter: float = 0
     boxsize: int = 256
     small_boxsize: int = 64
-    binning: int = 8
     min_frames: int = 1
     maximum_dose: int = -1
     tomogram_binning: int = 4
@@ -161,6 +160,9 @@ class ExtractSubTomo(CommonService):
             extract_subtomo_params.pixel_size
             * extract_subtomo_params.relion_options.boxsize
             / extract_subtomo_params.relion_options.small_boxsize
+        )
+        self.log.info(
+            f"Downscaling to {extract_subtomo_params.relion_options.pixel_size_downscaled}"
         )
         extract_width = round(extract_subtomo_params.relion_options.boxsize / 2)
 
@@ -308,26 +310,20 @@ class ExtractSubTomo(CommonService):
                     f"{_get_tilt_name_v5_12(Path(extract_subtomo_params.tilt_alignment_file))}/{particle}",
                     f"[{','.join([str(frm) for frm in frames[particle]])}]",
                     f"{Path(extract_subtomo_params.output_star).parent}/{particle}_stack2d.mrcs",
-                    "0.0",
-                    "0.0",
-                    "0.0",
+                    str(centre_x),
+                    str(centre_y),
+                    str(centre_z),
                     str(
                         float(particles_x[particle])
-                        - float(extract_subtomo_params.scaled_tomogram_shape[2])
-                        / 2
-                        * extract_subtomo_params.tomogram_binning
+                        - centre_x * extract_subtomo_params.tomogram_binning
                     ),
                     str(
                         float(particles_y[particle])
-                        - float(extract_subtomo_params.scaled_tomogram_shape[1])
-                        / 2
-                        * extract_subtomo_params.tomogram_binning
+                        - centre_y * extract_subtomo_params.tomogram_binning
                     ),
                     str(
                         float(particles_z[particle])
-                        - float(extract_subtomo_params.scaled_tomogram_shape[0])
-                        / 2
-                        * extract_subtomo_params.tomogram_binning
+                        - centre_z * extract_subtomo_params.tomogram_binning
                     ),
                 ]
             )
