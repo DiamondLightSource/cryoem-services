@@ -352,7 +352,7 @@ def extract_single_particle(
         y_bot = shape[1]
 
     if y_bot <= y_top or x_left >= x_right:
-        return [], "Particle is outside image"
+        return np.array([]), "Particle is outside image"
     else:
         particle_subimage = input_image[y_top:y_bot, x_left:x_right]
         particle_subimage = np.pad(
@@ -399,7 +399,7 @@ def extract_single_particle(
         positions = [grid_indexes[0][bg_region], grid_indexes[1][bg_region]]
         # needs to create a matrix of the correct shape for  a*x + b*y + c plane fit
         if not len(positions[0]) == len(positions[1]):
-            return [], "Particle image is not square"
+            return np.array([]), "Particle image is not square"
         data_size = len(positions[0])
         positions_matrix = np.hstack(
             (
@@ -422,7 +422,7 @@ def extract_single_particle(
                 values,
             )
         except np.linalg.LinAlgError:
-            return [], "Could not fit image plane"
+            return np.array([]), "Could not fit image plane"
         # now we need the full grid across the image
         positions_matrix = np.hstack(
             (
