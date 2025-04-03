@@ -19,7 +19,7 @@ The configuration has the following format:
     user_token: <file with restapi token>
     user: <username>
     user_home: <home directory>
-    api_version: v0.0.38 or v0.0.40
+    api_version: v0.0.40
     partition: <optional slurm partition>
     partition_preference: <optional slurm preferences>
     cluster: <optional slurm clusters>
@@ -27,11 +27,6 @@ The configuration has the following format:
 """
 
 slurm_json_job_template = {
-    "v0.0.38": {
-        "nodes": 1,
-        "tasks": 1,
-        "time_limit": "1:00:00",
-    },
     "v0.0.40": {
         "minimum_nodes": 1,
         "maximum_nodes": 1,
@@ -113,7 +108,7 @@ def slurm_submission(
 
     # Check the API version is one this service has been tested with
     api_version = slurm_rest["api_version"]
-    if api_version not in ["v0.0.38", "v0.0.40"]:
+    if api_version not in ["v0.0.40"]:
         return subprocess.CompletedProcess(
             args="",
             returncode=1,
@@ -129,11 +124,8 @@ def slurm_submission(
         "standard_output": slurm_output_file,
         "standard_error": slurm_error_file,
         "current_working_directory": str(project_dir),
+        "environment": [f"USER={user}", f"HOME={user_home}"],
     }
-    if api_version == "v0.0.38":
-        slurm_config["environment"] = {"USER": user, "HOME": user_home}
-    else:
-        slurm_config["environment"] = [f"USER={user}", f"HOME={user_home}"]
 
     # Add slurm partition and cluster preferences if given
     if slurm_rest.get("partition"):
@@ -150,17 +142,10 @@ def slurm_submission(
     slurm_json_job["name"] = job_name
     slurm_json_job["cpus_per_task"] = cpus
     if use_gpu:
-        if api_version == "v0.0.38":
-            slurm_json_job["gpus"] = 1
-            slurm_json_job["memory_per_gpu"] = memory_request
-        else:
-            slurm_json_job["tres_per_task"] = "gres/gpu:1"
-            slurm_json_job["memory_per_node"]["number"] = memory_request
+        slurm_json_job["tres_per_task"] = "gres/gpu:1"
+        slurm_json_job["memory_per_node"]["number"] = memory_request
     else:
-        if api_version == "v0.0.38":
-            slurm_json_job["memory_per_cpu"] = 1000
-        else:
-            slurm_json_job["memory_per_node"]["number"] = 1000 * cpus
+        slurm_json_job["memory_per_node"]["number"] = 1000 * cpus
 
     # Construct the job command and save the job script
     if use_singularity:
