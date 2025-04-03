@@ -184,10 +184,7 @@ class ExtractSubTomo(CommonService):
                     tilt_numbers.append(_get_tilt_number_v5_12(Path(tilt_name)))
                     tilt_axis_from_file = float(_get_tilt_angle_v5_12(Path(tilt_name)))
                     tilt_angles_radians.append(
-                        (
-                            tilt_axis_from_file
-                            + extract_subtomo_params.refined_tilt_offset
-                        )
+                        (tilt_axis_from_file + extract_subtomo_params.tilt_offset)
                         * np.pi
                         / 180
                     )
@@ -215,6 +212,7 @@ class ExtractSubTomo(CommonService):
                     theta_z=tilt_axis_radians,
                     delta_x=x_shifts[tilt],
                     delta_y=y_shifts[tilt],
+                    binning=extract_subtomo_params.tomogram_binning,
                 )
                 if tilt_angles_radians[tilt] == 0:
                     with open(
@@ -370,7 +368,9 @@ def get_coord_in_tilt(
     theta_z: float,
     delta_x: float,
     delta_y: float,
+    binning: int,
 ):
+    # In binned coordinates here
     x_centred = x - cen_x
     y_centred = y - cen_y + cen_x * np.tan(theta_z)  # TODO: last factor depends on rot
     z_centred = z - cen_z
@@ -378,12 +378,13 @@ def get_coord_in_tilt(
         x_centred * np.cos(theta_z) * np.cos(theta_y)
         - y_centred * np.sin(theta_z)
         + z_centred * np.cos(theta_z) * np.sin(theta_y)
-        + delta_x
     )
     y_2d = (
         x_centred * np.sin(theta_z) * np.cos(theta_y)
         + y_centred * np.cos(theta_z)
         + z_centred * np.sin(theta_z) * np.sin(theta_y)
-        + delta_y
     )
-    return cen_x + x_2d, cen_y + y_2d
+    # Un-bin and apply shifts
+    x_tilt = (cen_x + x_2d) * binning - delta_x
+    y_tilt = (cen_y + y_2d) * binning - delta_y
+    return x_tilt, y_tilt
