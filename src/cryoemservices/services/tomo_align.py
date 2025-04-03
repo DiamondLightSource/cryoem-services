@@ -718,16 +718,7 @@ class TomoAlign(CommonService):
                 )
             )  # highest tilt
 
-        if tomo_parameters.manual_tilt_offset is None:
-            command.extend(
-                (
-                    "-TiltCor",
-                    str(tomo_parameters.tilt_cor),
-                    "-VolZ",
-                    str(tomo_parameters.vol_z),
-                )
-            )
-        else:
+        if tomo_parameters.manual_tilt_offset:
             command.extend(
                 (
                     "-TiltCor",
@@ -737,14 +728,24 @@ class TomoAlign(CommonService):
                     str(int(tomo_parameters.vol_z * 4 / 3)),
                 )
             )
-
-        command.extend(
-            (
-                "-TiltAxis",
-                str(tomo_parameters.tilt_axis),
-                str(tomo_parameters.refine_flag),
+        elif tomo_parameters.tilt_cor:
+            command.extend(
+                (
+                    "-TiltCor",
+                    str(tomo_parameters.tilt_cor),
+                    "-VolZ",
+                    str(tomo_parameters.vol_z),
+                )
             )
-        )
+
+        if tomo_parameters.tilt_axis:
+            command.extend(
+                (
+                    "-TiltAxis",
+                    str(tomo_parameters.tilt_axis),
+                    str(tomo_parameters.refine_flag),
+                )
+            )
 
         if tomo_parameters.frame_count and tomo_parameters.dose_per_frame:
             command.extend(
