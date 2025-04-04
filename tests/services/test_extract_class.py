@@ -65,9 +65,9 @@ def test_extract_class_service(
 
     # Set up the returned job number
     response_object = Response()
-    response_object._content = (
-        '{"job_id": 1, "step_id": "0", "error_code": 0, "error": "", "job_submit_user_msg": "message"}'
-    ).encode("utf8")
+    response_object._content = ('{"job_id": 1, "error_code": 0, "error": ""').encode(
+        "utf8"
+    )
     response_object.status_code = 200
     mock_requests.Session().post.return_value = response_object
 
