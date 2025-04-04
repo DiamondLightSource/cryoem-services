@@ -43,10 +43,8 @@ class JobParams(BaseModel):
     partition: Optional[str] = None
     prefer: Optional[str] = None
     tasks: Optional[int] = None
-    memory_per_cpu: Optional[dict] = None
     memory_per_node: Optional[dict] = None
     time_limit: Optional[dict] = None
-    tres_per_node: Optional[str] = None
     tres_per_job: Optional[str] = None
 
 
@@ -104,12 +102,9 @@ class JobSubmissionParameters(BaseModel):
     tasks: Optional[int] = None
     nodes: Optional[int] = None
     memory_per_node: Optional[int] = None
-    gpus_per_node: Optional[int] = None
-    min_memory_per_cpu: Optional[int] = None
     time_limit: Optional[datetime.timedelta] = None
     gpus: Optional[int] = None
-    exclusive: bool = False
-    commands: list[str] | str
+    commands: str
 
 
 def submit_to_slurm(
@@ -135,8 +130,6 @@ def submit_to_slurm(
     )
 
     script = params.commands
-    if not isinstance(script, str):
-        script = "\n".join(script)
     if "#!/bin/bash" not in script:
         script = f"#!/bin/bash\n. /etc/profile.d/modules.sh\n{script}"
 
@@ -165,12 +158,6 @@ def submit_to_slurm(
         prefer=slurm_rest.get("partition_preference"),
         tasks=params.tasks,
     )
-    if params.min_memory_per_cpu:
-        jdm_params.memory_per_cpu = {
-            "number": params.min_memory_per_cpu,
-            "set": True,
-            "infinite": False,
-        }
     if params.memory_per_node:
         jdm_params.memory_per_node = {
             "number": params.memory_per_node,
@@ -184,8 +171,6 @@ def submit_to_slurm(
             "set": True,
             "infinite": False,
         }
-    if params.gpus_per_node:
-        jdm_params.tres_per_node = f"gres/gpu:{params.gpus_per_node}"
     if params.gpus:
         jdm_params.tres_per_job = f"gres/gpu:{params.gpus}"
 
