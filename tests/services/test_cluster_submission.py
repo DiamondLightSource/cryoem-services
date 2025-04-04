@@ -36,11 +36,15 @@ def cluster_submission_configuration(tmp_path):
         slurm_creds.write("api_version: v0.0.40\n")
         slurm_creds.write("user: user\n")
         slurm_creds.write(f"user_token: {tmp_path}/token.txt\n")
+        slurm_creds.write("partition: part\n")
+        slurm_creds.write("partition_preference: preferred_part\n")
     with open(tmp_path / "slurm_credentials_extra.yaml", "w") as slurm_creds:
         slurm_creds.write("url: /slurm/extra/url\n")
         slurm_creds.write("api_version: v0.0.41\n")
         slurm_creds.write("user: user2\n")
         slurm_creds.write(f"user_token: {tmp_path}/token_user2.txt\n")
+        slurm_creds.write("partition: part\n")
+        slurm_creds.write("partition_preference: preferred_part\n")
 
     with open(tmp_path / "token.txt", "w") as token_file:
         token_file.write("token")
@@ -50,7 +54,7 @@ def cluster_submission_configuration(tmp_path):
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("workflows.recipe.RecipeWrapper")
-@mock.patch("cryoemservices.services.cluster_submission.requests")
+@mock.patch("cryoemservices.util.slurm_submission.requests")
 def test_cluster_submission_recipeless(
     mock_requests, mock_rw, offline_transport, tmp_path
 ):
@@ -81,11 +85,7 @@ def test_cluster_submission_recipeless(
                 "gpus_per_node": 4,
                 "job_name": "test_job",
                 "memory_per_node": 20,
-                "min_memory_per_cpu": 10,
                 "nodes": 1,
-                "partition": "part",
-                "prefer": "preferred_part",
-                "scheduler": "slurm",
                 "tasks": 2,
                 "time_limit": 300,
             },
@@ -118,16 +118,16 @@ def test_cluster_submission_recipeless(
             "job": {
                 "cpus_per_task": 3,
                 "current_working_directory": str(tmp_path),
+                "standard_output": f"{tmp_path}/run.out",
+                "standard_error": f"{tmp_path}/run.err",
                 "environment": ["USER=user"],
                 "name": "test_job",
                 "nodes": "1",
                 "partition": "part",
                 "prefer": "preferred_part",
                 "tasks": 2,
-                "memory_per_cpu": {"set": True, "infinite": False, "number": 10},
                 "memory_per_node": {"set": True, "infinite": False, "number": 20},
                 "time_limit": {"set": True, "infinite": False, "number": 5},
-                "tres_per_node": "gres/gpu:4",
                 "tres_per_job": "gres/gpu:4",
             },
             "script": "#!/bin/bash\n. /etc/profile.d/modules.sh\nsrun job",
@@ -141,163 +141,8 @@ def test_cluster_submission_recipeless(
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("workflows.recipe.RecipeWrapper")
-@mock.patch("cryoemservices.services.cluster_submission.requests")
-def test_cluster_submission_recipefile(
-    mock_requests, mock_rw, offline_transport, tmp_path
-):
-    """
-    Send a test message to ClusterSubmission with a recipefile set
-    """
-    cluster_submission_configuration(tmp_path)
-
-    # Set up the returned job number
-    response_object = Response()
-    response_object._content = (
-        '{"job_id": 1, "step_id": "0", "error_code": 0, "error": "", "job_submit_user_msg": "message"}'
-    ).encode("utf8")
-    response_object.status_code = 200
-    mock_requests.Session().post.return_value = response_object
-
-    header = {
-        "message-id": mock.sentinel,
-        "subscription": mock.sentinel,
-    }
-    mock_rw.recipe.pretty.return_value = "recipe example"
-    mock_rw.recipe_step = {
-        "parameters": {
-            "recipefile": str(tmp_path / "recipefile"),
-            "workingdir": str(tmp_path),
-            "cluster": {
-                "commands": "srun $RECIPEFILE",
-                "cpus_per_task": 3,
-                "job_name": "test_job",
-                "nodes": 1,
-                "partition": "part",
-                "prefer": "preferred_part",
-                "scheduler": "slurm",
-                "tasks": 2,
-            },
-        }
-    }
-
-    # Set up the mock service
-    service = cluster_submission.ClusterSubmission(
-        environment={
-            "config": f"{tmp_path}/config.yaml",
-            "slurm_cluster": "default",
-            "queue": "",
-        }
-    )
-    service.transport = offline_transport
-    service.start()
-    service.run_submit_job(mock_rw, header=header, message={})
-
-    # Check the calls to the job setup and submission
-    assert (tmp_path / "recipefile").is_file()
-    mock_rw.recipe.pretty.assert_called()
-    mock_requests.Session().post.assert_called_with(
-        url="/slurm/url/slurm/v0.0.40/job/submit",
-        json={
-            "job": {
-                "cpus_per_task": 3,
-                "current_working_directory": str(tmp_path),
-                "environment": ["USER=user"],
-                "name": "test_job",
-                "nodes": "1",
-                "partition": "part",
-                "prefer": "preferred_part",
-                "tasks": 2,
-            },
-            "script": f"#!/bin/bash\n. /etc/profile.d/modules.sh\nsrun {tmp_path}/recipefile",
-        },
-    )
-
-    # Check the service registered success
-    mock_rw.set_default_channel.assert_called_with("job_submitted")
-    mock_rw.send.assert_called_with({"jobid": 1}, transaction=mock.ANY)
-
-
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-@mock.patch("workflows.recipe.RecipeWrapper")
-@mock.patch("cryoemservices.services.cluster_submission.requests")
-def test_cluster_submission_recipeenvironment(
-    mock_requests, mock_rw, offline_transport, tmp_path
-):
-    """
-    Send a test message to ClusterSubmission with a recipeenvironment set
-    """
-    cluster_submission_configuration(tmp_path)
-
-    # Set up the returned job number
-    response_object = Response()
-    response_object._content = (
-        '{"job_id": 1, "step_id": "0", "error_code": 0, "error": "", "job_submit_user_msg": "message"}'
-    ).encode("utf8")
-    response_object.status_code = 200
-    mock_requests.Session().post.return_value = response_object
-
-    header = {
-        "message-id": mock.sentinel,
-        "subscription": mock.sentinel,
-    }
-    mock_rw.environment = {"env": "env"}
-    mock_rw.recipe_step = {
-        "parameters": {
-            "recipeenvironment": str(tmp_path / "recipe_env"),
-            "workingdir": str(tmp_path),
-            "cluster": {
-                "commands": "srun job $RECIPEENV",
-                "cpus_per_task": 3,
-                "job_name": "test_job",
-                "nodes": 1,
-                "partition": "part",
-                "prefer": "preferred_part",
-                "scheduler": "slurm",
-                "tasks": 2,
-            },
-        }
-    }
-
-    # Set up the mock service
-    service = cluster_submission.ClusterSubmission(
-        environment={
-            "config": f"{tmp_path}/config.yaml",
-            "slurm_cluster": "default",
-            "queue": "",
-        }
-    )
-    service.transport = offline_transport
-    service.start()
-    service.run_submit_job(mock_rw, header=header, message={})
-
-    # Check the calls to the job setup and submission
-    assert (tmp_path / "recipe_env").is_file()
-    mock_requests.Session().post.assert_called_with(
-        url="/slurm/url/slurm/v0.0.40/job/submit",
-        json={
-            "job": {
-                "cpus_per_task": 3,
-                "current_working_directory": str(tmp_path),
-                "environment": ["USER=user"],
-                "name": "test_job",
-                "nodes": "1",
-                "partition": "part",
-                "prefer": "preferred_part",
-                "tasks": 2,
-            },
-            "script": f"#!/bin/bash\n. /etc/profile.d/modules.sh\nsrun job {tmp_path}/recipe_env",
-        },
-    )
-
-    # Check the service registered success
-    mock_rw.set_default_channel.assert_called_with("job_submitted")
-    mock_rw.send.assert_called_with({"jobid": 1}, transaction=mock.ANY)
-
-
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-@mock.patch("workflows.recipe.RecipeWrapper")
-@mock.patch("cryoemservices.services.cluster_submission.requests")
-def test_cluster_submission_recipewrapper(
+@mock.patch("cryoemservices.util.slurm_submission.requests")
+def test_cluster_submission_wrapper(
     mock_requests, mock_rw, offline_transport, tmp_path
 ):
     """
@@ -319,16 +164,13 @@ def test_cluster_submission_recipewrapper(
     }
     mock_rw.recipe_step = {
         "parameters": {
-            "recipewrapper": str(tmp_path / "recipe_wrapper"),
+            "wrapper": str(tmp_path / "recipe_wrapper"),
             "workingdir": str(tmp_path),
             "cluster": {
                 "commands": "srun job $RECIPEWRAP",
                 "cpus_per_task": 3,
                 "job_name": "test_job",
                 "nodes": 1,
-                "partition": "part",
-                "prefer": "preferred_part",
-                "scheduler": "slurm",
                 "tasks": 2,
             },
         }
@@ -368,6 +210,8 @@ def test_cluster_submission_recipewrapper(
             "job": {
                 "cpus_per_task": 3,
                 "current_working_directory": str(tmp_path),
+                "standard_output": f"{tmp_path}/run.out",
+                "standard_error": f"{tmp_path}/run.err",
                 "environment": ["USER=user"],
                 "name": "test_job",
                 "nodes": "1",
@@ -386,7 +230,7 @@ def test_cluster_submission_recipewrapper(
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("workflows.recipe.RecipeWrapper")
-@mock.patch("cryoemservices.services.cluster_submission.requests")
+@mock.patch("cryoemservices.util.slurm_submission.requests")
 def test_cluster_submission_extra_cluster(
     mock_requests, mock_rw, offline_transport, tmp_path
 ):
@@ -414,14 +258,9 @@ def test_cluster_submission_extra_cluster(
                 "commands": "srun job",
                 "cpus_per_task": 3,
                 "gpus": 4,
-                "gpus_per_node": 4,
                 "job_name": "test_job",
                 "memory_per_node": 20,
-                "min_memory_per_cpu": 10,
                 "nodes": 1,
-                "partition": "part",
-                "prefer": "preferred_part",
-                "scheduler": "slurm",
                 "tasks": 2,
                 "time_limit": 300,
             },
@@ -453,16 +292,16 @@ def test_cluster_submission_extra_cluster(
             "job": {
                 "cpus_per_task": 3,
                 "current_working_directory": str(tmp_path),
+                "standard_output": f"{tmp_path}/run.out",
+                "standard_error": f"{tmp_path}/run.err",
                 "environment": ["USER=user"],
                 "name": "test_job",
                 "nodes": "1",
                 "partition": "part",
                 "prefer": "preferred_part",
                 "tasks": 2,
-                "memory_per_cpu": {"set": True, "infinite": False, "number": 10},
                 "memory_per_node": {"set": True, "infinite": False, "number": 20},
                 "time_limit": {"set": True, "infinite": False, "number": 5},
-                "tres_per_node": "gres/gpu:4",
                 "tres_per_job": "gres/gpu:4",
             },
             "script": "#!/bin/bash\n. /etc/profile.d/modules.sh\nsrun job",
