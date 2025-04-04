@@ -70,7 +70,6 @@ class SlurmRestApi:
 
 
 class JobSubmissionParameters(BaseModel):
-    scheduler: str = "slurm"
     job_name: str
     environment: Optional[dict[str, str]] = None
     cpus_per_task: Optional[int] = None
@@ -108,7 +107,8 @@ def submit_to_slurm(
     script = params.commands
     if not isinstance(script, str):
         script = "\n".join(script)
-    script = f"#!/bin/bash\n. /etc/profile.d/modules.sh\n{script}"
+    if "#!/bin/bash" not in script:
+        script = f"#!/bin/bash\n. /etc/profile.d/modules.sh\n{script}"
 
     if params.environment:
         environment = [f"{k}={v}" for k, v in params.environment.items()]

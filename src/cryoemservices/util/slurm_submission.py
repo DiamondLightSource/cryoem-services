@@ -4,10 +4,14 @@ import json
 import subprocess
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import yaml
 
+from cryoemservices.services.cluster_submission import (
+    JobSubmissionParameters,
+    submit_to_slurm,
+)
 from cryoemservices.util.config import config_from_file
 
 """"
@@ -74,7 +78,7 @@ def slurm_submission(
     script_extras: str = "",
     memory_request: int = 12000,
     external_filesystem: bool = False,
-    extra_singularity_directories: list[str] = [],
+    extra_singularity_directories: Optional[list[str]] = None,
 ):
     """Submit jobs to a slurm cluster via the RestAPI"""
     # Load the service config with slurm credentials
@@ -119,7 +123,6 @@ def slurm_submission(
     # Construct the json for submission
     slurm_output_file = f"{output_file}.out"
     slurm_error_file = f"{output_file}.err"
-    submission_file = f"{output_file}.json"
     slurm_config: dict[str, Any] = {
         "standard_output": slurm_output_file,
         "standard_error": slurm_error_file,
@@ -135,26 +138,15 @@ def slurm_submission(
     if slurm_rest.get("cluster"):
         slurm_config["cluster"] = slurm_rest["cluster"]
 
-    # Combine this with the template for the given API version
-    slurm_json_job: dict[str, Any] = dict(
-        slurm_json_job_template[api_version], **slurm_config
-    )
-    slurm_json_job["name"] = job_name
-    slurm_json_job["cpus_per_task"] = cpus
-    if use_gpu:
-        slurm_json_job["tres_per_task"] = "gres/gpu:1"
-        slurm_json_job["memory_per_node"]["number"] = memory_request
-    else:
-        slurm_json_job["memory_per_node"]["number"] = 1000 * cpus
-
     # Construct the job command and save the job script
     if use_singularity:
         if slurm_rest.get("required_directories"):
             binding_dirs = "," + ",".join(slurm_rest["required_directories"])
         else:
             binding_dirs = ""
-        for extra_binding_dir in extra_singularity_directories:
-            binding_dirs += f",{extra_binding_dir}"
+        if extra_singularity_directories:
+            for extra_binding_dir in extra_singularity_directories:
+                binding_dirs += f",{extra_binding_dir}"
         job_command = (
             singularity_script_template
             + script_extras
@@ -166,41 +158,36 @@ def slurm_submission(
         )
     else:
         job_command = module_script_template + script_extras + "\n" + " ".join(command)
-    slurm_json = {"job": slurm_json_job, "script": job_command}
-    with open(submission_file, "w") as f:
-        json.dump(slurm_json, f)
 
     # Command to submit jobs to the restAPI
-    slurm_submit_command = (
-        f'curl -H "X-SLURM-USER-NAME:{user}" -H "X-SLURM-USER-TOKEN:{slurm_token}" '
-        '-H "Content-Type: application/json" -X POST '
-        f'{slurm_rest["url"]}/slurm/{slurm_rest["api_version"]}/job/submit '
-        f"-d @{submission_file}"
+    job_params = JobSubmissionParameters(
+        job_name=job_name,
+        environment={"USER": user, "HOME": user_home},
+        cpus_per_task=cpus,
+        tasks=1,
+        nodes=1,
+        memory_per_node=memory_request if use_gpu else 1000 * cpus,
+        time_limit=3600,
+        gpus=1 if use_gpu else None,
+        commands=job_command,
     )
-    slurm_submission_json = subprocess.run(
-        slurm_submit_command, capture_output=True, shell=True
+
+    job_id = submit_to_slurm(
+        params=job_params,
+        working_directory=project_dir,
+        logger=log,
+        service_config=service_config,
+        cluster_name=slurm_cluster,
     )
-    try:
-        # Extract the job id from the submission response to use in the next query
-        slurm_response = slurm_submission_json.stdout.decode("utf8", "replace")
-        slurm_response_json = json.loads(slurm_response)
-        job_id = slurm_response_json["job_id"]
-    except (json.JSONDecodeError, KeyError):
-        log.error(
-            f"Unable to submit job to {slurm_rest['url']}. The restAPI returned "
-            f"{slurm_submission_json.stdout.decode('utf8', 'replace')}"
-        )
+    if not job_id:
+        log.error(f"Unable to submit job to {slurm_rest['url']}")
         return subprocess.CompletedProcess(
             args="",
             returncode=1,
-            stdout=slurm_submission_json.stdout,
-            stderr=slurm_submission_json.stderr,
+            stdout="cluster job submission".encode("utf8"),
+            stderr="failed to submit job".encode("utf8"),
         )
     log.info(f"Submitted job {job_id} for {job_name} to slurm. Waiting...")
-    if slurm_response_json.get("warnings") and slurm_response_json["warnings"]:
-        log.warning(f"Slurm reported these warnings: {slurm_response_json['warnings']}")
-    if slurm_response_json.get("errors") and slurm_response_json["errors"]:
-        log.warning(f"Slurm reported these errors: {slurm_response_json['errors']}")
 
     # Command to get the status of the submitted job from the restAPI
     slurm_status_command = (
