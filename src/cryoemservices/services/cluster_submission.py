@@ -5,6 +5,7 @@ import json
 import logging
 import math
 import os
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -20,6 +21,8 @@ from cryoemservices.util.config import ServiceConfig, config_from_file
 class JobParams(BaseModel):
     cpus_per_task: Optional[int] = None
     current_working_directory: Optional[str] = None
+    standard_output: Optional[str] = None
+    standard_error: Optional[str] = None
     environment: Optional[list] = None
     name: Optional[str] = None
     nodes: Optional[str] = None
@@ -35,10 +38,8 @@ class JobParams(BaseModel):
 
 class JobSubmitResponseMsg(BaseModel):
     job_id: Optional[int] = None
-    step_id: Optional[str] = None
     error_code: Optional[int] = None
     error: Optional[str] = None
-    job_submit_user_msg: Optional[str] = None
 
 
 class SlurmRestApi:
@@ -68,6 +69,19 @@ class SlurmRestApi:
         response.raise_for_status()
         return JobSubmitResponseMsg(**response.json())
 
+    def get_job_status(self, job_id):
+        response = self.session.get(
+            url=f"{self.url}/slurm/{self.version}/job/{job_id}",
+        )
+        response.raise_for_status()
+        return response.json()["jobs"][0]["job_state"][0]
+
+    def delete_job(self, job_id):
+        response = self.session.delete(
+            url=f"{self.url}/slurm/{self.version}/job/{job_id}",
+        )
+        response.raise_for_status()
+
 
 class JobSubmissionParameters(BaseModel):
     job_name: str
@@ -87,6 +101,8 @@ class JobSubmissionParameters(BaseModel):
 def submit_to_slurm(
     params: JobSubmissionParameters,
     working_directory: Path,
+    stdout_file: Path,
+    stderr_file: Path,
     logger: logging.Logger,
     service_config: ServiceConfig,
     cluster_name: str,
@@ -126,6 +142,8 @@ def submit_to_slurm(
     jdm_params = JobParams(
         cpus_per_task=params.cpus_per_task,
         current_working_directory=os.fspath(working_directory),
+        standard_output=stdout_file,
+        standard_error=stderr_file,
         environment=environment,
         name=params.job_name,
         nodes=str(params.nodes) if params.nodes else params.nodes,
@@ -167,6 +185,55 @@ def submit_to_slurm(
         logger.error(f"Failed Slurm job submission: {error_message}")
         return None
     return response.job_id
+
+
+def wait_for_job_completion(
+    job_id: int,
+    logger: logging.Logger,
+    service_config: ServiceConfig,
+    cluster_name: str,
+    timeout_counter: int = 60,
+) -> str:
+    slurm_credentials = service_config.slurm_credentials.get(cluster_name)
+    if not slurm_credentials:
+        logger.error("No slurm credentials have been provided, aborting")
+        return "UNKNOWN"
+    with open(slurm_credentials, "r") as f:
+        slurm_rest = yaml.safe_load(f)
+    api = SlurmRestApi(
+        url=slurm_rest["url"],
+        user_name=slurm_rest["user"],
+        user_token=slurm_rest["user_token"],
+        version=slurm_rest["api_version"],
+    )
+
+    slurm_job_state = "PENDING"
+    loop_counter = 0
+    while slurm_job_state in (
+        "PENDING",
+        "CONFIGURING",
+        "RUNNING",
+        "COMPLETING",
+    ):
+        if loop_counter < 5:
+            time.sleep(5)
+        else:
+            time.sleep(30)
+        loop_counter += 1
+
+        # Call the restAPI to find out the job state
+        try:
+            slurm_job_state = api.get_job_status(job_id)
+        except Exception as e:
+            logger.error(f"Failed to get job state: {e}\n" f"{e}")
+            return "UNKNOWN"
+
+        if loop_counter >= timeout_counter:
+            # Cancel any jobs exceeding a given time threshold
+            api.delete_job(job_id)
+            logger.error(f"Timeout running job {job_id}")
+            return "CANCELLED"
+    return slurm_job_state
 
 
 class ClusterSubmission(CommonService):

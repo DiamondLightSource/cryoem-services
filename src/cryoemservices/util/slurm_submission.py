@@ -1,16 +1,15 @@
 from __future__ import annotations
 
-import json
 import subprocess
-import time
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
 
 import yaml
 
 from cryoemservices.services.cluster_submission import (
     JobSubmissionParameters,
     submit_to_slurm,
+    wait_for_job_completion,
 )
 from cryoemservices.util.config import config_from_file
 
@@ -29,23 +28,6 @@ The configuration has the following format:
     cluster: <optional slurm clusters>
     required_directories: [<list of directories to bind for singularity>]
 """
-
-slurm_json_job_template = {
-    "v0.0.40": {
-        "minimum_nodes": 1,
-        "maximum_nodes": 1,
-        "tasks": 1,
-        "memory_per_node": {
-            "set": True,
-            "infinite": False,
-        },
-        "time_limit": {
-            "number": 3600,
-            "set": True,
-            "infinite": False,
-        },
-    },
-}
 
 # Templates for running a command using singularity or by with a module/executable
 singularity_script_template = (
@@ -99,8 +81,6 @@ def slurm_submission(
             slurm_rest = yaml.safe_load(f)
         user = slurm_rest["user"]
         user_home = slurm_rest["user_home"]
-        with open(slurm_rest["user_token"], "r") as f:
-            slurm_token = f.read().strip()
     except (KeyError, FileNotFoundError):
         log.error("Unable to load slurm restAPI config file and token")
         return subprocess.CompletedProcess(
@@ -120,23 +100,9 @@ def slurm_submission(
             stderr=f"Unsupported API version {api_version}".encode("utf8"),
         )
 
-    # Construct the json for submission
-    slurm_output_file = f"{output_file}.out"
-    slurm_error_file = f"{output_file}.err"
-    slurm_config: dict[str, Any] = {
-        "standard_output": slurm_output_file,
-        "standard_error": slurm_error_file,
-        "current_working_directory": str(project_dir),
-        "environment": [f"USER={user}", f"HOME={user_home}"],
-    }
-
-    # Add slurm partition and cluster preferences if given
-    if slurm_rest.get("partition"):
-        slurm_config["partition"] = slurm_rest["partition"]
-    if slurm_rest.get("partition_preference"):
-        slurm_config["prefer"] = slurm_rest["partition_preference"]
-    if slurm_rest.get("cluster"):
-        slurm_config["cluster"] = slurm_rest["cluster"]
+    # Output log files
+    slurm_output_file = output_file.with_suffix(".out")
+    slurm_error_file = output_file.with_suffix(".err")
 
     # Construct the job command and save the job script
     if use_singularity:
@@ -175,6 +141,8 @@ def slurm_submission(
     job_id = submit_to_slurm(
         params=job_params,
         working_directory=project_dir,
+        stdout_file=slurm_output_file,
+        stderr_file=slurm_error_file,
         logger=log,
         service_config=service_config,
         cluster_name=slurm_cluster,
@@ -190,64 +158,12 @@ def slurm_submission(
     log.info(f"Submitted job {job_id} for {job_name} to slurm. Waiting...")
 
     # Command to get the status of the submitted job from the restAPI
-    slurm_status_command = (
-        f'curl -H "X-SLURM-USER-NAME:{user}" -H "X-SLURM-USER-TOKEN:{slurm_token}" '
-        '-H "Content-Type: application/json" -X GET '
-        f'{slurm_rest["url"]}/slurm/{slurm_rest["api_version"]}/job/{job_id}'
+    slurm_job_state = wait_for_job_completion(
+        job_id=job_id,
+        logger=log,
+        service_config=service_config,
+        cluster_name=slurm_cluster,
     )
-    slurm_job_state = "PENDING"
-
-    # Wait until the job has a status indicating it has finished
-    loop_counter = 0
-    while slurm_job_state in (
-        "PENDING",
-        "CONFIGURING",
-        "RUNNING",
-        "COMPLETING",
-    ):
-        if loop_counter < 5:
-            time.sleep(5)
-        else:
-            time.sleep(30)
-        loop_counter += 1
-
-        # Call the restAPI to find out the job state
-        slurm_status_json = subprocess.run(
-            slurm_status_command, capture_output=True, shell=True
-        )
-        try:
-            slurm_response = slurm_status_json.stdout.decode("utf8", "replace")
-            slurm_job_state = json.loads(slurm_response)["jobs"][0]["job_state"]
-            if api_version == "v0.0.40":
-                slurm_job_state = slurm_job_state[0]
-        except (json.JSONDecodeError, KeyError):
-            print(slurm_status_command)
-            log.error(
-                f"Unable to get status for job {job_id}. The restAPI returned "
-                f"{slurm_status_json.stdout.decode('utf8', 'replace')}"
-            )
-            return subprocess.CompletedProcess(
-                args="",
-                returncode=1,
-                stdout=slurm_status_json.stdout,
-                stderr=slurm_status_json.stderr,
-            )
-
-        if loop_counter >= 60:
-            slurm_cancel_command = (
-                f'curl -H "X-SLURM-USER-NAME:{user}" '
-                f'-H "X-SLURM-USER-TOKEN:{slurm_token}" '
-                '-H "Content-Type: application/json" -X DELETE '
-                f'{slurm_rest["url"]}/slurm/{slurm_rest["api_version"]}/job/{job_id}'
-            )
-            subprocess.run(slurm_cancel_command, capture_output=True, shell=True)
-            log.error(f"Timeout running {job_name}")
-            return subprocess.CompletedProcess(
-                args="",
-                returncode=1,
-                stdout="".encode("utf8"),
-                stderr=f"Timeout running {job_name}".encode("utf8"),
-            )
 
     # Read in the output
     log.info(f"Job {job_id} has finished!")
