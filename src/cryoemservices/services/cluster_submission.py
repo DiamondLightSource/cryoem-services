@@ -310,11 +310,22 @@ class ClusterSubmission(CommonService):
             self._transport.nack(header)
             return
 
+        if parameters["standard_output"]:
+            stdout_file = Path(parameters["standard_output"])
+        else:
+            stdout_file = working_directory / "run.out"
+        if parameters["standard_error"]:
+            stderr_file = Path(parameters["standard_error"])
+        else:
+            stderr_file = working_directory / "run.err"
+
         service_config = config_from_file(self._environment["config"])
         jobnumber = submit_to_slurm(
-            cluster_params,
-            working_directory,
-            self.log,
+            params=cluster_params,
+            working_directory=working_directory,
+            stdout_file=stdout_file,
+            stderr_file=stderr_file,
+            logger=self.log,
             service_config=service_config,
             cluster_name=self._environment["slurm_cluster"],
         )
