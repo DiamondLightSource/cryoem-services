@@ -47,29 +47,22 @@ def offline_transport(mocker):
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-@mock.patch("cryoemservices.util.slurm_submission.subprocess.run")
 @mock.patch("cryoemservices.services.cluster_submission.requests")
-def test_extract_class_service(
-    mock_requests, mock_subprocess, offline_transport, tmp_path
-):
+def test_extract_class_service(mock_requests, offline_transport, tmp_path):
     """
     Send a test message to the class extraction service
     This should run particle selection and launch re-extraction jobs with slurm
     then send messages on to refinement and the node_creator
     """
-    mock_subprocess().returncode = 0
-    mock_subprocess().stdout = '{"jobs": [{"job_state": ["COMPLETED"]}]}'.encode(
-        "ascii"
-    )
-    mock_subprocess().stderr = "stderr".encode("ascii")
 
     # Set up the returned job number
     response_object = Response()
-    response_object._content = ('{"job_id": 1, "error_code": 0, "error": ""').encode(
-        "utf8"
-    )
+    response_object._content = (
+        '{"job_id": 1, "error_code": 0, "error": "", "jobs": [{"job_state": ["COMPLETED"]}]}'
+    ).encode("utf8")
     response_object.status_code = 200
     mock_requests.Session().post.return_value = response_object
+    mock_requests.Session().get.return_value = response_object
 
     # Create the expected input files
     (tmp_path / "CtfFind/job003").mkdir(parents=True)
@@ -197,6 +190,8 @@ def test_extract_class_service(
             "job": {
                 "cpus_per_task": 40,
                 "current_working_directory": f"{tmp_path}/Extract/job012",
+                "standard_output": f"{tmp_path}/Extract/job012/slurm_run.out",
+                "standard_error": f"{tmp_path}/Extract/job012/slurm_run.err",
                 "environment": ["USER=user", "HOME=/home"],
                 "name": "ReExtract",
                 "nodes": "1",
@@ -208,16 +203,8 @@ def test_extract_class_service(
             },
         },
     )
-
-    # Check the slurm commands were run
-    slurm_status_command = (
-        'curl -H "X-SLURM-USER-NAME:user" -H "X-SLURM-USER-TOKEN:token_key" '
-        '-H "Content-Type: application/json" -X GET '
-        "/url/of/slurm/restapi/slurm/v0.0.40/job/1"
-    )
-    assert mock_subprocess.call_count == 4
-    mock_subprocess.assert_called_with(
-        slurm_status_command, capture_output=True, shell=True
+    mock_requests.Session().get.assert_called_with(
+        url="/url/of/slurm/restapi/slurm/v0.0.40/job/1"
     )
 
     # Check that the correct messages were sent
