@@ -141,9 +141,9 @@ def submit_to_slurm(
     logger.info(f"Submitting script to Slurm:\n{script}")
     jdm_params = JobParams(
         cpus_per_task=params.cpus_per_task,
-        current_working_directory=os.fspath(working_directory),
-        standard_output=stdout_file,
-        standard_error=stderr_file,
+        current_working_directory=str(working_directory),
+        standard_output=str(stdout_file),
+        standard_error=str(stderr_file),
         environment=environment,
         name=params.job_name,
         nodes=str(params.nodes) if params.nodes else params.nodes,
