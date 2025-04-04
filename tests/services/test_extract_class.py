@@ -47,7 +47,7 @@ def offline_transport(mocker):
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-@mock.patch("cryoemservices.services.cluster_submission.requests")
+@mock.patch("cryoemservices.util.slurm_submission.requests")
 def test_extract_class_service(mock_requests, offline_transport, tmp_path):
     """
     Send a test message to the class extraction service

@@ -1,17 +1,19 @@
 from __future__ import annotations
 
+import datetime
+import logging
+import math
+import os
 import subprocess
+import time
 from pathlib import Path
 from typing import Optional
 
+import requests
 import yaml
+from pydantic import BaseModel
 
-from cryoemservices.services.cluster_submission import (
-    JobSubmissionParameters,
-    submit_to_slurm,
-    wait_for_job_completion,
-)
-from cryoemservices.util.config import config_from_file
+from cryoemservices.util.config import ServiceConfig, config_from_file
 
 """"
 This service submits jobs to a slurm cluster
@@ -28,6 +30,225 @@ The configuration has the following format:
     cluster: <optional slurm clusters>
     required_directories: [<list of directories to bind for singularity>]
 """
+
+
+class JobParams(BaseModel):
+    cpus_per_task: Optional[int] = None
+    current_working_directory: Optional[str] = None
+    standard_output: Optional[str] = None
+    standard_error: Optional[str] = None
+    environment: Optional[list] = None
+    name: Optional[str] = None
+    nodes: Optional[str] = None
+    partition: Optional[str] = None
+    prefer: Optional[str] = None
+    tasks: Optional[int] = None
+    memory_per_cpu: Optional[dict] = None
+    memory_per_node: Optional[dict] = None
+    time_limit: Optional[dict] = None
+    tres_per_node: Optional[str] = None
+    tres_per_job: Optional[str] = None
+
+
+class JobSubmitResponseMsg(BaseModel):
+    job_id: Optional[int] = None
+    error_code: Optional[int] = None
+    error: Optional[str] = None
+
+
+class SlurmRestApi:
+    def __init__(
+        self,
+        url: str,
+        user_name: str,
+        user_token: Path,
+        version: str = "v0.0.40",
+    ):
+        self.url = url
+        self.version = version
+        self.session = requests.Session()
+        self.session.headers["X-SLURM-USER-NAME"] = user_name
+        if Path(user_token).is_file():
+            with open(user_token, "r") as f:
+                self.session.headers["X-SLURM-USER-TOKEN"] = f.read().strip()
+        else:
+            # We got passed a path, but it isn't a valid one
+            raise RuntimeError(f"SLURM: API token file {user_token} does not exist")
+
+    def submit_job(self, script: str, job: JobParams) -> JobSubmitResponseMsg:
+        response = self.session.post(
+            url=f"{self.url}/slurm/{self.version}/job/submit",
+            json={"script": script, "job": job.model_dump(exclude_none=True)},
+        )
+        response.raise_for_status()
+        return JobSubmitResponseMsg(**response.json())
+
+    def get_job_status(self, job_id):
+        response = self.session.get(
+            url=f"{self.url}/slurm/{self.version}/job/{job_id}",
+        )
+        response.raise_for_status()
+        return response.json()["jobs"][0]["job_state"][0]
+
+    def delete_job(self, job_id):
+        response = self.session.delete(
+            url=f"{self.url}/slurm/{self.version}/job/{job_id}",
+        )
+        response.raise_for_status()
+
+
+class JobSubmissionParameters(BaseModel):
+    job_name: str
+    environment: Optional[dict[str, str]] = None
+    cpus_per_task: Optional[int] = None
+    tasks: Optional[int] = None
+    nodes: Optional[int] = None
+    memory_per_node: Optional[int] = None
+    gpus_per_node: Optional[int] = None
+    min_memory_per_cpu: Optional[int] = None
+    time_limit: Optional[datetime.timedelta] = None
+    gpus: Optional[int] = None
+    exclusive: bool = False
+    commands: list[str] | str
+
+
+def submit_to_slurm(
+    params: JobSubmissionParameters,
+    working_directory: Path,
+    stdout_file: Path,
+    stderr_file: Path,
+    logger: logging.Logger,
+    service_config: ServiceConfig,
+    cluster_name: str,
+) -> int | None:
+    slurm_credentials = service_config.slurm_credentials.get(cluster_name)
+    if not slurm_credentials:
+        logger.error("No slurm credentials have been provided, aborting")
+        return None
+    with open(slurm_credentials, "r") as f:
+        slurm_rest = yaml.safe_load(f)
+    api = SlurmRestApi(
+        url=slurm_rest["url"],
+        user_name=slurm_rest["user"],
+        user_token=slurm_rest["user_token"],
+        version=slurm_rest["api_version"],
+    )
+
+    script = params.commands
+    if not isinstance(script, str):
+        script = "\n".join(script)
+    if "#!/bin/bash" not in script:
+        script = f"#!/bin/bash\n. /etc/profile.d/modules.sh\n{script}"
+
+    if params.environment:
+        environment = [f"{k}={v}" for k, v in params.environment.items()]
+    else:
+        # The environment must not be empty
+        minimal_environment = {"USER"}
+        # Only attempt to copy variables that already exist.
+        minimal_environment &= set(os.environ)
+        environment = [f"{k}={os.environ[k]}" for k in minimal_environment]
+    if not environment:
+        logger.error("No environment has been set, aborting")
+        return None
+
+    logger.info(f"Submitting script to Slurm:\n{script}")
+    jdm_params = JobParams(
+        cpus_per_task=params.cpus_per_task,
+        current_working_directory=str(working_directory),
+        standard_output=str(stdout_file),
+        standard_error=str(stderr_file),
+        environment=environment,
+        name=params.job_name,
+        nodes=str(params.nodes) if params.nodes else params.nodes,
+        partition=slurm_rest.get("partition"),
+        prefer=slurm_rest.get("partition_preference"),
+        tasks=params.tasks,
+    )
+    if params.min_memory_per_cpu:
+        jdm_params.memory_per_cpu = {
+            "number": params.min_memory_per_cpu,
+            "set": True,
+            "infinite": False,
+        }
+    if params.memory_per_node:
+        jdm_params.memory_per_node = {
+            "number": params.memory_per_node,
+            "set": True,
+            "infinite": False,
+        }
+    if params.time_limit:
+        time_limit_minutes = math.ceil(params.time_limit.total_seconds() / 60)
+        jdm_params.time_limit = {
+            "number": time_limit_minutes,
+            "set": True,
+            "infinite": False,
+        }
+    if params.gpus_per_node:
+        jdm_params.tres_per_node = f"gres/gpu:{params.gpus_per_node}"
+    if params.gpus:
+        jdm_params.tres_per_job = f"gres/gpu:{params.gpus}"
+
+    try:
+        response = api.submit_job(script=script, job=jdm_params)
+    except Exception as e:
+        logger.error(f"Failed Slurm job submission: {e}\n" f"{e}")
+        return None
+    if response.error:
+        error_message = f"{response.error_code}: {response.error}"
+        logger.error(f"Failed Slurm job submission: {error_message}")
+        return None
+    return response.job_id
+
+
+def wait_for_job_completion(
+    job_id: int,
+    logger: logging.Logger,
+    service_config: ServiceConfig,
+    cluster_name: str,
+    timeout_counter: int = 60,
+) -> str:
+    slurm_credentials = service_config.slurm_credentials.get(cluster_name)
+    if not slurm_credentials:
+        logger.error("No slurm credentials have been provided, aborting")
+        return "UNKNOWN"
+    with open(slurm_credentials, "r") as f:
+        slurm_rest = yaml.safe_load(f)
+    api = SlurmRestApi(
+        url=slurm_rest["url"],
+        user_name=slurm_rest["user"],
+        user_token=slurm_rest["user_token"],
+        version=slurm_rest["api_version"],
+    )
+
+    slurm_job_state = "PENDING"
+    loop_counter = 0
+    while slurm_job_state in (
+        "PENDING",
+        "CONFIGURING",
+        "RUNNING",
+        "COMPLETING",
+    ):
+        if loop_counter < 5:
+            time.sleep(5)
+        else:
+            time.sleep(30)
+        loop_counter += 1
+
+        # Call the restAPI to find out the job state
+        try:
+            slurm_job_state = api.get_job_status(job_id)
+        except Exception as e:
+            logger.error(f"Failed to get job state: {e}\n" f"{e}")
+            return "UNKNOWN"
+
+        if loop_counter >= timeout_counter:
+            # Cancel any jobs exceeding a given time threshold
+            api.delete_job(job_id)
+            logger.error(f"Timeout running job {job_id}")
+            return "CANCELLED"
+    return slurm_job_state
+
 
 # Templates for running a command using singularity or by with a module/executable
 singularity_script_template = (

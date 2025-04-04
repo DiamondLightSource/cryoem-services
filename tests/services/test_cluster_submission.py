@@ -54,7 +54,7 @@ def cluster_submission_configuration(tmp_path):
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("workflows.recipe.RecipeWrapper")
-@mock.patch("cryoemservices.services.cluster_submission.requests")
+@mock.patch("cryoemservices.util.slurm_submission.requests")
 def test_cluster_submission_recipeless(
     mock_requests, mock_rw, offline_transport, tmp_path
 ):
@@ -119,6 +119,8 @@ def test_cluster_submission_recipeless(
             "job": {
                 "cpus_per_task": 3,
                 "current_working_directory": str(tmp_path),
+                "standard_output": f"{tmp_path}/run.out",
+                "standard_error": f"{tmp_path}/run.err",
                 "environment": ["USER=user"],
                 "name": "test_job",
                 "nodes": "1",
@@ -142,7 +144,7 @@ def test_cluster_submission_recipeless(
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("workflows.recipe.RecipeWrapper")
-@mock.patch("cryoemservices.services.cluster_submission.requests")
+@mock.patch("cryoemservices.util.slurm_submission.requests")
 def test_cluster_submission_wrapper(
     mock_requests, mock_rw, offline_transport, tmp_path
 ):
@@ -211,6 +213,8 @@ def test_cluster_submission_wrapper(
             "job": {
                 "cpus_per_task": 3,
                 "current_working_directory": str(tmp_path),
+                "standard_output": f"{tmp_path}/run.out",
+                "standard_error": f"{tmp_path}/run.err",
                 "environment": ["USER=user"],
                 "name": "test_job",
                 "nodes": "1",
@@ -229,7 +233,7 @@ def test_cluster_submission_wrapper(
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("workflows.recipe.RecipeWrapper")
-@mock.patch("cryoemservices.services.cluster_submission.requests")
+@mock.patch("cryoemservices.util.slurm_submission.requests")
 def test_cluster_submission_extra_cluster(
     mock_requests, mock_rw, offline_transport, tmp_path
 ):
@@ -293,6 +297,8 @@ def test_cluster_submission_extra_cluster(
             "job": {
                 "cpus_per_task": 3,
                 "current_working_directory": str(tmp_path),
+                "standard_output": f"{tmp_path}/run.out",
+                "standard_error": f"{tmp_path}/run.err",
                 "environment": ["USER=user"],
                 "name": "test_job",
                 "nodes": "1",
