@@ -6,6 +6,7 @@ from pathlib import Path
 from unittest import mock
 
 import pytest
+from requests import Response
 from workflows.transport.offline_transport import OfflineTransport
 
 from cryoemservices.services import motioncorr
@@ -987,16 +988,19 @@ def test_motioncor_relion_service_tomo(mock_subprocess, offline_transport, tmp_p
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-@mock.patch("cryoemservices.util.slurm_submission.subprocess.run")
-def test_motioncor2_slurm_service_spa(mock_subprocess, offline_transport, tmp_path):
+@mock.patch("cryoemservices.util.slurm_submission.requests")
+def test_motioncor2_slurm_service_spa(mock_requests, offline_transport, tmp_path):
     """
     Send a test message to MotionCorr for SPA using MotionCor2 via slurm.
     """
-    mock_subprocess().returncode = 0
-    mock_subprocess().stdout = (
-        '{"job_id": "1", "jobs": [{"job_state": ["COMPLETED"]}]}'.encode("ascii")
-    )
-    mock_subprocess().stderr = "stderr".encode("ascii")
+    # Set up the returned job number
+    response_object = Response()
+    response_object._content = (
+        '{"job_id": 1, "error_code": 0, "error": "", "jobs": [{"job_state": ["COMPLETED"]}]}'
+    ).encode("utf8")
+    response_object.status_code = 200
+    mock_requests.Session().post.return_value = response_object
+    mock_requests.Session().get.return_value = response_object
 
     movie = Path(f"{tmp_path}/Movies/sample.tiff")
     movie.parent.mkdir(parents=True)
@@ -1049,8 +1053,8 @@ def test_motioncor2_slurm_service_spa(mock_subprocess, offline_transport, tmp_pa
 
     # Touch the expected output files
     (tmp_path / "MotionCorr/job002/Movies").mkdir(parents=True)
-    (tmp_path / "MotionCorr/job002/Movies/sample.mrc.out").touch()
-    (tmp_path / "MotionCorr/job002/Movies/sample.mrc.err").touch()
+    (tmp_path / "MotionCorr/job002/Movies/sample.out").touch()
+    (tmp_path / "MotionCorr/job002/Movies/sample.err").touch()
 
     # Send a message to the service
     service.motion_correction(None, header=header, message=motioncorr_test_message)
@@ -1075,23 +1079,46 @@ def test_motioncor2_slurm_service_spa(mock_subprocess, offline_transport, tmp_pa
     ]
 
     # Check the slurm commands were run
-    slurm_submit_command = (
-        f'curl -H "X-SLURM-USER-NAME:user" -H "X-SLURM-USER-TOKEN:token_key" '
-        '-H "Content-Type: application/json" -X POST '
-        "/url/of/slurm/restapi/slurm/v0.0.40/job/submit "
-        f"-d @{tmp_path}/MotionCorr/job002/Movies/sample.mrc.json"
+    mock_requests.Session.assert_called()
+    mock_requests.Session().headers.__setitem__.assert_any_call(
+        "X-SLURM-USER-NAME", "user"
     )
-    slurm_status_command = (
-        'curl -H "X-SLURM-USER-NAME:user" -H "X-SLURM-USER-TOKEN:token_key" '
-        '-H "Content-Type: application/json" -X GET '
-        "/url/of/slurm/restapi/slurm/v0.0.40/job/1"
+    mock_requests.Session().headers.__setitem__.assert_any_call(
+        "X-SLURM-USER-TOKEN", "token_key"
     )
-    assert mock_subprocess.call_count == 5
-    mock_subprocess.assert_any_call(
-        slurm_submit_command, capture_output=True, shell=True
+    mock_requests.Session().post.assert_called_with(
+        url="/url/of/slurm/restapi/slurm/v0.0.40/job/submit",
+        json={
+            "script": (
+                "#!/bin/bash\n"
+                "echo \"$(date '+%Y-%m-%d %H:%M:%S.%3N'): running slurm job\"\n"
+                "mkdir /tmp/tmp_$SLURM_JOB_ID\n"
+                "export APPTAINER_CACHEDIR=/tmp/tmp_$SLURM_JOB_ID\n"
+                "export APPTAINER_TMPDIR=/tmp/tmp_$SLURM_JOB_ID\n\n"
+                "singularity exec --nv --bind "
+                "/tmp/tmp_$SLURM_JOB_ID:/tmp,directory1,directory2,/lib64 "
+                "--home /home MotionCor2_SIF " + " ".join(mc_command) + "\n"
+                "rm -rf /tmp/tmp_$SLURM_JOB_ID"
+            ),
+            "job": {
+                "cpus_per_task": 1,
+                "current_working_directory": f"{tmp_path}/MotionCorr/job002/Movies",
+                "standard_output": f"{tmp_path}/MotionCorr/job002/Movies/sample.out",
+                "standard_error": f"{tmp_path}/MotionCorr/job002/Movies/sample.err",
+                "environment": ["USER=user", "HOME=/home"],
+                "name": "MotionCor2",
+                "nodes": "1",
+                "partition": "partition",
+                "prefer": "preference",
+                "tasks": 1,
+                "memory_per_node": {"number": 12000, "set": True, "infinite": False},
+                "time_limit": {"number": 60, "set": True, "infinite": False},
+                "tres_per_job": "gres/gpu:1",
+            },
+        },
     )
-    mock_subprocess.assert_any_call(
-        slurm_status_command, capture_output=True, shell=True
+    mock_requests.Session().get.assert_called_with(
+        url="/url/of/slurm/restapi/slurm/v0.0.40/job/1"
     )
 
     # Just check the node creator send to make sure all ran correctly
@@ -1116,16 +1143,19 @@ def test_motioncor2_slurm_service_spa(mock_subprocess, offline_transport, tmp_pa
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-@mock.patch("cryoemservices.util.slurm_submission.subprocess.run")
-def test_motioncor_superres_does_slurm(mock_subprocess, offline_transport, tmp_path):
+@mock.patch("cryoemservices.util.slurm_submission.requests")
+def test_motioncor_superres_does_slurm(mock_requests, offline_transport, tmp_path):
     """
     Send a test message to MotionCorr requesting super-resolution binning.
     This should submit to slurm as a MotionCor2 job.
     The job is set to be marked as a failure for some variety
     """
-    mock_subprocess().returncode = 0
-    mock_subprocess().stdout = '{"job_state": ["FAILED"]}'.encode("ascii")
-    mock_subprocess().stderr = "stderr".encode("ascii")
+    # Set up the returned job number
+    response_object = Response()
+    response_object._content = '{"error_code": 1, "error": ""}'.encode("utf8")
+    response_object.status_code = 200
+    mock_requests.Session().post.return_value = response_object
+    mock_requests.Session().get.return_value = response_object
 
     movie = Path(f"{tmp_path}/Movies/sample.tiff")
     movie.parent.mkdir(parents=True)
@@ -1197,15 +1227,43 @@ def test_motioncor_superres_does_slurm(mock_subprocess, offline_transport, tmp_p
     ]
 
     # Check the slurm commands were run
-    slurm_submit_command = (
-        f'curl -H "X-SLURM-USER-NAME:user" -H "X-SLURM-USER-TOKEN:token_key" '
-        '-H "Content-Type: application/json" -X POST '
-        "/url/of/slurm/restapi/slurm/v0.0.40/job/submit "
-        f"-d @{tmp_path}/MotionCorr/job002/Movies/sample.mrc.json"
+    mock_requests.Session.assert_called()
+    mock_requests.Session().headers.__setitem__.assert_any_call(
+        "X-SLURM-USER-NAME", "user"
     )
-    assert mock_subprocess.call_count == 4
-    mock_subprocess.assert_any_call(
-        slurm_submit_command, capture_output=True, shell=True
+    mock_requests.Session().headers.__setitem__.assert_any_call(
+        "X-SLURM-USER-TOKEN", "token_key"
+    )
+    mock_requests.Session().post.assert_called_with(
+        url="/url/of/slurm/restapi/slurm/v0.0.40/job/submit",
+        json={
+            "script": (
+                "#!/bin/bash\n"
+                "echo \"$(date '+%Y-%m-%d %H:%M:%S.%3N'): running slurm job\"\n"
+                "mkdir /tmp/tmp_$SLURM_JOB_ID\n"
+                "export APPTAINER_CACHEDIR=/tmp/tmp_$SLURM_JOB_ID\n"
+                "export APPTAINER_TMPDIR=/tmp/tmp_$SLURM_JOB_ID\n\n"
+                "singularity exec --nv --bind "
+                "/tmp/tmp_$SLURM_JOB_ID:/tmp,directory1,directory2,/lib64 "
+                "--home /home MotionCor2_SIF " + " ".join(mc_command) + "\n"
+                "rm -rf /tmp/tmp_$SLURM_JOB_ID"
+            ),
+            "job": {
+                "cpus_per_task": 1,
+                "current_working_directory": f"{tmp_path}/MotionCorr/job002/Movies",
+                "standard_output": f"{tmp_path}/MotionCorr/job002/Movies/sample.out",
+                "standard_error": f"{tmp_path}/MotionCorr/job002/Movies/sample.err",
+                "environment": ["USER=user", "HOME=/home"],
+                "name": "MotionCor2",
+                "nodes": "1",
+                "partition": "partition",
+                "prefer": "preference",
+                "tasks": 1,
+                "memory_per_node": {"number": 12000, "set": True, "infinite": False},
+                "time_limit": {"number": 60, "set": True, "infinite": False},
+                "tres_per_job": "gres/gpu:1",
+            },
+        },
     )
 
     # Just check the node creator send to make sure all ran correctly
@@ -1218,15 +1276,15 @@ def test_motioncor_superres_does_slurm(mock_subprocess, offline_transport, tmp_p
             "output_file": motioncorr_test_message["mrc_out"],
             "relion_options": output_relion_options,
             "command": " ".join(mc_command),
-            "stdout": '{"job_state": ["FAILED"]}',
-            "stderr": "stderr",
+            "stdout": "cluster job submission",
+            "stderr": "failed to submit job",
             "success": False,
         },
     )
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-@mock.patch("cryoemservices.services.motioncorr.slurm_submission")
+@mock.patch("cryoemservices.services.motioncorr.slurm_submission_for_services")
 def test_motioncor2_slurm_parameters(mock_slurm, offline_transport, tmp_path):
     """
     Test the parameters used for slurm job submission when using MotionCor2
@@ -1280,9 +1338,8 @@ def test_motioncor2_slurm_parameters(mock_slurm, offline_transport, tmp_path):
 
     # Touch the expected output files
     (tmp_path / "MotionCorr/job002/Movies").mkdir(parents=True)
-    (tmp_path / "MotionCorr/job002/Movies/sample.mrc.out").touch()
-    (tmp_path / "MotionCorr/job002/Movies/sample.mrc.err").touch()
-    (tmp_path / "MotionCorr/job002/Movies/sample.mrc.json").touch()
+    (tmp_path / "MotionCorr/job002/Movies/sample.out").touch()
+    (tmp_path / "MotionCorr/job002/Movies/sample.err").touch()
 
     # Send a message to the service
     service.motion_correction(None, header=header, message=motioncorr_test_message)
@@ -1325,7 +1382,7 @@ def test_motioncor2_slurm_parameters(mock_slurm, offline_transport, tmp_path):
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-@mock.patch("cryoemservices.services.motioncorr.slurm_submission")
+@mock.patch("cryoemservices.services.motioncorr.slurm_submission_for_services")
 def test_motioncor_relion_slurm_parameters(mock_slurm, offline_transport, tmp_path):
     """
     Test the parameters used for slurm job submission when using Relion's own

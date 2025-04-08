@@ -127,6 +127,9 @@ def test_extract_class_service(mock_requests, offline_transport, tmp_path):
     service.start()
     service.extract_class(None, header=header, message=extract_class_test_message)
 
+    # Check the output files were made
+    assert (tmp_path / "Select/job011/particles.star").is_file()
+
     # Get the expected commands
     extract_command = [
         "EM/cryoemservices.reextract",
@@ -166,10 +169,7 @@ def test_extract_class_service(mock_requests, offline_transport, tmp_path):
         "114",
     ]
 
-    # Check the output files were made
-    assert (tmp_path / "Select/job011/particles.star").is_file()
-
-    # Check the slurm submission ran
+    # Check the slurm commands were run
     mock_requests.Session.assert_called()
     mock_requests.Session().headers.__setitem__.assert_any_call(
         "X-SLURM-USER-NAME", "user"
@@ -177,7 +177,6 @@ def test_extract_class_service(mock_requests, offline_transport, tmp_path):
     mock_requests.Session().headers.__setitem__.assert_any_call(
         "X-SLURM-USER-TOKEN", "token_key"
     )
-
     mock_requests.Session().post.assert_called_with(
         url="/url/of/slurm/restapi/slurm/v0.0.40/job/submit",
         json={
