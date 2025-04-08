@@ -251,7 +251,7 @@ module_script_template = (
 slurm_tmp_cleanup = "\nrm -rf /tmp/tmp_$SLURM_JOB_ID"
 
 
-def slurm_submission(
+def slurm_submission_for_services(
     log,
     service_config_file: Path,
     slurm_cluster: str,

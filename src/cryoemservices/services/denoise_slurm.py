@@ -7,7 +7,7 @@ from typing import List
 
 from cryoemservices.services.denoise import Denoise
 from cryoemservices.services.tomo_align_slurm import retrieve_files, transfer_files
-from cryoemservices.util.slurm_submission import slurm_submission
+from cryoemservices.util.slurm_submission import slurm_submission_for_services
 
 
 class DenoiseSlurm(Denoise):
@@ -47,7 +47,7 @@ class DenoiseSlurm(Denoise):
 
         # Submit the command to slurm
         self.log.info(f"Running topaz denoising with command: {topaz_command}")
-        slurm_outcome = slurm_submission(
+        slurm_outcome = slurm_submission_for_services(
             log=self.log,
             service_config_file=self._environment["config"],
             slurm_cluster=self._environment["slurm_cluster"],
