@@ -5,6 +5,7 @@ import sys
 from unittest import mock
 
 import pytest
+from requests import Response
 from workflows.transport.offline_transport import OfflineTransport
 
 from cryoemservices.services import tomo_align_slurm
@@ -45,7 +46,8 @@ def offline_transport(mocker):
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-@mock.patch("cryoemservices.services.tomo_align_slurm.subprocess.run")
+@mock.patch("cryoemservices.util.slurm_submission.subprocess.run")
+@mock.patch("cryoemservices.util.slurm_submission.requests")
 @mock.patch("cryoemservices.services.tomo_align.px.scatter")
 @mock.patch("cryoemservices.services.tomo_align.mrcfile")
 @mock.patch("cryoemservices.services.tomo_align_slurm.transfer_files")
@@ -55,6 +57,7 @@ def test_tomo_align_slurm_service(
     mock_transfer,
     mock_mrcfile,
     mock_plotly,
+    mock_requests,
     mock_subprocess,
     offline_transport,
     tmp_path,
@@ -65,10 +68,14 @@ def test_tomo_align_slurm_service(
     the denoising, ispyb_connector and images services.
     """
     mock_subprocess().returncode = 0
-    mock_subprocess().stdout = (
-        '{"job_id": "1", "jobs": [{"job_state": ["COMPLETED"]}]}'.encode("ascii")
-    )
-    mock_subprocess().stderr = "stderr".encode("ascii")
+    # Set up the returned job number
+    response_object = Response()
+    response_object._content = (
+        '{"job_id": 1, "error_code": 0, "error": "", "jobs": [{"job_state": ["COMPLETED"]}]}'
+    ).encode("utf8")
+    response_object.status_code = 200
+    mock_requests.Session().post.return_value = response_object
+    mock_requests.Session().get.return_value = response_object
 
     mock_mrcfile.open().__enter__().header = {"nx": 2000, "ny": 3000}
 
@@ -87,12 +94,12 @@ def test_tomo_align_slurm_service(
         "vol_z": 1200,
         "align": None,
         "out_bin": 4,
-        "tilt_axis": 85,
+        "tilt_axis": 85.0,
         "tilt_cor": 1,
         "flip_int": None,
         "flip_vol": 1,
         "wbp": None,
-        "roi_file": [],
+        "roi_file": None,
         "patch": None,
         "kv": None,
         "dose_per_frame": None,
@@ -100,7 +107,7 @@ def test_tomo_align_slurm_service(
         "align_file": None,
         "angle_file": f"{tmp_path}/angles.file",
         "align_z": None,
-        "pixel_size": 1e-10,
+        "pixel_size": 1,
         "refine_flag": 1,
         "out_imod": 1,
         "out_imod_xf": None,
@@ -167,23 +174,69 @@ def test_tomo_align_slurm_service(
         angles_data = angfile.read()
     assert angles_data == "1.00  0\n"
 
+    # Command which should run
+    aretomo_command = [
+        "slurm_AreTomo",
+        "-InMrc",
+        "test_stack.mrc",
+        "-OutMrc",
+        f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
+        "-AngFile",
+        f"{tmp_path}/Tomograms/job006/tomograms/test_stack_tilt_angles.txt",
+        "-TiltCor",
+        "1",
+        "-VolZ",
+        str(tomo_align_test_message["vol_z"]),
+        "-TiltAxis",
+        str(tomo_align_test_message["tilt_axis"]),
+        "1",
+        "-PixSize",
+        "1.0",
+        "-OutBin",
+        str(tomo_align_test_message["out_bin"]),
+        "-FlipVol",
+        str(tomo_align_test_message["flip_vol"]),
+        "-OutImod",
+        str(tomo_align_test_message["out_imod"]),
+    ]
+
     # Check the slurm commands were run
-    slurm_submit_command = (
-        f'curl -H "X-SLURM-USER-NAME:user" -H "X-SLURM-USER-TOKEN:token_key" '
-        '-H "Content-Type: application/json" -X POST '
-        "/url/of/slurm/restapi/slurm/v0.0.40/job/submit "
-        f"-d @{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc.json"
+    mock_requests.Session.assert_called()
+    mock_requests.Session().headers.__setitem__.assert_any_call(
+        "X-SLURM-USER-NAME", "user"
     )
-    slurm_status_command = (
-        'curl -H "X-SLURM-USER-NAME:user" -H "X-SLURM-USER-TOKEN:token_key" '
-        '-H "Content-Type: application/json" -X GET '
-        "/url/of/slurm/restapi/slurm/v0.0.40/job/1"
+    mock_requests.Session().headers.__setitem__.assert_any_call(
+        "X-SLURM-USER-TOKEN", "token_key"
     )
-    mock_subprocess.assert_any_call(
-        slurm_submit_command, capture_output=True, shell=True
+    mock_requests.Session().post.assert_called_with(
+        url="/url/of/slurm/restapi/slurm/v0.0.40/job/submit",
+        json={
+            "script": (
+                "#!/bin/bash\n"
+                "echo \"$(date '+%Y-%m-%d %H:%M:%S.%3N'): running slurm job\"\n"
+                "source /etc/profile.d/modules.sh\n"
+                "export LD_LIBRARY_PATH=/lib/aretomo:$LD_LIBRARY_PATH\n"
+                + " ".join(aretomo_command)
+            ),
+            "job": {
+                "cpus_per_task": 1,
+                "current_working_directory": f"{tmp_path}/Tomograms/job006/tomograms",
+                "standard_output": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.out",
+                "standard_error": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.err",
+                "environment": ["USER=user", "HOME=/home"],
+                "name": "AreTomo2",
+                "nodes": "1",
+                "partition": "partition",
+                "prefer": "preference",
+                "tasks": 1,
+                "memory_per_node": {"number": 12000, "set": True, "infinite": False},
+                "time_limit": {"number": 60, "set": True, "infinite": False},
+                "tres_per_job": "gres/gpu:1",
+            },
+        },
     )
-    mock_subprocess.assert_any_call(
-        slurm_status_command, capture_output=True, shell=True
+    mock_requests.Session().get.assert_called_with(
+        url="/url/of/slurm/restapi/slurm/v0.0.40/job/1"
     )
 
     # Check file transfer and retrieval
@@ -204,7 +257,7 @@ def test_tomo_align_slurm_service(
         basepath="test_stack",
     )
     assert mock_plotly.call_count == 1
-    assert mock_subprocess.call_count == 6
+    assert mock_subprocess.call_count == 2
 
 
 def test_parse_tomo_align_output(offline_transport, tmp_path):

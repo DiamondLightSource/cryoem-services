@@ -6,6 +6,7 @@ from pathlib import Path
 from unittest import mock
 
 import pytest
+from requests import Response
 from workflows.transport.offline_transport import OfflineTransport
 
 from cryoemservices.services import icebreaker
@@ -346,19 +347,20 @@ def test_icebreaker_particles_service(mock_icebreaker, offline_transport, tmp_pa
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-@mock.patch("cryoemservices.util.slurm_submission.subprocess.run")
-def test_icebreaker_particles_service_slurm(
-    mock_subprocess, offline_transport, tmp_path
-):
+@mock.patch("cryoemservices.util.slurm_submission.requests")
+def test_icebreaker_particles_service_slurm(mock_requests, offline_transport, tmp_path):
     """
     Send a test message to IceBreaker for running the particle analysis job
     using the slurm submission method
     """
-    mock_subprocess().returncode = 0
-    mock_subprocess().stdout = (
-        '{"job_id": "1", "jobs": [{"job_state": ["COMPLETED"]}]}'.encode("ascii")
-    )
-    mock_subprocess().stderr = "stderr".encode("ascii")
+    # Set up the returned job number
+    response_object = Response()
+    response_object._content = (
+        '{"job_id": 1, "error_code": 0, "error": "", "jobs": [{"job_state": ["COMPLETED"]}]}'
+    ).encode("utf8")
+    response_object.status_code = 200
+    mock_requests.Session().post.return_value = response_object
+    mock_requests.Session().get.return_value = response_object
 
     header = {
         "message-id": mock.sentinel,
@@ -393,22 +395,49 @@ def test_icebreaker_particles_service_slurm(
     service.start()
     service.icebreaker(None, header=header, message=icebreaker_test_message)
 
+    ib_command = [
+        "ib_group",
+        "--j",
+        "1",
+        "--in_mics",
+        "IceBreaker/job003/Movies/sample_grouped.star",
+        "--in_parts Select/job009/particles_split1.star",
+        f"--o {tmp_path}/IceBreaker/job011/",
+    ]
+
     # Check the slurm commands were run
-    slurm_submit_command = (
-        f'curl -H "X-SLURM-USER-NAME:user" -H "X-SLURM-USER-TOKEN:token_key" '
-        '-H "Content-Type: application/json" -X POST '
-        "/url/of/slurm/restapi/slurm/v0.0.40/job/submit "
-        f"-d @{tmp_path}/IceBreaker/job011/slurm.json"
+    mock_requests.Session.assert_called()
+    mock_requests.Session().headers.__setitem__.assert_any_call(
+        "X-SLURM-USER-NAME", "user"
     )
-    slurm_status_command = (
-        'curl -H "X-SLURM-USER-NAME:user" -H "X-SLURM-USER-TOKEN:token_key" '
-        '-H "Content-Type: application/json" -X GET '
-        "/url/of/slurm/restapi/slurm/v0.0.40/job/1"
+    mock_requests.Session().headers.__setitem__.assert_any_call(
+        "X-SLURM-USER-TOKEN", "token_key"
     )
-    assert mock_subprocess.call_count == 5
-    mock_subprocess.assert_any_call(
-        slurm_submit_command, capture_output=True, shell=True
+    mock_requests.Session().post.assert_called_with(
+        url="/url/of/slurm/restapi/slurm/v0.0.40/job/submit",
+        json={
+            "script": (
+                "#!/bin/bash\n"
+                "echo \"$(date '+%Y-%m-%d %H:%M:%S.%3N'): running slurm job\"\n"
+                "source /etc/profile.d/modules.sh\n"
+                "module load EM/icebreaker/dev\n" + " ".join(ib_command)
+            ),
+            "job": {
+                "cpus_per_task": 1,
+                "current_working_directory": str(tmp_path),
+                "standard_output": f"{tmp_path}/IceBreaker/job011/slurm.out",
+                "standard_error": f"{tmp_path}/IceBreaker/job011/slurm.err",
+                "environment": ["USER=user", "HOME=/home"],
+                "name": "IceBreaker",
+                "nodes": "1",
+                "partition": "partition",
+                "prefer": "preference",
+                "tasks": 1,
+                "memory_per_node": {"number": 1000, "set": True, "infinite": False},
+                "time_limit": {"number": 60, "set": True, "infinite": False},
+            },
+        },
     )
-    mock_subprocess.assert_any_call(
-        slurm_status_command, capture_output=True, shell=True
+    mock_requests.Session().get.assert_called_with(
+        url="/url/of/slurm/restapi/slurm/v0.0.40/job/1"
     )

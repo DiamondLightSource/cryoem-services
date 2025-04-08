@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import json
 import os
 import sys
 from unittest import mock
 
 import pytest
+from requests import Response
 from workflows.transport.offline_transport import OfflineTransport
 
 from cryoemservices.services import denoise, denoise_slurm
@@ -214,13 +214,13 @@ def test_denoise_local_service(
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-@mock.patch("cryoemservices.util.slurm_submission.subprocess.run")
+@mock.patch("cryoemservices.util.slurm_submission.requests")
 @mock.patch("cryoemservices.services.denoise_slurm.transfer_files")
 @mock.patch("cryoemservices.services.denoise_slurm.retrieve_files")
 def test_denoise_slurm_service(
     mock_retrieve,
     mock_transfer,
-    mock_subprocess,
+    mock_requests,
     offline_transport,
     tmp_path,
 ):
@@ -229,11 +229,14 @@ def test_denoise_slurm_service(
     This should call the mock subprocess then send messages on to
     the membrain-seg and images services.
     """
-    mock_subprocess().returncode = 0
-    mock_subprocess().stdout = (
-        '{"job_id": "1", "jobs": [{"job_state": ["COMPLETED"]}]}'.encode("ascii")
-    )
-    mock_subprocess().stderr = "stderr".encode("ascii")
+    # Set up the returned job number
+    response_object = Response()
+    response_object._content = (
+        '{"job_id": 1, "error_code": 0, "error": "", "jobs": [{"job_state": ["COMPLETED"]}]}'
+    ).encode("utf8")
+    response_object.status_code = 200
+    mock_requests.Session().post.return_value = response_object
+    mock_requests.Session().get.return_value = response_object
 
     mock_transfer.return_value = ["test_stack_aretomo.mrc"]
 
@@ -267,51 +270,13 @@ def test_denoise_slurm_service(
     # Touch the expected output files
     (tmp_path / "Denoise/job007/denoised").mkdir(parents=True)
     (tmp_path / "Denoise/job007/denoised/test_stack_aretomo.denoised.mrc").touch()
-    (tmp_path / "Denoise/job007/denoised/test_stack_aretomo.denoised.mrc.out").touch()
-    (tmp_path / "Denoise/job007/denoised/test_stack_aretomo.denoised.mrc.err").touch()
+    (tmp_path / "Denoise/job007/denoised/test_stack_aretomo.denoised.out").touch()
+    (tmp_path / "Denoise/job007/denoised/test_stack_aretomo.denoised.err").touch()
 
     # Send a message to the service
     service.denoise(None, header=header, message=denoise_test_message)
 
-    # Check the slurm commands were run
-    slurm_submit_command = (
-        f'curl -H "X-SLURM-USER-NAME:user" -H "X-SLURM-USER-TOKEN:token_key" '
-        '-H "Content-Type: application/json" -X POST '
-        "/url/of/slurm/restapi/slurm/v0.0.40/job/submit "
-        f"-d @{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc.json"
-    )
-    slurm_status_command = (
-        'curl -H "X-SLURM-USER-NAME:user" -H "X-SLURM-USER-TOKEN:token_key" '
-        '-H "Content-Type: application/json" -X GET '
-        "/url/of/slurm/restapi/slurm/v0.0.40/job/1"
-    )
-    mock_subprocess.assert_any_call(
-        slurm_submit_command, capture_output=True, shell=True
-    )
-    mock_subprocess.assert_any_call(
-        slurm_status_command, capture_output=True, shell=True
-    )
-
-    # Check file transfer and retrieval
-    assert mock_transfer.call_count == 1
-    mock_transfer.assert_any_call(
-        [tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo.mrc"]
-    )
-    assert mock_retrieve.call_count == 1
-    mock_retrieve.assert_any_call(
-        job_directory=tmp_path / "Denoise/job007/denoised",
-        files_to_skip=[tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo.mrc"],
-        basepath="test_stack_aretomo",
-    )
-    assert mock_subprocess.call_count == 5
-
     # Check the denoising command
-    with open(
-        tmp_path / "Denoise/job007/denoised/test_stack_aretomo.denoised.mrc.json", "r"
-    ) as script_file:
-        script_json = json.load(script_file)
-    topaz_command = script_json["script"].split("\n")[-2]
-
     singularity_command = [
         "singularity",
         "exec",
@@ -332,7 +297,59 @@ def test_denoise_slurm_service(
         ".denoised",
     ]
     singularity_command.extend(denoise_command)
-    assert topaz_command == " ".join(singularity_command)
+
+    # Check the slurm commands were run
+    mock_requests.Session.assert_called()
+    mock_requests.Session().headers.__setitem__.assert_any_call(
+        "X-SLURM-USER-NAME", "user"
+    )
+    mock_requests.Session().headers.__setitem__.assert_any_call(
+        "X-SLURM-USER-TOKEN", "token_key"
+    )
+    mock_requests.Session().post.assert_called_with(
+        url="/url/of/slurm/restapi/slurm/v0.0.40/job/submit",
+        json={
+            "script": (
+                "#!/bin/bash\n"
+                "echo \"$(date '+%Y-%m-%d %H:%M:%S.%3N'): running slurm job\"\n"
+                "mkdir /tmp/tmp_$SLURM_JOB_ID\n"
+                "export APPTAINER_CACHEDIR=/tmp/tmp_$SLURM_JOB_ID\n"
+                "export APPTAINER_TMPDIR=/tmp/tmp_$SLURM_JOB_ID\n"
+                "\n" + " ".join(singularity_command) + "\n"
+                "rm -rf /tmp/tmp_$SLURM_JOB_ID"
+            ),
+            "job": {
+                "cpus_per_task": 1,
+                "current_working_directory": f"{tmp_path}/Denoise/job007/denoised",
+                "standard_output": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.out",
+                "standard_error": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.err",
+                "environment": ["USER=user", "HOME=/home"],
+                "name": "Denoising",
+                "nodes": "1",
+                "partition": "partition",
+                "prefer": "preference",
+                "tasks": 1,
+                "memory_per_node": {"number": 12000, "set": True, "infinite": False},
+                "time_limit": {"number": 60, "set": True, "infinite": False},
+                "tres_per_job": "gres/gpu:1",
+            },
+        },
+    )
+    mock_requests.Session().get.assert_called_with(
+        url="/url/of/slurm/restapi/slurm/v0.0.40/job/1"
+    )
+
+    # Check file transfer and retrieval
+    assert mock_transfer.call_count == 1
+    mock_transfer.assert_any_call(
+        [tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo.mrc"]
+    )
+    assert mock_retrieve.call_count == 1
+    mock_retrieve.assert_any_call(
+        job_directory=tmp_path / "Denoise/job007/denoised",
+        files_to_skip=[tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo.mrc"],
+        basepath="test_stack_aretomo",
+    )
 
     # Check the images service request
     assert offline_transport.send.call_count == 6

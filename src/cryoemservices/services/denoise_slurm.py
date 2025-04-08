@@ -71,8 +71,8 @@ class DenoiseSlurm(Denoise):
         )
         self.log.info("All output files retrieved")
 
-        slurm_output_file = f"{denoised_full_path}.out"
-        slurm_error_file = f"{denoised_full_path}.out"
+        slurm_output_file = denoised_full_path.with_suffix(".out")
+        slurm_error_file = denoised_full_path.with_suffix(".err")
 
         if not denoised_full_path.is_file():
             return subprocess.CompletedProcess(
