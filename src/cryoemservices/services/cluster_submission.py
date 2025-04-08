@@ -40,9 +40,6 @@ class ClusterSubmission(CommonService):
         parameters = rw.recipe_step["parameters"]
         cluster_params = JobSubmissionParameters(**parameters.get("cluster", {}))
 
-        if not isinstance(cluster_params.commands, str):
-            cluster_params.commands = "\n".join(cluster_params.commands)
-
         if "wrapper" in parameters:
             wrapper = parameters["wrapper"]
             try:

@@ -15,7 +15,8 @@ from cryoemservices.services import cluster_submission
 @pytest.fixture
 def offline_transport(mocker):
     transport = OfflineTransport()
-    mocker.spy(transport, "send")
+    mocker.spy(transport, "ack")
+    mocker.spy(transport, "nack")
     return transport
 
 
@@ -137,6 +138,7 @@ def test_cluster_submission_recipeless(
     # Check the service registered success
     mock_rw.set_default_channel.assert_called_with("job_submitted")
     mock_rw.send.assert_called_with({"jobid": 1}, transaction=mock.ANY)
+    offline_transport.ack.assert_called()
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
@@ -164,6 +166,8 @@ def test_cluster_submission_wrapper(
     }
     mock_rw.recipe_step = {
         "parameters": {
+            "standard_output": str(tmp_path / "cluster.out"),
+            "standard_error": str(tmp_path / "cluster.err"),
             "wrapper": str(tmp_path / "recipe_wrapper"),
             "workingdir": str(tmp_path),
             "cluster": {
@@ -210,8 +214,8 @@ def test_cluster_submission_wrapper(
             "job": {
                 "cpus_per_task": 3,
                 "current_working_directory": str(tmp_path),
-                "standard_output": f"{tmp_path}/run.out",
-                "standard_error": f"{tmp_path}/run.err",
+                "standard_output": f"{tmp_path}/cluster.out",
+                "standard_error": f"{tmp_path}/cluster.err",
                 "environment": ["USER=user"],
                 "name": "test_job",
                 "nodes": "1",
@@ -226,6 +230,7 @@ def test_cluster_submission_wrapper(
     # Check the service registered success
     mock_rw.set_default_channel.assert_called_with("job_submitted")
     mock_rw.send.assert_called_with({"jobid": 1}, transaction=mock.ANY)
+    offline_transport.ack.assert_called()
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
@@ -311,3 +316,150 @@ def test_cluster_submission_extra_cluster(
     # Check the service registered success
     mock_rw.set_default_channel.assert_called_with("job_submitted")
     mock_rw.send.assert_called_with({"jobid": 1}, transaction=mock.ANY)
+    offline_transport.ack.assert_called()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+@mock.patch("workflows.recipe.RecipeWrapper")
+@mock.patch("cryoemservices.services.cluster_submission.submit_to_slurm")
+def test_cluster_submission_failed_submission(
+    mock_submit, mock_rw, offline_transport, tmp_path
+):
+    """
+    Send a test message to ClusterSubmission with a failed job submission
+    """
+    cluster_submission_configuration(tmp_path)
+
+    # Set up submission to return no job number
+    mock_submit.return_value = None
+
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+    mock_rw.recipe_step = {
+        "parameters": {
+            "workingdir": str(tmp_path),
+            "cluster": {
+                "commands": "srun job",
+                "cpus_per_task": 3,
+                "gpus": 4,
+                "gpus_per_node": 4,
+                "job_name": "test_job",
+                "memory_per_node": 20,
+                "nodes": 1,
+                "tasks": 2,
+                "time_limit": 300,
+            },
+        }
+    }
+
+    # Set up the mock service
+    service = cluster_submission.ClusterSubmission(
+        environment={
+            "config": f"{tmp_path}/config.yaml",
+            "slurm_cluster": "default",
+            "queue": "",
+        }
+    )
+    service.transport = offline_transport
+    service.start()
+    service.run_submit_job(mock_rw, header=header, message={})
+
+    # Check the service did not register success
+    mock_rw.set_default_channel.assert_not_called()
+    mock_rw.send.assert_not_called()
+    offline_transport.nack.assert_called()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+@mock.patch("workflows.recipe.RecipeWrapper")
+def test_cluster_submission_directory_failures(mock_rw, offline_transport, tmp_path):
+    """
+    Send a test message to ClusterSubmission for cases with erroneous directories
+    """
+    cluster_submission_configuration(tmp_path)
+
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+    mock_rw.environment = {"env": "env"}
+    mock_rw.recipe_pointer = 1
+    mock_rw.recipe.recipe = "recipe_name"
+    mock_rw.recipe_path = "/path/to/recipe"
+    mock_rw.payload = "payload"
+
+    # Set up the mock service
+    service = cluster_submission.ClusterSubmission(
+        environment={
+            "config": f"{tmp_path}/config.yaml",
+            "slurm_cluster": "default",
+            "queue": "",
+        }
+    )
+    service.transport = offline_transport
+    service.start()
+
+    # Case of no working dir
+    mock_rw.recipe_step = {
+        "parameters": {
+            "cluster": {
+                "commands": "srun job $RECIPEWRAP",
+                "cpus_per_task": 3,
+                "job_name": "test_job",
+                "nodes": 1,
+                "tasks": 2,
+            },
+        }
+    }
+    service.run_submit_job(mock_rw, header=header, message={})
+
+    # Cases of invalid working dirs
+    mock_rw.recipe_step = {
+        "parameters": {
+            "workingdir": "invalid/path",
+            "cluster": {
+                "commands": "srun job $RECIPEWRAP",
+                "cpus_per_task": 3,
+                "job_name": "test_job",
+                "nodes": 1,
+                "tasks": 2,
+            },
+        }
+    }
+    service.run_submit_job(mock_rw, header=header, message={})
+    mock_rw.recipe_step = {
+        "parameters": {
+            "workingdir": "/invalid/path",
+            "cluster": {
+                "commands": "srun job $RECIPEWRAP",
+                "cpus_per_task": 3,
+                "job_name": "test_job",
+                "nodes": 1,
+                "tasks": 2,
+            },
+        }
+    }
+    service.run_submit_job(mock_rw, header=header, message={})
+
+    # Cases of invalid wrapper dirs
+    mock_rw.recipe_step = {
+        "parameters": {
+            "workingdir": str(tmp_path),
+            "wrapper": "/invalid/recipe_wrapper",
+            "cluster": {
+                "commands": "srun job $RECIPEWRAP",
+                "cpus_per_task": 3,
+                "job_name": "test_job",
+                "nodes": 1,
+                "tasks": 2,
+            },
+        }
+    }
+    service.run_submit_job(mock_rw, header=header, message={})
+
+    # Check the service did not register success
+    mock_rw.set_default_channel.assert_not_called()
+    mock_rw.send.assert_not_called()
+    assert offline_transport.nack.call_count == 4
