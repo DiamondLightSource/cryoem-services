@@ -58,6 +58,10 @@ spec:
 {{- if .Values.extraVolumes }}
 {{ toYaml .Values.extraVolumes | indent 6 }}
 {{ end }}
+{{- if .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+      - name: {{ .Values.global.imagePullSecrets }}
+{{ end }}
 
 {{- if .Values.scaleOnQueueLength }}
 ---
