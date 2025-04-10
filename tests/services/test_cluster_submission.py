@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 import sys
 from unittest import mock
 
@@ -10,6 +9,7 @@ from requests import Response
 from workflows.transport.offline_transport import OfflineTransport
 
 from cryoemservices.services import cluster_submission
+from tests.test_utils.config import cluster_submission_configuration
 
 
 @pytest.fixture
@@ -18,39 +18,6 @@ def offline_transport(mocker):
     mocker.spy(transport, "ack")
     mocker.spy(transport, "nack")
     return transport
-
-
-def cluster_submission_configuration(tmp_path):
-    # Create a config file
-    config_file = tmp_path / "config.yaml"
-    with open(config_file, "w") as cf:
-        cf.write("rabbitmq_credentials: rmq_creds\n")
-        cf.write(f"recipe_directory: {tmp_path}/recipes\n")
-        cf.write("slurm_credentials:\n")
-        cf.write(f"  default: {tmp_path}/slurm_credentials.yaml\n")
-        cf.write(f"  extra: {tmp_path}/slurm_credentials_extra.yaml\n")
-    os.environ["USER"] = "user"
-
-    # Create dummy slurm credentials files
-    with open(tmp_path / "slurm_credentials.yaml", "w") as slurm_creds:
-        slurm_creds.write("url: /slurm/url\n")
-        slurm_creds.write("api_version: v0.0.40\n")
-        slurm_creds.write("user: user\n")
-        slurm_creds.write(f"user_token: {tmp_path}/token.txt\n")
-        slurm_creds.write("partition: part\n")
-        slurm_creds.write("partition_preference: preferred_part\n")
-    with open(tmp_path / "slurm_credentials_extra.yaml", "w") as slurm_creds:
-        slurm_creds.write("url: /slurm/extra/url\n")
-        slurm_creds.write("api_version: v0.0.41\n")
-        slurm_creds.write("user: user2\n")
-        slurm_creds.write(f"user_token: {tmp_path}/token_user2.txt\n")
-        slurm_creds.write("partition: part\n")
-        slurm_creds.write("partition_preference: preferred_part\n")
-
-    with open(tmp_path / "token.txt", "w") as token_file:
-        token_file.write("token")
-    with open(tmp_path / "token_user2.txt", "w") as token_file:
-        token_file.write("token2")
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
@@ -111,10 +78,10 @@ def test_cluster_submission_recipeless(
         "X-SLURM-USER-NAME", "user"
     )
     mock_requests.Session().headers.__setitem__.assert_any_call(
-        "X-SLURM-USER-TOKEN", "token"
+        "X-SLURM-USER-TOKEN", "token_key"
     )
     mock_requests.Session().post.assert_called_with(
-        url="/slurm/url/slurm/v0.0.40/job/submit",
+        url="/url/of/slurm/restapi/slurm/v0.0.40/job/submit",
         json={
             "job": {
                 "cpus_per_task": 3,
@@ -124,8 +91,8 @@ def test_cluster_submission_recipeless(
                 "environment": ["USER=user"],
                 "name": "test_job",
                 "nodes": "1",
-                "partition": "part",
-                "prefer": "preferred_part",
+                "partition": "partition",
+                "prefer": "preference",
                 "tasks": 2,
                 "memory_per_node": {"set": True, "infinite": False, "number": 20},
                 "time_limit": {"set": True, "infinite": False, "number": 5},
@@ -209,7 +176,7 @@ def test_cluster_submission_wrapper(
     assert output_json["payload"] == "payload"
 
     mock_requests.Session().post.assert_called_with(
-        url="/slurm/url/slurm/v0.0.40/job/submit",
+        url="/url/of/slurm/restapi/slurm/v0.0.40/job/submit",
         json={
             "job": {
                 "cpus_per_task": 3,
@@ -219,8 +186,8 @@ def test_cluster_submission_wrapper(
                 "environment": ["USER=user"],
                 "name": "test_job",
                 "nodes": "1",
-                "partition": "part",
-                "prefer": "preferred_part",
+                "partition": "partition",
+                "prefer": "preference",
                 "tasks": 2,
             },
             "script": f"#!/bin/bash\n. /etc/profile.d/modules.sh\nsrun job {tmp_path}/recipe_wrapper",
@@ -289,7 +256,7 @@ def test_cluster_submission_extra_cluster(
         "X-SLURM-USER-NAME", "user2"
     )
     mock_requests.Session().headers.__setitem__.assert_any_call(
-        "X-SLURM-USER-TOKEN", "token2"
+        "X-SLURM-USER-TOKEN", "token_key2"
     )
     mock_requests.Session().post.assert_called_with(
         url="/slurm/extra/url/slurm/v0.0.41/job/submit",
@@ -303,7 +270,7 @@ def test_cluster_submission_extra_cluster(
                 "name": "test_job",
                 "nodes": "1",
                 "partition": "part",
-                "prefer": "preferred_part",
+                "prefer": "preference",
                 "tasks": 2,
                 "memory_per_node": {"set": True, "infinite": False, "number": 20},
                 "time_limit": {"set": True, "infinite": False, "number": 5},
