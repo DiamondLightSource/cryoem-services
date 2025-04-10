@@ -46,6 +46,8 @@
         "job_name": "Refine3D-EM",
         "memory_per_node": 16384,
         "nodes": 1,
+        "partition": "{partition}",
+        "prefer": "{partition_preference}",
         "tasks": 5,
         "time_limit": "24:00:00"
       },
@@ -112,6 +114,8 @@
         "job_name": "Symmetry3D-EM",
         "memory_per_node": 16384,
         "nodes": 1,
+        "partition": "{partition}",
+        "prefer": "{partition_preference}",
         "tasks": 5,
         "time_limit": "24:00:00"
       },

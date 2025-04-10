@@ -24,6 +24,7 @@
         "job_name": "tiff-to-stack",
         "memory_per_node": 32768,
         "nodes": 1,
+        "partition": "{partition}",
         "tasks": 1,
         "time_limit": "3:00:00"
       },

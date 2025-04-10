@@ -40,6 +40,8 @@
         "job_name": "Class3D-EM",
         "memory_per_node": 16384,
         "nodes": 1,
+        "partition": "{partition}",
+        "prefer": "{partition_preference}",
         "tasks": 9,
         "time_limit": "6:00:00"
       },

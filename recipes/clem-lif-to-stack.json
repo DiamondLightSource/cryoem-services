@@ -22,6 +22,7 @@
         "job_name": "lif-to-stack",
         "memory_per_node": 65536,
         "nodes": 1,
+        "partition": "{partition}",
         "tasks": 20,
         "time_limit": "3:00:00"
       },

@@ -103,6 +103,8 @@ class JobSubmissionParameters(BaseModel):
     gpus: Optional[int] = None
     memory_per_node: Optional[int] = None
     nodes: Optional[int] = None
+    partition: Optional[str] = None
+    prefer: Optional[str] = None
     tasks: Optional[int] = None
     time_limit: Optional[datetime.timedelta] = None
 
@@ -151,8 +153,10 @@ def submit_to_slurm(
         environment=environment,
         name=params.job_name,
         nodes=str(params.nodes) if params.nodes else params.nodes,
-        partition=slurm_rest.get("partition"),
-        prefer=slurm_rest.get("partition_preference"),
+        partition=params.partition if params.partition else slurm_rest.get("partition"),
+        prefer=(
+            params.prefer if params.prefer else slurm_rest.get("partition_preference")
+        ),
         tasks=params.tasks,
     )
     if params.memory_per_node:

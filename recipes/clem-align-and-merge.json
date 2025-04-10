@@ -27,6 +27,7 @@
         "job_name": "align-and-merge",
         "memory_per_node": 65536,
         "nodes": 1,
+        "partition": "{partition}",
         "tasks": 8,
         "time_limit": "3:00:00"
       },
