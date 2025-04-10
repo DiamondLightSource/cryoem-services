@@ -27,6 +27,8 @@
         "tasks": 1,
         "time_limit": "3:00:00"
       },
+      "standard_error": "{session_dir}/tmp/run.err",
+      "standard_output": "{session_dir}/tmp/run.out",
       "wrapper": "{session_dir}/tmp/.recipewrap--clem_tiff_to_stack--{job_name}",
       "workingdir": "{session_dir}/processed/"
     },

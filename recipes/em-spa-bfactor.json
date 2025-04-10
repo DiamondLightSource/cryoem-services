@@ -44,9 +44,8 @@
           "USER": "{user}"
         },
         "gpus": 4,
-        "gpus_per_node": 4,
         "job_name": "BFactor-EM",
-        "min_memory_per_gpu": 4096,
+        "memory_per_node": 16384,
         "nodes": 1,
         "tasks": 5,
         "time_limit": "12:00:00"

@@ -35,15 +35,15 @@ The configuration has the following format:
 class JobParams(BaseModel):
     cpus_per_task: Optional[int] = None
     current_working_directory: Optional[str] = None
-    standard_output: Optional[str] = None
-    standard_error: Optional[str] = None
     environment: Optional[list] = None
+    memory_per_node: Optional[dict] = None
     name: Optional[str] = None
     nodes: Optional[str] = None
     partition: Optional[str] = None
     prefer: Optional[str] = None
+    standard_output: Optional[str] = None
+    standard_error: Optional[str] = None
     tasks: Optional[int] = None
-    memory_per_node: Optional[dict] = None
     time_limit: Optional[dict] = None
     tres_per_job: Optional[str] = None
 
@@ -96,15 +96,15 @@ class SlurmRestApi:
 
 
 class JobSubmissionParameters(BaseModel):
-    job_name: str
-    environment: Optional[dict[str, str]] = None
-    cpus_per_task: Optional[int] = None
-    tasks: Optional[int] = None
-    nodes: Optional[int] = None
-    memory_per_node: Optional[int] = None
-    time_limit: Optional[datetime.timedelta] = None
-    gpus: Optional[int] = None
     commands: str
+    job_name: str
+    cpus_per_task: Optional[int] = None
+    environment: Optional[dict[str, str]] = None
+    gpus: Optional[int] = None
+    memory_per_node: Optional[int] = None
+    nodes: Optional[int] = None
+    tasks: Optional[int] = None
+    time_limit: Optional[datetime.timedelta] = None
 
 
 def submit_to_slurm(
@@ -141,9 +141,6 @@ def submit_to_slurm(
         # Only attempt to copy variables that already exist.
         minimal_environment &= set(os.environ)
         environment = [f"{k}={os.environ[k]}" for k in minimal_environment]
-    if not environment:
-        logger.error("No environment has been set, aborting")
-        return None
 
     logger.info(f"Submitting script to Slurm:\n{script}")
     jdm_params = JobParams(
