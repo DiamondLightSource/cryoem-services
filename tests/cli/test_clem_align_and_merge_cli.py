@@ -69,6 +69,31 @@ def test_align_and_merge_with_default_args(mock_align_and_merge, tmp_path):
     )
 
 
+@mock.patch("cryoemservices.cli.clem_align_and_merge.align_and_merge_stacks")
+def test_align_and_merge_string_list(mock_align_and_merge, tmp_path):
+    """Test that the cli runs the expected default args"""
+    (tmp_path / "file1").touch()
+    (tmp_path / "file2").touch()
+
+    # Run the cli
+    sys.argv = [
+        "clem.align_and_merge",
+        f"[{tmp_path}/file1, {tmp_path}/file2]",
+    ]
+    clem_align_and_merge.run()
+
+    mock_align_and_merge.assert_called_with(
+        images=[tmp_path / "file1", tmp_path / "file2"],
+        metadata=None,
+        crop_to_n_frames=None,
+        align_self="",
+        flatten="mean",
+        align_across="",
+        print_messages=True,
+        debug=False,
+    )
+
+
 def test_align_and_merge_exists():
     """Test the clem.align_and_merge CLI is made"""
     result = subprocess.run(
