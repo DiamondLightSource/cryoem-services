@@ -78,7 +78,7 @@ def test_align_and_merge_string_list(mock_align_and_merge, tmp_path):
     # Run the cli
     sys.argv = [
         "clem.align_and_merge",
-        f"[{tmp_path}/file1, {tmp_path}/file2]",
+        f"['{tmp_path}/file1', '{tmp_path}/file2']",
     ]
     clem_align_and_merge.run()
 
