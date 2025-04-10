@@ -42,6 +42,7 @@ dependencies = [
     "pydantic>=2",
     "pystackreg", # CLEM workflow
     "readlif", # CLEM workflow
+    "requests",
     "SimpleITK", # CLEM workflow
     "starfile",
     "stomp-py==8.1.0",
