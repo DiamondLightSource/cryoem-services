@@ -135,8 +135,8 @@
     },
     "parameters": {
       "picker_id": "{picker_id}",
-      "refined_class_uuid": "{refined_class_uuid}",
-      "refined_grp_uuid": "{refined_grp_uuid}"
+      "refined_class_uuid": "{symmetry_refined_class_uuid}",
+      "refined_grp_uuid": "{symmetry_refined_grp_uuid}"
     },
     "queue": "postprocess",
     "service": "PostProcess"
