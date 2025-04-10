@@ -267,7 +267,7 @@ def slurm_submission_for_services(
     memory_request: int = 12000,
     external_filesystem: bool = False,
     extra_singularity_directories: Optional[list[str]] = None,
-):
+) -> subprocess.CompletedProcess:
     """Submit jobs to a slurm cluster via the RestAPI"""
     # Load the service config with slurm credentials
     service_config = config_from_file(service_config_file)
@@ -361,9 +361,9 @@ def slurm_submission_for_services(
             stdout="cluster job submission".encode("utf8"),
             stderr="failed to submit job".encode("utf8"),
         )
-    log.info(f"Submitted job {job_id} for {job_name} to slurm. Waiting...")
 
-    # Command to get the status of the submitted job from the restAPI
+    # Get the status of the submitted job from the restAPI
+    log.info(f"Submitted job {job_id} for {job_name} to slurm. Waiting...")
     slurm_job_state = wait_for_job_completion(
         job_id=job_id,
         logger=log,
