@@ -183,8 +183,13 @@ def test_mrc_to_apng_skip_rescaling(mock_pil, tmp_path):
     # Check the image creation
     assert mock_pil.fromarray.call_count == 2
     mock_pil.fromarray.assert_called_with(mock.ANY, mode="L")
-    assert (mock_pil.fromarray.mock_calls[0][1] == data_3d[0] * 255 / 24).all()
-    assert (mock_pil.fromarray.mock_calls[2][1] == (data_3d[1] - 25) * 255 / 24).all()
+    assert (
+        mock_pil.fromarray.mock_calls[0][1] == (data_3d[0] * 255 / 24).astype("uint8")
+    ).all()
+    assert (
+        mock_pil.fromarray.mock_calls[2][1]
+        == ((data_3d[1] - 25) * 255 / 24).astype("uint8")
+    ).all()
     mock_pil.fromarray().thumbnail.assert_called_with((512, 512))
 
 

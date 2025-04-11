@@ -6,6 +6,8 @@ from typing import Callable
 import workflows.recipe
 from workflows.services.common_service import CommonService
 
+from cryoemservices.util.models import MockRW
+
 
 class Images(CommonService):
     """
@@ -44,10 +46,22 @@ class Images(CommonService):
             self.image_call,
             acknowledgement=True,
             log_extender=self.extend_log,
+            allow_non_recipe_messages=True,
         )
 
     def image_call(self, rw, header, message):
         """Pass incoming message to the relevant plugin function."""
+        if not rw:
+            self.log.info("Received a simple message")
+            if not isinstance(message, dict):
+                self.log.error("Rejected invalid simple message")
+                self._transport.nack(header)
+                return
+
+            # Create a wrapper-like object that can be passed to functions
+            # as if a recipe wrapper was present.
+            rw = MockRW(self._transport)
+            rw.recipe_step = {"parameters": message}
 
         def parameters(key: str):
             if isinstance(message, dict) and message.get(key):
