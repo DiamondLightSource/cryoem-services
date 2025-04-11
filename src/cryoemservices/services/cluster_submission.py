@@ -38,6 +38,10 @@ class ClusterSubmission(CommonService):
         """Submit cluster job according to message."""
 
         parameters = rw.recipe_step["parameters"]
+        if type(parameters.get("cluster", {}).get("commands")) is list:
+            parameters["cluster"]["commands"] = "\n".join(
+                parameters["cluster"]["commands"]
+            )
         cluster_params = JobSubmissionParameters(**parameters.get("cluster", {}))
 
         if "wrapper" in parameters:
