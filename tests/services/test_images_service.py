@@ -27,7 +27,7 @@ def test_plugins_exist():
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.images_plugins.picked_particles")
-def test_images_call(mock_picker_image):
+def test_images_call_rw(mock_picker_image):
     """
     Send a test message to the images service
     """
@@ -51,6 +51,30 @@ def test_images_call(mock_picker_image):
     # Check the correct calls were made
     mock_picker_image.assert_called_once()
     mock_recipe_wrapper.transport.ack.assert_called()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+@mock.patch("cryoemservices.services.images_plugins.picked_particles")
+def test_images_call_simple_message(mock_picker_image):
+    """
+    Send a test message to the images service
+    """
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+    images_test_message = {"image_command": "picked_particles"}
+
+    # Set up the mock service
+    service = images.Images(environment={"queue": ""})
+    service.transport = mock.Mock()
+    service.start()
+
+    # Send a message to the service
+    service.image_call(None, header=header, message=images_test_message)
+
+    # Check the correct calls were made
+    mock_picker_image.assert_called_once()
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
