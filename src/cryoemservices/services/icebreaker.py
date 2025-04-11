@@ -15,7 +15,7 @@ from workflows.services.common_service import CommonService
 
 from cryoemservices.util.models import MockRW
 from cryoemservices.util.relion_service_options import RelionServiceOptions
-from cryoemservices.util.slurm_submission import slurm_submission
+from cryoemservices.util.slurm_submission import slurm_submission_for_services
 
 
 class IceBreakerParameters(BaseModel):
@@ -241,7 +241,7 @@ class IceBreaker(CommonService):
                 icegroups_doc.write_file("ib_icegroups.star")
             else:
                 # Run the icebreaker command and confirm it ran successfully
-                slurm_outcome = slurm_submission(
+                slurm_outcome = slurm_submission_for_services(
                     log=self.log,
                     service_config_file=self._environment["config"],
                     slurm_cluster=self._environment["slurm_cluster"],

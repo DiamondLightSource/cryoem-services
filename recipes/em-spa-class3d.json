@@ -37,19 +37,15 @@
           "USER": "{user}"
         },
         "gpus": 4,
-        "gpus_per_node": 4,
         "job_name": "Class3D-EM",
-        "min_memory_per_gpu": 4096,
+        "memory_per_node": 16384,
         "nodes": 1,
         "partition": "{partition}",
         "prefer": "{partition_preference}",
-        "scheduler": "slurm",
-        "standard_error": "{class3d_dir}/run.err",
-        "standard_output": "{class3d_dir}/run.out",
         "tasks": 9,
         "time_limit": "6:00:00"
       },
-      "recipewrapper": "{class3d_dir}/.recipewrap",
+      "wrapper": "{class3d_dir}/.recipewrap",
       "workingdir": "{class3d_dir}/"
     },
     "queue": "cluster.submission",

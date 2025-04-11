@@ -44,19 +44,15 @@
           "USER": "{user}"
         },
         "gpus": 4,
-        "gpus_per_node": 4,
         "job_name": "BFactor-EM",
-        "min_memory_per_gpu": 4096,
+        "memory_per_node": 16384,
         "nodes": 1,
         "partition": "{partition}",
         "prefer": "{partition_preference}",
-        "scheduler": "slurm",
-        "standard_error": "{bfactor_directory}/run.err",
-        "standard_output": "{bfactor_directory}/run.out",
         "tasks": 5,
         "time_limit": "12:00:00"
       },
-      "recipewrapper": "{bfactor_directory}/.recipewrap",
+      "wrapper": "{bfactor_directory}/.recipewrap",
       "workingdir": "{bfactor_directory}/"
     },
     "queue": "cluster.submission",

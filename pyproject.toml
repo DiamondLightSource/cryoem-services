@@ -42,6 +42,7 @@ dependencies = [
     "pydantic>=2",
     "pystackreg", # CLEM workflow
     "readlif", # CLEM workflow
+    "requests",
     "SimpleITK", # CLEM workflow
     "starfile",
     "stomp-py==8.1.0",
@@ -75,8 +76,6 @@ dev = [
     "relipy.link" = "cryoemservices.cli.project_linker:run"
 [project.entry-points."ccpem_pipeliner.jobs"]
     "combine_star_files_job" = "cryoemservices.pipeliner_plugins.combine_star_job:ProcessStarFiles"
-[project.entry-points."cryoemservices.services.cluster.schedulers"]
-    slurm = "cryoemservices.services.cluster_submission:submit_to_slurm"
 [project.entry-points."cryoemservices.services.images.plugins"]
     "mrc_central_slice" = "cryoemservices.services.images_plugins:mrc_central_slice"
     "mrc_to_apng" = "cryoemservices.services.images_plugins:mrc_to_apng"

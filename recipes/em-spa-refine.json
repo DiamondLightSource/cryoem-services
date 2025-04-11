@@ -43,19 +43,15 @@
           "USER": "{user}"
         },
         "gpus": 4,
-        "gpus_per_node": 4,
         "job_name": "Refine3D-EM",
-        "min_memory_per_gpu": 4096,
+        "memory_per_node": 16384,
         "nodes": 1,
         "partition": "{partition}",
         "prefer": "{partition_preference}",
-        "scheduler": "slurm",
-        "standard_error": "{refine_job_dir}/run.err",
-        "standard_output": "{refine_job_dir}/run.out",
         "tasks": 5,
         "time_limit": "24:00:00"
       },
-      "recipewrapper": "{refine_job_dir}/.recipewrap",
+      "wrapper": "{refine_job_dir}/.recipewrap",
       "workingdir": "{refine_job_dir}/"
     },
     "queue": "cluster.submission",
@@ -115,19 +111,17 @@
           "USER": "{user}"
         },
         "gpus": 4,
-        "gpus_per_node": 4,
         "job_name": "Symmetry3D-EM",
-        "min_memory_per_gpu": 4096,
+        "memory_per_node": 16384,
         "nodes": 1,
         "partition": "{partition}",
         "prefer": "{partition_preference}",
-        "scheduler": "slurm",
-        "standard_error": "{refine_job_dir}/run_sym.err",
-        "standard_output": "{refine_job_dir}/run_sym.out",
         "tasks": 5,
         "time_limit": "24:00:00"
       },
-      "recipewrapper": "{refine_job_dir}/.recipewrap",
+      "standard_error": "{refine_job_dir}/run_sym.err",
+      "standard_output": "{refine_job_dir}/run_sym.out",
+      "wrapper": "{refine_job_dir}/.recipewrap",
       "workingdir": "{refine_job_dir}/"
     },
     "queue": "cluster.submission",
@@ -141,8 +135,8 @@
     },
     "parameters": {
       "picker_id": "{picker_id}",
-      "refined_class_uuid": "{refined_class_uuid}",
-      "refined_grp_uuid": "{refined_grp_uuid}"
+      "refined_class_uuid": "{symmetry_refined_class_uuid}",
+      "refined_grp_uuid": "{symmetry_refined_grp_uuid}"
     },
     "queue": "postprocess",
     "service": "PostProcess"
