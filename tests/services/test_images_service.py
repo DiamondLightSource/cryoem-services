@@ -4,8 +4,17 @@ import sys
 from unittest import mock
 
 import pytest
+from workflows.transport.offline_transport import OfflineTransport
 
 from cryoemservices.services import images
+
+
+@pytest.fixture
+def offline_transport(mocker):
+    transport = OfflineTransport()
+    mocker.spy(transport, "ack")
+    mocker.spy(transport, "nack")
+    return transport
 
 
 def test_plugins_exist():
@@ -55,7 +64,7 @@ def test_images_call_rw(mock_picker_image):
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.images_plugins.picked_particles")
-def test_images_call_simple_message(mock_picker_image):
+def test_images_call_simple_message(mock_picker_image, offline_transport):
     """
     Send a test message to the images service
     """
@@ -67,7 +76,7 @@ def test_images_call_simple_message(mock_picker_image):
 
     # Set up the mock service
     service = images.Images(environment={"queue": ""})
-    service.transport = mock.Mock()
+    service.transport = offline_transport
     service.start()
 
     # Send a message to the service
@@ -75,6 +84,31 @@ def test_images_call_simple_message(mock_picker_image):
 
     # Check the correct calls were made
     mock_picker_image.assert_called_once()
+    offline_transport.ack.assert_called()
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+@mock.patch("cryoemservices.services.images_plugins.picked_particles")
+def test_images_call_invalid_message(mock_picker_image, offline_transport):
+    """
+    Send a test message to the images service for a call that fails
+    """
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+
+    # Set up the mock service
+    service = images.Images(environment={"queue": ""})
+    service.transport = offline_transport
+    service.start()
+
+    # Send a message to the service
+    service.image_call(None, header=header, message="string message")
+
+    # Check the correct calls were made
+    mock_picker_image.assert_not_called()
+    offline_transport.nack.assert_called()
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
