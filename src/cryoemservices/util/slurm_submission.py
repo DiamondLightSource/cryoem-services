@@ -144,6 +144,14 @@ def submit_to_slurm(
         minimal_environment &= set(os.environ)
         environment = [f"{k}={os.environ[k]}" for k in minimal_environment]
 
+    # Partition and preference always need to match
+    if params.partition:
+        partition_to_use = params.partition
+        preferred_partition = params.prefer
+    else:
+        partition_to_use = slurm_rest.get("partition")
+        preferred_partition = slurm_rest.get("partition_preference")
+
     logger.info(f"Submitting script to Slurm:\n{script}")
     jdm_params = JobParams(
         cpus_per_task=params.cpus_per_task,
@@ -153,10 +161,8 @@ def submit_to_slurm(
         environment=environment,
         name=params.job_name,
         nodes=str(params.nodes) if params.nodes else params.nodes,
-        partition=params.partition if params.partition else slurm_rest.get("partition"),
-        prefer=(
-            params.prefer if params.prefer else slurm_rest.get("partition_preference")
-        ),
+        partition=partition_to_use,
+        prefer=preferred_partition,
         tasks=params.tasks,
     )
     if params.memory_per_node:
