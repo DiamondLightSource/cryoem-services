@@ -4,10 +4,10 @@ import argparse
 import logging
 
 import graypy
-import workflows.frontend
 from workflows.services import get_known_services
 from workflows.transport.pika_transport import PikaTransport
 
+from cryoemservices.services.service_frontend import Frontend
 from cryoemservices.util.config import config_from_file
 
 
@@ -68,7 +68,6 @@ def run():
     frontend_args: dict = {
         "service": args.service,
         "transport": transport_factory,
-        "transport_command_channel": "command",
         "verbose_service": True,
         "environment": {
             "config": args.config_file,
@@ -79,7 +78,7 @@ def run():
 
     # Create and start workflows Frontend object
     log.info(f"Launching service {args.service}")
-    frontend = workflows.frontend.Frontend(**frontend_args)
+    frontend = Frontend(**frontend_args)
     try:
         frontend.run()
     except KeyboardInterrupt:
