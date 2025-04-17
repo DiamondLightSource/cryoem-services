@@ -5,9 +5,8 @@ import logging
 
 import graypy
 from workflows.services import get_known_services
-from workflows.transport.pika_transport import PikaTransport
 
-from cryoemservices.services.service_frontend import Frontend
+from cryoemservices.services.service_frontend import ServiceFrontend
 from cryoemservices.util.config import config_from_file
 
 
@@ -59,26 +58,17 @@ def run():
     logging.getLogger("pika").setLevel(logging.WARN)
     log = logging.getLogger("cryoemservices.service")
 
-    # Create Transport factory using given rabbitmq credentials
-    def transport_factory():
-        transport_type = PikaTransport()
-        transport_type.load_configuration_file(service_config.rabbitmq_credentials)
-        return transport_type
-
-    frontend_args: dict = {
-        "service": args.service,
-        "transport": transport_factory,
-        "verbose_service": True,
-        "environment": {
+    # Create and start workflows Frontend object
+    log.info(f"Launching service {args.service}")
+    frontend = ServiceFrontend(
+        service=args.service,
+        rabbitmq_credentials=service_config.rabbitmq_credentials,
+        environment={
             "config": args.config_file,
             "slurm_cluster": args.slurm,
             "queue": args.queue,
         },
-    }
-
-    # Create and start workflows Frontend object
-    log.info(f"Launching service {args.service}")
-    frontend = Frontend(**frontend_args)
+    )
     try:
         frontend.run()
     except KeyboardInterrupt:
