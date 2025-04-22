@@ -134,9 +134,10 @@ def test_select_classes_service_first_batch(
     )
 
     # Set up the mock service and send the message to it
-    service = select_classes.SelectClasses(environment={"queue": ""})
-    service.transport = offline_transport
-    service.start()
+    service = select_classes.SelectClasses(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
     service.select_classes(None, header=header, message=select_test_message)
 
     # Check the correct particle counts were found and split files made
@@ -321,9 +322,10 @@ def test_select_classes_service_batch_threshold(
     )
 
     # Set up the mock service and send the message to it
-    service = select_classes.SelectClasses(environment={"queue": ""})
-    service.transport = offline_transport
-    service.start()
+    service = select_classes.SelectClasses(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
     service.select_classes(None, header=header, message=select_test_message)
 
     # Check the correct particle counts were found and split files made
@@ -373,9 +375,10 @@ def test_select_classes_service_two_thresholds(
     )
 
     # Set up the mock service and send the message to it
-    service = select_classes.SelectClasses(environment={"queue": ""})
-    service.transport = offline_transport
-    service.start()
+    service = select_classes.SelectClasses(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
     service.select_classes(None, header=header, message=select_test_message)
 
     # Check the correct particle counts were found and split files made
@@ -426,9 +429,10 @@ def test_select_classes_service_last_threshold(
     )
 
     # Set up the mock service and send the message to it
-    service = select_classes.SelectClasses(environment={"queue": ""})
-    service.transport = offline_transport
-    service.start()
+    service = select_classes.SelectClasses(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
     service.select_classes(None, header=header, message=select_test_message)
 
     # Check the correct particle counts were found and split files made
@@ -476,9 +480,10 @@ def test_select_classes_service_not_threshold(
     )
 
     # Set up the mock service and send the message to it
-    service = select_classes.SelectClasses(environment={"queue": ""})
-    service.transport = offline_transport
-    service.start()
+    service = select_classes.SelectClasses(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
     service.select_classes(None, header=header, message=select_test_message)
 
     # Check the correct particle counts were found and split files made
@@ -516,9 +521,10 @@ def test_select_classes_service_past_maximum(
     )
 
     # Set up the mock service and send the message to it
-    service = select_classes.SelectClasses(environment={"queue": ""})
-    service.transport = offline_transport
-    service.start()
+    service = select_classes.SelectClasses(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
     service.select_classes(None, header=header, message=select_test_message)
 
     # Check the correct particle counts were found and split files made
@@ -538,9 +544,10 @@ def test_parse_combiner_output(offline_transport):
     Send test lines to the output parser
     to check the number of particles are being read in
     """
-    service = select_classes.SelectClasses(environment={"queue": ""})
-    service.transport = offline_transport
-    service.start()
+    service = select_classes.SelectClasses(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
 
     select_classes.SelectClasses.parse_combiner_output(
         service, "Adding Select/job/particles_all.star with 10 particles"

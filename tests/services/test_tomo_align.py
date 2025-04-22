@@ -91,9 +91,10 @@ def test_tomo_align_service_file_list(
     output_relion_options["tomo_size_y"] = 4000
 
     # Set up the mock service
-    service = tomo_align.TomoAlign(environment={"queue": ""})
-    service.transport = offline_transport
-    service.start()
+    service = tomo_align.TomoAlign(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
 
     # Set up outputs: stack_Imod file like AreTomo2, no exclusions but with space
     (tmp_path / "Tomograms/job006/tomograms/test_stack_Imod").mkdir(parents=True)
@@ -358,9 +359,10 @@ def test_tomo_align_service_file_list_repeated_tilt(
     (tmp_path / "MotionCorr/job002/Movies/Position_1_003_0.0.mrc").touch()
 
     # Set up the mock service
-    service = tomo_align.TomoAlign(environment={"queue": ""})
-    service.transport = offline_transport
-    service.start()
+    service = tomo_align.TomoAlign(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
 
     # Set up outputs: stack_Imod file like AreTomo2, no exclusions but with space
     (tmp_path / "Tomograms/job006/tomograms/test_stack_Imod").mkdir(parents=True)
@@ -474,9 +476,10 @@ def test_tomo_align_service_file_list_zero_rotation(
     (tmp_path / "MotionCorr/job002/Movies/Position_1_001_0.0.mrc").touch()
 
     # Set up the mock service
-    service = tomo_align.TomoAlign(environment={"queue": ""})
-    service.transport = offline_transport
-    service.start()
+    service = tomo_align.TomoAlign(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
 
     # Set up outputs: stack_Imod file like AreTomo2, no exclusions but with space
     (tmp_path / "Tomograms/job006/tomograms/test_stack_Imod").mkdir(parents=True)
@@ -575,9 +578,10 @@ def test_tomo_align_service_file_list_bad_tilts(
     output_relion_options["tomo_size_y"] = 4000
 
     # Set up the mock service
-    service = tomo_align.TomoAlign(environment={"queue": ""})
-    service.transport = offline_transport
-    service.start()
+    service = tomo_align.TomoAlign(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
 
     # Set up outputs: stack_Imod file like AreTomo2, no exclusions but with space
     (tmp_path / "Tomograms/job006/tomograms/test_stack_Imod").mkdir(parents=True)
@@ -721,9 +725,10 @@ def test_tomo_align_service_path_pattern(
     output_relion_options["dose_per_frame"] = 0.2
 
     # Set up the mock service
-    service = tomo_align.TomoAlign(environment={"queue": ""})
-    service.transport = offline_transport
-    service.start()
+    service = tomo_align.TomoAlign(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
 
     # Set up outputs: stack_Imod file like AreTomo2, no exclusions without space
     (tmp_path / "Tomograms/job006/tomograms/test_stack_Imod").mkdir(parents=True)
@@ -893,9 +898,10 @@ def test_tomo_align_service_dark_images(
     output_relion_options["tomo_size_y"] = 4000
 
     # Set up the mock service
-    service = tomo_align.TomoAlign(environment={"queue": ""})
-    service.transport = offline_transport
-    service.start()
+    service = tomo_align.TomoAlign(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
 
     x_tilts = ["1.2", "2.4", "3.2", "3.4", "4.2"]
     y_tilts = ["2.3", "2.5", "4.3", "4.5", "6.3"]
@@ -1108,9 +1114,10 @@ def test_tomo_align_service_all_dark(
     }
 
     # Set up the mock service
-    service = tomo_align.TomoAlign(environment={"queue": ""})
-    service.transport = offline_transport
-    service.start()
+    service = tomo_align.TomoAlign(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
 
     # Set up outputs: stack_Imod file like AreTomo2, with exclusions and no spaces
     (tmp_path / "Tomograms/job006/tomograms/test_stack_Imod").mkdir(parents=True)
@@ -1172,9 +1179,10 @@ def test_parse_tomo_align_output(offline_transport):
     Send test lines to the output parser
     to check the rotations and offsets are being read in
     """
-    service = tomo_align.TomoAlign(environment={"queue": ""})
-    service.transport = offline_transport
-    service.start()
+    service = tomo_align.TomoAlign(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
 
     tomo_align.TomoAlign.parse_tomo_output(
         service,

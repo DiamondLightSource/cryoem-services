@@ -4,8 +4,8 @@ import uuid
 from importlib.metadata import entry_points
 from pathlib import Path
 
+import workflows.recipe
 from workflows import Error as WorkflowsError
-from workflows.recipe import Recipe, RecipeWrapper, wrap_subscribe
 
 from cryoemservices.services.common_service import CommonService
 from cryoemservices.util.config import ServiceConfig, config_from_file
@@ -20,7 +20,7 @@ def filter_load_recipes_from_files(
         if not recipe_location.is_file():
             raise ValueError(f"Cannot find recipe in location {recipe_location}")
         with open(recipe_location, "r") as rcp:
-            named_recipe = Recipe(recipe=rcp.read())
+            named_recipe = workflows.recipe.Recipe(recipe=rcp.read())
         try:
             named_recipe.validate()
         except WorkflowsError as e:
@@ -65,7 +65,7 @@ class ProcessRecipe(CommonService):
             "apply_parameters": filter_apply_parameters,
         }
 
-        wrap_subscribe(
+        workflows.recipe.wrap_subscribe(
             self._transport,
             self._environment["queue"] or "processing_recipe",
             self.process,
@@ -91,7 +91,7 @@ class ProcessRecipe(CommonService):
         parameters["guid"] = recipe_id
 
         # Add an empty recipe to the message
-        message["recipe"] = Recipe()
+        message["recipe"] = workflows.recipe.Recipe()
 
         # Apply all specified filters in order to message and parameters
         for name, f in self.message_filters.items():
@@ -113,7 +113,9 @@ class ProcessRecipe(CommonService):
         txn = self._transport.transaction_begin(subscription_id=header["subscription"])
         self._transport.ack(header, transaction=txn)
 
-        rw = RecipeWrapper(recipe=message["recipe"], transport=self._transport)
+        rw = workflows.recipe.RecipeWrapper(
+            recipe=message["recipe"], transport=self._transport
+        )
         rw.environment = {"ID": recipe_id}
         rw.start(transaction=txn)
 

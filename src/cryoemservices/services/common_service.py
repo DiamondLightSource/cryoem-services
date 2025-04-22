@@ -47,9 +47,7 @@ class CommonService:
             self.initializing()
 
             # Main loop
-            while True:
-                if not self._transport.is_connected():
-                    raise RuntimeError("Connection lost")
+            while self._transport.is_connected():
                 try:
                     callback, header, message = self._queue.get(True, 2)
                 except queue.Empty:

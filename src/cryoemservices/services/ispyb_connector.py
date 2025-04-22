@@ -127,7 +127,6 @@ class EMISPyB(CommonService):
                 exc_info=True,
             )
             rw.transport.nack(header)
-            self._request_termination()
             return
 
         # Store results if they are requested in the parameters or in the command
