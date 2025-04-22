@@ -2,17 +2,20 @@ from __future__ import annotations
 
 import argparse
 import logging
+import multiprocessing
+from importlib.metadata import entry_points
 
 import graypy
-from workflows.services import get_known_services
+from workflows.transport.pika_transport import PikaTransport
 
-from cryoemservices.services.service_frontend import ServiceFrontend
 from cryoemservices.util.config import config_from_file
 
 
 def run():
     # Enumerate all known services
-    known_services = sorted(get_known_services())
+    known_services = {
+        e.name: e.load for e in entry_points(group="cryoemservices.services")
+    }
 
     # Set up parser
     parser = argparse.ArgumentParser(usage="cryoemservices.service [options]")
@@ -20,8 +23,8 @@ def run():
         "-s",
         "--service",
         required=True,
-        choices=list(known_services),
-        help=f"Name of the service to start. Known services: {', '.join(known_services)}",
+        choices=sorted(known_services),
+        help=f"Name of the service to start. Known services: {', '.join(sorted(known_services))}",
     )
     parser.add_argument(
         "-c",
@@ -57,19 +60,39 @@ def run():
     logging.getLogger().setLevel(logging.INFO)
     logging.getLogger("pika").setLevel(logging.WARN)
     log = logging.getLogger("cryoemservices.service")
-
-    # Create and start workflows Frontend object
     log.info(f"Launching service {args.service}")
-    frontend = ServiceFrontend(
-        service=args.service,
-        rabbitmq_credentials=service_config.rabbitmq_credentials,
+
+    # Create Transport factory using given rabbitmq credentials and connect to it
+    def transport_factory():
+        transport_type = PikaTransport()
+        transport_type.load_configuration_file(service_config.rabbitmq_credentials)
+        return transport_type
+
+    transport = transport_factory()
+    transport.connect()
+
+    # Start new service in a separate process
+    service_factory = known_services.get(args.service)()
+    service_instance = service_factory(
         environment={
             "config": args.config_file,
             "slurm_cluster": args.slurm,
             "queue": args.queue,
         },
+        transport=transport_factory(),
     )
+    started_service = multiprocessing.Process(target=service_instance.start)
+    started_service.start()
+    log.info(f"Started service {args.service}")
+
     try:
-        frontend.run()
+        while started_service.is_alive():
+            if not transport.is_connected():
+                raise RuntimeError("Lost transport layer connection")
     except KeyboardInterrupt:
-        log.info("\nShutdown via Ctrl+C")
+        log.info("Shutdown via Ctrl+C")
+    finally:
+        started_service.terminate()
+        started_service.join()
+        transport.disconnect()
+        log.info(f"Terminated service {args.service}")
