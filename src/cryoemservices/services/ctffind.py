@@ -7,8 +7,8 @@ from typing import Any
 
 import workflows.recipe
 from pydantic import BaseModel, Field, ValidationError, field_validator
-from workflows.services.common_service import CommonService
 
+from cryoemservices.services.common_service import CommonService
 from cryoemservices.util.models import MockRW
 from cryoemservices.util.relion_service_options import RelionServiceOptions
 
@@ -85,7 +85,6 @@ class CTFFind(CommonService):
             self._environment["queue"] or "ctffind",
             self.ctf_find,
             acknowledgement=True,
-            log_extender=self.extend_log,
             allow_non_recipe_messages=True,
         )
 
