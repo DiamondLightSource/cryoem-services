@@ -6,6 +6,7 @@ import threading
 from pathlib import Path
 from typing import Optional
 
+from workflows import Disconnected
 from workflows.services import lookup as lookup_services
 from workflows.transport.pika_transport import PikaTransport
 
@@ -32,7 +33,6 @@ class ServiceFrontend:
         """
         self.__lock = threading.RLock()
         self._service_name = service
-        self.shutdown = False
         self.log = logging.getLogger("workflows.frontend")
 
         # Create Transport factory using given rabbitmq credentials and connect to it
@@ -53,10 +53,10 @@ class ServiceFrontend:
     def run(self):
         """The main loop of the frontend"""
         try:
-            while not self.shutdown:
+            while True:
                 self._check_for_service_messages()
                 if not self._transport.is_connected():
-                    self.log.error("Lost transport layer connection")
+                    raise Disconnected("Lost transport layer connection")
         finally:
             with self.__lock:
                 self._service.terminate()
@@ -69,19 +69,9 @@ class ServiceFrontend:
         if self._pipe_service and self._pipe_service.poll(1):
             try:
                 message = self._pipe_service.recv()
-                if isinstance(message, dict) and message.get("band") in [
-                    "log",
-                    "status_update",
-                ]:
-                    if message["band"] == "log":
-                        self.log.info(message["payload"].getMessage())
-                    else:
-                        pass
-                else:
-                    self.log.warning(f"Message received {message}")
+                self.log.info(message.getMessage())
             except EOFError:
-                self.log.error("Service died unexpectedly")
-                self.shutdown = True
+                raise Disconnected("Service died unexpectedly")
 
     def setup_service(self, new_service: str, service_environment: Optional[dict]):
         """Start a new service in a subprocess"""
@@ -89,18 +79,16 @@ class ServiceFrontend:
             # Find service class if necessary
             service_factory = lookup_services(new_service)
             if not service_factory:
+                self.log.error(f"Cannot start service {new_service}")
                 return False
 
-            # Set up new service object
-            service_instance = service_factory(environment=service_environment)
-
-            # Set up pipes and connect service object
-            svc_commands, pipe_commands = multiprocessing.Pipe(False)
+            # Set up pipes and connect a new service object
             pipe_service, svc_tofrontend = multiprocessing.Pipe(False)
-            service_instance.connect(commands=svc_commands, frontend=svc_tofrontend)
-
-            # Set up transport layer for new service
-            service_instance.transport = self._transport_factory()
+            service_instance = service_factory(
+                environment=service_environment,
+                transport=self._transport_factory(),
+                frontend_pipe=svc_tofrontend,
+            )
 
             # Start new service in a separate process
             started_service = multiprocessing.Process(
@@ -110,7 +98,6 @@ class ServiceFrontend:
             started_service.start()
 
             # At this point the passed pipe objects must be closed
-            svc_commands.close()
             svc_tofrontend.close()
         self.log.info(f"Started service {self._service_name}")
         return started_service, pipe_service
