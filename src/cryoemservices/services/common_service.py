@@ -1,11 +1,7 @@
 from __future__ import annotations
 
-import itertools
 import logging
 import queue
-
-from workflows import Disconnected
-from workflows.logging import CallbackHandler
 
 
 class CommonService:
@@ -24,14 +20,10 @@ class CommonService:
         self.log.warning("Initializing is not implemented for the common service")
         pass
 
-    def __init__(self, environment, transport, frontend_pipe):
-        self._pipe_frontend = frontend_pipe
+    def __init__(self, environment, transport):
         self._environment = environment
         self._transport = transport
         self._queue = queue.PriorityQueue()
-        self._transport_interceptor_counter = itertools.count()
-
-        # Logging: pass warning and higher to the frontend
         self.log = logging.getLogger(self._logger_name)
         self.log.setLevel(logging.INFO)
 
@@ -39,11 +31,7 @@ class CommonService:
         """Takes a callback function and adds headers and messages"""
 
         def add_item_to_queue(header, message):
-            queue_item = (
-                next(self._transport_interceptor_counter),  # insertion sequence
-                (callback, header, message),
-            )
-            # Block incoming transport until insertion completes
+            queue_item = (callback, header, message)
             self._queue.put(queue_item)
 
         return add_item_to_queue
@@ -52,9 +40,6 @@ class CommonService:
         """Start listening and process commands in main loop"""
         try:
             # Setup
-            root_logger = logging.getLogger()
-            root_logger.setLevel(logging.WARN)
-            root_logger.addHandler(CallbackHandler(self._pipe_frontend.send))
             self._transport.connect()
             self._transport.subscription_callback_set_intercept(
                 self._transport_interceptor
@@ -64,12 +49,11 @@ class CommonService:
             # Main loop
             while True:
                 if not self._transport.is_connected():
-                    raise Disconnected("Connection lost")
+                    raise RuntimeError("Connection lost")
                 try:
-                    task = self._queue.get(True, 2)
+                    callback, header, message = self._queue.get(True, 2)
                 except queue.Empty:
                     continue
-                callback, header, message = task[1]
                 callback(header, message)
         except Exception as e:
             self.log.critical(f"Unhandled service exception: {e}", exc_info=True)
