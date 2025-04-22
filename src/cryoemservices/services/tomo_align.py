@@ -11,12 +11,11 @@ from typing import Any, List, Optional
 import mrcfile
 import numpy as np
 import plotly.express as px
-import workflows.recipe
-import workflows.transport
 from gemmi import cif
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
-from workflows.services.common_service import CommonService
+from workflows.recipe import wrap_subscribe
 
+from cryoemservices.services.common_service import CommonService
 from cryoemservices.util.models import MockRW
 from cryoemservices.util.relion_service_options import (
     RelionServiceOptions,
@@ -120,12 +119,11 @@ class TomoAlign(CommonService):
     def initializing(self):
         """Subscribe to a queue. Received messages must be acknowledged."""
         self.log.info("TomoAlign service starting")
-        workflows.recipe.wrap_subscribe(
+        wrap_subscribe(
             self._transport,
             self._environment["queue"] or "tomo_align",
             self.tomo_align,
             acknowledgement=True,
-            log_extender=self.extend_log,
             allow_non_recipe_messages=True,
         )
 

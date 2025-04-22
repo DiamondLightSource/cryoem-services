@@ -3,11 +3,11 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-import workflows.recipe
 from gemmi import cif
 from pydantic import BaseModel, Field, ValidationError
-from workflows.services.common_service import CommonService
+from workflows.recipe import wrap_subscribe
 
+from cryoemservices.services.common_service import CommonService
 from cryoemservices.util.models import MockRW
 from cryoemservices.util.relion_service_options import RelionServiceOptions
 from cryoemservices.util.spa_output_files import get_optics_table
@@ -38,12 +38,11 @@ class SelectParticles(CommonService):
     def initializing(self):
         """Subscribe to a queue. Received messages must be acknowledged."""
         self.log.info("Select particles service starting")
-        workflows.recipe.wrap_subscribe(
+        wrap_subscribe(
             self._transport,
             self._environment["queue"] or "select_particles",
             self.select_particles,
             acknowledgement=True,
-            log_extender=self.extend_log,
             allow_non_recipe_messages=True,
         )
 

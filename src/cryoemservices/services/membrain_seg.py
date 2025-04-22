@@ -4,10 +4,10 @@ import subprocess
 from pathlib import Path
 from typing import Optional
 
-import workflows.recipe
 from pydantic import BaseModel, Field, ValidationError
-from workflows.services.common_service import CommonService
+from workflows.recipe import wrap_subscribe
 
+from cryoemservices.services.common_service import CommonService
 from cryoemservices.util.models import MockRW
 from cryoemservices.util.slurm_submission import slurm_submission
 
@@ -44,12 +44,11 @@ class MembrainSeg(CommonService):
     def initializing(self):
         """Subscribe to a queue. Received messages must be acknowledged."""
         self.log.info("membrain-seg service starting")
-        workflows.recipe.wrap_subscribe(
+        wrap_subscribe(
             self._transport,
             self._environment["queue"] or "segmentation",
             self.membrain_seg,
             acknowledgement=True,
-            log_extender=self.extend_log,
             allow_non_recipe_messages=True,
         )
 

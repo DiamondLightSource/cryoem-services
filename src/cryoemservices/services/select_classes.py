@@ -11,15 +11,15 @@ from typing import Any
 
 import mrcfile
 import numpy as np
-import workflows.recipe
 from gemmi import cif
 from pydantic import BaseModel, Field, ValidationError
-from workflows.services.common_service import CommonService
+from workflows.recipe import wrap_subscribe
 
 from cryoemservices.pipeliner_plugins.combine_star_files import (
     combine_star_files,
     split_star_file,
 )
+from cryoemservices.services.common_service import CommonService
 from cryoemservices.util.models import MockRW
 from cryoemservices.util.relion_service_options import RelionServiceOptions
 
@@ -67,12 +67,11 @@ class SelectClasses(CommonService):
     def initializing(self):
         """Subscribe to a queue. Received messages must be acknowledged."""
         self.log.info("Select classes service starting")
-        workflows.recipe.wrap_subscribe(
+        wrap_subscribe(
             self._transport,
             self._environment["queue"] or "select_classes",
             self.select_classes,
             acknowledgement=True,
-            log_extender=self.extend_log,
             allow_non_recipe_messages=True,
         )
 

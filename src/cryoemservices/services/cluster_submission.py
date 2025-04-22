@@ -10,11 +10,11 @@ from pathlib import Path
 from typing import Optional
 
 import requests
-import workflows.recipe
 import yaml
 from pydantic import BaseModel
-from workflows.services.common_service import CommonService
+from workflows.recipe import wrap_subscribe
 
+from cryoemservices.services.common_service import CommonService
 from cryoemservices.util.config import ServiceConfig, config_from_file
 
 
@@ -195,12 +195,11 @@ class ClusterSubmission(CommonService):
             for f in entry_points(group="cryoemservices.services.cluster.schedulers")
         }
         self.log.info(f"Supported schedulers: {', '.join(self.schedulers.keys())}")
-        workflows.recipe.wrap_subscribe(
+        wrap_subscribe(
             self._transport,
             self._environment["queue"] or "cluster.submission",
             self.run_submit_job,
             acknowledgement=True,
-            log_extender=self.extend_log,
         )
 
     def run_submit_job(self, rw, header, message):

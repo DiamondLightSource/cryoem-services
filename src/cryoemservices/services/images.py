@@ -3,9 +3,9 @@ from __future__ import annotations
 from importlib.metadata import entry_points
 from typing import Callable
 
-import workflows.recipe
-from workflows.services.common_service import CommonService
+from workflows.recipe import wrap_subscribe
 
+from cryoemservices.services.common_service import CommonService
 from cryoemservices.util.models import MockRW
 
 
@@ -40,12 +40,11 @@ class Images(CommonService):
                 for e in entry_points(group="cryoemservices.services.images.plugins")
             }
         )
-        workflows.recipe.wrap_subscribe(
+        wrap_subscribe(
             self._transport,
             self._environment["queue"] or "images",
             self.image_call,
             acknowledgement=True,
-            log_extender=self.extend_log,
             allow_non_recipe_messages=True,
         )
 

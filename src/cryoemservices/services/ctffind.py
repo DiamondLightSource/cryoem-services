@@ -5,8 +5,8 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-import workflows.recipe
 from pydantic import BaseModel, Field, ValidationError, field_validator
+from workflows.recipe import wrap_subscribe
 
 from cryoemservices.services.common_service import CommonService
 from cryoemservices.util.models import MockRW
@@ -80,7 +80,7 @@ class CTFFind(CommonService):
     def initializing(self):
         """Subscribe to a queue. Received messages must be acknowledged."""
         self.log.info("CTFFind service starting")
-        workflows.recipe.wrap_subscribe(
+        wrap_subscribe(
             self._transport,
             self._environment["queue"] or "ctffind",
             self.ctf_find,

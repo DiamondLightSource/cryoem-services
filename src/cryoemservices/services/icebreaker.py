@@ -6,13 +6,13 @@ import shutil
 from pathlib import Path
 from typing import Any, Literal, Optional
 
-import workflows.recipe
 from gemmi import cif
 from icebreaker import ice_groups, icebreaker_equalize_multi, icebreaker_icegroups_multi
 from icebreaker.five_figures import single_mic_5fig
 from pydantic import BaseModel, Field, ValidationError
-from workflows.services.common_service import CommonService
+from workflows.recipe import wrap_subscribe
 
+from cryoemservices.services.common_service import CommonService
 from cryoemservices.util.models import MockRW
 from cryoemservices.util.relion_service_options import RelionServiceOptions
 from cryoemservices.util.slurm_submission import slurm_submission
@@ -50,12 +50,11 @@ class IceBreaker(CommonService):
     def initializing(self):
         """Subscribe to a queue. Received messages must be acknowledged."""
         self.log.info("IceBreaker service starting")
-        workflows.recipe.wrap_subscribe(
+        wrap_subscribe(
             self._transport,
             self._environment["queue"] or "icebreaker",
             self.icebreaker,
             acknowledgement=True,
-            log_extender=self.extend_log,
             allow_non_recipe_messages=True,
         )
 
