@@ -5,10 +5,10 @@ import os
 import re
 from pathlib import Path
 
-import workflows.recipe
 from pydantic import BaseModel, Field, ValidationError
-from workflows.services.common_service import CommonService
+from workflows.recipe import wrap_subscribe
 
+from cryoemservices.services.common_service import CommonService
 from cryoemservices.util.models import MockRW
 from cryoemservices.util.relion_service_options import (
     RelionServiceOptions,
@@ -38,9 +38,6 @@ class ExtractClass(CommonService):
     A service for extracting particles from a class for refinement
     """
 
-    # Human readable service name
-    _service_name = "ExtractClass"
-
     # Logger name
     _logger_name = "cryoemservices.services.extract_class"
 
@@ -51,12 +48,11 @@ class ExtractClass(CommonService):
     def initializing(self):
         """Subscribe to a queue. Received messages must be acknowledged."""
         self.log.info("Class extraction service starting")
-        workflows.recipe.wrap_subscribe(
+        wrap_subscribe(
             self._transport,
             self._environment["queue"] or "extract_class",
             self.extract_class,
             acknowledgement=True,
-            log_extender=self.extend_log,
             allow_non_recipe_messages=True,
         )
 

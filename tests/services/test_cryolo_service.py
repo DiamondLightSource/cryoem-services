@@ -82,9 +82,8 @@ def test_cryolo_service_spa(mock_subprocess, offline_transport, tmp_path):
         )
 
     # Set up the mock service and send the message to it
-    service = cryolo.CrYOLO(environment={"queue": ""})
-    service.transport = offline_transport
-    service.start()
+    service = cryolo.CrYOLO(environment={"queue": ""}, transport=offline_transport)
+    service.initializing()
     service.cryolo(None, header=header, message=cryolo_test_message)
 
     assert mock_subprocess.call_count == 4
@@ -236,9 +235,8 @@ def test_cryolo_service_tomography(mock_subprocess, offline_transport, tmp_path)
     )
 
     # Set up the mock service and send the message to it
-    service = cryolo.CrYOLO(environment={"queue": ""})
-    service.transport = offline_transport
-    service.start()
+    service = cryolo.CrYOLO(environment={"queue": ""}, transport=offline_transport)
+    service.initializing()
     service.cryolo(None, header=header, message=cryolo_test_message)
 
     assert mock_subprocess.call_count == 4
@@ -368,9 +366,8 @@ def test_cryolo_spa_needs_uuids_and_pixel_size(
     }
 
     # Set up the mock service
-    service = cryolo.CrYOLO(environment={"queue": ""})
-    service.transport = offline_transport
-    service.start()
+    service = cryolo.CrYOLO(environment={"queue": ""}, transport=offline_transport)
+    service.initializing()
 
     # Send messages without pixel_size, mc_uuid and picker_uuid in turn
     no_pixel_size_message = copy.deepcopy(cryolo_test_message)
@@ -396,9 +393,8 @@ def test_parse_cryolo_output(offline_transport):
     Send test lines to the output parser
     to check the number of particles is being read in
     """
-    service = cryolo.CrYOLO(environment={"queue": ""})
-    service.transport = offline_transport
-    service.start()
+    service = cryolo.CrYOLO(environment={"queue": ""}, transport=offline_transport)
+    service.initializing()
 
     service.number_of_particles = 0
     cryolo.CrYOLO.parse_cryolo_output(service, "30 particles in total has been found")

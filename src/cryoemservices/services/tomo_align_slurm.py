@@ -6,8 +6,6 @@ import subprocess
 from pathlib import Path
 from typing import List
 
-from workflows.services.common_service import CommonService
-
 from cryoemservices.services.tomo_align import TomoAlign, TomoParameters
 from cryoemservices.util.slurm_submission import slurm_submission
 
@@ -62,7 +60,7 @@ def transfer_files(
     return transferred_items
 
 
-class TomoAlignSlurm(TomoAlign, CommonService):
+class TomoAlignSlurm(TomoAlign):
     """
     A service for submitting AreTomo2 jobs to a slurm cluster via RestAPI
     """

@@ -98,10 +98,10 @@ def test_cluster_submission_recipeless(
             "config": f"{tmp_path}/config.yaml",
             "slurm_cluster": "default",
             "queue": "",
-        }
+        },
+        transport=offline_transport,
     )
-    service.transport = offline_transport
-    service.start()
+    service.initializing()
     service.run_submit_job(mock_rw, header=header, message={})
 
     # Check the calls to the job setup and submission
@@ -186,10 +186,10 @@ def test_cluster_submission_recipefile(
             "config": f"{tmp_path}/config.yaml",
             "slurm_cluster": "default",
             "queue": "",
-        }
+        },
+        transport=offline_transport,
     )
-    service.transport = offline_transport
-    service.start()
+    service.initializing()
     service.run_submit_job(mock_rw, header=header, message={})
 
     # Check the calls to the job setup and submission
@@ -264,10 +264,10 @@ def test_cluster_submission_recipeenvironment(
             "config": f"{tmp_path}/config.yaml",
             "slurm_cluster": "default",
             "queue": "",
-        }
+        },
+        transport=offline_transport,
     )
-    service.transport = offline_transport
-    service.start()
+    service.initializing()
     service.run_submit_job(mock_rw, header=header, message={})
 
     # Check the calls to the job setup and submission
@@ -346,10 +346,10 @@ def test_cluster_submission_recipewrapper(
             "config": f"{tmp_path}/config.yaml",
             "slurm_cluster": "default",
             "queue": "",
-        }
+        },
+        transport=offline_transport,
     )
-    service.transport = offline_transport
-    service.start()
+    service.initializing()
     service.run_submit_job(mock_rw, header=header, message={})
 
     # Check the calls to the job setup and submission
@@ -434,10 +434,10 @@ def test_cluster_submission_extra_cluster(
             "config": f"{tmp_path}/config.yaml",
             "slurm_cluster": "extra",
             "queue": "",
-        }
+        },
+        transport=offline_transport,
     )
-    service.transport = offline_transport
-    service.start()
+    service.initializing()
     service.run_submit_job(mock_rw, header=header, message={})
 
     # Check the calls to the job setup and submission

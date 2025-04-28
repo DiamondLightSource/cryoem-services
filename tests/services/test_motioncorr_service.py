@@ -132,9 +132,10 @@ def test_motioncor2_service_spa(mock_subprocess, offline_transport, tmp_path):
     output_relion_options["frame_count"] = motioncorr_test_message["frame_count"]
 
     # Set up the mock service
-    service = motioncorr.MotionCorr(environment={"queue": ""})
-    service.transport = offline_transport
-    service.start()
+    service = motioncorr.MotionCorr(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
 
     # Work out the expected shifts
     service.x_shift_list = [-3.0, 3.0]
@@ -411,9 +412,10 @@ def test_motioncor_relion_service_spa(mock_subprocess, offline_transport, tmp_pa
         )
 
     # Set up the mock service
-    service = motioncorr.MotionCorr(environment={"queue": ""})
-    service.transport = offline_transport
-    service.start()
+    service = motioncorr.MotionCorr(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
 
     # Work out the expected shifts
     service.x_shift_list = [-3.0, 3.0]
@@ -649,9 +651,10 @@ def test_motioncor2_service_tomo(mock_subprocess, offline_transport, tmp_path):
     output_relion_options["eer_grouping"] = 0
 
     # Set up the mock service
-    service = motioncorr.MotionCorr(environment={"queue": ""})
-    service.transport = offline_transport
-    service.start()
+    service = motioncorr.MotionCorr(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
 
     # Work out the expected shifts
     service.x_shift_list = [-3.0, 3.0]
@@ -850,9 +853,10 @@ def test_motioncor_relion_service_tomo(mock_subprocess, offline_transport, tmp_p
     output_relion_options["eer_grouping"] = 0
 
     # Set up the mock service
-    service = motioncorr.MotionCorr(environment={"queue": ""})
-    service.transport = offline_transport
-    service.start()
+    service = motioncorr.MotionCorr(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
 
     # Work out the expected shifts
     service.x_shift_list = [-3.0, 3.0]
@@ -1034,10 +1038,10 @@ def test_motioncor2_slurm_service_spa(mock_subprocess, offline_transport, tmp_pa
             "config": f"{tmp_path}/config.yaml",
             "slurm_cluster": "default",
             "queue": "",
-        }
+        },
+        transport=offline_transport,
     )
-    service.transport = offline_transport
-    service.start()
+    service.initializing()
 
     # Work out the expected shifts
     service.x_shift_list = [-3.0, 3.0]
@@ -1163,10 +1167,10 @@ def test_motioncor_superres_does_slurm(mock_subprocess, offline_transport, tmp_p
             "config": f"{tmp_path}/config.yaml",
             "slurm_cluster": "default",
             "queue": "",
-        }
+        },
+        transport=offline_transport,
     )
-    service.transport = offline_transport
-    service.start()
+    service.initializing()
 
     # Construct the file which contains rest api submission information
     os.environ["MOTIONCOR2_SIF"] = "MotionCor2_SIF"
@@ -1265,10 +1269,10 @@ def test_motioncor2_slurm_parameters(mock_slurm, offline_transport, tmp_path):
             "config": f"{tmp_path}/config.yaml",
             "slurm_cluster": "default",
             "queue": "",
-        }
+        },
+        transport=offline_transport,
     )
-    service.transport = offline_transport
-    service.start()
+    service.initializing()
 
     # Work out the expected shifts
     service.x_shift_list = [-3.0, 3.0]
@@ -1364,10 +1368,10 @@ def test_motioncor_relion_slurm_parameters(mock_slurm, offline_transport, tmp_pa
             "config": f"{tmp_path}/config.yaml",
             "slurm_cluster": "default",
             "queue": "",
-        }
+        },
+        transport=offline_transport,
     )
-    service.transport = offline_transport
-    service.start()
+    service.initializing()
 
     # Work out the expected shifts
     service.x_shift_list = [-3.0, 3.0]
@@ -1431,9 +1435,10 @@ def test_parse_motioncor2_output(offline_transport):
     Send test lines to the output parser for MotionCor2
     to check the shift values are being read in
     """
-    service = motioncorr.MotionCorr(environment={"queue": ""})
-    service.transport = offline_transport
-    service.start()
+    service = motioncorr.MotionCorr(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
 
     # MotionCor2 v1.4.0 case
     motioncorr.MotionCorr.parse_mc2_stdout(
@@ -1460,9 +1465,10 @@ def test_parse_motioncor2_slurm_output(offline_transport, tmp_path):
     Send test lines to the output parser
     to check the shift values are being read in
     """
-    service = motioncorr.MotionCorr(environment={"queue": ""})
-    service.transport = offline_transport
-    service.start()
+    service = motioncorr.MotionCorr(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
 
     with open(tmp_path / "mc_output.txt", "w") as mc_output:
         mc_output.write(
@@ -1480,9 +1486,10 @@ def test_parse_relion_output(offline_transport, tmp_path):
     Send a test file to the output parser for Relion's motion correction
     to check the shift values are being read in
     """
-    service = motioncorr.MotionCorr(environment={"queue": ""})
-    service.transport = offline_transport
-    service.start()
+    service = motioncorr.MotionCorr(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
 
     with open(tmp_path / "mc_output.star", "w") as mc_output:
         mc_output.write(
