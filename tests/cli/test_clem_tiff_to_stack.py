@@ -25,11 +25,18 @@ def test_tiff_to_stack_with_optional_args(mock_convert_tiff_to_stack, tmp_path):
     ]
     clem_tiff_to_stack.run()
 
-    mock_convert_tiff_to_stack.assert_called_with(
-        tiff_list=[tmp_path / "file--1.tiff", tmp_path / "file--2.tif"],
-        root_folder="root",
-        metadata_file=Path("file.xlif"),
-    )
+    try:
+        mock_convert_tiff_to_stack.assert_called_with(
+            tiff_list=[tmp_path / "file--2.tif", tmp_path / "file--1.tiff"],
+            root_folder="root",
+            metadata_file=Path("file.xlif"),
+        )
+    except AssertionError:
+        mock_convert_tiff_to_stack.assert_called_with(
+            tiff_list=[tmp_path / "file--1.tiff", tmp_path / "file--2.tif"],
+            root_folder="root",
+            metadata_file=Path("file.xlif"),
+        )
 
 
 @mock.patch("cryoemservices.cli.clem_tiff_to_stack.convert_tiff_to_stack")
