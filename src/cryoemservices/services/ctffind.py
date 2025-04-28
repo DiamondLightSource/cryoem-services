@@ -250,7 +250,7 @@ class CTFFind(CommonService):
             f.write(result.stdout.decode("utf8", "replace"))
 
         # Extract results for ispyb
-        astigmatism = self.defocus2 - self.defocus1
+        astigmatism = self.defocus1 - self.defocus2
         estimated_defocus = (self.defocus1 + self.defocus2) / 2
 
         # Forward results to ispyb

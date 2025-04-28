@@ -131,7 +131,7 @@ def test_ctffind4_service_spa(mock_subprocess, offline_transport, tmp_path):
             "max_resolution": str(ctffind_test_message["max_res"]),
             "min_defocus": str(ctffind_test_message["min_defocus"]),
             "max_defocus": str(ctffind_test_message["max_defocus"]),
-            "astigmatism": str(service.defocus2 - service.defocus1),
+            "astigmatism": str(service.defocus1 - service.defocus2),
             "defocus_step_size": str(ctffind_test_message["defocus_step"]),
             "astigmatism_angle": str(service.astigmatism_angle),
             "estimated_resolution": str(service.estimated_resolution),
