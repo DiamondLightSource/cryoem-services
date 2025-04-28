@@ -38,9 +38,6 @@ class IceBreaker(CommonService):
     A service that runs the IceBreaker micrographs job
     """
 
-    # Human readable service name
-    _service_name = "IceBreaker"
-
     # Logger name
     _logger_name = "cryoemservices.services.icebreaker"
 

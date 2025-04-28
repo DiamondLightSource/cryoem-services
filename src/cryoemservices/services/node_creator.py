@@ -227,9 +227,6 @@ class NodeCreator(CommonService):
     A service for setting up pipeliner jobs
     """
 
-    # Human readable service name
-    _service_name = "NodeCreator"
-
     # Logger name
     _logger_name = "cryoemservices.services.node_creator"
 

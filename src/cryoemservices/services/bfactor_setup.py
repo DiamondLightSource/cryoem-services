@@ -31,9 +31,6 @@ class BFactor(CommonService):
     A service for selecting particles for a b-factor calculation run
     """
 
-    # Human readable service name
-    _service_name = "BFactor"
-
     # Logger name
     _logger_name = "cryoemservices.services.bfactor_setup"
 

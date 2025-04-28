@@ -26,9 +26,6 @@ class SelectParticles(CommonService):
     A service for batching particles
     """
 
-    # Human readable service name
-    _service_name = "SelectParticles"
-
     # Logger name
     _logger_name = "cryoemservices.services.select_particles"
 

@@ -42,9 +42,6 @@ class ProcessRecipe(CommonService):
     and mangles these into something that can be processed by downstream services.
     """
 
-    # Human readable service name
-    _service_name = "ProcessRecipe"
-
     # Logger name
     _logger_name = "cryoemservices.services.process_recipe"
 

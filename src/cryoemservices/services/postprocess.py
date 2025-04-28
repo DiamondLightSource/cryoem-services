@@ -45,9 +45,6 @@ class PostProcess(CommonService):
     A service for running Relion postprocessing
     """
 
-    # Human readable service name
-    _service_name = "PostProcess"
-
     # Logger name
     _logger_name = "cryoemservices.services.postprocess"
 

@@ -46,9 +46,6 @@ class Extract(CommonService):
     A service for extracting particles from cryolo autopicking
     """
 
-    # Human readable service name
-    _service_name = "Extract"
-
     # Logger name
     _logger_name = "cryoemservices.services.extract"
 

@@ -65,9 +65,6 @@ class CrYOLO(CommonService):
     A service that runs crYOLO particle picking
     """
 
-    # Human readable service name
-    _service_name = "CrYOLO"
-
     # Logger name
     _logger_name = "cryoemservices.services.cryolo"
 

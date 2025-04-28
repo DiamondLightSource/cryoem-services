@@ -69,9 +69,6 @@ class Denoise(CommonService):
     A service for denoising cryoEM tomograms using Topaz
     """
 
-    # Human readable service name
-    _service_name = "Denoise"
-
     # Logger name
     _logger_name = "cryoemservices.services.denoise"
 

@@ -91,9 +91,6 @@ class TomoAlign(CommonService):
     with Newstack and AreTomo2
     """
 
-    # Human readable service name
-    _service_name = "TomoAlign"
-
     # Logger name
     _logger_name = "cryoemservices.services.tomo_align"
 

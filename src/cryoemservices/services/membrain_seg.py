@@ -35,9 +35,6 @@ class MembrainSeg(CommonService):
     A service for segmenting cryoEM tomograms using membrain-seg
     """
 
-    # Human readable service name
-    _service_name = "MembrainSeg"
-
     # Logger name
     _logger_name = "cryoemservices.services.membrain_seg"
 

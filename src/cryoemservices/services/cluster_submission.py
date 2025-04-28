@@ -175,9 +175,6 @@ def submit_to_slurm(
 class ClusterSubmission(CommonService):
     """A service to start new jobs on a slurm cluster."""
 
-    # Human readable service name
-    _service_name = "EMCluster"
-
     # Logger name
     _logger_name = "cryoemservices.services.cluster"
 

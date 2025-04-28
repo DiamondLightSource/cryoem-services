@@ -45,9 +45,6 @@ class SelectClasses(CommonService):
     A service for running Relion autoselection on 2D classes
     """
 
-    # Human readable service name
-    _service_name = "SelectClasses"
-
     # Logger name
     _logger_name = "cryoemservices.services.select_classes"
 

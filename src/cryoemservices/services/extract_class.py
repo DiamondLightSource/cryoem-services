@@ -38,9 +38,6 @@ class ExtractClass(CommonService):
     A service for extracting particles from a class for refinement
     """
 
-    # Human readable service name
-    _service_name = "ExtractClass"
-
     # Logger name
     _logger_name = "cryoemservices.services.extract_class"
 

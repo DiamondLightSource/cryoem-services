@@ -81,9 +81,6 @@ class MotionCorr(CommonService):
     A service for motion correcting cryoEM movies using MotionCor2
     """
 
-    # Human readable service name
-    _service_name = "MotionCorr"
-
     # Logger name
     _logger_name = "cryoemservices.services.motioncorr"
 

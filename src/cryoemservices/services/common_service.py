@@ -9,9 +9,6 @@ class CommonService:
     Base class for services.
     """
 
-    # Human readable service name
-    _service_name = "Common base service"
-
     # Logger name
     _logger_name = "cryoemservices.service"
 

@@ -18,9 +18,6 @@ class Images(CommonService):
     to acknowledge success, and a falsy value to reject the related message.
     """
 
-    # Human readable service name
-    _service_name = "Images"
-
     # Logger name
     _logger_name = "cryoemservices.services.images"
 

@@ -61,9 +61,6 @@ class CTFFind(CommonService):
     A service for CTF estimating micrographs with CTFFind
     """
 
-    # Human readable service name
-    _service_name = "CTFFind"
-
     # Logger name
     _logger_name = "cryoemservices.services.ctffind"
 

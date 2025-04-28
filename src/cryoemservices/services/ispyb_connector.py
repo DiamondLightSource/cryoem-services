@@ -15,9 +15,6 @@ from cryoemservices.util.models import MockRW
 class EMISPyB(CommonService):
     """A service that receives information to be written to ISPyB."""
 
-    # Human readable service name
-    _service_name = "EMISPyB"
-
     # Logger name
     _logger_name = "cryoemservices.services.ispyb_connector"
 
