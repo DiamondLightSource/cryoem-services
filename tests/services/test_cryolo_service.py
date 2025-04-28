@@ -168,7 +168,7 @@ def test_cryolo_service_spa(mock_subprocess, offline_transport, tmp_path):
             "particle_diameters": [10.0, 20.0],
             "particle_count": 2,
             "resolution": ctf_test_values["CtfMaxResolution"],
-            "astigmatism": ctf_test_values["DefocusV"] - ctf_test_values["DefocusU"],
+            "astigmatism": ctf_test_values["DefocusU"] - ctf_test_values["DefocusV"],
             "defocus": (ctf_test_values["DefocusU"] + ctf_test_values["DefocusV"]) / 2,
             "extraction_parameters": extraction_params,
         },

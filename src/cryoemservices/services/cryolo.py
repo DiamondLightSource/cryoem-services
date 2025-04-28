@@ -466,8 +466,8 @@ class CrYOLO(CommonService):
                 "particle_diameters": list(cryolo_particle_sizes),
                 "particle_count": len(cryolo_particle_sizes),
                 "resolution": cryolo_params.ctf_values["CtfMaxResolution"],
-                "astigmatism": cryolo_params.ctf_values["DefocusV"]
-                - cryolo_params.ctf_values["DefocusU"],
+                "astigmatism": cryolo_params.ctf_values["DefocusU"]
+                - cryolo_params.ctf_values["DefocusV"],
                 "defocus": (
                     cryolo_params.ctf_values["DefocusU"]
                     + cryolo_params.ctf_values["DefocusV"]
