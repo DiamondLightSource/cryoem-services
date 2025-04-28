@@ -14,7 +14,7 @@ from cryoemservices.util.relion_service_options import (
     RelionServiceOptions,
     update_relion_options,
 )
-from cryoemservices.util.slurm_submission import slurm_submission
+from cryoemservices.util.slurm_submission import slurm_submission_for_services
 
 
 class ExtractClassParameters(BaseModel):
@@ -254,7 +254,7 @@ class ExtractClass(CommonService):
         if extract_params.downscale:
             command.append("--downscale")
 
-        result = slurm_submission(
+        result = slurm_submission_for_services(
             log=self.log,
             service_config_file=self._environment["config"],
             slurm_cluster=self._environment["slurm_cluster"],

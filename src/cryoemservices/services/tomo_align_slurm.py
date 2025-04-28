@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import List
 
 from cryoemservices.services.tomo_align import TomoAlign, TomoParameters
-from cryoemservices.util.slurm_submission import slurm_submission
+from cryoemservices.util.slurm_submission import slurm_submission_for_services
 
 
 def retrieve_files(
@@ -120,7 +120,7 @@ class TomoAlignSlurm(TomoAlign):
         self.log.info("All files transferred")
 
         self.log.info(f"Running AreTomo2 with command: {command}")
-        slurm_outcome = slurm_submission(
+        slurm_outcome = slurm_submission_for_services(
             log=self.log,
             service_config_file=self._environment["config"],
             slurm_cluster=self._environment["slurm_cluster"],

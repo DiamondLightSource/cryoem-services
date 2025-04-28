@@ -1,41 +1,15 @@
 from __future__ import annotations
 
-import os
 import sys
 from unittest import mock
 
 import pytest
+from requests import Response
 from workflows.transport.offline_transport import OfflineTransport
 
 from cryoemservices.services import extract_class
 from cryoemservices.util.relion_service_options import RelionServiceOptions
-
-
-def cluster_submission_configuration(tmp_path):
-    # Create a config file
-    config_file = tmp_path / "config.yaml"
-    with open(config_file, "w") as cf:
-        cf.write("rabbitmq_credentials: rmq_creds\n")
-        cf.write(f"recipe_directory: {tmp_path}/recipes\n")
-        cf.write("slurm_credentials:\n")
-        cf.write(f"  default: {tmp_path}/slurm_credentials.yaml\n")
-    os.environ["USER"] = "user"
-
-    # Create dummy slurm credentials files
-    with open(tmp_path / "slurm_credentials.yaml", "w") as slurm_creds:
-        slurm_creds.write(
-            "user: user\n"
-            "user_home: /home\n"
-            f"user_token: {tmp_path}/token.txt\n"
-            "required_directories: [directory1, directory2]\n"
-            "partition: partition\n"
-            "partition_preference: preference\n"
-            "cluster: cluster\n"
-            "url: /url/of/slurm/restapi\n"
-            "api_version: v0.0.40\n"
-        )
-    with open(tmp_path / "token.txt", "w") as token:
-        token.write("token_key")
+from tests.test_utils.config import cluster_submission_configuration
 
 
 @pytest.fixture
@@ -46,18 +20,22 @@ def offline_transport(mocker):
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-@mock.patch("cryoemservices.util.slurm_submission.subprocess.run")
-def test_extract_class_service(mock_subprocess, offline_transport, tmp_path):
+@mock.patch("cryoemservices.util.slurm_submission.requests")
+def test_extract_class_service(mock_requests, offline_transport, tmp_path):
     """
     Send a test message to the class extraction service
     This should run particle selection and launch re-extraction jobs with slurm
     then send messages on to refinement and the node_creator
     """
-    mock_subprocess().returncode = 0
-    mock_subprocess().stdout = (
-        '{"job_id": "1", "jobs": [{"job_state": ["COMPLETED"]}]}'.encode("ascii")
-    )
-    mock_subprocess().stderr = "stderr".encode("ascii")
+
+    # Set up the returned job number
+    response_object = Response()
+    response_object._content = (
+        '{"job_id": 1, "error_code": 0, "error": "", "jobs": [{"job_state": ["COMPLETED"]}]}'
+    ).encode("utf8")
+    response_object.status_code = 200
+    mock_requests.Session().post.return_value = response_object
+    mock_requests.Session().get.return_value = response_object
 
     # Create the expected input files
     (tmp_path / "CtfFind/job003").mkdir(parents=True)
@@ -125,26 +103,6 @@ def test_extract_class_service(mock_subprocess, offline_transport, tmp_path):
     # Check the output files were made
     assert (tmp_path / "Select/job011/particles.star").is_file()
 
-    # Check the slurm commands were run
-    slurm_submit_command = (
-        f'curl -H "X-SLURM-USER-NAME:user" -H "X-SLURM-USER-TOKEN:token_key" '
-        '-H "Content-Type: application/json" -X POST '
-        "/url/of/slurm/restapi/slurm/v0.0.40/job/submit "
-        f"-d @{tmp_path}/Extract/job012/slurm_run.json"
-    )
-    slurm_status_command = (
-        'curl -H "X-SLURM-USER-NAME:user" -H "X-SLURM-USER-TOKEN:token_key" '
-        '-H "Content-Type: application/json" -X GET '
-        "/url/of/slurm/restapi/slurm/v0.0.40/job/1"
-    )
-    assert mock_subprocess.call_count == 5
-    mock_subprocess.assert_any_call(
-        slurm_submit_command, capture_output=True, shell=True
-    )
-    mock_subprocess.assert_any_call(
-        slurm_status_command, capture_output=True, shell=True
-    )
-
     # Get the expected commands
     extract_command = [
         "EM/cryoemservices.reextract",
@@ -183,6 +141,43 @@ def test_extract_class_service(mock_subprocess, offline_transport, tmp_path):
         "--new_box",
         "114",
     ]
+
+    # Check the slurm commands were run
+    mock_requests.Session.assert_called()
+    mock_requests.Session().headers.__setitem__.assert_any_call(
+        "X-SLURM-USER-NAME", "user"
+    )
+    mock_requests.Session().headers.__setitem__.assert_any_call(
+        "X-SLURM-USER-TOKEN", "token_key"
+    )
+    mock_requests.Session().post.assert_called_with(
+        url="/url/of/slurm/restapi/slurm/v0.0.40/job/submit",
+        json={
+            "script": (
+                "#!/bin/bash\n"
+                "echo \"$(date '+%Y-%m-%d %H:%M:%S.%3N'): running slurm job\"\n"
+                "source /etc/profile.d/modules.sh\n"
+                "module load EM/cryoem-services\n" + " ".join(extract_command)
+            ),
+            "job": {
+                "cpus_per_task": 40,
+                "current_working_directory": f"{tmp_path}/Extract/job012",
+                "standard_output": f"{tmp_path}/Extract/job012/slurm_run.out",
+                "standard_error": f"{tmp_path}/Extract/job012/slurm_run.err",
+                "environment": ["USER=user", "HOME=/home"],
+                "name": "ReExtract",
+                "nodes": "1",
+                "partition": "partition",
+                "prefer": "preference",
+                "tasks": 1,
+                "memory_per_node": {"number": 40000, "set": True, "infinite": False},
+                "time_limit": {"number": 60, "set": True, "infinite": False},
+            },
+        },
+    )
+    mock_requests.Session().get.assert_called_with(
+        url="/url/of/slurm/restapi/slurm/v0.0.40/job/1"
+    )
 
     # Check that the correct messages were sent
     offline_transport.send.assert_any_call(

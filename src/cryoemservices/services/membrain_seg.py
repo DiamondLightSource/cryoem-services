@@ -9,7 +9,7 @@ from workflows.recipe import wrap_subscribe
 
 from cryoemservices.services.common_service import CommonService
 from cryoemservices.util.models import MockRW
-from cryoemservices.util.slurm_submission import slurm_submission
+from cryoemservices.util.slurm_submission import slurm_submission_for_services
 
 
 class MembrainSegParameters(BaseModel):
@@ -136,7 +136,7 @@ class MembrainSeg(CommonService):
 
         # Submit the command to slurm or run locally
         if membrain_seg_params.submit_to_slurm:
-            result = slurm_submission(
+            result = slurm_submission_for_services(
                 log=self.log,
                 service_config_file=self._environment["config"],
                 slurm_cluster=self._environment["slurm_cluster"],
