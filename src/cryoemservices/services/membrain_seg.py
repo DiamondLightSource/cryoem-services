@@ -4,12 +4,12 @@ import subprocess
 from pathlib import Path
 from typing import Optional
 
-import workflows.recipe
 from pydantic import BaseModel, Field, ValidationError
-from workflows.services.common_service import CommonService
+from workflows.recipe import wrap_subscribe
 
+from cryoemservices.services.common_service import CommonService
 from cryoemservices.util.models import MockRW
-from cryoemservices.util.slurm_submission import slurm_submission
+from cryoemservices.util.slurm_submission import slurm_submission_for_services
 
 
 class MembrainSegParameters(BaseModel):
@@ -35,21 +35,17 @@ class MembrainSeg(CommonService):
     A service for segmenting cryoEM tomograms using membrain-seg
     """
 
-    # Human readable service name
-    _service_name = "MembrainSeg"
-
     # Logger name
     _logger_name = "cryoemservices.services.membrain_seg"
 
     def initializing(self):
         """Subscribe to a queue. Received messages must be acknowledged."""
         self.log.info("membrain-seg service starting")
-        workflows.recipe.wrap_subscribe(
+        wrap_subscribe(
             self._transport,
             self._environment["queue"] or "segmentation",
             self.membrain_seg,
             acknowledgement=True,
-            log_extender=self.extend_log,
             allow_non_recipe_messages=True,
         )
 
@@ -140,7 +136,7 @@ class MembrainSeg(CommonService):
 
         # Submit the command to slurm or run locally
         if membrain_seg_params.submit_to_slurm:
-            result = slurm_submission(
+            result = slurm_submission_for_services(
                 log=self.log,
                 service_config_file=self._environment["config"],
                 slurm_cluster=self._environment["slurm_cluster"],

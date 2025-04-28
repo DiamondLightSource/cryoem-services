@@ -60,9 +60,8 @@ def test_ctffind4_service_spa(mock_subprocess, offline_transport, tmp_path):
     output_relion_options.update(ctffind_test_message["relion_options"])
 
     # Set up the mock service
-    service = ctffind.CTFFind(environment={"queue": ""})
-    service.transport = offline_transport
-    service.start()
+    service = ctffind.CTFFind(environment={"queue": ""}, transport=offline_transport)
+    service.initializing()
 
     # Set some parameters then send a message to the service
     service.defocus1 = 1
@@ -131,7 +130,7 @@ def test_ctffind4_service_spa(mock_subprocess, offline_transport, tmp_path):
             "max_resolution": str(ctffind_test_message["max_res"]),
             "min_defocus": str(ctffind_test_message["min_defocus"]),
             "max_defocus": str(ctffind_test_message["max_defocus"]),
-            "astigmatism": str(service.defocus2 - service.defocus1),
+            "astigmatism": str(service.defocus1 - service.defocus2),
             "defocus_step_size": str(ctffind_test_message["defocus_step"]),
             "astigmatism_angle": str(service.astigmatism_angle),
             "estimated_resolution": str(service.estimated_resolution),
@@ -203,9 +202,8 @@ def test_ctffind5_service_tomo(mock_subprocess, offline_transport, tmp_path):
     output_relion_options.update(ctffind_test_message["relion_options"])
 
     # Set up the mock service
-    service = ctffind.CTFFind(environment={"queue": ""})
-    service.transport = offline_transport
-    service.start()
+    service = ctffind.CTFFind(environment={"queue": ""}, transport=offline_transport)
+    service.initializing()
 
     # Set some parameters then send a message to the service
     service.defocus1 = 1
@@ -298,9 +296,8 @@ def test_ctffind5_service_nothickness(mock_subprocess, offline_transport, tmp_pa
     output_relion_options.update(ctffind_test_message["relion_options"])
 
     # Set up the mock service
-    service = ctffind.CTFFind(environment={"queue": ""})
-    service.transport = offline_transport
-    service.start()
+    service = ctffind.CTFFind(environment={"queue": ""}, transport=offline_transport)
+    service.initializing()
 
     # Set some parameters then send a message to the service
     service.defocus1 = 1
@@ -349,9 +346,8 @@ def test_parse_ctffind_output(offline_transport):
     Send test lines to the output parser
     to check the ctf values are being read in
     """
-    service = ctffind.CTFFind(environment={"queue": ""})
-    service.transport = offline_transport
-    service.start()
+    service = ctffind.CTFFind(environment={"queue": ""}, transport=offline_transport)
+    service.initializing()
 
     ctffind.CTFFind.parse_ctf_output(service, "Estimated defocus values        : 1 , 2")
     ctffind.CTFFind.parse_ctf_output(service, "Estimated azimuth of astigmatism: 3")

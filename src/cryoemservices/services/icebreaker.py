@@ -6,16 +6,16 @@ import shutil
 from pathlib import Path
 from typing import Any, Literal, Optional
 
-import workflows.recipe
 from gemmi import cif
 from icebreaker import ice_groups, icebreaker_equalize_multi, icebreaker_icegroups_multi
 from icebreaker.five_figures import single_mic_5fig
 from pydantic import BaseModel, Field, ValidationError
-from workflows.services.common_service import CommonService
+from workflows.recipe import wrap_subscribe
 
+from cryoemservices.services.common_service import CommonService
 from cryoemservices.util.models import MockRW
 from cryoemservices.util.relion_service_options import RelionServiceOptions
-from cryoemservices.util.slurm_submission import slurm_submission
+from cryoemservices.util.slurm_submission import slurm_submission_for_services
 
 
 class IceBreakerParameters(BaseModel):
@@ -38,9 +38,6 @@ class IceBreaker(CommonService):
     A service that runs the IceBreaker micrographs job
     """
 
-    # Human readable service name
-    _service_name = "IceBreaker"
-
     # Logger name
     _logger_name = "cryoemservices.services.icebreaker"
 
@@ -50,12 +47,11 @@ class IceBreaker(CommonService):
     def initializing(self):
         """Subscribe to a queue. Received messages must be acknowledged."""
         self.log.info("IceBreaker service starting")
-        workflows.recipe.wrap_subscribe(
+        wrap_subscribe(
             self._transport,
             self._environment["queue"] or "icebreaker",
             self.icebreaker,
             acknowledgement=True,
-            log_extender=self.extend_log,
             allow_non_recipe_messages=True,
         )
 
@@ -241,7 +237,7 @@ class IceBreaker(CommonService):
                 icegroups_doc.write_file("ib_icegroups.star")
             else:
                 # Run the icebreaker command and confirm it ran successfully
-                slurm_outcome = slurm_submission(
+                slurm_outcome = slurm_submission_for_services(
                     log=self.log,
                     service_config_file=self._environment["config"],
                     slurm_cluster=self._environment["slurm_cluster"],

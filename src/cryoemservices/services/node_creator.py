@@ -8,7 +8,6 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Optional
 
-import workflows.recipe
 from pipeliner.api.api_utils import (
     edit_jobstar,
     job_default_parameters_dict,
@@ -20,8 +19,9 @@ from pipeliner.job_factory import read_job
 from pipeliner.project_graph import ProjectGraph
 from pipeliner.utils import DirectoryBasedLock, update_jobinfo_file
 from pydantic import BaseModel, Field, ValidationError, field_validator
-from workflows.services.common_service import CommonService
+from workflows.recipe import wrap_subscribe
 
+from cryoemservices.services.common_service import CommonService
 from cryoemservices.util.models import MockRW
 from cryoemservices.util.relion_service_options import (
     RelionServiceOptions,
@@ -227,9 +227,6 @@ class NodeCreator(CommonService):
     A service for setting up pipeliner jobs
     """
 
-    # Human readable service name
-    _service_name = "NodeCreator"
-
     # Logger name
     _logger_name = "cryoemservices.services.node_creator"
 
@@ -238,12 +235,11 @@ class NodeCreator(CommonService):
         self.log.info(
             f"Relion node creator service starting for queue {self._environment['queue']}"
         )
-        workflows.recipe.wrap_subscribe(
+        wrap_subscribe(
             self._transport,
             self._environment["queue"] or "node_creator",
             self.node_creator,
             acknowledgement=True,
-            log_extender=self.extend_log,
             allow_non_recipe_messages=True,
         )
 

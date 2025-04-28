@@ -5,10 +5,10 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
-import workflows.recipe
 from pydantic import BaseModel, Field, ValidationError, field_validator
-from workflows.services.common_service import CommonService
+from workflows.recipe import wrap_subscribe
 
+from cryoemservices.services.common_service import CommonService
 from cryoemservices.util.models import MockRW
 from cryoemservices.util.relion_service_options import RelionServiceOptions
 
@@ -61,9 +61,6 @@ class CTFFind(CommonService):
     A service for CTF estimating micrographs with CTFFind
     """
 
-    # Human readable service name
-    _service_name = "CTFFind"
-
     # Logger name
     _logger_name = "cryoemservices.services.ctffind"
 
@@ -80,12 +77,11 @@ class CTFFind(CommonService):
     def initializing(self):
         """Subscribe to a queue. Received messages must be acknowledged."""
         self.log.info("CTFFind service starting")
-        workflows.recipe.wrap_subscribe(
+        wrap_subscribe(
             self._transport,
             self._environment["queue"] or "ctffind",
             self.ctf_find,
             acknowledgement=True,
-            log_extender=self.extend_log,
             allow_non_recipe_messages=True,
         )
 
@@ -250,7 +246,7 @@ class CTFFind(CommonService):
             f.write(result.stdout.decode("utf8", "replace"))
 
         # Extract results for ispyb
-        astigmatism = self.defocus2 - self.defocus1
+        astigmatism = self.defocus1 - self.defocus2
         estimated_defocus = (self.defocus1 + self.defocus2) / 2
 
         # Forward results to ispyb
