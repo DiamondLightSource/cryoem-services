@@ -4,8 +4,8 @@ import json
 from pathlib import Path
 
 from workflows.recipe import wrap_subscribe
-from workflows.services.common_service import CommonService
 
+from cryoemservices.services.common_service import CommonService
 from cryoemservices.util.config import config_from_file
 from cryoemservices.util.slurm_submission import (
     JobSubmissionParameters,

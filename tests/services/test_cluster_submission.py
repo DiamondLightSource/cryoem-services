@@ -112,163 +112,8 @@ def test_cluster_submission_recipeless(
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("workflows.recipe.RecipeWrapper")
-@mock.patch("cryoemservices.services.cluster_submission.requests")
-def test_cluster_submission_recipefile(
-    mock_requests, mock_rw, offline_transport, tmp_path
-):
-    """
-    Send a test message to ClusterSubmission with a recipefile set
-    """
-    cluster_submission_configuration(tmp_path)
-
-    # Set up the returned job number
-    response_object = Response()
-    response_object._content = (
-        '{"job_id": 1, "step_id": "0", "error_code": 0, "error": "", "job_submit_user_msg": "message"}'
-    ).encode("utf8")
-    response_object.status_code = 200
-    mock_requests.Session().post.return_value = response_object
-
-    header = {
-        "message-id": mock.sentinel,
-        "subscription": mock.sentinel,
-    }
-    mock_rw.recipe.pretty.return_value = "recipe example"
-    mock_rw.recipe_step = {
-        "parameters": {
-            "recipefile": str(tmp_path / "recipefile"),
-            "workingdir": str(tmp_path),
-            "cluster": {
-                "commands": "srun $RECIPEFILE",
-                "cpus_per_task": 3,
-                "job_name": "test_job",
-                "nodes": 1,
-                "partition": "part",
-                "prefer": "preferred_part",
-                "scheduler": "slurm",
-                "tasks": 2,
-            },
-        }
-    }
-
-    # Set up the mock service
-    service = cluster_submission.ClusterSubmission(
-        environment={
-            "config": f"{tmp_path}/config.yaml",
-            "slurm_cluster": "default",
-            "queue": "",
-        },
-        transport=offline_transport,
-    )
-    service.initializing()
-    service.run_submit_job(mock_rw, header=header, message={})
-
-    # Check the calls to the job setup and submission
-    assert (tmp_path / "recipefile").is_file()
-    mock_rw.recipe.pretty.assert_called()
-    mock_requests.Session().post.assert_called_with(
-        url="/slurm/url/slurm/v0.0.40/job/submit",
-        json={
-            "job": {
-                "cpus_per_task": 3,
-                "current_working_directory": str(tmp_path),
-                "environment": ["USER=user"],
-                "name": "test_job",
-                "nodes": "1",
-                "partition": "part",
-                "prefer": "preferred_part",
-                "tasks": 2,
-            },
-            "script": f"#!/bin/bash\n. /etc/profile.d/modules.sh\nsrun {tmp_path}/recipefile",
-        },
-    )
-
-    # Check the service registered success
-    mock_rw.set_default_channel.assert_called_with("job_submitted")
-    mock_rw.send.assert_called_with({"jobid": 1}, transaction=mock.ANY)
-
-
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-@mock.patch("workflows.recipe.RecipeWrapper")
-@mock.patch("cryoemservices.services.cluster_submission.requests")
-def test_cluster_submission_recipeenvironment(
-    mock_requests, mock_rw, offline_transport, tmp_path
-):
-    """
-    Send a test message to ClusterSubmission with a recipeenvironment set
-    """
-    cluster_submission_configuration(tmp_path)
-
-    # Set up the returned job number
-    response_object = Response()
-    response_object._content = (
-        '{"job_id": 1, "step_id": "0", "error_code": 0, "error": "", "job_submit_user_msg": "message"}'
-    ).encode("utf8")
-    response_object.status_code = 200
-    mock_requests.Session().post.return_value = response_object
-
-    header = {
-        "message-id": mock.sentinel,
-        "subscription": mock.sentinel,
-    }
-    mock_rw.environment = {"env": "env"}
-    mock_rw.recipe_step = {
-        "parameters": {
-            "recipeenvironment": str(tmp_path / "recipe_env"),
-            "workingdir": str(tmp_path),
-            "cluster": {
-                "commands": "srun job $RECIPEENV",
-                "cpus_per_task": 3,
-                "job_name": "test_job",
-                "nodes": 1,
-                "partition": "part",
-                "prefer": "preferred_part",
-                "scheduler": "slurm",
-                "tasks": 2,
-            },
-        }
-    }
-
-    # Set up the mock service
-    service = cluster_submission.ClusterSubmission(
-        environment={
-            "config": f"{tmp_path}/config.yaml",
-            "slurm_cluster": "default",
-            "queue": "",
-        },
-        transport=offline_transport,
-    )
-    service.initializing()
-    service.run_submit_job(mock_rw, header=header, message={})
-
-    # Check the calls to the job setup and submission
-    assert (tmp_path / "recipe_env").is_file()
-    mock_requests.Session().post.assert_called_with(
-        url="/slurm/url/slurm/v0.0.40/job/submit",
-        json={
-            "job": {
-                "cpus_per_task": 3,
-                "current_working_directory": str(tmp_path),
-                "environment": ["USER=user"],
-                "name": "test_job",
-                "nodes": "1",
-                "partition": "part",
-                "prefer": "preferred_part",
-                "tasks": 2,
-            },
-            "script": f"#!/bin/bash\n. /etc/profile.d/modules.sh\nsrun job {tmp_path}/recipe_env",
-        },
-    )
-
-    # Check the service registered success
-    mock_rw.set_default_channel.assert_called_with("job_submitted")
-    mock_rw.send.assert_called_with({"jobid": 1}, transaction=mock.ANY)
-
-
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-@mock.patch("workflows.recipe.RecipeWrapper")
-@mock.patch("cryoemservices.services.cluster_submission.requests")
-def test_cluster_submission_recipewrapper(
+@mock.patch("cryoemservices.util.slurm_submission.requests")
+def test_cluster_submission_wrapper(
     mock_requests, mock_rw, offline_transport, tmp_path
 ):
     """
@@ -484,10 +329,10 @@ def test_cluster_submission_failed_submission(
             "config": f"{tmp_path}/config.yaml",
             "slurm_cluster": "default",
             "queue": "",
-        }
+        },
+        transport=offline_transport,
     )
-    service.transport = offline_transport
-    service.start()
+    service.initializing()
     service.run_submit_job(mock_rw, header=header, message={})
 
     # Check the service did not register success
@@ -520,10 +365,10 @@ def test_cluster_submission_directory_failures(mock_rw, offline_transport, tmp_p
             "config": f"{tmp_path}/config.yaml",
             "slurm_cluster": "default",
             "queue": "",
-        }
+        },
+        transport=offline_transport,
     )
-    service.transport = offline_transport
-    service.start()
+    service.initializing()
 
     # Case of no working dir
     mock_rw.recipe_step = {
@@ -636,10 +481,10 @@ def test_cluster_submission_no_prefer(
             "config": f"{tmp_path}/config.yaml",
             "slurm_cluster": "default",
             "queue": "",
-        }
+        },
+        transport=offline_transport,
     )
-    service.transport = offline_transport
-    service.start()
+    service.initializing()
     service.run_submit_job(mock_rw, header=header, message={})
 
     # Check the calls to the job setup and submission
