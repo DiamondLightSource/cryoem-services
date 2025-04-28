@@ -4,10 +4,10 @@ import os
 from pathlib import Path
 
 import numpy as np
-import workflows.recipe
 from pydantic import BaseModel, Field, ValidationError
-from workflows.services.common_service import CommonService
+from workflows.recipe import wrap_subscribe
 
+from cryoemservices.services.common_service import CommonService
 from cryoemservices.util.models import MockRW
 from cryoemservices.util.relion_service_options import (
     RelionServiceOptions,
@@ -31,9 +31,6 @@ class BFactor(CommonService):
     A service for selecting particles for a b-factor calculation run
     """
 
-    # Human readable service name
-    _service_name = "BFactor"
-
     # Logger name
     _logger_name = "cryoemservices.services.bfactor_setup"
 
@@ -43,12 +40,11 @@ class BFactor(CommonService):
     def initializing(self):
         """Subscribe to a queue. Received messages must be acknowledged."""
         self.log.info("BFactor setup service starting")
-        workflows.recipe.wrap_subscribe(
+        wrap_subscribe(
             self._transport,
             self._environment["queue"] or "bfactor",
             self.bfactor_setup,
             acknowledgement=True,
-            log_extender=self.extend_log,
             allow_non_recipe_messages=True,
         )
 

@@ -4,9 +4,9 @@ import time
 
 import ispyb.sqlalchemy
 import sqlalchemy.orm
-import workflows.recipe
-from workflows.services.common_service import CommonService
+from workflows.recipe import wrap_subscribe
 
+from cryoemservices.services.common_service import CommonService
 from cryoemservices.util import ispyb_commands
 from cryoemservices.util.config import config_from_file
 from cryoemservices.util.models import MockRW
@@ -14,9 +14,6 @@ from cryoemservices.util.models import MockRW
 
 class EMISPyB(CommonService):
     """A service that receives information to be written to ISPyB."""
-
-    # Human readable service name
-    _service_name = "EMISPyB"
 
     # Logger name
     _logger_name = "cryoemservices.services.ispyb_connector"
@@ -36,12 +33,11 @@ class EMISPyB(CommonService):
             )
         )
         self.log.info("ISPyB service ready")
-        workflows.recipe.wrap_subscribe(
+        wrap_subscribe(
             self._transport,
             self._environment["queue"] or "ispyb_connector",
             self.insert_into_ispyb,
             acknowledgement=True,
-            log_extender=self.extend_log,
             allow_non_recipe_messages=True,
         )
 
@@ -128,7 +124,6 @@ class EMISPyB(CommonService):
                 exc_info=True,
             )
             rw.transport.nack(header)
-            self._request_termination()
             return
 
         # Store results if they are requested in the parameters or in the command

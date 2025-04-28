@@ -49,12 +49,11 @@ def test_membrain_seg_service_local(
         "segmentation_threshold": 4,
     }
 
-    # Set up the mock service
-    service = membrain_seg.MembrainSeg(environment={"queue": ""})
-    service.transport = offline_transport
-    service.start()
-
-    # Send a message to the service
+    # Set up the mock service and send a message to it
+    service = membrain_seg.MembrainSeg(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
     service.membrain_seg(None, header=header, message=segmentation_test_message)
 
     # Check the membrain command was run
@@ -160,10 +159,10 @@ def test_membrain_seg_service_slurm(
             "config": f"{tmp_path}/config.yaml",
             "slurm_cluster": "default",
             "queue": "",
-        }
+        },
+        transport=offline_transport,
     )
-    service.transport = offline_transport
-    service.start()
+    service.initializing()
 
     # Touch the expected output files
     (tmp_path / "Segmentation/job008/tomograms").mkdir(parents=True)

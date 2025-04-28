@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import workflows.recipe
+from workflows.recipe import wrap_subscribe
 from workflows.services.common_service import CommonService
 
 from cryoemservices.util.config import config_from_file
@@ -16,9 +16,6 @@ from cryoemservices.util.slurm_submission import (
 class ClusterSubmission(CommonService):
     """A service to start new jobs on a slurm cluster."""
 
-    # Human readable service name
-    _service_name = "EMCluster"
-
     # Logger name
     _logger_name = "cryoemservices.services.cluster"
 
@@ -26,12 +23,11 @@ class ClusterSubmission(CommonService):
         """Subscribe to the cluster submission queue.
         Received messages must be acknowledged."""
         self.log.info("Cluster submission service starting for slurm")
-        workflows.recipe.wrap_subscribe(
+        wrap_subscribe(
             self._transport,
             self._environment["queue"] or "cluster.submission",
             self.run_submit_job,
             acknowledgement=True,
-            log_extender=self.extend_log,
         )
 
     def run_submit_job(self, rw, header, message):

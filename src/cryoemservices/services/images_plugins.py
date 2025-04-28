@@ -275,6 +275,8 @@ def mrc_to_apng(plugin_params: Callable):
                 clipped_frame = np.random.choice([0, 1], np.shape(frame))
                 clipped_frame[2:-2, 2:-2] = frame[2:-2, 2:-2]
                 frame = clipped_frame.astype("uint8")
+            else:
+                frame = frame.astype("uint8")
             im = PIL.Image.fromarray(frame, mode="L")
             im.thumbnail((512, 512))
             images_to_append.append(im)

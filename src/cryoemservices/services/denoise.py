@@ -5,10 +5,10 @@ import subprocess
 from pathlib import Path
 from typing import List, Optional
 
-import workflows.recipe
 from pydantic import BaseModel, Field, ValidationError, field_validator
-from workflows.services.common_service import CommonService
+from workflows.recipe import wrap_subscribe
 
+from cryoemservices.services.common_service import CommonService
 from cryoemservices.util.models import MockRW
 from cryoemservices.util.relion_service_options import RelionServiceOptions
 
@@ -69,9 +69,6 @@ class Denoise(CommonService):
     A service for denoising cryoEM tomograms using Topaz
     """
 
-    # Human readable service name
-    _service_name = "Denoise"
-
     # Logger name
     _logger_name = "cryoemservices.services.denoise"
 
@@ -81,12 +78,11 @@ class Denoise(CommonService):
     def initializing(self):
         """Subscribe to a queue. Received messages must be acknowledged."""
         self.log.info("Denoise service starting")
-        workflows.recipe.wrap_subscribe(
+        wrap_subscribe(
             self._transport,
             self._environment["queue"] or "denoise",
             self.denoise,
             acknowledgement=True,
-            log_extender=self.extend_log,
             allow_non_recipe_messages=True,
         )
 

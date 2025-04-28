@@ -7,11 +7,11 @@ from pathlib import Path
 from typing import Any, Optional
 
 import numpy as np
-import workflows.recipe
 from gemmi import cif
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
-from workflows.services.common_service import CommonService
+from workflows.recipe import wrap_subscribe
 
+from cryoemservices.services.common_service import CommonService
 from cryoemservices.util.models import MockRW
 from cryoemservices.util.relion_service_options import RelionServiceOptions
 
@@ -65,9 +65,6 @@ class CrYOLO(CommonService):
     A service that runs crYOLO particle picking
     """
 
-    # Human readable service name
-    _service_name = "CrYOLO"
-
     # Logger name
     _logger_name = "cryoemservices.services.cryolo"
 
@@ -80,12 +77,11 @@ class CrYOLO(CommonService):
     def initializing(self):
         """Subscribe to a queue. Received messages must be acknowledged."""
         self.log.info("crYOLO service starting")
-        workflows.recipe.wrap_subscribe(
+        wrap_subscribe(
             self._transport,
             self._environment["queue"] or "cryolo",
             self.cryolo,
             acknowledgement=True,
-            log_extender=self.extend_log,
             allow_non_recipe_messages=True,
         )
 
@@ -466,8 +462,8 @@ class CrYOLO(CommonService):
                 "particle_diameters": list(cryolo_particle_sizes),
                 "particle_count": len(cryolo_particle_sizes),
                 "resolution": cryolo_params.ctf_values["CtfMaxResolution"],
-                "astigmatism": cryolo_params.ctf_values["DefocusV"]
-                - cryolo_params.ctf_values["DefocusU"],
+                "astigmatism": cryolo_params.ctf_values["DefocusU"]
+                - cryolo_params.ctf_values["DefocusV"],
                 "defocus": (
                     cryolo_params.ctf_values["DefocusU"]
                     + cryolo_params.ctf_values["DefocusV"]

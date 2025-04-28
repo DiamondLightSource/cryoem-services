@@ -74,9 +74,10 @@ def test_postprocess_first_refine_has_symmetry(
     output_relion_options.update(postprocess_test_message["relion_options"])
 
     # Set up the mock service and call it
-    service = postprocess.PostProcess(environment={"queue": ""})
-    service.transport = offline_transport
-    service.start()
+    service = postprocess.PostProcess(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
     service.postprocess(None, header=header, message=postprocess_test_message)
 
     postprocess_command = [
@@ -246,9 +247,10 @@ def test_postprocess_first_refine_without_symmetry(
     output_relion_options.update(postprocess_test_message["relion_options"])
 
     # Set up the mock service and call it
-    service = postprocess.PostProcess(environment={"queue": ""})
-    service.transport = offline_transport
-    service.start()
+    service = postprocess.PostProcess(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
     service.postprocess(None, header=header, message=postprocess_test_message)
 
     postprocess_command = [
@@ -350,9 +352,10 @@ def test_postprocess_bfactor(mock_subprocess, offline_transport, tmp_path):
     output_relion_options.update(postprocess_test_message["relion_options"])
 
     # Set up the mock service and call it
-    service = postprocess.PostProcess(environment={"queue": ""})
-    service.transport = offline_transport
-    service.start()
+    service = postprocess.PostProcess(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
     service.postprocess(None, header=header, message=postprocess_test_message)
 
     # Check the sends which differ from above
