@@ -408,6 +408,8 @@ def insert_particle_classification(
             bFactorFitIntercept=full_parameters("bfactor_fit_intercept"),
             bFactorFitLinear=full_parameters("bfactor_fit_linear"),
             bFactorFitQuadratic=full_parameters("bfactor_fit_quadratic"),
+            angularEfficiency=full_parameters("angular_efficiency"),
+            suggestedTilt=full_parameters("suggested_tilt"),
         )
         particle_classification = (
             session.query(models.ParticleClassification)

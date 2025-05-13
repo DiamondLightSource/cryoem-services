@@ -34,6 +34,7 @@ def test_class3d_wrapper_do_initial_model(
     mock_subprocess().returncode = 0
     mock_subprocess().stdout = "stdout".encode("utf8")
     mock_subprocess().stderr = "stderr".encode("utf8")
+    mock_efficiency.return_value = 0.7
 
     # Example recipe wrapper message to run the service with a few parameters varied
     class3d_test_message = {
@@ -349,6 +350,8 @@ def test_class3d_wrapper_do_initial_model(
                     "particles_per_class": 20000.0,
                     "rotation_accuracy": "30.3",
                     "translation_accuracy": "33.3",
+                    "angular_efficiency": 0.7,
+                    "suggested_tilt": 0,
                 },
                 {
                     "buffer_command": {
@@ -367,6 +370,8 @@ def test_class3d_wrapper_do_initial_model(
                     "particles_per_class": 30000.0,
                     "rotation_accuracy": "20.2",
                     "translation_accuracy": "22.2",
+                    "angular_efficiency": 0.7,
+                    "suggested_tilt": 0,
                 },
                 {
                     "buffer_command": {"ispyb_command": "insert_cryoem_initial_model"},
@@ -417,6 +422,7 @@ def test_class3d_wrapper_has_initial_model(
     mock_subprocess().returncode = 0
     mock_subprocess().stdout = "stdout".encode("utf8")
     mock_subprocess().stderr = "stderr".encode("utf8")
+    mock_efficiency.return_value = 0.6
 
     # Example recipe wrapper message to run the service with a few parameters varied
     class3d_test_message = {
@@ -597,6 +603,8 @@ def test_class3d_wrapper_has_initial_model(
                     "particles_per_class": 40000.0,
                     "rotation_accuracy": "30.3",
                     "translation_accuracy": "33.3",
+                    "angular_efficiency": 0.6,
+                    "suggested_tilt": 30,
                 },
                 {
                     "buffer_command": {
@@ -615,6 +623,8 @@ def test_class3d_wrapper_has_initial_model(
                     "particles_per_class": 60000.0,
                     "rotation_accuracy": "20.2",
                     "translation_accuracy": "22.2",
+                    "angular_efficiency": 0.6,
+                    "suggested_tilt": 30,
                 },
             ],
         },

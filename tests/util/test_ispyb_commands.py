@@ -350,6 +350,8 @@ def test_insert_particle_classification_new(mock_models):
             "bfactor_fit_intercept": 0.2,
             "bfactor_fit_linear": 50,
             "bfactor_fit_quadratic": 0,
+            "angular_efficiency": 0.8,
+            "suggested_tilt": 0,
         }
         return class_parameters[p]
 
@@ -382,6 +384,8 @@ def test_insert_particle_classification_new(mock_models):
         bFactorFitIntercept=0.2,
         bFactorFitLinear=50,
         bFactorFitQuadratic=0,
+        angularEfficiency=0.8,
+        suggestedTilt=0,
     )
     mock_session.add.assert_called()
     mock_session.commit.assert_called()
@@ -404,6 +408,8 @@ def test_insert_particle_classification_update():
             "bfactor_fit_intercept": 0.2,
             "bfactor_fit_linear": 50,
             "bfactor_fit_quadratic": 0,
+            "angular_efficiency": 0.5,
+            "suggested_tilt": 30,
         }
         return class_parameters[p]
 
@@ -437,6 +443,8 @@ def test_insert_particle_classification_update():
             "bFactorFitIntercept": 0.2,
             "bFactorFitLinear": 50,
             "bFactorFitQuadratic": 0,
+            "angularEfficiency": 0.5,
+            "suggestedTilt": 30,
         }
     )
     mock_session.add.assert_not_called()
