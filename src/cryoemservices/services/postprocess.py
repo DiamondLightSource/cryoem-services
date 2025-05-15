@@ -12,6 +12,7 @@ from gemmi import cif
 from pydantic import BaseModel, Field, ValidationError
 from workflows.recipe import wrap_subscribe
 
+from cryoemservices.pipeliner_plugins.angular_efficiency import find_efficiency
 from cryoemservices.pipeliner_plugins.symmetry_finder import determine_symmetry
 from cryoemservices.services.common_service import CommonService
 from cryoemservices.util.models import MockRW
@@ -274,6 +275,23 @@ class PostProcess(CommonService):
                 rw.transport.nack(header)
                 return
 
+            data = cif.read_file(
+                f"{Path(postprocess_params.half_map).parent}/run_data.star"
+            )
+            particles_block = data.find_block("particles")
+            class_efficiency = 0
+            if particles_block:
+                angles_rot = np.array(
+                    particles_block.find_loop("_rlnAngleRot"), dtype=float
+                )
+                angles_tilt = np.array(
+                    particles_block.find_loop("_rlnAngleTilt"), dtype=float
+                )
+                class_efficiency = find_efficiency(
+                    theta_degrees=angles_tilt,
+                    phi_degrees=angles_rot,
+                )
+
             refined_ispyb_parameters = {
                 "ispyb_command": "buffer",
                 "buffer_lookup": {
@@ -288,6 +306,8 @@ class PostProcess(CommonService):
                 "translation_accuracy": classes_loop[0, 3],
                 "estimated_resolution": final_resolution,
                 "selected": "1",
+                "angular_efficiency": class_efficiency,
+                "suggested_tilt": 0 if class_efficiency > 0.65 else 30,
             }
             if job_is_rerun:
                 refined_ispyb_parameters["buffer_lookup"].update(

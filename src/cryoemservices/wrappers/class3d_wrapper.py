@@ -544,6 +544,8 @@ class Class3DWrapper:
                 "class_distribution": classes_loop[class_id, 1],
                 "rotation_accuracy": classes_loop[class_id, 2],
                 "translation_accuracy": classes_loop[class_id, 3],
+                "angular_efficiency": class_efficiencies[class_id],
+                "suggested_tilt": 0 if class_efficiencies[class_id] > 0.65 else 30,
             }
             if job_is_rerun:
                 class_ispyb_parameters["buffer_lookup"].update(

@@ -18,9 +18,10 @@ def offline_transport(mocker):
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+@mock.patch("cryoemservices.services.postprocess.find_efficiency")
 @mock.patch("cryoemservices.services.postprocess.subprocess.run")
 def test_postprocess_first_refine_has_symmetry(
-    mock_subprocess, offline_transport, tmp_path
+    mock_subprocess, mock_efficiency, offline_transport, tmp_path
 ):
     """
     Send a test message to the PostProcess service for a first Refinement job
@@ -32,12 +33,17 @@ def test_postprocess_first_refine_has_symmetry(
         "+ apply b-factor of: 50\n+ FINAL RESOLUTION: 4.5\n".encode("ascii")
     )
     mock_subprocess().stderr = "stderr".encode("ascii")
+    mock_efficiency.return_value = 0.7
 
     # Symmetry not C1
     symmetry = "C3"
 
     # Create the expected input files
     (tmp_path / "Refine3D/job013").mkdir(parents=True)
+    with open(tmp_path / "Refine3D/job013/run_data.star", "w") as data_star:
+        data_star.write(
+            "data_particles\nloop_\n_rlnAngleRot\n_rlnAngleTilt\n0.5 1.0\n1.5 2.0\n"
+        )
     with open(tmp_path / "Refine3D/job013/run_model.star", "w") as f:
         f.write(
             "data_model_classes\n\nloop_\n_rlnReferenceImage\n"
@@ -153,6 +159,8 @@ def test_postprocess_first_refine_has_symmetry(
                     "rotation_accuracy": "10",
                     "selected": "1",
                     "translation_accuracy": "20",
+                    "angular_efficiency": 0.7,
+                    "suggested_tilt": 0,
                 },
                 {
                     "buffer_command": {"ispyb_command": "insert_bfactor_fit"},
@@ -210,6 +218,7 @@ def test_postprocess_first_refine_without_symmetry(
 
     # Create the expected input files
     (tmp_path / "Refine3D/job013").mkdir(parents=True)
+    (tmp_path / "Refine3D/job013/run_data.star").touch()
     with open(tmp_path / "Refine3D/job013/run_model.star", "w") as f:
         f.write(
             "data_model_classes\n\nloop_\n_rlnReferenceImage\n"
