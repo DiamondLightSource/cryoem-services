@@ -66,6 +66,7 @@ dev = [
     "clem.lif_to_stack" = "cryoemservices.cli.clem_lif_to_stack:run"
     "clem.tiff_to_stack" = "cryoemservices.cli.clem_tiff_to_stack:run"
     "combine_star_files" = "cryoemservices.pipeliner_plugins.combine_star_files:main"
+    "cryoemservices.angular_distribution_plot" = "cryoemservices.pipeliner_plugins.angular_distribution_plot:run"
     "cryoemservices.angular_efficiency" = "cryoemservices.pipeliner_plugins.angular_efficiency:run"
     "cryoemservices.dlq_rabbitmq" = "cryoemservices.cli.dlq_rabbitmq:run"
     "cryoemservices.find_symmetry" = "cryoemservices.pipeliner_plugins.symmetry_finder:run"
