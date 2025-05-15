@@ -7,13 +7,14 @@ import subprocess
 from pathlib import Path
 from typing import List, Optional
 
-import healpy as hp
-import matplotlib.pyplot as plt
 import mrcfile
 import numpy as np
 from gemmi import cif
 from pydantic import BaseModel, Field, ValidationError
 
+from cryoemservices.pipeliner_plugins.angular_distribution_plot import (
+    angular_distribution_plot,
+)
 from cryoemservices.util.relion_service_options import (
     RelionServiceOptions,
     update_relion_options,
@@ -262,29 +263,17 @@ class Refine3DWrapper:
                 particles_block.find_loop("_rlnAngleTilt"), dtype=float
             )
             try:
-                # Extract counts of particles in each healpix bin
-                angle_pixel_bins = hp.pixelfunc.ang2pix(
-                    np.power(2, refine_params.local_healpix_order + 1),
-                    angles_tilt * np.pi / 180,
-                    angles_rot * np.pi / 180,
+                angular_distribution_plot(
+                    theta_degrees=angles_tilt,
+                    phi_degrees=angles_rot,
+                    healpix_order=refine_params.local_healpix_order,
+                    output_jpeg=Path(
+                        f"{refine_params.refine_job_dir}/run_class001_angdist.jpeg"
+                    ),
+                    class_label="refined",
                 )
-                bin_ids, pixel_counts = np.unique(angle_pixel_bins, return_counts=True)
-                all_pixel_bins = np.zeros(
-                    hp.nside2npix(np.power(2, refine_params.local_healpix_order + 1))
-                )
-                all_pixel_bins[bin_ids] = pixel_counts
-
-                # Create and save the healpix image
-                hp.mollview(
-                    all_pixel_bins,
-                    title="Angular distribution of particles in refined class",
-                    unit="Number of particles",
-                    flip="geo",
-                )
-                hp.graticule()
-                plt.savefig(f"{refine_params.refine_job_dir}/run_class001_angdist.jpeg")
             except ValueError as e:
-                self.log.warning(f"Healpix failed with error {e}")
+                logger.error(f"Angular distribution plotting failed: {e}")
 
         # Do the mask creation if one isn't provided
         mask_job_dir = Path(f"MaskCreate/job{job_num_refine + 1:03}")

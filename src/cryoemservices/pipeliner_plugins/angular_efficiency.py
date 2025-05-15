@@ -4,7 +4,7 @@ import argparse
 
 import healpy as hp
 import numpy as np
-import starfile
+from gemmi import cif
 
 
 def efficiency_from_map(psf_map: np.ndarray, boxsize: int) -> float:
@@ -164,35 +164,47 @@ def run():
     parser.add_argument(
         "-c",
         "--class_id",
+        type=int,
         default=-1,
         help="Class to calculate efficiency for. Default (-1) does all particles",
     )
     parser.add_argument(
         "--boxsize",
+        type=int,
         default=64,
         help="Box size for efficiency calculations",
     )
     parser.add_argument(
         "--bfactor",
+        type=float,
         default=160,
         help="B-Factor for efficiency_calculations",
     )
     args = parser.parse_args()
 
-    star_file_data = starfile.read(args.file)
-    theta_array = star_file_data["particles"]["rlnAngleTilt"]
-    phi_array = star_file_data["particles"]["rlnAngleRot"]
+    data = cif.read_file(args.file)
+    particles_block = data.find_block("particles")
+    if particles_block:
+        phi_array = np.array(particles_block.find_loop("_rlnAngleRot"), dtype=float)
+        theta_array = np.array(particles_block.find_loop("_rlnAngleTilt"), dtype=float)
+        class_numbers = np.array(
+            particles_block.find_loop("_rlnClassNumber"), dtype=int
+        )
+    else:
+        print("No particles found in star file")
+        return
+
     if args.class_id != -1:
-        theta_array = theta_array[
-            star_file_data["particles"]["rlnClassNumber"] == int(args.class_id)
-        ]
-        phi_array = phi_array[
-            star_file_data["particles"]["rlnClassNumber"] == int(args.class_id)
-        ]
+        theta_array = theta_array[class_numbers == args.class_id]
+        phi_array = phi_array[class_numbers == args.class_id]
+        if not len(theta_array):
+            print(f"No particles found in class {args.class_id}")
+            return
+
     print(f"Processing {len(theta_array)} particles")
     find_efficiency(
         theta_degrees=np.array(theta_array),
         phi_degrees=np.array(phi_array),
-        boxsize=int(args.boxsize),
-        bfactor=float(args.bfactor),
+        boxsize=args.boxsize,
+        bfactor=args.bfactor,
     )

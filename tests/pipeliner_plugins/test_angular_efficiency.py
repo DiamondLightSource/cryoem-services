@@ -56,7 +56,7 @@ def test_run_find_efficiency(mock_efficiency, tmp_path):
 
 
 def test_find_efficiency_exists():
-    """Test the DLQ check CLI is made"""
+    """Test the efficiency CLI is made"""
     result = subprocess.run(
         [
             "cryoemservices.angular_efficiency",
