@@ -262,15 +262,18 @@ class Refine3DWrapper:
             angles_tilt = np.array(
                 particles_block.find_loop("_rlnAngleTilt"), dtype=float
             )
-            angular_distribution_plot(
-                theta_degrees=angles_tilt,
-                phi_degrees=angles_rot,
-                healpix_order=refine_params.local_healpix_order,
-                output_jpeg=Path(
-                    f"{refine_params.refine_job_dir}/run_class001_angdist.jpeg"
-                ),
-                class_label="refined",
-            )
+            try:
+                angular_distribution_plot(
+                    theta_degrees=angles_tilt,
+                    phi_degrees=angles_rot,
+                    healpix_order=refine_params.local_healpix_order,
+                    output_jpeg=Path(
+                        f"{refine_params.refine_job_dir}/run_class001_angdist.jpeg"
+                    ),
+                    class_label="refined",
+                )
+            except ValueError as e:
+                logger.error(f"Angular distribution plotting failed: {e}")
 
         # Do the mask creation if one isn't provided
         mask_job_dir = Path(f"MaskCreate/job{job_num_refine + 1:03}")

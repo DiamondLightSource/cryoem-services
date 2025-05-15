@@ -1,16 +1,12 @@
 from __future__ import annotations
 
 import argparse
-import logging
 from pathlib import Path
 
 import healpy as hp
 import matplotlib.pyplot as plt
 import numpy as np
 from gemmi import cif
-
-logger = logging.getLogger("cryoemservices.pipeliner_plugins.angular_distribution_plot")
-logger.setLevel(logging.INFO)
 
 
 def angular_distribution_plot(
@@ -20,29 +16,26 @@ def angular_distribution_plot(
     output_jpeg: Path,
     class_label: str = "",
 ):
-    # Generate healpix image of the particle distribution
-    try:
-        # Extract counts of particles in each healpix bin
-        angle_pixel_bins = hp.pixelfunc.ang2pix(
-            np.power(2, healpix_order + 1),
-            theta_degrees * np.pi / 180,
-            phi_degrees * np.pi / 180,
-        )
-        bin_ids, pixel_counts = np.unique(angle_pixel_bins, return_counts=True)
-        all_pixel_bins = np.zeros(hp.nside2npix(np.power(2, healpix_order + 1)))
-        all_pixel_bins[bin_ids] = pixel_counts
+    """Generate healpix image of the particle distribution"""
+    # Extract counts of particles in each healpix bin
+    angle_pixel_bins = hp.pixelfunc.ang2pix(
+        np.power(2, healpix_order + 1),
+        theta_degrees * np.pi / 180,
+        phi_degrees * np.pi / 180,
+    )
+    bin_ids, pixel_counts = np.unique(angle_pixel_bins, return_counts=True)
+    all_pixel_bins = np.zeros(hp.nside2npix(np.power(2, healpix_order + 1)))
+    all_pixel_bins[bin_ids] = pixel_counts
 
-        # Create and save the healpix image
-        hp.mollview(
-            all_pixel_bins,
-            title=f"Angular distribution of particles for class: {class_label}",
-            unit="Number of particles",
-            flip="geo",
-        )
-        hp.graticule()
-        plt.savefig(output_jpeg)
-    except ValueError as e:
-        logger.warning(f"Healpix failed with error {e}")
+    # Create and save the healpix image
+    hp.mollview(
+        all_pixel_bins,
+        title=f"Angular distribution of particles for class: {class_label}",
+        unit="Number of particles",
+        flip="geo",
+    )
+    hp.graticule()
+    plt.savefig(output_jpeg)
 
 
 def run():
@@ -88,7 +81,7 @@ def run():
 
         if not len(angles_tilt):
             # Skip any classes with no particles
-            logger.warning(f"No particles present in class {args.class_id}")
+            print(f"No particles present in class {args.class_id}")
             return
 
         angular_distribution_plot(

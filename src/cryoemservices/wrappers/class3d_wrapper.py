@@ -452,14 +452,17 @@ class Class3DWrapper:
                     # Skip any classes with no particles
                     continue
 
-                angular_distribution_plot(
-                    theta_degrees=angles_tilt[class_numbers == class_id + 1],
-                    phi_degrees=angles_rot[class_numbers == class_id + 1],
-                    healpix_order=class3d_params.healpix_order,
-                    output_jpeg=job_dir
-                    / f"run_it{class3d_params.class3d_nr_iter:03}_class{class_id + 1:03}_angdist.jpeg",
-                    class_label=str(class_id + 1),
-                )
+                try:
+                    angular_distribution_plot(
+                        theta_degrees=angles_tilt[class_numbers == class_id + 1],
+                        phi_degrees=angles_rot[class_numbers == class_id + 1],
+                        healpix_order=class3d_params.healpix_order,
+                        output_jpeg=job_dir
+                        / f"run_it{class3d_params.class3d_nr_iter:03}_class{class_id + 1:03}_angdist.jpeg",
+                        class_label=str(class_id + 1),
+                    )
+                except ValueError as e:
+                    logger.error(f"Angular distribution plotting failed: {e}")
 
                 class_efficiencies[class_id] = find_efficiency(
                     theta_degrees=angles_tilt[class_numbers == class_id + 1],
