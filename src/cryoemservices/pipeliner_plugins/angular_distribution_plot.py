@@ -70,7 +70,7 @@ def run():
         "--healpix_order",
         type=int,
         default=2,
-        help="Healpix order for display",
+        help="Healpix order for image binning",
     )
     args = parser.parse_args()
 
@@ -96,5 +96,5 @@ def run():
             phi_degrees=angles_rot,
             healpix_order=args.healpix_order,
             output_jpeg=args.output,
-            class_label="",
+            class_label=str(args.class_id) if args.class_id != -1 else "",
         )
