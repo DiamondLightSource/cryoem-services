@@ -68,13 +68,9 @@ def run():
     )
     parser.add_argument(
         "--healpix_order",
+        type=int,
         default=2,
         help="Healpix order for display",
-    )
-    parser.add_argument(
-        "--bfactor",
-        default=160,
-        help="B-Factor for efficiency_calculations",
     )
     args = parser.parse_args()
 
@@ -86,7 +82,7 @@ def run():
         all_class_numbers = np.array(
             particles_block.find_loop("_rlnClassNumber"), dtype=int
         )
-        if args.class_id:
+        if args.class_id != -1:
             angles_rot = angles_rot[all_class_numbers == args.class_id]
             angles_tilt = angles_tilt[all_class_numbers == args.class_id]
 
