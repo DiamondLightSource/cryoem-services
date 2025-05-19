@@ -8,12 +8,13 @@ import subprocess
 from pathlib import Path
 from typing import Optional
 
-import healpy as hp
-import matplotlib.pyplot as plt
 import numpy as np
 from gemmi import cif
 from pydantic import BaseModel, Field, ValidationError
 
+from cryoemservices.pipeliner_plugins.angular_distribution_plot import (
+    angular_distribution_plot,
+)
 from cryoemservices.pipeliner_plugins.angular_efficiency import find_efficiency
 from cryoemservices.util.relion_service_options import (
     RelionServiceOptions,
@@ -450,36 +451,18 @@ class Class3DWrapper:
                 if not len(angles_tilt[class_numbers == class_id + 1]):
                     # Skip any classes with no particles
                     continue
-                try:
-                    # Extract counts of particles in each healpix bin
-                    angle_pixel_bins = hp.pixelfunc.ang2pix(
-                        np.power(2, class3d_params.healpix_order + 1),
-                        angles_tilt[class_numbers == class_id + 1] * np.pi / 180,
-                        angles_rot[class_numbers == class_id + 1] * np.pi / 180,
-                    )
-                    bin_ids, pixel_counts = np.unique(
-                        angle_pixel_bins, return_counts=True
-                    )
-                    all_pixel_bins = np.zeros(
-                        hp.nside2npix(np.power(2, class3d_params.healpix_order + 1))
-                    )
-                    all_pixel_bins[bin_ids] = pixel_counts
 
-                    # Create and save the healpix image
-                    hp.mollview(
-                        all_pixel_bins,
-                        title=f"Angular distribution of particles in class {class_id+1}",
-                        unit="Number of particles",
-                        flip="geo",
+                try:
+                    angular_distribution_plot(
+                        theta_degrees=angles_tilt[class_numbers == class_id + 1],
+                        phi_degrees=angles_rot[class_numbers == class_id + 1],
+                        healpix_order=class3d_params.healpix_order,
+                        output_jpeg=job_dir
+                        / f"run_it{class3d_params.class3d_nr_iter:03}_class{class_id + 1:03}_angdist.jpeg",
+                        class_label=str(class_id + 1),
                     )
-                    hp.graticule()
-                    plt.savefig(
-                        job_dir
-                        / f"run_it{class3d_params.class3d_nr_iter:03}_class{class_id+1:03}_angdist.jpeg"
-                    )
-                    plt.close()
                 except ValueError as e:
-                    self.log.warning(f"Healpix failed with error {e}")
+                    logger.error(f"Angular distribution plotting failed: {e}")
 
                 class_efficiencies[class_id] = find_efficiency(
                     theta_degrees=angles_tilt[class_numbers == class_id + 1],
