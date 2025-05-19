@@ -6,6 +6,8 @@ import subprocess
 from pathlib import Path
 from typing import Any, Optional
 
+import matplotlib.pyplot as plt
+import mrcfile
 import numpy as np
 from gemmi import cif
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
@@ -156,8 +158,21 @@ class CrYOLO(CommonService):
             return
         job_dir.mkdir(parents=True, exist_ok=True)
 
+        # Try and scale out any dark areas, for example gold grids
+        if cryolo_params.experiment_type == "spa":
+            try:
+                scaled_input_path = str(
+                    flatten_grid_bars(Path(cryolo_params.input_path))
+                )
+            except IndexError as e:
+                self.log.error(f"Making flat image failed with error {e}")
+                scaled_input_path = cryolo_params.input_path
+        else:
+            scaled_input_path = cryolo_params.input_path
+
         # Construct a command to run cryolo with the given parameters
         command = cryolo_params.cryolo_command.split()
+        command.extend((["-i", scaled_input_path]))
         command.extend((["--conf", str(job_dir / "cryolo_config.json")]))
         command.extend((["-o", str(job_dir)]))
         if cryolo_params.on_the_fly and cryolo_params.experiment_type == "spa":
@@ -181,7 +196,6 @@ class CrYOLO(CommonService):
 
         cryolo_flags = {
             "cryolo_model_weights": "--weights",
-            "input_path": "-i",
             "cryolo_threshold": "--threshold",
             "cryolo_gpus": "--gpu",
             "min_distance": "--distance",
@@ -422,7 +436,7 @@ class CrYOLO(CommonService):
         self.log.info("Sending to images service")
         images_parameters = {
             "image_command": "picked_particles",
-            "file": cryolo_params.input_path,
+            "file": scaled_input_path,
             "coordinates": coords,
             "pixel_size": cryolo_params.pixel_size,
             "diameter": (
@@ -431,6 +445,9 @@ class CrYOLO(CommonService):
                 else cryolo_params.cryolo_box_size
             ),
             "outfile": str(Path(cryolo_params.output_path).with_suffix(".jpeg")),
+            "remove_input": (
+                True if scaled_input_path != cryolo_params.input_path else False
+            ),
         }
         rw.send_to("images", images_parameters)
 
@@ -484,3 +501,56 @@ class CrYOLO(CommonService):
             f"for {cryolo_params.input_path}."
         )
         rw.transport.ack(header)
+
+
+def flatten_grid_bars(micrograph_mrc: Path) -> Path:
+    with mrcfile.open(micrograph_mrc) as mrc:
+        image = mrc.data
+
+    # Make histogram and find turning points in it
+    hist = plt.hist(image.flatten(), bins=100)
+    tp_values = np.sign(np.diff(hist[0]))[:-1] - np.sign(np.diff(hist[0]))[1:]
+    all_turning_points = np.where(tp_values != 0)[0]
+    all_tp_vals = np.abs(tp_values[tp_values != 0])
+
+    # Remove any turning points too close to others
+    # These will be false positives due to noise
+    min_turning_point_sep = 5
+    invalid_turning_points = []
+    for i in range(len(all_turning_points) - 1):
+        if all_turning_points[i + 1] - all_turning_points[i] < min_turning_point_sep:
+            invalid_turning_points.extend(
+                [all_turning_points[i], all_turning_points[i + 1]]
+            )
+
+    # Remove turning points at the extreme lower end and in the extended upper tail
+    for tp in all_turning_points:
+        if tp < 5 or tp > 75:
+            invalid_turning_points.append(tp)
+
+    # Get a list of turning points to use and flatten the image if there are two peaks
+    turning_points = [
+        tp
+        for i, tp in enumerate(all_turning_points)
+        if tp not in invalid_turning_points and all_tp_vals[i] == 2
+    ]
+    if len(turning_points) == 1:
+        return micrograph_mrc
+    elif len(turning_points) == 3:
+        minima_loc = turning_points[1] + 5
+        minima_val = hist[1][minima_loc]
+
+        maxima_loc = turning_points[2] + 5
+        maxima_val = hist[1][maxima_loc]
+
+        new_image = np.copy(image)
+        new_image[new_image < minima_val] = maxima_val
+
+        flat_micrograph = micrograph_mrc.parent / (micrograph_mrc.stem + "_flat.mrc")
+        with mrcfile.new(flat_micrograph):
+            mrc.set_data(new_image)
+        return flat_micrograph
+    else:
+        raise IndexError(
+            f"Found {len(turning_points)} turning points for {micrograph_mrc}"
+        )

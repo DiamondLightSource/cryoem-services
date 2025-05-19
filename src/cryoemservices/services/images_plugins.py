@@ -184,6 +184,8 @@ def picked_particles(plugin_params: Callable):
         f"Particle picker image {outfile} saved in {timing:.1f} seconds",
         extra={"image-processing-time": timing},
     )
+    if plugin_params("remove_input"):
+        basefilename.unlink()
     return outfile
 
 
