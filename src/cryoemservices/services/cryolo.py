@@ -547,7 +547,7 @@ def flatten_grid_bars(micrograph_mrc: Path) -> Path:
         new_image[new_image < minima_val] = maxima_val
 
         flat_micrograph = micrograph_mrc.parent / (micrograph_mrc.stem + "_flat.mrc")
-        with mrcfile.new(flat_micrograph):
+        with mrcfile.new(flat_micrograph) as mrc:
             mrc.set_data(new_image)
         return flat_micrograph
     else:

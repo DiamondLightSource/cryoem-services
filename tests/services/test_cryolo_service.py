@@ -5,6 +5,8 @@ import json
 import sys
 from unittest import mock
 
+import mrcfile
+import numpy as np
 import pytest
 from workflows.transport.offline_transport import OfflineTransport
 
@@ -22,7 +24,8 @@ def offline_transport(mocker):
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.cryolo.subprocess.run")
-def test_cryolo_service_spa(mock_subprocess, offline_transport, tmp_path):
+@mock.patch("cryoemservices.services.cryolo.flatten_grid_bars")
+def test_cryolo_service_spa(mock_flatten, mock_subprocess, offline_transport, tmp_path):
     """
     Send a test message to CrYOLO
     This should call the mock subprocess then send messages on to the
@@ -31,6 +34,8 @@ def test_cryolo_service_spa(mock_subprocess, offline_transport, tmp_path):
     mock_subprocess().returncode = 0
     mock_subprocess().stdout = "stdout".encode("ascii")
     mock_subprocess().stderr = "stderr".encode("ascii")
+
+    mock_flatten.return_value = "MotionCorr/job002/sample.mrc"
 
     header = {
         "message-id": mock.sentinel,
@@ -90,13 +95,13 @@ def test_cryolo_service_spa(mock_subprocess, offline_transport, tmp_path):
     mock_subprocess.assert_called_with(
         [
             "cryolo_predict.py",
+            "-i",
+            "MotionCorr/job002/sample.mrc",
             "--conf",
             str(tmp_path / "AutoPick/job007/cryolo_config.json"),
             "-o",
             str(output_path.parent.parent),
             "--otf",
-            "-i",
-            "MotionCorr/job002/sample.mrc",
             "--weights",
             "sample_weights",
             "--threshold",
@@ -156,6 +161,7 @@ def test_cryolo_service_spa(mock_subprocess, offline_transport, tmp_path):
             "pixel_size": 0.1,
             "diameter": 1.1,
             "outfile": str(output_path.with_suffix(".jpeg")),
+            "remove_input": False,
         },
     )
     offline_transport.send.assert_any_call(
@@ -180,9 +186,9 @@ def test_cryolo_service_spa(mock_subprocess, offline_transport, tmp_path):
             "output_file": str(output_path),
             "relion_options": output_relion_options,
             "command": (
-                f"cryolo_predict.py --conf {tmp_path}/AutoPick/job007/cryolo_config.json "
+                "cryolo_predict.py -i MotionCorr/job002/sample.mrc "
+                f"--conf {tmp_path}/AutoPick/job007/cryolo_config.json "
                 f"-o {tmp_path}/AutoPick/job007 --otf "
-                f"-i MotionCorr/job002/sample.mrc "
                 f"--weights sample_weights --threshold 0.15 "
                 "--distance 0 --norm_margin 0"
             ),
@@ -243,6 +249,8 @@ def test_cryolo_service_tomography(mock_subprocess, offline_transport, tmp_path)
     mock_subprocess.assert_called_with(
         [
             "cryolo_predict.py",
+            "-i",
+            "MotionCorr/job002/sample.mrc",
             "--conf",
             str(tmp_path / "AutoPick/job007/cryolo_config.json"),
             "-o",
@@ -256,8 +264,6 @@ def test_cryolo_service_tomography(mock_subprocess, offline_transport, tmp_path)
             "5",
             "--gpus",
             "0",
-            "-i",
-            "MotionCorr/job002/sample.mrc",
             "--weights",
             "sample_weights",
             "--threshold",
@@ -322,10 +328,10 @@ def test_cryolo_service_tomography(mock_subprocess, offline_transport, tmp_path)
             "output_file": str(output_path),
             "relion_options": output_relion_options,
             "command": (
-                f"cryolo_predict.py --conf {tmp_path}/AutoPick/job007/cryolo_config.json "
+                "cryolo_predict.py -i MotionCorr/job002/sample.mrc "
+                f"--conf {tmp_path}/AutoPick/job007/cryolo_config.json "
                 f"-o {tmp_path}/AutoPick/job007 "
                 f"--tomogram -tsr -1 -tmem 0 -tmin 5 --gpus 0 "
-                "-i MotionCorr/job002/sample.mrc "
                 "--weights sample_weights --threshold 0.15 "
                 "--distance 0 --norm_margin 0"
             ),
@@ -400,3 +406,40 @@ def test_parse_cryolo_output(offline_transport):
     cryolo.CrYOLO.parse_cryolo_output(service, "30 particles in total has been found")
     cryolo.CrYOLO.parse_cryolo_output(service, "Deleted 10 particles")
     assert service.number_of_particles == 20
+
+
+@mock.patch("cryoemservices.services.cryolo.plt.hist")
+def test_flatten_grid_bars_smooth(mock_hist, tmp_path):
+    """Test the flattener does nothing to smooth data"""
+    mock_hist.return_value = np.concatenate(
+        (np.arange(51), np.arange(49, 0, -1))
+    ), np.arange(100)
+
+    data = np.arange(100).reshape(10, 10)
+    with mrcfile.new(tmp_path / "normal.mrc") as mrc:
+        mrc.set_data(data.astype(np.float32))
+
+    returned_file = cryolo.flatten_grid_bars(tmp_path / "normal.mrc")
+    assert returned_file == tmp_path / "normal.mrc"
+
+
+@mock.patch("cryoemservices.services.cryolo.plt.hist")
+def test_flatten_grid_bars_two_peaks(mock_hist, tmp_path):
+    """Test the flattener moves the lower peak of a double distribution"""
+    mock_hist.return_value = np.concatenate(
+        (np.arange(26), np.arange(24, 0, -1), np.arange(26), np.arange(24, 0, -1))
+    ), np.arange(100)
+
+    data = np.arange(100).reshape(10, 10)
+
+    with mrcfile.new(tmp_path / "two_normals.mrc") as mrc:
+        mrc.set_data(data.astype(np.float32))
+
+    returned_file = cryolo.flatten_grid_bars(tmp_path / "two_normals.mrc")
+    assert returned_file == tmp_path / "two_normals_flat.mrc"
+
+    with mrcfile.open(tmp_path / "two_normals_flat.mrc") as mrc:
+        output_data = mrc.data
+
+    assert min(output_data.flatten()) == 54
+    assert output_data[0][0] == 79
