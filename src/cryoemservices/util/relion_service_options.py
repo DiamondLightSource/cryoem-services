@@ -130,6 +130,7 @@ class RelionServiceOptions(BaseModel):
     # Classification batches and iteration counts
     class2d_nr_classes: int = 50
     class2d_nr_iter: int = 25
+    class2d_mini_batches: int = 150
     class3d_nr_classes: int = 4
     class3d_nr_iter: int = 25
 
@@ -230,6 +231,7 @@ def generate_service_options(
     }
 
     job_options["relion.class2d.em"] = {
+        "do_em": True,
         "nr_classes": relion_options.class2d_nr_classes,
         "nr_iter_em": relion_options.class2d_nr_iter,
         "do_preread_images": True,
@@ -241,12 +243,13 @@ def generate_service_options(
     }
 
     job_options["relion.class2d.vdam"] = {
+        "do_grad": True,
         "nr_classes": relion_options.class2d_nr_classes,
-        "nr_iter_grad": relion_options.class2d_nr_iter,
+        "nr_iter_grad": relion_options.class2d_mini_batches,
         "do_preread_images": True,
         "particle_diameter": relion_options.mask_diameter,
         "use_gpu": True,
-        "gpu_ids": "0,1,2,3",
+        "gpu_ids": "0",
         "nr_threads": 12,
     }
 
