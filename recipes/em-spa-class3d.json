@@ -38,7 +38,7 @@
         },
         "gpus": 4,
         "job_name": "Class3D-EM",
-        "memory_per_node": 16384,
+        "memory_per_node": 96000,
         "nodes": 1,
         "partition": "{partition}",
         "prefer": "{partition_preference}",
