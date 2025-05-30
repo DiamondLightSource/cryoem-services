@@ -10,12 +10,12 @@
       "class_uuids": "{class_uuids}",
       "do_icebreaker_jobs": "{do_icebreaker_jobs}",
       "mask_diameter": "{mask_diameter}",
-      "mpi_run_command": "srun -n 9",
+      "mpi_run_command": "srun -n 5",
       "particle_diameter": "{particle_diameter}",
       "particles_file": "{particles_file}",
       "picker_id": "{picker_id}",
       "relion_options": {},
-      "threads": 4
+      "threads": 8
     },
     "output": {
       "icebreaker": 5,
@@ -32,18 +32,18 @@
           "module load EM/cryoem-services",
           "cryoemservices.wrap -w Class2D -r \"$RECIPEWRAP\" -c {config_file} >runinfo 2>&1"
         ],
-        "cpus_per_task": 4,
+        "cpus_per_task": 8,
         "environment": {
           "PATH": "/bin/:/usr/bin/:/usr/local/bin/",
           "USER": "{user}"
         },
-        "gpus": 4,
+        "gpus": 1,
         "job_name": "Class2D-EM",
-        "memory_per_node": 16384,
+        "memory_per_node": 96000,
         "nodes": 1,
         "partition": "{partition}",
         "prefer": "{partition_preference}",
-        "tasks": 9,
+        "tasks": 1,
         "time_limit": "3:00:00"
       },
       "wrapper": "{class2d_dir}/.recipewrap",

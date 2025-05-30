@@ -27,13 +27,17 @@ class Class2DParameters(BaseModel):
     batch_size: int
     particle_diameter: float = 0
     mask_diameter: float = 190
-    do_vdam: bool = False
+    do_vdam: bool = True
     vdam_write_iter: int = 10
     vdam_threshold: float = 0.1
+    vdam_mini_batches: int = 150
+    vdam_subset: int = 7000
+    vdam_initial_fraction: float = 0.3
+    vdam_final_fraction: float = 0.1
     dont_combine_weights_via_disc: bool = True
     preread_images: bool = True
     scratch_dir: Optional[str] = None
-    nr_pool: int = 10
+    nr_pool: int = 100
     pad: int = 2
     skip_gridding: bool = False
     do_ctf: bool = True
@@ -55,7 +59,7 @@ class Class2DParameters(BaseModel):
     do_scale: bool = True
     mpi_run_command: str = "srun -n 5"
     threads: int = 8
-    gpus: str = "0:1:2:3"
+    gpus: str = "0"
     picker_id: int
     class2d_grp_uuid: int
     class_uuids: str
@@ -132,7 +136,6 @@ class Class2DWrapper:
             "skip_gridding": "--skip_gridding",
             "do_ctf": "--ctf",
             "ctf_intact_first_peak": "--ctf_intact_first_peak",
-            "class2d_nr_iter": "--iter",
             "tau_fudge": "--tau2_fudge",
             "class2d_nr_classes": "--K",
             "flatten_solvent": "--flatten_solvent",
@@ -152,10 +155,13 @@ class Class2DWrapper:
         }
 
         # Create the classification command
-        class2d_command = class2d_params.mpi_run_command.split()
+        if class2d_params.do_vdam:
+            class2d_command = ["relion_refine"]
+        else:
+            class2d_command = class2d_params.mpi_run_command.split()
+            class2d_command.append("relion_refine_mpi")
         class2d_command.extend(
             [
-                "relion_refine_mpi",
                 "--i",
                 particles_file,
                 "--o",
@@ -181,8 +187,18 @@ class Class2DWrapper:
                     str(class2d_params.vdam_threshold),
                     "--grad_write_iter",
                     str(class2d_params.vdam_write_iter),
+                    "--grad_fin_subset",
+                    str(class2d_params.vdam_subset),
+                    "--grad_ini_frac",
+                    str(class2d_params.vdam_initial_fraction),
+                    "--grad_fin_frac",
+                    str(class2d_params.vdam_final_fraction),
                 )
             )
+            nr_iter = class2d_params.vdam_mini_batches
+        else:
+            nr_iter = class2d_params.class2d_nr_iter
+        class2d_command.extend(("--iter", str(nr_iter)))
 
         # Run Class2D and confirm it ran successfully
         self.log.info(" ".join(class2d_command))
@@ -225,7 +241,7 @@ class Class2DWrapper:
 
         # Send classification job information to ispyb
         class_particles_file = cif.read_file(
-            f"{class2d_params.class2d_dir}/run_it{class2d_params.class2d_nr_iter:03}_data.star"
+            f"{class2d_params.class2d_dir}/run_it{nr_iter:03}_data.star"
         )
         optics_block = class_particles_file.find_block("optics")
         binned_pixel_size = optics_block.find_loop("_rlnImagePixelSize")[0]
@@ -262,7 +278,7 @@ class Class2DWrapper:
 
         # Send individual classes to ispyb
         class_star_file = cif.read_file(
-            f"{class2d_params.class2d_dir}/run_it{class2d_params.class2d_nr_iter:03}_model.star"
+            f"{class2d_params.class2d_dir}/run_it{nr_iter:03}_model.star"
         )
         classes_block = class_star_file.find_block("model_classes")
         classes_loop = classes_block.find_loop("_rlnReferenceImage").get_loop()
@@ -278,7 +294,7 @@ class Class2DWrapper:
                 "class_number": class_id + 1,
                 "class_image_full_path": (
                     f"{class2d_params.class2d_dir}"
-                    f"/run_it{class2d_params.class2d_nr_iter:03}_classes_{class_id+1}.jpeg"
+                    f"/run_it{nr_iter:03}_classes_{class_id+1}.jpeg"
                 ),
                 "particles_per_class": (
                     float(classes_loop[class_id, 1]) * particles_in_batch
@@ -324,8 +340,7 @@ class Class2DWrapper:
             {
                 "image_command": "mrc_to_jpeg",
                 "file": (
-                    f"{class2d_params.class2d_dir}"
-                    f"/run_it{class2d_params.class2d_nr_iter:03}_classes.mrcs"
+                    f"{class2d_params.class2d_dir}/run_it{nr_iter:03}_classes.mrcs"
                 ),
                 "all_frames": "True",
             },
@@ -360,7 +375,7 @@ class Class2DWrapper:
             # Create a 2D autoselection job
             self.log.info("Sending to class selection")
             autoselect_parameters = {
-                "input_file": f"{class2d_params.class2d_dir}/run_it{class2d_params.class2d_nr_iter:03}_optimiser.star",
+                "input_file": f"{class2d_params.class2d_dir}/run_it{nr_iter:03}_optimiser.star",
                 "relion_options": dict(class2d_params.relion_options),
                 "class_uuids": class2d_params.class_uuids,
             }

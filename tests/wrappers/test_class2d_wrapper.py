@@ -79,6 +79,10 @@ def test_class2d_wrapper_incomplete_batch(
                     "threads": 4,
                     "vdam_threshold": 0.1,
                     "vdam_write_iter": 10,
+                    "vdam_mini_batches": 200,
+                    "vdam_subset": 7000,
+                    "vdam_initial_fraction": 0.3,
+                    "vdam_final_fraction": 0.1,
                 },
                 "parameters": {
                     "cluster": {
@@ -106,12 +110,12 @@ def test_class2d_wrapper_incomplete_batch(
 
     # Create the expected output files
     (tmp_path / "Class2D/job010").mkdir(parents=True, exist_ok=True)
-    with open(tmp_path / "Class2D/job010/run_it025_data.star", "w") as data_star:
+    with open(tmp_path / "Class2D/job010/run_it200_data.star", "w") as data_star:
         data_star.write(
             "data_optics\nloop_\n_rlnImagePixelSize\n2.5\n\n"
             "data_particles\nloop_\n_rlnCoordinateX\n1\n2\n3\n4\n5"
         )
-    with open(tmp_path / "Class2D/job010/run_it025_model.star", "w") as model_star:
+    with open(tmp_path / "Class2D/job010/run_it200_model.star", "w") as model_star:
         model_star.write(
             "data_model_classes\nloop_\n"
             "_rlnReferenceImage\n_Fraction\n_Rotation\n_Translation\n"
@@ -131,10 +135,7 @@ def test_class2d_wrapper_incomplete_batch(
 
     # Check the expected command was run
     class2d_command = [
-        "srun",
-        "-n",
-        "9",
-        "relion_refine_mpi",
+        "relion_refine",
         "--i",
         "Select/job009/particles_split1.star",
         "--o",
@@ -147,8 +148,6 @@ def test_class2d_wrapper_incomplete_batch(
         "--pad",
         "2",
         "--ctf",
-        "--iter",
-        "25",
         "--tau2_fudge",
         "4.0",
         "--K",
@@ -177,6 +176,14 @@ def test_class2d_wrapper_incomplete_batch(
         "0.1",
         "--grad_write_iter",
         "10",
+        "--grad_fin_subset",
+        "7000",
+        "--grad_ini_frac",
+        "0.3",
+        "--grad_fin_frac",
+        "0.1",
+        "--iter",
+        "200",
     ]
     mock_subprocess.assert_called_with(
         class2d_command, capture_output=True, cwd=str(tmp_path)
@@ -201,7 +208,7 @@ def test_class2d_wrapper_incomplete_batch(
         "images",
         {
             "image_command": "mrc_to_jpeg",
-            "file": f"{tmp_path}/Class2D/job010/run_it025_classes.mrcs",
+            "file": f"{tmp_path}/Class2D/job010/run_it200_classes.mrcs",
             "all_frames": "True",
         },
     )
@@ -232,7 +239,7 @@ def test_class2d_wrapper_incomplete_batch(
                     "buffer_store": 10,
                     "class_distribution": "0.4",
                     "class_image_full_path": (
-                        f"{tmp_path}/Class2D/job010/run_it025_classes_1.jpeg"
+                        f"{tmp_path}/Class2D/job010/run_it200_classes_1.jpeg"
                     ),
                     "class_number": 1,
                     "estimated_resolution": 12.2,
@@ -250,7 +257,7 @@ def test_class2d_wrapper_incomplete_batch(
                     "buffer_store": 11,
                     "class_distribution": "0.6",
                     "class_image_full_path": (
-                        f"{tmp_path}/Class2D/job010/run_it025_classes_2.jpeg"
+                        f"{tmp_path}/Class2D/job010/run_it200_classes_2.jpeg"
                     ),
                     "class_number": 2,
                     "estimated_resolution": 10.0,
@@ -300,6 +307,8 @@ def test_class2d_wrapper_complete_batch(
                     "class2d_nr_classes": "1",
                     "class_uuids": "{'0': 10}",
                     "do_icebreaker_jobs": True,
+                    "do_vdam": False,
+                    "gpus": "0:1:2:3",
                     "particle_diameter": "180",
                     "particles_file": f"{tmp_path}/Select/job009/particles_split2.star",
                     "picker_id": "6",
@@ -355,12 +364,10 @@ def test_class2d_wrapper_complete_batch(
         "--dont_combine_weights_via_disc",
         "--preread_images",
         "--pool",
-        "10",
+        "100",
         "--pad",
         "2",
         "--ctf",
-        "--iter",
-        "20",
         "--tau2_fudge",
         "2",
         "--K",
@@ -384,6 +391,8 @@ def test_class2d_wrapper_complete_batch(
         "0:1:2:3",
         "--pipeline_control",
         "Class2D/job010/",
+        "--iter",
+        "20",
     ]
     mock_subprocess.assert_called_with(
         class2d_command, capture_output=True, cwd=str(tmp_path)
@@ -442,6 +451,8 @@ def test_class2d_wrapper_rerun_buffer_lookup(
                     "class2d_nr_classes": "1",
                     "class_uuids": "{'0': 10}",
                     "do_icebreaker_jobs": True,
+                    "do_vdam": False,
+                    "gpus": "0:1:2:3",
                     "particle_diameter": "180",
                     "particles_file": f"{tmp_path}/Select/job009/particles_split1.star",
                     "picker_id": "6",
@@ -550,6 +561,8 @@ def test_class2d_wrapper_failure_releases_hold(
                     "class2d_nr_classes": "1",
                     "class_uuids": "{'0': 10}",
                     "do_icebreaker_jobs": True,
+                    "do_vdam": False,
+                    "gpus": "0:1:2:3",
                     "particle_diameter": "180",
                     "particles_file": f"{tmp_path}/Select/job009/particles_split1.star",
                     "picker_id": "6",
