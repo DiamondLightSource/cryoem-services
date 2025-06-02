@@ -4,6 +4,7 @@ import argparse
 import logging
 import multiprocessing
 from importlib.metadata import entry_points
+from time import sleep
 
 import graypy
 from workflows.transport.pika_transport import PikaTransport
@@ -87,6 +88,7 @@ def run():
 
     try:
         while started_service.is_alive():
+            sleep(60)
             if not transport.is_connected():
                 raise RuntimeError("Lost transport layer connection")
     except KeyboardInterrupt:
