@@ -106,16 +106,13 @@ class ProcessRecipe(CommonService):
         self.log.info(f"Filtered processing request: {str(message)}")
         self.log.info(f"Filtered parameters: {str(parameters)}")
 
-        # Conditionally acknowledge receipt of the message
-        txn = self._transport.transaction_begin(subscription_id=header["subscription"])
-        self._transport.ack(header, transaction=txn)
-
+        # Start the recipe wrapper
         rw = workflows.recipe.RecipeWrapper(
             recipe=message["recipe"], transport=self._transport
         )
         rw.environment = {"ID": recipe_id}
-        rw.start(transaction=txn)
+        rw.start()
 
-        # Commit transaction
-        self._transport.transaction_commit(txn)
+        # Acknowledge success
+        self._transport.ack(header)
         self.log.info("Processed incoming message")
