@@ -1,13 +1,10 @@
 from __future__ import annotations
 
-import copy
 import functools
 import json
 import logging
 import string
 from typing import Any
-
-basestring = (str, bytes)
 
 logger = logging.getLogger("cryoemservices.util.recipe")
 
@@ -59,7 +56,7 @@ class Recipe:
 
     def __init__(self, recipe=None):
         """Constructor allows passing in a recipe dictionary."""
-        if isinstance(recipe, basestring):
+        if isinstance(recipe, str):
             self.recipe = json.loads(recipe)
         elif recipe:
             self.recipe = recipe
@@ -76,10 +73,10 @@ class Recipe:
             raise Exception("Invalid recipe: No recipe defined")
 
         # Make all keys strings
-        for k in self.recipe.keys():
-            if isinstance(k, int):
-                self.recipe[str(k)] = self.recipe[k]
-                del self.recipe[k]
+        for key in self.recipe.keys():
+            if isinstance(key, int):
+                self.recipe[str(key)] = self.recipe[key]
+                del self.recipe[key]
 
         # Without a 'start' node nothing would happen
         if not self.recipe.get("start"):
@@ -100,92 +97,32 @@ class Recipe:
 
         # Test recipe for unreferenced nodes
         follow_recipe(str(self.recipe["start"]))
-        for node in self.recipe:
-            if node not in touched_nodes:
-                raise KeyError(f"Recipe node {node} is not accessed")
+        for key in self.recipe.keys():
+            if key not in touched_nodes:
+                raise KeyError(f"Recipe node {key} is not accessed")
 
     def apply_parameters(self, parameters):
         """Recursively apply dictionary entries in 'parameters' to {item}s in recipe
-        structure, leaving undefined {item}s as they are. A special case is a
-        {$REPLACE:item}, which replaces the string with a copy of the referenced
-        parameter item.
-
-        Examples:
-
-        parameters = { 'x':'5' }
-        apply_parameters( { '{x}': '{y}' }, parameters )
-           => { '5': '{y}' }
-
-        parameters = { 'y':'5' }
-        apply_parameters( { '{x}': '{y}' }, parameters )
-           => { '{x}': '5' }
-
-        parameters = { 'x':'3', 'y':'5' }
-        apply_parameters( { '{x}': '{y}' }, parameters )
-           => { '3': '5' }
-
-        parameters = { 'l': [ 1, 2 ] }
-        apply_parameters( { 'x': '{$REPLACE:l}' }, parameters )
-           => { 'x': [ 1, 2 ] }
+        structure, leaving undefined {item}s as they are.
         """
-
-        class SafeString:
-            def __init__(self, s):
-                self.string = s
-
-            def __repr__(self):
-                return "{" + self.string + "}"
-
-            def __str__(self):
-                return "{" + self.string + "}"
-
-            def __getitem__(self, item):
-                return SafeString(self.string + "[" + item + "]")
-
-        class SafeDict(dict):
-            """A dictionary that returns undefined keys as {keyname}.
-            This can be used to selectively replace variables in datastructures."""
-
-            def __missing__(self, key):
-                return SafeString(key)
-
-        # By default the python formatter class is used to resolve {item} references
+        # The python formatter class is used to resolve {item} references
         formatter = string.Formatter()
-
-        # Special format strings "{$REPLACE:(...)}" use this data structure
-        # formatter to return the referenced data structure rather than a formatted
-        # string.
-        ds_formatter = string.Formatter()
-
-        def ds_format_field(value, spec):
-            ds_format_field.last = value
-            return ""
-
-        ds_formatter.format_field = ds_format_field
-
-        params = SafeDict(parameters)
 
         def _recursive_apply(item):
             """Helper function to recursively apply replacements."""
-            if isinstance(item, basestring):
-                if item.startswith("{$REPLACE") and item.endswith("}"):
-                    try:
-                        ds_formatter.vformat("{" + item[10:-1] + "}", (), parameters)
-                    except KeyError:
-                        return None
-                    return copy.deepcopy(ds_formatter.format_field.last)
-                else:
-                    return formatter.vformat(item, (), params)
-            if isinstance(item, dict):
+            if isinstance(item, str):
+                return formatter.vformat(item, (), parameters)
+            elif isinstance(item, dict):
                 return {
                     _recursive_apply(key): _recursive_apply(value)
                     for key, value in item.items()
                 }
-            if isinstance(item, tuple):
-                return tuple(_recursive_apply(list(item)))
-            if isinstance(item, list):
+            elif isinstance(item, list):
                 return [_recursive_apply(x) for x in item]
-            return item
+            else:
+                raise TypeError(
+                    f"Cannot format recipe item {item} of type {type(item)}"
+                )
 
         self.recipe = _recursive_apply(self.recipe)
 
