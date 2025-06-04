@@ -22,24 +22,6 @@ def wrap_subscribe(
     """Internal method to create an intercepting function for incoming messages
     to interpret recipes. This function is then used to subscribe to a channel
     on the transport layer.
-      :param transport_layer: Reference to underlying transport object.
-      :param subscription_call: Reference to the subscribing function of the
-                                transport layer.
-      :param channel:  Channel name to subscribe to.
-      :param callback: Real function to be called when messages are received.
-                       The callback will pass three arguments,
-                       a RecipeWrapper object (details below), the header as
-                       a dictionary structure, and the message.
-
-      :param allow_non_recipe_messages: Pass on incoming messages that do not
-                       include recipe information. In this case the first
-                       argument to the callback function will be 'None'.
-      :param log_extender: If the recipe contains useful contextual information
-                       for log messages, such as a unique ID which can be used
-                       to connect all messages originating from the same
-                       recipe, then the information will be passed to this
-                       function, which must be a context manager factory.
-      :return:         Return value of call to subscription_call.
     """
 
     @functools.wraps(callback)
@@ -78,42 +60,26 @@ class Recipe:
     def __init__(self, recipe=None):
         """Constructor allows passing in a recipe dictionary."""
         if isinstance(recipe, basestring):
-            self.recipe = self._sanitize(json.loads(recipe))
+            self.recipe = json.loads(recipe)
         elif recipe:
-            self.recipe = self._sanitize(recipe)
-
-    @staticmethod
-    def _sanitize(recipe):
-        """Clean up a recipe that may have been stored as serialized json string.
-        Convert any numerical pointers that are stored as strings to integers."""
-        recipe = recipe.copy()
-        for k in list(recipe):
-            if k not in ("start", "error") and int(k) and k != int(k):
-                recipe[int(k)] = recipe[k]
-                del recipe[k]
-        for k in list(recipe):
-            if "output" in recipe[k] and not isinstance(
-                recipe[k]["output"], (list, dict)
-            ):
-                recipe[k]["output"] = [recipe[k]["output"]]
-            # dicts should be normalized, too
-        if "start" in recipe:
-            recipe["start"] = [tuple(x) for x in recipe["start"]]
-        return recipe
+            self.recipe = recipe
+        if self.recipe:
+            self.validate()
 
     def __getitem__(self, item):
         """Allow direct dictionary access to recipe elements."""
         return self.recipe.__getitem__(item)
 
-    def __contains__(self, item):
-        """Testing for presence of recipe elements."""
-        return item in self.recipe
-
     def validate(self):
-        """Check whether the encoded recipe is valid. It must describe a directed
-        acyclical graph, all connections must be defined, etc."""
+        """Check whether the encoded recipe is valid"""
         if not self.recipe:
             raise Exception("Invalid recipe: No recipe defined")
+
+        # Make all keys strings
+        for k in self.recipe.keys():
+            if isinstance(k, int):
+                self.recipe[str(k)] = self.recipe[k]
+                del self.recipe[k]
 
         # Without a 'start' node nothing would happen
         if not self.recipe.get("start"):

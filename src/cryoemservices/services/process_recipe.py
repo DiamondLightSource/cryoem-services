@@ -4,8 +4,6 @@ import uuid
 from importlib.metadata import entry_points
 from pathlib import Path
 
-from workflows import Error as WorkflowsError
-
 from cryoemservices.services.common_service import CommonService
 from cryoemservices.util.config import ServiceConfig, config_from_file
 from cryoemservices.util.recipe import Recipe, RecipeWrapper, wrap_subscribe
@@ -21,10 +19,6 @@ def filter_load_recipes_from_files(
             raise ValueError(f"Cannot find recipe in location {recipe_location}")
         with open(recipe_location, "r") as rcp:
             named_recipe = Recipe(recipe=rcp.read())
-        try:
-            named_recipe.validate()
-        except WorkflowsError as e:
-            raise ValueError(f"Named recipe {recipefile} failed validation. {e}")
         message["recipe"] = named_recipe
     return message, parameters
 
