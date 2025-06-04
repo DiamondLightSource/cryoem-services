@@ -14,7 +14,6 @@ def wrap_subscribe(
     channel,
     callback,
     acknowledgement=True,
-    allow_non_recipe_messages=True,
 ):
     """Internal method to create an intercepting function for incoming messages
     to interpret recipes. This function is then used to subscribe to a channel
@@ -31,15 +30,10 @@ def wrap_subscribe(
                         RecipeWrapper object to the target function.
         :param message: Incoming deserialized message object.
         """
-        if header.get("workflows-recipe") in {True, "True", "true", 1}:
+        if header.get("workflows-recipe") is True:
             rw = RecipeWrapper(message=message, transport=transport_layer)
             return callback(rw, header, message.get("payload"))
-        if allow_non_recipe_messages:
-            return callback(None, header, message)
-        logger.error(
-            "The input to this service is not a wrapped recipe. "
-            "Unable to process incoming message."
-        )
+        return callback(None, header, message)
 
     return transport_layer.subscribe(
         channel, unwrap_recipe, acknowledgement=acknowledgement

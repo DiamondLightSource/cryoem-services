@@ -61,7 +61,6 @@ class ProcessRecipe(CommonService):
             self._environment["queue"] or "processing_recipe",
             self.process,
             acknowledgement=True,
-            allow_non_recipe_messages=True,
         )
 
     def process(self, rw, header, message):
