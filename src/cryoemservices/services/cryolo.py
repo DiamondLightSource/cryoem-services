@@ -505,10 +505,18 @@ class CrYOLO(CommonService):
 
 def flatten_grid_bars(micrograph_mrc: Path) -> Path:
     with mrcfile.open(micrograph_mrc) as mrc:
-        image = mrc.data
+        full_image = mrc.data
+
+    # Bin the image
+    full_shape = np.shape(full_image)
+    small_image = (
+        full_image.reshape((int(full_shape[0] / 4), 4, int(full_shape[1] / 4), 4))
+        .mean(-1)
+        .mean(1)
+    )
 
     # Make histogram and find turning points in it
-    hist = plt.hist(image.flatten(), bins=100)
+    hist = plt.hist(small_image.flatten(), bins=100)
     tp_values = np.sign(np.diff(hist[0]))[:-1] - np.sign(np.diff(hist[0]))[1:]
     all_turning_points = np.where(tp_values != 0)[0]
     all_tp_vals = np.abs(tp_values[tp_values != 0])
@@ -543,7 +551,7 @@ def flatten_grid_bars(micrograph_mrc: Path) -> Path:
         maxima_loc = turning_points[2] + 5
         maxima_val = hist[1][maxima_loc]
 
-        new_image = np.copy(image)
+        new_image = np.copy(small_image)
         new_image[new_image < minima_val] = maxima_val
 
         flat_micrograph = micrograph_mrc.parent / (micrograph_mrc.stem + "_flat.mrc")
