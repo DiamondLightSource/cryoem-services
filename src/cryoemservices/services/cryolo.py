@@ -165,7 +165,7 @@ class CrYOLO(CommonService):
                     flatten_grid_bars(Path(cryolo_params.input_path))
                 )
             except IndexError as e:
-                self.log.error(f"Making flat image failed with error {e}")
+                self.log.error(f"Making flat image failed with error: {e}")
                 scaled_input_path = cryolo_params.input_path
         else:
             scaled_input_path = cryolo_params.input_path
