@@ -448,6 +448,9 @@ class CrYOLO(CommonService):
             "remove_input": (
                 True if scaled_input_path != cryolo_params.input_path else False
             ),
+            "contrast_factor": (
+                1 if scaled_input_path != cryolo_params.input_path else 6
+            ),
         }
         rw.send_to("images", images_parameters)
 
@@ -551,11 +554,13 @@ def flatten_grid_bars(micrograph_mrc: Path) -> Path:
         maxima_loc = turning_points[2] + 5
         maxima_val = hist[1][maxima_loc]
 
-        new_image = np.copy(small_image)
-        new_image[new_image < minima_val] = maxima_val
+        new_image = np.copy(full_image)
+        new_image[new_image < minima_val] = (maxima_val - minima_val) * (
+            np.random.random(np.shape(new_image[new_image < minima_val]))
+        ) + minima_val
 
         flat_micrograph = micrograph_mrc.parent / (micrograph_mrc.stem + "_flat.mrc")
-        with mrcfile.new(flat_micrograph) as mrc:
+        with mrcfile.new(flat_micrograph, overwrite=True) as mrc:
             mrc.set_data(new_image)
         return flat_micrograph
     else:
