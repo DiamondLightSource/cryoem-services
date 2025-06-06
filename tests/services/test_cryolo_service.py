@@ -415,7 +415,7 @@ def test_flatten_grid_bars_smooth(mock_hist, tmp_path):
         (np.arange(51), np.arange(49, 0, -1))
     ), np.arange(100)
 
-    data = np.arange(100).reshape(10, 10)
+    data = np.arange(256).reshape(16, 16)
     with mrcfile.new(tmp_path / "normal.mrc") as mrc:
         mrc.set_data(data.astype(np.float32))
 
@@ -430,8 +430,7 @@ def test_flatten_grid_bars_two_peaks(mock_hist, tmp_path):
         (np.arange(26), np.arange(24, 0, -1), np.arange(26), np.arange(24, 0, -1))
     ), np.arange(100)
 
-    data = np.arange(100).reshape(10, 10)
-
+    data = np.arange(256).reshape(16, 16)
     with mrcfile.new(tmp_path / "two_normals.mrc") as mrc:
         mrc.set_data(data.astype(np.float32))
 
@@ -441,5 +440,5 @@ def test_flatten_grid_bars_two_peaks(mock_hist, tmp_path):
     with mrcfile.open(tmp_path / "two_normals_flat.mrc") as mrc:
         output_data = mrc.data
 
-    assert min(output_data.flatten()) == 54
+    assert min(output_data.flatten()) == 79
     assert output_data[0][0] == 79
