@@ -49,7 +49,7 @@ def select_classes_common_setup(
 
     Path(job_dir / "MotionCorr/job002/Movies").mkdir(parents=True, exist_ok=True)
     with mrcfile.new(job_dir / "MotionCorr/job002/Movies/movie.mrc") as mrc:
-        mrc.set_data(np.array([[0.1, 0.2], [0.3, 0.4]], dtype=np.float32))
+        mrc.set_data(np.random.random((64, 64)).astype(np.float32))
         mrc.header.mx = 100
         mrc.header.my = 50
         mrc.header.mz = 1
@@ -269,6 +269,8 @@ def test_select_classes_service_first_batch(
             "pixel_size": 0.5,
             "diameter": 100.0,
             "outfile": f"{tmp_path}/AutoPick/job007/STAR/movie.jpeg",
+            "remove_input": False,
+            "contrast_factor": 6,
         },
     )
     offline_transport.send.assert_any_call(
