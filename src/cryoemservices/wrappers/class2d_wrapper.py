@@ -282,6 +282,10 @@ class Class2DWrapper:
         )
         classes_block = class_star_file.find_block("model_classes")
         classes_loop = classes_block.find_loop("_rlnReferenceImage").get_loop()
+        if class2d_params.do_vdam:
+            vdam_offset = 2
+        else:
+            vdam_offset = 0
 
         for class_id in range(class2d_params.class2d_nr_classes):
             # Add an ispyb insert for each class
@@ -297,11 +301,11 @@ class Class2DWrapper:
                     f"/run_it{nr_iter:03}_classes_{class_id+1}.jpeg"
                 ),
                 "particles_per_class": (
-                    float(classes_loop[class_id, 1]) * particles_in_batch
+                    float(classes_loop[class_id, 1 + vdam_offset]) * particles_in_batch
                 ),
-                "class_distribution": classes_loop[class_id, 1],
-                "rotation_accuracy": classes_loop[class_id, 2],
-                "translation_accuracy": classes_loop[class_id, 3],
+                "class_distribution": classes_loop[class_id, 1 + vdam_offset],
+                "rotation_accuracy": classes_loop[class_id, 2 + vdam_offset],
+                "translation_accuracy": classes_loop[class_id, 3 + vdam_offset],
             }
             if job_is_rerun:
                 class_ispyb_parameters["buffer_lookup"].update(
@@ -317,12 +321,12 @@ class Class2DWrapper:
                 ]
 
             # Add the resolution and fourier completeness if they are valid numbers
-            estimated_resolution = float(classes_loop[class_id, 4])
+            estimated_resolution = float(classes_loop[class_id, 4 + vdam_offset])
             if np.isfinite(estimated_resolution):
                 class_ispyb_parameters["estimated_resolution"] = estimated_resolution
             else:
                 class_ispyb_parameters["estimated_resolution"] = 0.0
-            fourier_completeness = float(classes_loop[class_id, 5])
+            fourier_completeness = float(classes_loop[class_id, 5 + vdam_offset])
             if np.isfinite(fourier_completeness):
                 class_ispyb_parameters["overall_fourier_completeness"] = (
                     fourier_completeness
