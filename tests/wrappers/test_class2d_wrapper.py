@@ -118,10 +118,10 @@ def test_class2d_wrapper_incomplete_batch(
     with open(tmp_path / "Class2D/job010/run_it200_model.star", "w") as model_star:
         model_star.write(
             "data_model_classes\nloop_\n"
-            "_rlnReferenceImage\n_Fraction\n_Rotation\n_Translation\n"
+            "_rlnReferenceImage\n_vdam1\n_vdam2\n_Fraction\n_Rotation\n_Translation\n"
             "_Resolution\n_Completeness\n_OffsetX\n_OffsetY\n"
-            "1@Class2D/job010/run_it020_classes.mrcs 0.4 30.3 33.3 12.2 1.0 0.6 0.01\n"
-            "2@Class2D/job010/run_it020_classes.mrcs 0.6 20.2 22.2 10.0 0.9 -0.5 -0.02"
+            "1@Class2D/job010/run_it020_classes.mrcs vdam vdam 0.4 30.3 33.3 12.2 1.0 0.6 0.01\n"
+            "2@Class2D/job010/run_it020_classes.mrcs vdam vdam 0.6 20.2 22.2 10.0 0.9 -0.5 -0.02"
         )
 
     # Create a recipe wrapper with the test message
