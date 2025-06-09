@@ -162,6 +162,7 @@ def test_cryolo_service_spa(mock_flatten, mock_subprocess, offline_transport, tm
             "diameter": 1.1,
             "outfile": str(output_path.with_suffix(".jpeg")),
             "remove_input": False,
+            "contrast_factor": 6,
         },
     )
     offline_transport.send.assert_any_call(
@@ -440,5 +441,5 @@ def test_flatten_grid_bars_two_peaks(mock_hist, tmp_path):
     with mrcfile.open(tmp_path / "two_normals_flat.mrc") as mrc:
         output_data = mrc.data
 
-    assert min(output_data.flatten()) == 79
+    assert min(output_data.flatten()) == 54
     assert output_data[0][0] == 79
