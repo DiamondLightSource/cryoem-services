@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import re
 import subprocess
@@ -494,7 +495,12 @@ class MotionCorr(CommonService):
 
         # Extract results for ispyb
         fig = px.scatter(x=self.x_shift_list, y=self.y_shift_list)
-        fig.write_json(plot_path)
+        fig_as_json = {
+            "data": [fig["data"][0].to_json()],
+            "layout": fig["layout"].to_json(),
+        }
+        with open(plot_path) as plot_json:
+            json.dump(fig_as_json, plot_json)
         snapshot_path = Path(mc_params.mrc_out).with_suffix(".jpeg")
 
         # Forward results to ISPyB
