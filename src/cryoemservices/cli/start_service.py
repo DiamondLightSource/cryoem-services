@@ -2,9 +2,7 @@ from __future__ import annotations
 
 import argparse
 import logging
-import multiprocessing
 from importlib.metadata import entry_points
-from time import sleep
 
 import graypy
 from workflows.transport.pika_transport import PikaTransport
@@ -69,9 +67,6 @@ def run():
         transport_type.load_configuration_file(service_config.rabbitmq_credentials)
         return transport_type
 
-    transport = transport_factory()
-    transport.connect()
-
     # Start new service in a separate process
     service_factory = known_services.get(args.service)()
     service_instance = service_factory(
@@ -82,19 +77,9 @@ def run():
         },
         transport=transport_factory(),
     )
-    started_service = multiprocessing.Process(target=service_instance.start)
-    started_service.start()
     log.info(f"Started service {args.service}")
-
     try:
-        while started_service.is_alive():
-            sleep(60)
-            if not transport.is_connected():
-                raise RuntimeError("Lost transport layer connection")
+        service_instance.start()
     except KeyboardInterrupt:
         log.info("Shutdown via Ctrl+C")
-    finally:
-        started_service.terminate()
-        started_service.join()
-        transport.disconnect()
-        log.info(f"Terminated service {args.service}")
+    log.info(f"Terminated service {args.service}")
