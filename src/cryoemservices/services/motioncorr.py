@@ -499,7 +499,7 @@ class MotionCorr(CommonService):
             "data": [fig["data"][0].to_json()],
             "layout": fig["layout"].to_json(),
         }
-        with open(plot_path) as plot_json:
+        with open(plot_path, "w") as plot_json:
             json.dump(fig_as_json, plot_json)
         snapshot_path = Path(mc_params.mrc_out).with_suffix(".jpeg")
 
