@@ -11,6 +11,7 @@ from typing import Any
 
 import mrcfile
 import numpy as np
+import starfile
 from gemmi import cif
 from pydantic import BaseModel, Field, ValidationError
 from workflows.recipe import wrap_subscribe
@@ -180,37 +181,57 @@ class SelectClasses(CommonService):
             autoselect_command, cwd=str(project_dir), capture_output=True
         )
 
-        if (
-            not autoselect_params.autoselect_min_score
-            and not autoselect_result.returncode
-        ):
-            # If a minimum score isn't given, then work it out and rerun the job
-            star_doc = cif.read_file(str(select_dir / "rank_model.star"))
-            star_block = star_doc["model_classes"]
-            class_scores = np.array(star_block.find_loop("_rlnClassScore"), dtype=float)
-            quantile_threshold = np.quantile(
-                class_scores,
-                float(autoselect_params.class2d_fraction_of_classes_to_remove),
-            )
+        input_particle_data = starfile.read(
+            autoselect_params.input_file.replace("_optimiser", "_data")
+        )
+        if not autoselect_result.returncode:
+            if "rlnCryodannScore" in input_particle_data["particles"].columns:
+                model_score_data = starfile.read(select_dir / "rank_model.star")
+                class_scores = list(model_score_data["rlnClassScore"])
+                input_particle_data["particles"][
+                    "rlnParticleScore"
+                ] = input_particle_data["particles"].apply(
+                    lambda r: r["rlnCryodannScore"]
+                    * class_scores[r["rlnClassNumber"] - 1]
+                )
+                input_particle_data["particles"].sort_values(
+                    "rlnParticleScore", ascending=False
+                ).head(len(input_particle_data["particles"]) // 2)
+                starfile.write(
+                    input_particle_data,
+                    select_dir / autoselect_params.particles_file,
+                    overwrite=True,
+                )
+            elif not autoselect_params.autoselect_min_score:
+                # If a minimum score isn't given, then work it out and rerun the job
+                star_doc = cif.read_file(str(select_dir / "rank_model.star"))
+                star_block = star_doc["model_classes"]
+                class_scores = np.array(
+                    star_block.find_loop("_rlnClassScore"), dtype=float
+                )
+                quantile_threshold = np.quantile(
+                    class_scores,
+                    float(autoselect_params.class2d_fraction_of_classes_to_remove),
+                )
 
-            self.log.info(f"Sending new threshold {quantile_threshold} to Murfey")
-            murfey_params = {
-                "register": "save_class_selection_score",
-                "class_selection_score": quantile_threshold,
-            }
-            rw.send_to("murfey_feedback", murfey_params)
+                self.log.info(f"Sending new threshold {quantile_threshold} to Murfey")
+                murfey_params = {
+                    "register": "save_class_selection_score",
+                    "class_selection_score": quantile_threshold,
+                }
+                rw.send_to("murfey_feedback", murfey_params)
 
-            self.log.info(
-                f"Re-running class selection with new threshold {quantile_threshold}"
-            )
-            autoselect_command[-1] = str(quantile_threshold)
+                self.log.info(
+                    f"Re-running class selection with new threshold {quantile_threshold}"
+                )
+                autoselect_command[-1] = str(quantile_threshold)
 
-            # Re-run the class selection
-            autoselect_result = subprocess.run(
-                autoselect_command, cwd=str(project_dir), capture_output=True
-            )
+                # Re-run the class selection
+                autoselect_result = subprocess.run(
+                    autoselect_command, cwd=str(project_dir), capture_output=True
+                )
 
-        # Send class selection job to node creator
+            # Send class selection job to node creator
         self.log.info(f"Sending {self.job_type} to node creator")
         autoselect_node_creator_params: dict[str, Any] = {
             "job_type": self.job_type,
