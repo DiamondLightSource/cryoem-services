@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sys
 import time
 from unittest import mock
@@ -20,11 +21,9 @@ def offline_transport(mocker):
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.tomo_align.subprocess.run")
-@mock.patch("cryoemservices.services.tomo_align.px.scatter")
 @mock.patch("cryoemservices.services.tomo_align.mrcfile")
 def test_tomo_align_service_file_list(
     mock_mrcfile,
-    mock_plotly,
     mock_subprocess,
     offline_transport,
     tmp_path,
@@ -135,7 +134,6 @@ def test_tomo_align_service_file_list(
     ]
 
     # Check the expected calls were made
-    assert mock_plotly.call_count == 1
     assert mock_subprocess.call_count == 5
     mock_subprocess.assert_any_call(
         [
@@ -161,6 +159,15 @@ def test_tomo_align_service_file_list(
     ) as angfile:
         angles_data = angfile.read()
     assert angles_data == "1.00  1\n"
+
+    # Check the shift plot
+
+    with open(
+        tmp_path / "Tomograms/job006/tomograms/test_stack_xy_shift_plot.json"
+    ) as shift_plot:
+        shift_data = json.load(shift_plot)
+    assert shift_data["data"][0]["x"] == [1.2]
+    assert shift_data["data"][0]["y"] == [2.3]
 
     # Check that the correct messages were sent
     assert offline_transport.send.call_count == 12
@@ -309,11 +316,9 @@ def test_tomo_align_service_file_list(
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.tomo_align.subprocess.run")
-@mock.patch("cryoemservices.services.tomo_align.px.scatter")
 @mock.patch("cryoemservices.services.tomo_align.mrcfile")
 def test_tomo_align_service_file_list_repeated_tilt(
     mock_mrcfile,
-    mock_plotly,
     mock_subprocess,
     offline_transport,
     tmp_path,
@@ -378,7 +383,9 @@ def test_tomo_align_service_file_list_repeated_tilt(
     service.tomo_align(None, header=header, message=tomo_align_test_message)
 
     # Check the expected calls were made
-    assert mock_plotly.call_count == 1
+    assert (
+        tmp_path / "Tomograms/job006/tomograms/test_stack_xy_shift_plot.json"
+    ).is_file()
     assert mock_subprocess.call_count == 6
 
     # This one runs the post-reconstruction volume flip
@@ -437,11 +444,9 @@ def test_tomo_align_service_file_list_repeated_tilt(
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.tomo_align.subprocess.run")
-@mock.patch("cryoemservices.services.tomo_align.px.scatter")
 @mock.patch("cryoemservices.services.tomo_align.mrcfile")
 def test_tomo_align_service_file_list_zero_rotation(
     mock_mrcfile,
-    mock_plotly,
     mock_subprocess,
     offline_transport,
     tmp_path,
@@ -492,7 +497,9 @@ def test_tomo_align_service_file_list_zero_rotation(
     service.tomo_align(None, header=header, message=tomo_align_test_message)
 
     # Check the expected calls were made
-    assert mock_plotly.call_count == 1
+    assert (
+        tmp_path / "Tomograms/job006/tomograms/test_stack_xy_shift_plot.json"
+    ).is_file()
     assert mock_subprocess.call_count == 6
     assert offline_transport.send.call_count == 12
 
@@ -514,11 +521,9 @@ def test_tomo_align_service_file_list_zero_rotation(
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.tomo_align.subprocess.run")
-@mock.patch("cryoemservices.services.tomo_align.px.scatter")
 @mock.patch("cryoemservices.services.tomo_align.mrcfile")
 def test_tomo_align_service_file_list_bad_tilts(
     mock_mrcfile,
-    mock_plotly,
     mock_subprocess,
     offline_transport,
     tmp_path,
@@ -599,7 +604,9 @@ def test_tomo_align_service_file_list_bad_tilts(
     service.tomo_align(None, header=header, message=tomo_align_test_message)
 
     # Check the expected calls were made
-    assert mock_plotly.call_count == 1
+    assert (
+        tmp_path / "Tomograms/job006/tomograms/test_stack_xy_shift_plot.json"
+    ).is_file()
     assert mock_subprocess.call_count == 6
 
     # Check the angle file
@@ -657,11 +664,9 @@ def test_tomo_align_service_file_list_bad_tilts(
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.tomo_align.subprocess.run")
-@mock.patch("cryoemservices.services.tomo_align.px.scatter")
 @mock.patch("cryoemservices.services.tomo_align.mrcfile")
 def test_tomo_align_service_path_pattern(
     mock_mrcfile,
-    mock_plotly,
     mock_subprocess,
     offline_transport,
     tmp_path,
@@ -791,7 +796,9 @@ def test_tomo_align_service_path_pattern(
     ]
 
     # Check the expected calls were made
-    assert mock_plotly.call_count == 1
+    assert (
+        tmp_path / "Tomograms/job006/tomograms/test_stack_xy_shift_plot.json"
+    ).is_file()
     assert mock_subprocess.call_count == 5
     mock_subprocess.assert_any_call(
         [
@@ -839,11 +846,9 @@ def test_tomo_align_service_path_pattern(
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.tomo_align.subprocess.run")
-@mock.patch("cryoemservices.services.tomo_align.px.scatter")
 @mock.patch("cryoemservices.services.tomo_align.mrcfile")
 def test_tomo_align_service_dark_images(
     mock_mrcfile,
-    mock_plotly,
     mock_subprocess,
     offline_transport,
     tmp_path,
@@ -1060,11 +1065,9 @@ def test_tomo_align_service_dark_images(
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.tomo_align.subprocess.run")
-@mock.patch("cryoemservices.services.tomo_align.px.scatter")
 @mock.patch("cryoemservices.services.tomo_align.mrcfile")
 def test_tomo_align_service_all_dark(
     mock_mrcfile,
-    mock_plotly,
     mock_subprocess,
     offline_transport,
     tmp_path,
