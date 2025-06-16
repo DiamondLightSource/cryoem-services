@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import sys
 from pathlib import Path
@@ -192,6 +193,15 @@ def test_motioncor2_service_spa(mock_subprocess, offline_transport, tmp_path):
 
     assert mock_subprocess.call_count == 4
     mock_subprocess.assert_called_with(mc_command, capture_output=True)
+
+    # Check plotly file creation
+    assert (tmp_path / "MotionCorr/job002/Movies/sample_drift_plot.json").is_file()
+    with open(
+        tmp_path / "MotionCorr/job002/Movies/sample_drift_plot.json"
+    ) as drift_plot:
+        drift_data = json.load(drift_plot)
+    assert drift_data["data"][0]["x"] == [-3.0, 3.0]
+    assert drift_data["data"][0]["y"] == [4.0, -4.0]
 
     # Check that the correct messages were sent
     offline_transport.send.assert_any_call(

@@ -22,7 +22,6 @@ def offline_transport(mocker):
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.util.slurm_submission.subprocess.run")
 @mock.patch("cryoemservices.util.slurm_submission.requests")
-@mock.patch("cryoemservices.services.tomo_align.px.scatter")
 @mock.patch("cryoemservices.services.tomo_align.mrcfile")
 @mock.patch("cryoemservices.services.tomo_align_slurm.transfer_files")
 @mock.patch("cryoemservices.services.tomo_align_slurm.retrieve_files")
@@ -30,7 +29,6 @@ def test_tomo_align_slurm_service(
     mock_retrieve,
     mock_transfer,
     mock_mrcfile,
-    mock_plotly,
     mock_requests,
     mock_subprocess,
     offline_transport,
@@ -230,7 +228,6 @@ def test_tomo_align_slurm_service(
         ],
         basepath="test_stack",
     )
-    assert mock_plotly.call_count == 1
     assert mock_subprocess.call_count == 2
 
 
