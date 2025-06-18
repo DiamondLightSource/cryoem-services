@@ -184,10 +184,14 @@ class SelectClasses(CommonService):
         particle_data_starfile = autoselect_params.input_file.replace(
             "_optimiser", "_data"
         )
+        input_particle_data = None
         if Path(particle_data_starfile).is_file():
             input_particle_data = starfile.read(particle_data_starfile)
         if not autoselect_result.returncode:
-            if "rlnCryodannScore" in input_particle_data["particles"].columns:
+            if (
+                input_particle_data
+                and "rlnCryodannScore" in input_particle_data["particles"].columns
+            ):
                 model_score_data = starfile.read(select_dir / "rank_model.star")
                 class_scores = list(model_score_data["rlnClassScore"])
                 input_particle_data["particles"][
