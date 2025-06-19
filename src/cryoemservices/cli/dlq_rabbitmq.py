@@ -55,9 +55,7 @@ def check_dlq_rabbitmq(rabbitmq_credentials: Path) -> dict:
     return {
         q.name: q.messages
         for q in rmq.queues()
-        if q.name.startswith("dlq.")
-        and q.vhost == rabbitmq_connection["vhost"]
-        and q.messages
+        if q.name.startswith("dlq.") and q.messages
     }
 
 
