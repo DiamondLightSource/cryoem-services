@@ -506,10 +506,7 @@ class CrYOLO(CommonService):
         rw.transport.ack(header)
 
 
-def flatten_grid_bars(micrograph_mrc: Path) -> Path:
-    with mrcfile.open(micrograph_mrc) as mrc:
-        full_image = mrc.data
-
+def grid_bar_histogram(full_image: np.ndarray) -> Optional[np.narray]:
     # Bin the image
     full_shape = np.shape(full_image)
     small_image = (
@@ -545,9 +542,7 @@ def flatten_grid_bars(micrograph_mrc: Path) -> Path:
         for i, tp in enumerate(all_turning_points)
         if tp not in invalid_turning_points and all_tp_vals[i] == 2
     ]
-    if len(turning_points) == 1:
-        return micrograph_mrc
-    elif len(turning_points) == 3:
+    if len(turning_points) == 3:
         minima_loc = turning_points[1] + 5
         minima_val = hist[1][minima_loc]
 
@@ -556,12 +551,18 @@ def flatten_grid_bars(micrograph_mrc: Path) -> Path:
 
         new_image = np.copy(full_image)
         new_image[new_image < minima_val] = maxima_val
+        return new_image
+    return None
 
+
+def flatten_grid_bars(micrograph_mrc: Path) -> Path:
+    with mrcfile.open(micrograph_mrc) as mrc:
+        full_image = mrc.data
+
+    new_image_data = grid_bar_histogram(full_image)
+    if new_image_data:
         flat_micrograph = micrograph_mrc.parent / (micrograph_mrc.stem + "_flat.mrc")
         with mrcfile.new(flat_micrograph, overwrite=True) as mrc:
-            mrc.set_data(new_image)
+            mrc.set_data(new_image_data)
         return flat_micrograph
-    else:
-        raise IndexError(
-            f"Found {len(turning_points)} turning points for {micrograph_mrc}"
-        )
+    return micrograph_mrc

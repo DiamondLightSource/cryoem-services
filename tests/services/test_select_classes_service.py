@@ -270,7 +270,7 @@ def test_select_classes_service_first_batch(
             "diameter": 100.0,
             "outfile": f"{tmp_path}/AutoPick/job007/STAR/movie.jpeg",
             "remove_input": False,
-            "contrast_factor": 6,
+            "flatten_image": True,
         },
     )
     offline_transport.send.assert_any_call(
