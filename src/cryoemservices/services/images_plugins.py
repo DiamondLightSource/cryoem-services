@@ -138,7 +138,7 @@ def picked_particles(plugin_params: Callable):
 
     if plugin_params("flatten_image"):
         flat_data = grid_bar_histogram(data)
-        if flat_data:
+        if flat_data is not None:
             contrast_factor = 1
             data = flat_data
 

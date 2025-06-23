@@ -36,6 +36,7 @@ def plugin_params_central(jpeg_path, skip_rescaling=False, jitter_edge=False):
             "file": jpeg_path.with_suffix(".mrc"),
             "skip_rescaling": skip_rescaling,
             "jitter_edge": jitter_edge,
+            "flatten_image": True,
         }
         return p.get(key)
 
