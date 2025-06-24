@@ -133,7 +133,8 @@ def test_tomo_align_slurm_service(
             "-output",
             f"{tmp_path}/Tomograms/job006/tomograms/test_stack.mrc",
             "-quiet",
-        ]
+        ],
+        capture_output=True,
     )
 
     # Check the angle file
