@@ -143,7 +143,8 @@ def test_tomo_align_service_file_list(
             "-output",
             tomo_align_test_message["stack_file"],
             "-quiet",
-        ]
+        ],
+        capture_output=True,
     )
     mock_subprocess.assert_any_call(
         aretomo_command,
@@ -400,7 +401,8 @@ def test_tomo_align_service_file_list_repeated_tilt(
             "750,1000,300",
             "-a",
             "90,-90,0",
-        ]
+        ],
+        capture_output=True,
     )
 
     # Check the angle file
@@ -515,7 +517,8 @@ def test_tomo_align_service_file_list_zero_rotation(
             "750,1000,300",
             "-a",
             "0,0,-90",
-        ]
+        ],
+        capture_output=True,
     )
 
 
@@ -808,7 +811,8 @@ def test_tomo_align_service_path_pattern(
             "-output",
             tomo_align_test_message["stack_file"],
             "-quiet",
-        ]
+        ],
+        capture_output=True,
     )
     mock_subprocess.assert_any_call(
         aretomo_command,
