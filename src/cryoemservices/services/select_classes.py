@@ -198,11 +198,14 @@ class SelectClasses(CommonService):
                     "rlnParticleScore"
                 ] = input_particle_data["particles"].apply(
                     lambda r: r["rlnCryodannScore"]
-                    * class_scores[r["rlnClassNumber"] - 1]
+                    * class_scores[r["rlnClassNumber"] - 1],
+                    axis=1,
                 )
-                input_particle_data["particles"].sort_values(
-                    "rlnParticleScore", ascending=False
-                ).head(len(input_particle_data["particles"]) // 2)
+                input_particle_data["particles"] = (
+                    input_particle_data["particles"]
+                    .sort_values("rlnParticleScore", ascending=False)
+                    .head(len(input_particle_data["particles"]) // 2)
+                )
                 starfile.write(
                     input_particle_data,
                     select_dir / autoselect_params.particles_file,
