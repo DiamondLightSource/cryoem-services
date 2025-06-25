@@ -239,7 +239,7 @@ class SelectClasses(CommonService):
                     autoselect_command, cwd=str(project_dir), capture_output=True
                 )
 
-            # Send class selection job to node creator
+        # Send class selection job to node creator
         self.log.info(f"Sending {self.job_type} to node creator")
         autoselect_node_creator_params: dict[str, Any] = {
             "job_type": self.job_type,
