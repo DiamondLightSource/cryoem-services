@@ -461,23 +461,34 @@ class Class2DWrapper:
                     class2d_params, project_dir, nr_iter
                 )
                 if cryodann_success:
-                    cryodann_scores = np.load(
+                    lightning_log_dir = (
                         project_dir
                         / class2d_params.class2d_dir
                         / "cryodann"
                         / "lightning_logs"
-                        / "scores.npy"
-                    ).flatten()
-                    cryodann_block = class_particles_file.find_block("particles")
-                    cryodann_loop = cryodann_block.find_loop(
-                        "_rlnCoordinateX"
-                    ).get_loop()
-                    cryodann_loop.add_columns(["_rlnCryodannScore"], "0")
-                    for i in range(cryodann_loop.length()):
-                        cryodann_loop[i, -1] = str(cryodann_scores[i])
-                    class_particles_file.write_file(
-                        f"{class2d_params.class2d_dir}/run_it{nr_iter:03}_data.star"
                     )
+                    if (lightning_log_dir / "scores.npy").is_file():
+                        lightning_log_scores = lightning_log_dir / "scores.npy"
+                    else:
+                        lightning_log_options = lightning_log_dir.glob("*/scores.npy")
+                        lightning_log_scores = None
+                        for lightning_file in lightning_log_options:
+                            lightning_log_scores = lightning_file
+
+                    if lightning_log_scores:
+                        cryodann_scores = np.load(lightning_log_scores).flatten()
+                        cryodann_block = class_particles_file.find_block("particles")
+                        cryodann_loop = cryodann_block.find_loop(
+                            "_rlnCoordinateX"
+                        ).get_loop()
+                        cryodann_loop.add_columns(["_rlnCryodannScore"], "0")
+                        for i in range(cryodann_loop.length()):
+                            cryodann_loop[i, -1] = str(cryodann_scores[i])
+                        class_particles_file.write_file(
+                            f"{class2d_params.class2d_dir}/run_it{nr_iter:03}_data.star"
+                        )
+                    else:
+                        logger.error("Cryodann ran but no scores have been found")
 
             # Create a 2D autoselection job
             self.log.info("Sending to class selection")
