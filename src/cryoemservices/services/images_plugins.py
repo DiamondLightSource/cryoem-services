@@ -12,6 +12,8 @@ import PIL.Image
 import starfile
 from PIL import ImageDraw, ImageEnhance, ImageFilter, ImageFont
 
+from cryoemservices.services.cryolo import grid_bar_histogram
+
 logger = logging.getLogger("cryoemservices.services.images_plugins")
 logger.setLevel(logging.INFO)
 
@@ -133,6 +135,13 @@ def picked_particles(plugin_params: Callable):
             f"File {basefilename} could not be opened. It may be corrupted or not in mrc format"
         )
         return False
+
+    if plugin_params("flatten_image"):
+        flat_data = grid_bar_histogram(data)
+        if flat_data is not None:
+            contrast_factor = 1
+            data = flat_data
+
     mean = np.mean(data)
     sdev = np.std(data)
     sigma_min = mean - 3 * sdev

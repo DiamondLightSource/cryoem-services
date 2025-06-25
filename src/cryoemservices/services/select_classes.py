@@ -21,7 +21,6 @@ from cryoemservices.pipeliner_plugins.combine_star_files import (
     split_star_file,
 )
 from cryoemservices.services.common_service import CommonService
-from cryoemservices.services.cryolo import flatten_grid_bars
 from cryoemservices.util.models import MockRW
 from cryoemservices.util.relion_service_options import RelionServiceOptions
 
@@ -540,32 +539,19 @@ class SelectClasses(CommonService):
             except FileNotFoundError:
                 coords = []
 
-            # Try and scale out any dark areas, for example gold grids
-            try:
-                scaled_input_path = flatten_grid_bars(motioncorr_file)
-            except IndexError as e:
-                self.log.error(f"Making flat image failed with error: {e}")
-                scaled_input_path = motioncorr_file
-
             # Generate image of selected and non-selected picks
             rw.send_to(
                 "images",
                 {
                     "image_command": "picked_particles",
-                    "file": str(scaled_input_path),
+                    "file": str(motioncorr_file),
                     "coordinates": coords,
                     "selected_coordinates": selected_coords,
                     "pixel_size": original_pixel_size,
                     "diameter": autoselect_params.particle_diameter,
                     "outfile": str(Path(cryolo_output_path).with_suffix(".jpeg")),
-                    "remove_input": (
-                        True
-                        if str(scaled_input_path) != str(motioncorr_file)
-                        else False
-                    ),
-                    "contrast_factor": (
-                        1 if str(scaled_input_path) != str(motioncorr_file) else 6
-                    ),
+                    "remove_input": False,
+                    "flatten_image": True,
                 },
             )
 

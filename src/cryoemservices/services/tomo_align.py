@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import json
 import os.path
 import re
 import subprocess
@@ -163,8 +164,14 @@ class TomoAlign(CommonService):
                     self.x_shift.append(float(line_split[3]))
                     self.y_shift.append(float(line_split[4]))
                     self.refined_tilts.append(float(line_split[9]))
-        fig = px.scatter(x=self.x_shift, y=self.y_shift)
-        fig.write_json(plot_path)
+        if self.x_shift and self.y_shift:
+            fig = px.scatter(x=self.x_shift, y=self.y_shift)
+            fig_as_json = {
+                "data": [json.loads(fig["data"][0].to_json())],
+                "layout": json.loads(fig["layout"].to_json()),
+            }
+            with open(plot_path, "w") as plot_json:
+                json.dump(fig_as_json, plot_json)
         return tomo_aln_file  # not needed anywhere atm
 
     def tomo_align(self, rw, header: dict, message: dict):
@@ -425,7 +432,8 @@ class TomoAlign(CommonService):
                     f"{int(scaled_x_size)},{int(scaled_y_size)},{int(scaled_z_size)}",
                     "-a",
                     angles_to_flip,
-                ]
+                ],
+                capture_output=True,
             )
             if rotate_result.returncode:
                 self.log.error(
@@ -679,7 +687,7 @@ class TomoAlign(CommonService):
             "-quiet",
         ]
         self.log.info("Running Newstack")
-        result = subprocess.run(newstack_cmd)
+        result = subprocess.run(newstack_cmd, capture_output=True)
         return result
 
     def assemble_aretomo_command(
