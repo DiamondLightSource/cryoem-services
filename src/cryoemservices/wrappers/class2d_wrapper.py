@@ -64,6 +64,8 @@ class Class2DParameters(BaseModel):
     class2d_grp_uuid: int
     class_uuids: str
     do_icebreaker_jobs: bool = True
+    do_cryodann: bool = False
+    cryodann_dataset: str = ""
     relion_options: RelionServiceOptions
 
 
@@ -81,6 +83,84 @@ class Class2DWrapper:
         self.recwrap = recwrap
         self.class_uuids_dict = {}
         self.class_uuids_keys = []
+
+    @staticmethod
+    def run_cryodann(
+        class2d_params: Class2DParameters, project_dir: Path, nr_iter: int
+    ) -> bool:
+        # cryoVAE needs the particles to be aligned according to the alignments determined in 2D classification
+        (Path(class2d_params.class2d_dir) / "aligned_particles").mkdir()
+        particle_alignment_command = [
+            "relion_stack_create",
+            "--i",
+            f"{class2d_params.class2d_dir}/run_it{nr_iter:03}_data.star",
+            "--o",
+            f"{class2d_params.class2d_dir}/aligned_particles/aligned",
+        ]
+        aligned_result = subprocess.run(
+            particle_alignment_command, cwd=str(project_dir), capture_output=True
+        )
+        if aligned_result.returncode:
+            logger.error(
+                f"Failed to align particles for {class2d_params.class2d_dir}, class selection alone will be used for filtering"
+            )
+            return False
+
+        # now need to low-pass the particle images
+        lowpass_command = [
+            "relion_image_handler",
+            "--i",
+            f"{class2d_params.class2d_dir}/aligned_particles/aligned.mrcs",
+            "--lowpass",
+            "10",
+            "--o",
+            f"{class2d_params.class2d_dir}/aligned_particles/aligned_lowpassed.mrcs",
+        ]
+        lowpass_result = subprocess.run(
+            lowpass_command, cwd=str(project_dir), capture_output=True
+        )
+        if lowpass_result.returncode:
+            logger.error(
+                f"Failed to lowpass particles for {class2d_params.class2d_dir}, class selection alone will be used for filtering"
+            )
+            return False
+
+        # now the aligned and lowpassed particles can be fed into cryoVAE
+        (Path(class2d_params.class2d_dir) / "cryodann").mkdir(exist_ok=True)
+        cryovae_command = [
+            "cryovae",
+            f"{class2d_params.class2d_dir}/aligned_particles/aligned_lowpassed.mrcs",
+            f"{class2d_params.class2d_dir}/cryodann/cryovae",
+            "--beta=0.1",
+        ]
+        cryovae_result = subprocess.run(
+            cryovae_command, cwd=str(project_dir), capture_output=True
+        )
+        if cryovae_result.returncode:
+            logger.error(
+                f"Failed to run cryoVAE for {class2d_params.class2d_dir}, class selection alone will be used for filtering"
+            )
+            return False
+        # then run cryodann on the denoised output
+        cryodann_command = [
+            "cryodann",
+            class2d_params.cryodann_dataset,
+            f"{class2d_params.class2d_dir}/cryodann/cryovae/recons.mrcs",
+            f"{class2d_params.class2d_dir}/cryodann",
+            "--particle_file",
+            f"{class2d_params.class2d_dir}/aligned_particles/aligned.star",
+            "--keep_percent",
+            "0.5",
+        ]
+        cryodann_result = subprocess.run(
+            cryodann_command, cwd=str(project_dir), capture_output=True
+        )
+        if cryodann_result.returncode:
+            logger.error(
+                f"Failed to run cryoDANN for {class2d_params.class2d_dir}, class selection alone will be used for filtering"
+            )
+            return False
+        return True
 
     def run(self):
         """
@@ -375,6 +455,40 @@ class Class2DWrapper:
                     "relion_options": dict(class2d_params.relion_options),
                 }
                 self.recwrap.send_to("icebreaker", icebreaker_params)
+
+            if class2d_params.do_cryodann:
+                cryodann_success = self.run_cryodann(
+                    class2d_params, project_dir, nr_iter
+                )
+                if cryodann_success:
+                    lightning_log_dir = (
+                        project_dir
+                        / class2d_params.class2d_dir
+                        / "cryodann"
+                        / "lightning_logs"
+                    )
+                    if (lightning_log_dir / "scores.npy").is_file():
+                        lightning_log_scores = lightning_log_dir / "scores.npy"
+                    else:
+                        lightning_log_options = lightning_log_dir.glob("*/scores.npy")
+                        lightning_log_scores = None
+                        for lightning_file in lightning_log_options:
+                            lightning_log_scores = lightning_file
+
+                    if lightning_log_scores:
+                        cryodann_scores = np.load(lightning_log_scores).flatten()
+                        cryodann_block = class_particles_file.find_block("particles")
+                        cryodann_loop = cryodann_block.find_loop(
+                            "_rlnCoordinateX"
+                        ).get_loop()
+                        cryodann_loop.add_columns(["_rlnCryodannScore"], "0")
+                        for i in range(cryodann_loop.length()):
+                            cryodann_loop[i, -1] = str(cryodann_scores[i])
+                        class_particles_file.write_file(
+                            f"{class2d_params.class2d_dir}/run_it{nr_iter:03}_data.star"
+                        )
+                    else:
+                        logger.error("Cryodann ran but no scores have been found")
 
             # Create a 2D autoselection job
             self.log.info("Sending to class selection")
