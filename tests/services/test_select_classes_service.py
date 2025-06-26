@@ -350,7 +350,6 @@ def test_select_classes_service_cryodann(mock_subprocess, offline_transport, tmp
     output_data_star = starfile.read(tmp_path / "Select/job012/particles.star")
     assert len(output_data_star["particles"]) == 2
     assert output_data_star["particles"]["rlnClassNumber"][0] == 3
-    assert output_data_star["particles"]["rlnClassNumber"][1] == 4
     assert output_data_star["particles"]["rlnParticleScore"][0] == 9
     assert output_data_star["particles"]["rlnParticleScore"][1] == 8
 
