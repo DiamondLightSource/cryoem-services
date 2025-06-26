@@ -126,7 +126,7 @@ class Class2DWrapper:
             return False
 
         # now the aligned and lowpassed particles can be fed into cryoVAE
-        (Path(class2d_params.class2d_dir) / "cryodann").mkdir()
+        (Path(class2d_params.class2d_dir) / "cryodann").mkdir(exist_ok=True)
         cryovae_command = [
             "cryovae",
             f"{class2d_params.class2d_dir}/aligned_particles/aligned_lowpassed.mrcs",

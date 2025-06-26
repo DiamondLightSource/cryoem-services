@@ -7,6 +7,7 @@ from unittest import mock
 import mrcfile
 import numpy as np
 import pytest
+import starfile
 from workflows.transport.offline_transport import OfflineTransport
 
 from cryoemservices.services import select_classes
@@ -291,6 +292,75 @@ def test_select_classes_service_first_batch(
             },
         },
     )
+    offline_transport.send.assert_any_call(
+        "murfey_feedback",
+        {
+            "register": "done_class_selection",
+        },
+    )
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+@mock.patch("cryoemservices.services.select_classes.subprocess.run")
+def test_select_classes_service_cryodann(mock_subprocess, offline_transport, tmp_path):
+    """
+    Send a test message to the select classes service when it is a new job
+    and cryodann ran in the 2d classification
+    """
+    mock_subprocess().returncode = 0
+    mock_subprocess().stdout = "stdout".encode("ascii")
+    mock_subprocess().stderr = "stderr".encode("ascii")
+
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+    select_test_message, relion_options = select_classes_common_setup(
+        tmp_path, initial_particle_count=0, particles_to_add=60000
+    )
+
+    # Write the required particles file from cryodann
+    (tmp_path / "Class2D/job010").mkdir(parents=True)
+    with open(tmp_path / "Class2D/job010/run_it020_data.star", "w") as data_star:
+        data_star.write("data_optics\n\nloop_\n_group\nopticsGroup1\n\n")
+        data_star.write(
+            "data_particles\n\nloop_\n"
+            "_rlnClassNumber\n_rlnCoordinateX\n_particle\n_movie\n_rlnCryodannScore\n"
+        )
+        for i in range(1, 6):
+            data_star.write(
+                f"{i} {i} {i}@Extract/job008/classes.mrcs MotionCorr/job002/Movies/movie.mrc {i}\n"
+            )
+
+    # Write the output class scores
+    with open(tmp_path / "Select/job012/rank_model.star", "w") as rank_star:
+        rank_star.write("data_\n\nloop_\n_rlnClassScore\n5\n4\n3\n2\n1\n")
+
+    # Set up the mock service and send the message to it
+    service = select_classes.SelectClasses(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
+    service.select_classes(None, header=header, message=select_test_message)
+
+    # Check the mock calls
+    assert mock_subprocess.call_count == 4
+
+    # Check cryodann scores selection happened
+    output_data_star = starfile.read(tmp_path / "Select/job012/particles.star")
+    assert len(output_data_star["particles"]) == 2
+    assert output_data_star["particles"]["rlnClassNumber"][0] == 3
+    assert output_data_star["particles"]["rlnClassNumber"][1] == 4
+    assert output_data_star["particles"]["rlnParticleScore"][0] == 9
+    assert output_data_star["particles"]["rlnParticleScore"][1] == 8
+
+    # Check that the correct messages were sent (and no score was sent to murfey)
+    print(offline_transport.send.call_args_list)
+    assert offline_transport.send.call_count == 6
+    assert (
+        "murfey_feedback",
+        {"register": "save_class_selection_score", "class_selection_score": mock.ANY},
+    ) not in offline_transport.send.call_args_list
     offline_transport.send.assert_any_call(
         "murfey_feedback",
         {
