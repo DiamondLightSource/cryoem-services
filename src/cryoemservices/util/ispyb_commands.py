@@ -616,6 +616,9 @@ def insert_tomogram(
             projXY=full_parameters("proj_xy"),
             projXZ=full_parameters("proj_xz"),
             globalAlignmentQuality=full_parameters("alignment_quality"),
+            gridSquareId=full_parameters("grid_square_id"),
+            pixelLocationX=full_parameters("pixel_location_x"),
+            pixelLocationY=full_parameters("pixel_location_y"),
         )
         tomogram_row = (
             session.query(models.Tomogram)
