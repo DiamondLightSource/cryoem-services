@@ -334,7 +334,7 @@ def test_select_classes_service_cryodann(mock_subprocess, offline_transport, tmp
 
     # Write the output class scores
     with open(tmp_path / "Select/job012/rank_model.star", "w") as rank_star:
-        rank_star.write("data_\n\nloop_\n_rlnClassScore\n5\n4\n3\n2\n1\n")
+        rank_star.write("data_model_classes\n\nloop_\n_rlnClassScore\n5\n4\n3\n2\n1\n")
 
     # Set up the mock service and send the message to it
     service = select_classes.SelectClasses(
@@ -354,12 +354,11 @@ def test_select_classes_service_cryodann(mock_subprocess, offline_transport, tmp
     assert output_data_star["particles"]["rlnParticleScore"][1] == 8
 
     # Check that the correct messages were sent (and no score was sent to murfey)
-    print(offline_transport.send.call_args_list)
-    assert offline_transport.send.call_count == 6
-    assert (
+    assert offline_transport.send.call_count == 7
+    offline_transport.send.assert_any_call(
         "murfey_feedback",
-        {"register": "save_class_selection_score", "class_selection_score": mock.ANY},
-    ) not in offline_transport.send.call_args_list
+        {"register": "save_class_selection_score", "class_selection_score": 3},
+    )
     offline_transport.send.assert_any_call(
         "murfey_feedback",
         {
