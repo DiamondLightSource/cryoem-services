@@ -79,6 +79,7 @@ dev = [
     "combine_star_files_job" = "cryoemservices.pipeliner_plugins.combine_star_job:ProcessStarFiles"
 [project.entry-points."cryoemservices.services"]
     BFactor = "cryoemservices.services.bfactor_setup:BFactor"
+    CLEMAlignAndMerge = "cryoemservices.services.clem_align_and_merge:AlignAndMergeService"
     CLEMLIFToStack = "cryoemservices.services.clem_process_raw_lifs:LIFToStackService"
     CTFFind = "cryoemservices.services.ctffind:CTFFind"
     ClusterSubmission = "cryoemservices.services.cluster_submission:ClusterSubmission"
