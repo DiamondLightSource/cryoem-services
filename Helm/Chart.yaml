@@ -4,6 +4,7 @@ description: An umbrella Helm chart for EM processing services
 version: 1.2.3
 dependencies:
   - name: bfactor_setup
+  - name: clem_align_and_merge
   - name: clem_process_raw_lifs
   - name: cluster_submission
   - name: cryolo
