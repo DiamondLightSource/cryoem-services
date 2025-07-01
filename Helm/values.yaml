@@ -31,6 +31,18 @@ bfactor_setup:
   minReplicaCount: 0
   maxReplicaCount: 1
 
+clem_process_raw_lifs:
+  replicas: 1
+  image: gcr.io/image/path
+  command: cryoemservices.service -s CLEMLIFToStack -c /cryoemservices/config/cryoemservices_config.yaml
+  cpuRequest: "4"
+  cpuLimit: "4"
+  memoryLimit: 64Gi
+  scaleOnQueueLength: true
+  queueLengthTrigger: "4"
+  minReplicaCount: 1
+  maxReplicaCount: 8
+
 cluster_submission:
   replicas: 1
   image: gcr.io/image/path
