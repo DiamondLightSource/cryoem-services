@@ -55,6 +55,18 @@ clem_process_raw_lifs:
   minReplicaCount: 1
   maxReplicaCount: 8
 
+clem_process_raw_tiffs:
+  replicas: 1
+  image: gcr.io/image/path
+  command: cryoemservices.service -s CLEMTIFFToStack -c /cryoemservices/config/cryoemservices_config.yaml
+  cpuRequest: "1"
+  cpuLimit: "4"
+  memoryLimit: 64Gi
+  scaleOnQueueLength: true
+  queueLengthTrigger: "4"
+  minReplicaCount: 1
+  maxReplicaCount: 8
+
 cluster_submission:
   replicas: 1
   image: gcr.io/image/path

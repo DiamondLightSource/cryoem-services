@@ -6,6 +6,7 @@ dependencies:
   - name: bfactor_setup
   - name: clem_align_and_merge
   - name: clem_process_raw_lifs
+  - name: clem_process_raw_tiffs
   - name: cluster_submission
   - name: cryolo
   - name: cryolo_gpu
