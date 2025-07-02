@@ -311,17 +311,25 @@ def align_and_merge_stacks(
 
     # Align other stacks to reference stack
     if align_across:
-        if print_messages is True:
-            print("Aligning images to reference image...")
-        reference = arrays[0]  # First image in list is the reference image
-        to_align = arrays[1:]
-        with Pool(len(to_align)) as pool:
-            aligned = pool.starmap(
-                align_image_to_reference, [(reference, moving) for moving in to_align]
-            )
-        arrays = [reference, *aligned]
-        if print_messages is True:
-            print(" Done")
+        if len(arrays) >= 2:
+            if print_messages is True:
+                print("Aligning images to reference image...")
+            reference = arrays[0]  # First image in list is the reference image
+            to_align = arrays[1:]
+            with Pool(len(to_align)) as pool:
+                aligned = pool.starmap(
+                    align_image_to_reference,
+                    [(reference, moving) for moving in to_align],
+                )
+            arrays = [reference, *aligned]
+            if print_messages is True:
+                print(" Done")
+        elif len(arrays) == 1:
+            if print_messages is True:
+                print("Skipping step as there is only one image")
+        else:
+            if print_messages is True:
+                print("No image arrays are present")
 
     # Colourise images
     if print_messages is True:
