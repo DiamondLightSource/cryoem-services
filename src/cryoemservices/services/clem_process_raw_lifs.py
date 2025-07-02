@@ -71,8 +71,8 @@ class LIFToStackService(CommonService):
             number_of_processes=params.num_procs,
         )
 
-        # Return False and log error if the command fails to execute
-        if results is None:
+        # Log error if the command fails to execute
+        if not results:
             self.log.error(
                 f"Failed to extract image stacks from {str(params.lif_file)!r}"
             )
