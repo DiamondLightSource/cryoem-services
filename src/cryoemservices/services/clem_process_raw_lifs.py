@@ -13,7 +13,7 @@ from cryoemservices.wrappers.clem_process_raw_lifs import (
 
 class LIFToStackService(CommonService):
     """
-    A service version of the LIF file-process wrapper in the CLEM workflow
+    A service version of the LIF file-processing wrapper in the CLEM workflow
     """
 
     # log name
