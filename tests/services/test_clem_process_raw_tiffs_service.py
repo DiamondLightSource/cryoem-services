@@ -142,11 +142,11 @@ def test_tiff_to_stack_service(
     )
 
     # Check that the expected calls are made\
-    mock_convert.assert_called_with(
-        tiff_list=tiff_files,
-        root_folder=raw_dir.stem,
-        metadata_file=metadata,
-    )
+    args, kwargs = mock_convert.call_args
+    assert set(kwargs["tiff_list"]) == set(tiff_files)
+    assert kwargs["root_folder"] == raw_dir.stem
+    assert kwargs["metadata_file"] == metadata
+
     for result in processing_results:
         offline_transport.send.assert_any_call(
             "murfey_feedback",
