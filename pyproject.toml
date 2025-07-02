@@ -81,6 +81,7 @@ dev = [
     BFactor = "cryoemservices.services.bfactor_setup:BFactor"
     CLEMAlignAndMerge = "cryoemservices.services.clem_align_and_merge:AlignAndMergeService"
     CLEMLIFToStack = "cryoemservices.services.clem_process_raw_lifs:LIFToStackService"
+    CLEMTIFFToStack = "cryoemservices.services.clem_process_raw_tiffs:TIFFToStackService"
     CTFFind = "cryoemservices.services.ctffind:CTFFind"
     ClusterSubmission = "cryoemservices.services.cluster_submission:ClusterSubmission"
     CrYOLO = "cryoemservices.services.cryolo:CrYOLO"
