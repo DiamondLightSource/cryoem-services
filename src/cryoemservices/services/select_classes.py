@@ -187,6 +187,26 @@ class SelectClasses(CommonService):
         if Path(particle_data_starfile).is_file():
             input_particle_data = starfile.read(particle_data_starfile)
         if not autoselect_result.returncode:
+            quantile_threshold = autoselect_params.autoselect_min_score
+            if not autoselect_params.autoselect_min_score:
+                # If a minimum score isn't given, then work it out
+                star_doc = cif.read_file(str(select_dir / "rank_model.star"))
+                star_block = star_doc["model_classes"]
+                class_scores = np.array(
+                    star_block.find_loop("_rlnClassScore"), dtype=float
+                )
+                quantile_threshold = np.quantile(
+                    class_scores,
+                    float(autoselect_params.class2d_fraction_of_classes_to_remove),
+                )
+
+                self.log.info(f"Sending new threshold {quantile_threshold} to Murfey")
+                murfey_params = {
+                    "register": "save_class_selection_score",
+                    "class_selection_score": quantile_threshold,
+                }
+                rw.send_to("murfey_feedback", murfey_params)
+
             if (
                 input_particle_data
                 and "rlnCryodannScore" in input_particle_data["particles"].columns
@@ -211,30 +231,11 @@ class SelectClasses(CommonService):
                     overwrite=True,
                 )
             elif not autoselect_params.autoselect_min_score:
-                # If a minimum score isn't given, then work it out and rerun the job
-                star_doc = cif.read_file(str(select_dir / "rank_model.star"))
-                star_block = star_doc["model_classes"]
-                class_scores = np.array(
-                    star_block.find_loop("_rlnClassScore"), dtype=float
-                )
-                quantile_threshold = np.quantile(
-                    class_scores,
-                    float(autoselect_params.class2d_fraction_of_classes_to_remove),
-                )
-
-                self.log.info(f"Sending new threshold {quantile_threshold} to Murfey")
-                murfey_params = {
-                    "register": "save_class_selection_score",
-                    "class_selection_score": quantile_threshold,
-                }
-                rw.send_to("murfey_feedback", murfey_params)
-
+                # Re-run the class selection if a score was not given
                 self.log.info(
                     f"Re-running class selection with new threshold {quantile_threshold}"
                 )
                 autoselect_command[-1] = str(quantile_threshold)
-
-                # Re-run the class selection
                 autoselect_result = subprocess.run(
                     autoselect_command, cwd=str(project_dir), capture_output=True
                 )
