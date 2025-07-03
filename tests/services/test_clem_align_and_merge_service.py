@@ -272,3 +272,51 @@ def test_align_and_merge_service_validation_failed(
 
     # Check that the message was nacked
     offline_transport.nack.assert_called_once_with(header)
+
+
+@mock.patch("cryoemservices.services.clem_align_and_merge.align_and_merge_stacks")
+def test_align_and_merge_service_process_failed(
+    mock_align,
+    image_stacks: list[Path],
+    metadata: Path,
+    series_name: str,
+    offline_transport: OfflineTransport,
+):
+    """
+    Sends a test message to the image alignment and merging service, which should
+    excecute the function using the parameters present in the message, then send
+    messages with the expected outputs back to Murfey.
+    """
+
+    # Set up the parameters
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+    align_and_merge_test_message = {
+        "series_name": series_name,
+        "images": [str(f) for f in image_stacks],
+        "metadata": str(metadata),
+        "crop_to_n_frames": 50,
+        "align_self": "enabled",
+        "flatten": "mean",
+        "align_across": "enabled",
+    }
+
+    # Set up expected return values if the process fails
+    mock_align.return_value = {}
+
+    # Set up and run the service
+    service = AlignAndMergeService(
+        environment={"queue": ""},
+        transport=offline_transport,
+    )
+    service.initializing()
+    service.call_align_and_merge(
+        None,
+        header=header,
+        message=align_and_merge_test_message,
+    )
+
+    # Check that the message was nacked with the expected parameters
+    offline_transport.nack.assert_called_once_with(header)
