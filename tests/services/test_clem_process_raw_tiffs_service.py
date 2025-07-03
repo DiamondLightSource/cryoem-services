@@ -143,7 +143,7 @@ def test_tiff_to_stack_service(
 
     # Check that the expected calls are made
     args, kwargs = mock_convert.call_args
-    assert set(kwargs["tiff_list"]) == set(tiff_files)
+    assert sorted(kwargs["tiff_list"]) == sorted(tiff_files)
     assert kwargs["root_folder"] == raw_dir.stem
     assert kwargs["metadata_file"] == metadata
 
