@@ -86,6 +86,7 @@ def processing_results(
 def offline_transport(mocker):
     transport = OfflineTransport()
     mocker.spy(transport, "send")
+    mocker.spy(transport, "nack")
     return transport
 
 
@@ -160,3 +161,29 @@ def test_lif_to_stack_service(
                 "result": result,
             },
         )
+
+
+def test_align_and_merge_bad_messsage(
+    offline_transport: OfflineTransport,
+):
+    # Set up the parameters
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+    bad_message = "This is a bad message"
+
+    # Set up and run the service
+    service = LIFToStackService(
+        environment={"queue": ""},
+        transport=offline_transport,
+    )
+    service.initializing()
+    service.call_process_raw_lifs(
+        None,
+        header=header,
+        message=bad_message,
+    )
+
+    # Check that message was nacked with the expected parameters
+    offline_transport.nack.assert_called_once_with(header)
