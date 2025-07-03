@@ -17,15 +17,15 @@ def visit_dir(tmp_path: Path):
 
 
 @pytest.fixture
-def image_dir(visit_dir: Path):
-    image_dir = visit_dir / "images"
-    image_dir.mkdir(parents=True, exist_ok=True)
-    return image_dir
+def raw_dir(visit_dir: Path):
+    raw_dir = visit_dir / "images"
+    raw_dir.mkdir(parents=True, exist_ok=True)
+    return raw_dir
 
 
 @pytest.fixture
-def lif_file(image_dir: Path):
-    lif_file = image_dir / "test_file.lif"
+def lif_file(raw_dir: Path):
+    lif_file = raw_dir / "test_file.lif"
     lif_file.touch(exist_ok=True)
     return lif_file
 
@@ -93,7 +93,7 @@ def test_lif_to_stack_service(
     mock_convert,
     processing_results: list[dict],
     lif_file: Path,
-    image_dir: Path,
+    raw_dir: Path,
     offline_transport: OfflineTransport,
 ):
     """
@@ -109,7 +109,7 @@ def test_lif_to_stack_service(
     }
     lif_to_stack_test_message = {
         "lif_file": str(lif_file),
-        "root_folder": image_dir.stem,
+        "root_folder": raw_dir.stem,
     }
 
     # Set up the expected mock values
@@ -127,7 +127,7 @@ def test_lif_to_stack_service(
     # Check that the expected calls are made
     mock_convert.assert_called_with(
         file=lif_file,
-        root_folder=image_dir.stem,
+        root_folder=raw_dir.stem,
         number_of_processes=20,
     )
     for result in processing_results:
