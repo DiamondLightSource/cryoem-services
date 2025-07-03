@@ -542,7 +542,7 @@ class AlignAndMergeWrapper:
             flatten=params.flatten,
             align_across=params.align_across,
         )
-        if not result.keys():
+        if not result:
             logger.error(
                 "Failed to complete the aligning and merging process for "
                 f"{params.series_name!r}"
