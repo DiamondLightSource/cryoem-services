@@ -51,6 +51,10 @@ def test_buffer_bad_commands(commands):
     assert ispyb_commands.buffer(commands, ispyb_parameters, mock.MagicMock()) is False
 
 
+def raise_sql_error(mock_call):
+    raise SQLAlchemyError("Mock error")
+
+
 @mock.patch("cryoemservices.util.ispyb_commands.models")
 def test_insert_movie_id_notime(mock_models):
     def mock_movie_parameters(p):
@@ -744,6 +748,9 @@ def test_insert_tomogram_new(mock_models):
             "proj_xy": "/path/to/xy",
             "proj_xz": "/path/to/xz",
             "alignment_quality": 0.2,
+            "grid_square_id": 12345,
+            "pixel_location_x": 200,
+            "pixel_location_y": 400,
         }
         return tomogram_parameters[p]
 
@@ -783,6 +790,9 @@ def test_insert_tomogram_new(mock_models):
         projXY="/path/to/xy",
         projXZ="/path/to/xz",
         globalAlignmentQuality=0.2,
+        gridSquareId=12345,
+        pixelLocationX=200,
+        pixelLocationY=400,
     )
     mock_session.add.assert_called()
     mock_session.commit.assert_called()
@@ -812,6 +822,9 @@ def test_insert_tomogram_update():
             "proj_xy": "/path/to/xy",
             "proj_xz": "/path/to/xz",
             "alignment_quality": 0.2,
+            "grid_square_id": 12345,
+            "pixel_location_x": 200,
+            "pixel_location_y": 400,
         }
         return tomogram_parameters[p]
 
@@ -852,10 +865,28 @@ def test_insert_tomogram_update():
             "projXY": "/path/to/xy",
             "projXZ": "/path/to/xz",
             "globalAlignmentQuality": 0.2,
+            "gridSquareId": 12345,
+            "pixelLocationX": 200,
+            "pixelLocationY": 400,
         }
     )
     mock_session.add.assert_not_called()
     mock_session.commit.assert_called()
+
+
+def test_insert_tomogram_failure():
+    def mock_tomogram_parameters(p):
+        return None
+
+    # Mock which returns an existing object
+    mock_session = mock.MagicMock()
+    mock_session.add.side_effect = raise_sql_error
+
+    return_value = ispyb_commands.insert_tomogram(
+        {}, mock_tomogram_parameters, mock_session
+    )
+    assert return_value is False
+    mock_session.add.assert_called()
 
 
 @mock.patch("cryoemservices.util.ispyb_commands.models")
@@ -882,6 +913,21 @@ def test_insert_processed_tomogram(mock_models):
     )
     mock_session.add.assert_called()
     mock_session.commit.assert_called()
+
+
+def test_insert_processed_tomogram_failure():
+    def mock_tomogram_parameters(p):
+        return None
+
+    # Mock which returns an existing object
+    mock_session = mock.MagicMock()
+    mock_session.add.side_effect = raise_sql_error
+
+    return_value = ispyb_commands.insert_processed_tomogram(
+        {}, mock_tomogram_parameters, mock_session
+    )
+    assert return_value is False
+    mock_session.add.assert_called()
 
 
 @mock.patch("cryoemservices.util.ispyb_commands.models")
