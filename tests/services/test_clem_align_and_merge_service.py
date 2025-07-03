@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 from unittest import mock
 
 import pytest
 from workflows.transport.offline_transport import OfflineTransport
 
 from cryoemservices.services.clem_align_and_merge import AlignAndMergeService
+from cryoemservices.util.models import MockRW
 
 project = "project_1"
 grid = "grid_1"
@@ -70,13 +72,13 @@ def offline_transport(mocker):
 
 
 align_and_merge_params_matrix = (
-    # Crop to N frames | Align to self | Flatten | Align across
-    (20, "enabled", "mean", "enabled"),
-    (20, "enabled", "min", "enabled"),
-    (20, "enabled", "max", "enabled"),
-    (20, "enabled", "mean", ""),
-    (20, "", "min", "enabled"),
-    (20, "", "max", ""),
+    # Use Recipe Wrapper | Crop to N frames | Align to self | Flatten | Align across
+    (True, 20, "enabled", "mean", "enabled"),
+    (True, 20, "enabled", "min", "enabled"),
+    (True, 20, "enabled", "max", "enabled"),
+    (False, 20, "enabled", "mean", ""),
+    (False, 20, "", "min", "enabled"),
+    (False, 20, "", "max", ""),
 )
 
 
@@ -84,7 +86,7 @@ align_and_merge_params_matrix = (
 @mock.patch("cryoemservices.services.clem_align_and_merge.align_and_merge_stacks")
 def test_align_and_merge_service(
     mock_align,
-    test_params: tuple[int, str, str, str],
+    test_params: tuple[bool, int, str, str, str],
     image_stacks: list[Path],
     metadata: Path,
     series_name: str,
@@ -98,7 +100,7 @@ def test_align_and_merge_service(
     """
 
     # Unpack test params
-    crop_to_n_frames, align_self, flatten, align_across = test_params
+    use_recwrap, crop_to_n_frames, align_self, flatten, align_across = test_params
 
     # Set up the parameters
     header = {
@@ -140,11 +142,20 @@ def test_align_and_merge_service(
         transport=offline_transport,
     )
     service.initializing()
-    service.call_align_and_merge(
-        None,
-        header=header,
-        message=align_and_merge_test_message,
-    )
+    if use_recwrap:
+        recwrap = MockRW(offline_transport)
+        recwrap.recipe_step = {"parameters": align_and_merge_test_message}
+        service.call_align_and_merge(
+            recwrap,
+            header=header,
+            message={},
+        )
+    else:
+        service.call_align_and_merge(
+            None,
+            header=header,
+            message=align_and_merge_test_message,
+        )
 
     # Check that the expected calls were made
     mock_align.assert_called_with(
@@ -187,4 +198,77 @@ def test_align_and_merge_bad_messsage(
     )
 
     # Check that message was nacked with the expected parameters
+    offline_transport.nack.assert_called_once_with(header)
+
+
+# Introduce invalid parameters field-by-field
+align_and_merge_params_bad_validation_matrix = (
+    # Series name | Images | Metadata | Crop to N frames | Align to self | Flatten | Align across
+    (False, True, True, 20, "enabled", "mean", "enabled"),
+    (True, False, True, 20, "enabled", "mean", "enabled"),
+    (True, True, False, 20, "enabled", "mean", "enabled"),
+    (True, True, True, "Not a number", "enabled", "mean", "enabled"),
+    (True, True, True, 20, "off", "mean", "enabled"),
+    (True, True, True, 20, "enabled", "off", "enabled"),
+    (True, True, True, 20, "enabled", "mean", "off"),
+)
+
+
+@pytest.mark.parametrize("test_params", align_and_merge_params_bad_validation_matrix)
+def test_align_and_merge_service_validation_failed(
+    test_params: tuple[bool, bool, bool, Any, str, str, str],
+    image_stacks: list[Path],
+    metadata: Path,
+    series_name: str,
+    offline_transport: OfflineTransport,
+):
+    """
+    Sends a test message to the image alignment and merging service, which should
+    excecute the function using the parameters present in the message, then send
+    messages with the expected outputs back to Murfey.
+    """
+
+    # Unpack test params
+    (
+        valid_series_name,
+        valid_image_stack,
+        valid_metadata,
+        crop_to_n_frames,
+        align_self,
+        flatten,
+        align_across,
+    ) = test_params
+
+    # Set up the parameters
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+    # Replace with invalid values as needed
+    images: list[Any] = (
+        [str(f) for f in image_stacks] if valid_image_stack else [123, 456, 789]
+    )
+    align_and_merge_test_message = {
+        "series_name": series_name if valid_series_name else 123456789,
+        "images": images,
+        "metadata": str(metadata) if valid_metadata else 123456789,
+        "crop_to_n_frames": crop_to_n_frames,
+        "align_self": align_self,
+        "flatten": flatten,
+        "align_across": align_across,
+    }
+
+    # Set up and run the service
+    service = AlignAndMergeService(
+        environment={"queue": ""},
+        transport=offline_transport,
+    )
+    service.initializing()
+    service.call_align_and_merge(
+        None,
+        header=header,
+        message=align_and_merge_test_message,
+    )
+
+    # Check that the message was nacked
     offline_transport.nack.assert_called_once_with(header)
