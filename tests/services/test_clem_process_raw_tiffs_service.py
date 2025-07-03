@@ -261,3 +261,45 @@ def test_tiff_to_stack_service_validation_failed(
 
     # Check that the message was nacked with the expected parameters
     offline_transport.nack.assert_called_once_with(header)
+
+
+@mock.patch("cryoemservices.services.clem_process_raw_tiffs.convert_tiff_to_stack")
+def test_tiff_to_stack_service_processing_failed(
+    mock_convert,
+    tiff_files: list[Path],
+    metadata: Path,
+    raw_dir: Path,
+    offline_transport: OfflineTransport,
+):
+    """
+    Sends a test message to the TIFF processing service, which should execute the
+    function with the parameters present in the message, then send messages with
+    the expected outputs back to Murfey.
+    """
+
+    # Set up the parameters
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+    tiff_to_stack_test_message = {
+        "tiff_list": None,
+        "tiff_file": str(tiff_files[0]),
+        "root_folder": raw_dir.stem,
+        "metadata": str(metadata),
+    }
+
+    # Set up expected mock values
+    mock_convert.return_value = None
+
+    # Set up and run the service
+    service = TIFFToStackService(environment={"queue": ""}, transport=offline_transport)
+    service.initializing()
+    service.call_process_raw_tiffs(
+        None,
+        header=header,
+        message=tiff_to_stack_test_message,
+    )
+
+    # Check that the message was nacked with the expected parameters
+    offline_transport.nack.assert_called_once_with(header)
