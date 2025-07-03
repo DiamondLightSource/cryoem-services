@@ -74,7 +74,8 @@ class TIFFToStackService(CommonService):
                 f"Subpath {params.root_folder!r} was not found in file path "
                 f"{str(ref_file.parent / ref_file.stem.split('--')[0])!r}"
             )
-            return False
+            rw.transport.nack(header)
+            return
         series_name = "--".join(
             [p.replace(" ", "_") if " " in p else p for p in path_parts][
                 root_index + 1 :
@@ -88,7 +89,7 @@ class TIFFToStackService(CommonService):
             metadata_file=params.metadata,
         )
 
-        # Return False and log error if the command fails to execute
+        # Nack message and log error if the command fails to execute
         if results is None:
             self.log.error(f"Process failed for TIFF series {series_name!r}")
             rw.transport.nack(header)
