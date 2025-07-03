@@ -244,3 +244,42 @@ def test_lif_to_stack_service_validation_failed(
 
     # Check that the message was nacked with the expected parameters
     offline_transport.nack.assert_called_once_with(header)
+
+
+@mock.patch("cryoemservices.services.clem_process_raw_lifs.convert_lif_to_stack")
+def test_lif_to_stack_service_processing_failed(
+    mock_convert,
+    lif_file: Path,
+    raw_dir: Path,
+    offline_transport: OfflineTransport,
+):
+    """
+    Sends a test message to the LIF processing service, which should execute the
+    function with the parameters present in the message, then send messages with
+    the expected outputs back to Murfey.
+    """
+
+    # Set up the parameters
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+    lif_to_stack_test_message = {
+        "lif_file": str(lif_file),
+        "root_folder": raw_dir.stem,
+    }
+
+    # Set up the expected mock values
+    mock_convert.return_value = {}
+
+    # Set up and run the service
+    service = LIFToStackService(environment={"queue": ""}, transport=offline_transport)
+    service.initializing()
+    service.call_process_raw_lifs(
+        None,
+        header=header,
+        message=lif_to_stack_test_message,
+    )
+
+    # Check that message was nacked with expected parameters
+    offline_transport.nack.assert_called_once_with(header)
