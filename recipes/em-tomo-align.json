@@ -6,8 +6,8 @@
       "ispyb_command": "insert_tomogram",
       "program_id": "{appid}",
       "store_result": "ispyb_tomogram_id",
-      "x_location": "{x_location}",
-      "y_location": "{y_location}",
+      "pixel_location_x": "{x_location}",
+      "pixel_location_y": "{y_location}",
       "grid_square_id": "{search_map_id}"
     },
     "queue": "ispyb_connector",
