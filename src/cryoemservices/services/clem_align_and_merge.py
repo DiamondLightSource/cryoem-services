@@ -74,7 +74,7 @@ class AlignAndMergeService(CommonService):
             align_across=params.align_across,
         )
 
-        if not results.keys():
+        if not results:
             self.log.error(
                 "Failed to complete the aligning and merging process for "
                 f"{params.series_name!r}"
