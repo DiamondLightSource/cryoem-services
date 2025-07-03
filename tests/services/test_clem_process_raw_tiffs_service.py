@@ -204,3 +204,60 @@ def test_tiff_to_stack_bad_messsage(
 
     # Check that message was nacked with the expected parameters
     offline_transport.nack.assert_called_once_with(header)
+
+
+# Introduce invalid parameters field-by-field
+tiff_to_stack_params_bad_validation_matrix = (
+    # TIFF list | Tiff file | Root folder | Metadata
+    (False, True, True, True),
+    (True, False, True, True),
+    (True, True, False, True),
+    (True, True, True, False),
+)
+
+
+@pytest.mark.parametrize("test_params", tiff_to_stack_params_bad_validation_matrix)
+def test_tiff_to_stack_service_validation_failed(
+    test_params: tuple[bool, bool, bool, bool],
+    tiff_files: list[Path],
+    metadata: Path,
+    raw_dir: Path,
+    offline_transport: OfflineTransport,
+):
+    """
+    Sends a test message to the TIFF processing service, which should execute the
+    function with the parameters present in the message, then send messages with
+    the expected outputs back to Murfey.
+    """
+
+    # Unpack test params
+    valid_tiff_list, valid_tiff_file, valid_root_folder, valid_metadata = test_params
+
+    # Set up the parameters
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+    # Use invalid values one-by-one
+    tiff_list_value = None if valid_tiff_list else [123, 456, 789]
+    tiff_file_value = str(tiff_files[0]) if valid_tiff_file else 123456789
+    root_folder_value = raw_dir.stem if valid_root_folder else 123456789
+    metadata_value = str(metadata) if valid_metadata else 123456789
+    tiff_to_stack_test_message = {
+        "tiff_list": tiff_list_value,
+        "tiff_file": tiff_file_value,
+        "root_folder": root_folder_value,
+        "metadata": metadata_value,
+    }
+
+    # Set up and run the service
+    service = TIFFToStackService(environment={"queue": ""}, transport=offline_transport)
+    service.initializing()
+    service.call_process_raw_tiffs(
+        None,
+        header=header,
+        message=tiff_to_stack_test_message,
+    )
+
+    # Check that the message was nacked with the expected parameters
+    offline_transport.nack.assert_called_once_with(header)
