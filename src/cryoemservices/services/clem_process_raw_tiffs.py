@@ -90,7 +90,7 @@ class TIFFToStackService(CommonService):
         )
 
         # Nack message and log error if the command fails to execute
-        if results is None:
+        if not results:
             self.log.error(f"Process failed for TIFF series {series_name!r}")
             rw.transport.nack(header)
             return
