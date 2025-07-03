@@ -7,6 +7,7 @@ import pytest
 from workflows.transport.offline_transport import OfflineTransport
 
 from cryoemservices.services.clem_process_raw_tiffs import TIFFToStackService
+from cryoemservices.util.models import MockRW
 
 project = "project_1"
 grid = "grid_1"
@@ -102,9 +103,18 @@ def offline_transport(mocker):
     return transport
 
 
+tiff_to_stack_params_matrix = (
+    # Use Recipe Wrapper?
+    (True,),
+    (False,),
+)
+
+
+@pytest.mark.parametrize("test_params", tiff_to_stack_params_matrix)
 @mock.patch("cryoemservices.services.clem_process_raw_tiffs.convert_tiff_to_stack")
 def test_tiff_to_stack_service(
     mock_convert,
+    test_params: tuple[bool],
     processing_results: list[dict],
     tiff_files: list[Path],
     metadata: Path,
@@ -116,6 +126,9 @@ def test_tiff_to_stack_service(
     function with the parameters present in the message, then send messages with
     the expected outputs back to Murfey.
     """
+
+    # Unpack test params
+    (use_recwrap,) = (test_params,)
 
     # Set up the parameters
     header = {
@@ -135,11 +148,20 @@ def test_tiff_to_stack_service(
     # Set up and run the service
     service = TIFFToStackService(environment={"queue": ""}, transport=offline_transport)
     service.initializing()
-    service.call_process_raw_tiffs(
-        None,
-        header=header,
-        message=tiff_to_stack_test_message,
-    )
+    if use_recwrap:
+        recwrap = MockRW(offline_transport)
+        recwrap.recipe_step = {"parameters": tiff_to_stack_test_message}
+        service.call_process_raw_tiffs(
+            recwrap,
+            header=header,
+            message=None,
+        )
+    else:
+        service.call_process_raw_tiffs(
+            None,
+            header=header,
+            message=tiff_to_stack_test_message,
+        )
 
     # Check that the expected calls are made
     args, kwargs = mock_convert.call_args
