@@ -148,7 +148,7 @@ def test_align_and_merge_service(
         service.call_align_and_merge(
             recwrap,
             header=header,
-            message={},
+            message=None,
         )
     else:
         service.call_align_and_merge(
