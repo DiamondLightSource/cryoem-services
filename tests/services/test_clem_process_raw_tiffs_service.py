@@ -100,6 +100,7 @@ def processing_results(processed_dir: Path, tiff_files: list[Path]):
 def offline_transport(mocker):
     transport = OfflineTransport()
     mocker.spy(transport, "send")
+    mocker.spy(transport, "nack")
     return transport
 
 
@@ -177,3 +178,29 @@ def test_tiff_to_stack_service(
                 "result": result,
             },
         )
+
+
+def test_tiff_to_stack_bad_messsage(
+    offline_transport: OfflineTransport,
+):
+    # Set up the parameters
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+    bad_message = "This is a bad message"
+
+    # Set up and run the service
+    service = TIFFToStackService(
+        environment={"queue": ""},
+        transport=offline_transport,
+    )
+    service.initializing()
+    service.call_process_raw_tiffs(
+        None,
+        header=header,
+        message=bad_message,
+    )
+
+    # Check that message was nacked with the expected parameters
+    offline_transport.nack.assert_called_once_with(header)
