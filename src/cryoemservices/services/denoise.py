@@ -260,6 +260,7 @@ class Denoise(CommonService):
         segmentation_parameters = {
             "tomogram": str(denoised_full_path),
             "output_dir": str(segmentation_dir),
+            "pixel_size": str(denoise_params.relion_options.pixel_size_downscaled),
             "relion_options": dict(denoise_params.relion_options),
         }
         cryolo_parameters = {
