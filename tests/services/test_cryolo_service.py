@@ -240,6 +240,7 @@ def test_cryolo_service_tomography(mock_subprocess, offline_transport, tmp_path)
     output_relion_options["cryolo_config_file"] = str(
         tmp_path / "AutoPick/job007/cryolo_config.json"
     )
+    output_relion_options["cryolo_box_size"] = 40
 
     # Set up the mock service and send the message to it
     service = cryolo.CrYOLO(environment={"queue": ""}, transport=offline_transport)
@@ -324,7 +325,7 @@ def test_cryolo_service_tomography(mock_subprocess, offline_transport, tmp_path)
     offline_transport.send.assert_any_call(
         "node_creator",
         {
-            "job_type": "cryolo.autopick",
+            "job_type": "cryolo.autopick.tomo",
             "input_file": cryolo_test_message["input_path"],
             "output_file": str(output_path),
             "relion_options": output_relion_options,

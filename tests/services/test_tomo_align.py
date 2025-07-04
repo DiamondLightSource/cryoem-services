@@ -189,7 +189,7 @@ def test_tomo_align_service_file_list(
     offline_transport.send.assert_any_call(
         "node_creator",
         {
-            "job_type": "relion.aligntiltseries",
+            "job_type": "relion.aligntiltseries.aretomo",
             "experiment_type": "tomography",
             "input_file": f"{tmp_path}/ExcludeTiltImages/job004/tilts/Position_1_001_0.0.mrc",
             "output_file": f"{tmp_path}/AlignTiltSeries/job005/tilts/Position_1_001_0.0.mrc",
@@ -731,6 +731,7 @@ def test_tomo_align_service_path_pattern(
     output_relion_options["manual_tilt_offset"] = 10.5
     output_relion_options["frame_count"] = 6
     output_relion_options["dose_per_frame"] = 0.2
+    output_relion_options["vol_z"] = 1600
 
     # Set up the mock service
     service = tomo_align.TomoAlign(
@@ -996,7 +997,7 @@ def test_tomo_align_service_dark_images(
         offline_transport.send.assert_any_call(
             "node_creator",
             {
-                "job_type": "relion.aligntiltseries",
+                "job_type": "relion.aligntiltseries.aretomo",
                 "experiment_type": "tomography",
                 "input_file": f"{tmp_path}/ExcludeTiltImages/job004/tilts/Position_1_00{image}_0.0.mrc",
                 "output_file": f"{tmp_path}/AlignTiltSeries/job005/tilts/Position_1_00{image}_0.0.mrc",

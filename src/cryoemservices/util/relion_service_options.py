@@ -115,6 +115,7 @@ class RelionServiceOptions(BaseModel):
     # Location of the cryolo specific files
     cryolo_config_file: str = "cryolo_config.json"
     cryolo_model_weights: str = "gmodel_phosnet_202005_N63_c17.h5"
+    cryolo_box_size: int = 160
 
     # Fraction of classes to attempt to remove using the RELION 2D class ranker
     class2d_fraction_of_classes_to_remove: float = 0.9
@@ -174,10 +175,9 @@ def generate_service_options(
         "kV": relion_options.voltage,
         "Cs": relion_options.spher_aber,
         "Q0": relion_options.ampl_contrast,
-        "tilt_axis_angle": relion_options.tilt_axis_angle,
-        "scale_factor": 1,
-        "dose_rate": relion_options.dose_per_frame,
-        "dose_is_per_movie_frame": "Yes",
+        "tilt_angle": relion_options.tilt_axis_angle,
+        "dose_rate_pertilt": relion_options.dose_per_frame,
+        "is_doserate_per_frame": True,
     }
 
     job_options["relion.motioncorr.own"] = {
@@ -213,7 +213,7 @@ def generate_service_options(
     job_options["cryolo.autopick"] = {
         "model_path": relion_options.cryolo_model_weights,
         "config_file": relion_options.cryolo_config_file,
-        "box_size": "160",
+        "box_size": relion_options.cryolo_box_size,
         "confidence_threshold": relion_options.cryolo_threshold,
         "gpus": "0 1 2 3",
     }
@@ -316,26 +316,38 @@ def generate_service_options(
 
     job_options["relion.excludetilts"] = {"cache_size": 5}
 
-    job_options["relion.aligntiltseries"] = {
-        "do_aretomo": True,
-        "do_imod_fiducials": False,
-        "do_imod_patchtrack": False,
-        "aretomo_thickness": relion_options.vol_z * relion_options.pixel_size / 10,
-        "aretomo_tiltcorrect": True,
+    job_options["relion.aligntiltseries.aretomo"] = {
+        "tomogram_thickness": relion_options.vol_z * relion_options.pixel_size / 10,
+        "do_aretomo_tiltcorrect": True,
+        "aretomo_tiltcorrect_angle": relion_options.manual_tilt_offset,
     }
 
     job_options["relion.reconstructtomograms"] = {
-        "binned_angpix": relion_options.pixel_size_downscaled,
-        "tiltangle_offset": relion_options.manual_tilt_offset,
-        "do_proj": False,
-        "xdim": relion_options.tomo_size_x,
-        "ydim": relion_options.tomo_size_y,
-        "zdim": relion_options.vol_z,
+        "binned_pixel_size": relion_options.pixel_size_downscaled,
+        "tilt_angle_offset": relion_options.manual_tilt_offset,
+        "do_write_centralslices": False,
+        "do_fourierinversion_filter": False,
+        "width": relion_options.tomo_size_x,
+        "height": relion_options.tomo_size_y,
+        "thickness": relion_options.vol_z,
     }
 
     job_options["relion.denoisetomo"] = {
         "cryocare_path": "topaz",
-        "care_denoising_model": "",
+        "care_denoising_model": "topaz",
+    }
+
+    job_options["membrain.segment"] = {
+        "pixel_size": relion_options.pixel_size_downscaled,
+        "pretrained_checkpoint": "MemBrain_seg_v10_alpha.ckpt",
+    }
+
+    job_options["cryolo.autopick.tomo"] = {
+        "model_path": relion_options.cryolo_model_weights,
+        "config_file": relion_options.cryolo_config_file,
+        "box_size": relion_options.cryolo_box_size,
+        "confidence_threshold": relion_options.cryolo_threshold,
+        "gpus": "0",
     }
 
     if not job_options.get(submission_type):

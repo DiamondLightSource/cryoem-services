@@ -9,6 +9,7 @@ from workflows.recipe import wrap_subscribe
 
 from cryoemservices.services.common_service import CommonService
 from cryoemservices.util.models import MockRW
+from cryoemservices.util.relion_service_options import RelionServiceOptions
 from cryoemservices.util.slurm_submission import slurm_submission_for_services
 
 
@@ -28,6 +29,7 @@ class MembrainSegParameters(BaseModel):
     segmentation_threshold: Optional[float] = None
     cleanup_output: bool = True
     submit_to_slurm: bool = False
+    relion_options: RelionServiceOptions
 
 
 class MembrainSeg(CommonService):
@@ -37,6 +39,9 @@ class MembrainSeg(CommonService):
 
     # Logger name
     _logger_name = "cryoemservices.services.membrain_seg"
+
+    # Job name
+    job_type = "membrain.segment"
 
     def initializing(self):
         """Subscribe to a queue. Received messages must be acknowledged."""
@@ -152,6 +157,23 @@ class MembrainSeg(CommonService):
             )
         else:
             result = subprocess.run(command, capture_output=True)
+
+        # Send to node creator
+        self.log.info("Sending segmentation to node creator")
+        node_creator_parameters = {
+            "experiment_type": "tomography",
+            "job_type": self.job_type,
+            "input_file": membrain_seg_params.tomogram,
+            "output_file": str(segmented_path),
+            "relion_options": dict(membrain_seg_params.relion_options),
+            "command": " ".join(command),
+            "stdout": result.stdout.decode("utf8", "replace"),
+            "stderr": result.stderr.decode("utf8", "replace"),
+            "success": True,
+        }
+        if result.returncode:
+            node_creator_parameters["success"] = False
+        rw.send_to("node_creator", node_creator_parameters)
 
         # Stop here if the job failed
         if result.returncode:

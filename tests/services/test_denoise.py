@@ -66,9 +66,10 @@ def test_denoise_local_service(
         "patch_size": 96,
         "patch_padding": 48,
         "device": "-2",
-        "relion_options": {},
+        "relion_options": {"pixel_size_downscaled": 1},
     }
     output_relion_options = dict(RelionServiceOptions())
+    output_relion_options["pixel_size_downscaled"] = 1
 
     # Set up the mock service and send a message to the service
     service = denoise.Denoise(environment={"queue": ""}, transport=offline_transport)
@@ -170,6 +171,8 @@ def test_denoise_local_service(
         {
             "tomogram": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
             "output_dir": f"{tmp_path}/Segmentation/job008/tomograms",
+            "pixel_size": "1.0",
+            "relion_options": output_relion_options,
         },
     )
     offline_transport.send.assert_any_call(
@@ -219,9 +222,10 @@ def test_denoise_slurm_service(
         "volume": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
         "output_dir": f"{tmp_path}/Denoise/job007/denoised",
         "cleanup_output": False,
-        "relion_options": {},
+        "relion_options": {"pixel_size_downscaled": 1},
     }
     output_relion_options = dict(RelionServiceOptions())
+    output_relion_options["pixel_size_downscaled"] = 1
 
     # Construct the file which contains rest api submission information
     os.environ["DENOISING_SIF"] = "topaz.sif"
@@ -365,6 +369,8 @@ def test_denoise_slurm_service(
         {
             "tomogram": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
             "output_dir": f"{tmp_path}/Segmentation/job008/tomograms",
+            "pixel_size": "1.0",
+            "relion_options": output_relion_options,
         },
     )
     offline_transport.send.assert_any_call(

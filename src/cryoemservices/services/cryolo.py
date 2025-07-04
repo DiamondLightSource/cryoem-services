@@ -212,6 +212,7 @@ class CrYOLO(CommonService):
         )
 
         # Create the config file
+        cryolo_params.relion_options.cryolo_box_size = cryolo_params.cryolo_box_size
         cryolo_params.relion_options.cryolo_config_file = str(
             job_dir / "cryolo_config.json"
         )
@@ -246,7 +247,8 @@ class CrYOLO(CommonService):
         # Register the cryolo job with the node creator
         self.log.info(f"Sending {self.job_type} to node creator")
         node_creator_parameters: dict[str, Any] = {
-            "job_type": self.job_type,
+            "job_type": self.job_type
+            + (".tomo" if cryolo_params.experiment_type == "tomography" else ""),
             "input_file": cryolo_params.input_path,
             "output_file": cryolo_params.output_path,
             "relion_options": dict(cryolo_params.relion_options),

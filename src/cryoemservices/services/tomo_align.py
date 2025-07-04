@@ -207,6 +207,10 @@ class TomoAlign(CommonService):
         def _tilt(file_list_for_tilts):
             return float(file_list_for_tilts[1])
 
+        if tomo_params.manual_tilt_offset is not None:
+            # Stretch the volume for tilted collection
+            tomo_params.vol_z = int(tomo_params.vol_z * 4 / 3)
+
         # Update the relion options
         tomo_params.relion_options = update_relion_options(
             tomo_params.relion_options, dict(tomo_params)
@@ -560,7 +564,7 @@ class TomoAlign(CommonService):
                     )
                     node_creator_params_list.append(
                         {
-                            "job_type": "relion.aligntiltseries",
+                            "job_type": "relion.aligntiltseries.aretomo",
                             "experiment_type": "tomography",
                             "input_file": str(
                                 project_dir
@@ -737,7 +741,7 @@ class TomoAlign(CommonService):
                     str(tomo_parameters.tilt_cor),
                     str(tomo_parameters.manual_tilt_offset),
                     "-VolZ",
-                    str(int(tomo_parameters.vol_z * 4 / 3)),
+                    str(tomo_parameters.vol_z),
                 )
             )
 
