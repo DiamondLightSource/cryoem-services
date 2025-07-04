@@ -31,6 +31,42 @@ bfactor_setup:
   minReplicaCount: 0
   maxReplicaCount: 1
 
+clem_align_and_merge:
+  replicas: 0
+  image: gcr.io/image/path
+  command: cryoemservices.service -s CLEMAlignAndMerge -c /cryoemservices/config/cryoemservices_config.yaml
+  cpuRequest: "2"
+  cpuLimit: "8"
+  memoryLimit: 64Gi
+  scaleOnQueueLength: true
+  queueLengthTrigger: "4"
+  minReplicaCount: 0
+  maxReplicaCount: 4
+
+clem_process_raw_lifs:
+  replicas: 0
+  image: gcr.io/image/path
+  command: cryoemservices.service -s CLEMLIFToStack -c /cryoemservices/config/cryoemservices_config.yaml
+  cpuRequest: "5"
+  cpuLimit: "20"
+  memoryLimit: 64Gi
+  scaleOnQueueLength: true
+  queueLengthTrigger: "4"
+  minReplicaCount: 0
+  maxReplicaCount: 4
+
+clem_process_raw_tiffs:
+  replicas: 0
+  image: gcr.io/image/path
+  command: cryoemservices.service -s CLEMTIFFToStack -c /cryoemservices/config/cryoemservices_config.yaml
+  cpuRequest: "1"
+  cpuLimit: "1"
+  memoryLimit: 64Gi
+  scaleOnQueueLength: true
+  queueLengthTrigger: "4"
+  minReplicaCount: 0
+  maxReplicaCount: 4
+
 cluster_submission:
   replicas: 1
   image: gcr.io/image/path
@@ -235,6 +271,8 @@ tomo_align:
   replicas: 1
   image: gcr.io/image/path
   command: cryoemservices.service -s TomoAlign -c /cryoemservices/config/cryoemservices_config.yaml
+  cpuRequest: "1"
+  cpuLimit: "1"
   memoryLimit: 20Gi
   scaleOnQueueLength: false
 

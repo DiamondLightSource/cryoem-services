@@ -368,7 +368,7 @@ class LIFToStackWrapper:
         )
 
         # Return False and log error if the command fails to execute
-        if results is None:
+        if not results:
             logger.error(
                 f"Failed to extract image stacks from {str(params.lif_file)!r}"
             )
