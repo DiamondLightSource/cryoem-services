@@ -17,51 +17,50 @@ spec:
         runAsUser: {{ .Values.global.runAsUser }}
         runAsGroup: {{ .Values.global.runAsGroup }}
       containers:
-      - name: clem-process-raw-tiffs-runner
-        image: {{ .Values.image }}
-        imagePullPolicy: Always
-        resources:
-          requests:
-            cpu: {{ .Values.cpuRequest }}
-          limits:
-            cpu: {{ .Values.cpuLimit }}
-            memory: {{ .Values.memoryLimit }}
-        command: ["/bin/sh"]
-        args:
-          - -c
-          - >-
-              {{ .Values.command }}
-        volumeMounts:
-        - name: config-file
-          mountPath: /cryoemservices/config
-        - name: secrets
-          mountPath: /cryoemservices/secrets
-        {{- if .Values.global.extraGlobalVolumeMounts }}
-        {{- toYaml .Values.global.extraGlobalVolumeMounts | nindent 8 }}
-        {{- end }}
-        {{- if .Values.extraVolumeMounts }}
-        {{- toYaml .Values.extraVolumeMounts | nindent 8 }}
-        {{- end }}
+        - name: clem-process-raw-tiffs-runner
+          image: {{ .Values.image }}
+          imagePullPolicy: Always
+          resources:
+            requests:
+              cpu: {{ .Values.cpuRequest }}
+            limits:
+              cpu: {{ .Values.cpuLimit }}
+              memory: {{ .Values.memoryLimit }}
+          command: ["/bin/sh"]
+          args:
+            - -c
+            - >-
+                {{ .Values.command }}
+          volumeMounts:
+            - name: config-file
+              mountPath: /cryoemservices/config
+            - name: secrets
+              mountPath: /cryoemservices/secrets
+            {{- if .Values.global.extraGlobalVolumeMounts }}
+            {{- toYaml .Values.global.extraGlobalVolumeMounts | nindent 12 }}
+            {{- end }}
+            {{- if .Values.extraVolumeMounts }}
+            {{- toYaml .Values.extraVolumeMounts | nindent 12 }}
+            {{- end }}
       volumes:
-      - name: config-file
-        configMap:
-          name: {{ .Values.global.configMap }}
-      - name: secrets
-        projected:
-          defaultMode: 0444
-          sources:
-          - secret:
-              name: {{ .Values.global.rmqSecretName }}
-      {{- if .Values.global.extraGlobalVolumes }}
-      {{- toYaml .Values.global.extraGlobalVolumes | nindent 6 }}
-      {{- end }}
-      {{- if .Values.extraVolumes }}
-      {{- toYaml .Values.extraVolumes | nindent 6 }}
-      {{- end }}
-
+        - name: config-file
+          configMap:
+            name: {{ .Values.global.configMap }}
+        - name: secrets
+          projected:
+            defaultMode: 0444
+            sources:
+              - secret:
+                  name: {{ .Values.global.rmqSecretName }}
+        {{- if .Values.global.extraGlobalVolumes }}
+        {{- toYaml .Values.global.extraGlobalVolumes | nindent 8 }}
+        {{- end }}
+        {{- if .Values.extraVolumes }}
+        {{- toYaml .Values.extraVolumes | nindent 8 }}
+        {{- end }}
       {{- if .Values.global.tolerations }}
       tolerations:
-        {{- toYaml .Values.global.tolerations | nindent 6 }}
+        {{- toYaml .Values.global.tolerations | nindent 8 }}
       {{- end }}
       {{- if .Values.global.nodeSelector }}
       nodeSelector:
@@ -69,7 +68,7 @@ spec:
       {{- end }}
       {{- if .Values.global.imagePullSecrets }}
       imagePullSecrets:
-      - name: {{ .Values.global.imagePullSecrets }}
+        - name: {{ .Values.global.imagePullSecrets }}
       {{- end }}
 
 {{- if .Values.scaleOnQueueLength }}
