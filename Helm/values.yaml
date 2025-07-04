@@ -35,8 +35,8 @@ clem_align_and_merge:
   replicas: 0
   image: gcr.io/image/path
   command: cryoemservices.service -s CLEMAlignAndMerge -c /cryoemservices/config/cryoemservices_config.yaml
-  cpuRequest: "1"
-  cpuLimit: "1"
+  cpuRequest: "2"
+  cpuLimit: "8"
   memoryLimit: 64Gi
   scaleOnQueueLength: true
   queueLengthTrigger: "4"
@@ -47,8 +47,8 @@ clem_process_raw_lifs:
   replicas: 0
   image: gcr.io/image/path
   command: cryoemservices.service -s CLEMLIFToStack -c /cryoemservices/config/cryoemservices_config.yaml
-  cpuRequest: "1"
-  cpuLimit: "1"
+  cpuRequest: "5"
+  cpuLimit: "20"
   memoryLimit: 64Gi
   scaleOnQueueLength: true
   queueLengthTrigger: "4"
