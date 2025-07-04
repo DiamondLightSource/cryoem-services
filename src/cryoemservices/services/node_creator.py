@@ -81,7 +81,7 @@ pipeline_jobs: dict[str, dict] = {
     "relion.import.movies": {"folder": "Import", "spa_input": {"fn_in_raw": "*.tiff"}},
     "relion.importtomo": {
         "folder": "Import",
-        "tomography_input": {"movie_files": "*.tiff", "mdoc_files": "*.mdoc"},
+        "tomography_input": {"fn_in_raw": "*.tiff", "fn_mdoc": "*.mdoc"},
     },
     "relion.motioncorr.own": {
         "folder": "MotionCorr",
@@ -113,7 +113,6 @@ pipeline_jobs: dict[str, dict] = {
     "cryolo.autopick": {
         "folder": "AutoPick",
         "spa_input": {"input_file": "corrected_micrographs.star"},
-        "tomography_input": {"input_file": "tomograms.star"},  # should be in_tomoset
     },
     "relion.extract": {
         "folder": "Extract",
@@ -186,7 +185,7 @@ pipeline_jobs: dict[str, dict] = {
         "folder": "ExcludeTiltImages",
         "tomography_input": {"in_tiltseries": "tilt_series_ctf.star"},
     },
-    "relion.aligntiltseries": {
+    "relion.aligntiltseries.aretomo": {
         "folder": "AlignTiltSeries",
         "tomography_input": {"in_tiltseries": "selected_tilt_series.star"},
     },
@@ -197,6 +196,14 @@ pipeline_jobs: dict[str, dict] = {
     "relion.denoisetomo": {
         "folder": "Denoise",
         "tomography_input": {"in_tomoset": "tomograms.star"},
+    },
+    "membrain.segment": {
+        "folder": "Segmentation",
+        "tomography_input": {"in_tomoset": "tomograms.star"},
+    },
+    "cryolo.autopick.tomo": {
+        "folder": "AutoPick",
+        "tomography_input": {"input_file": "tomograms.star"},
     },
 }
 
