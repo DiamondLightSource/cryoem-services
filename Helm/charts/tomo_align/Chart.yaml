@@ -1,4 +1,4 @@
 apiVersion: v2
 name: tomo_align
 description: A Helm chart for TomoAlign tomography service
-version: 1.2.3
+version: 1.2.4
