@@ -593,6 +593,69 @@ def _denoising_output_files(
     return {f"{job_dir}/tomograms.star": ["TomogramGroupMetadata", ["relion"]]}
 
 
+def _membrain_output_files(
+    job_dir: Path,
+    input_file: Path,
+    output_file: Path,
+    relion_options: RelionServiceOptions,
+    results: dict,
+):
+    """Segmentation can list the details of each tomogram"""
+    tilt_series_name = _get_tilt_name_v5_12(output_file)
+    tomograms_file = job_dir / "tomograms.star"
+
+    added_line = [
+        tilt_series_name,
+        str(relion_options.voltage),
+        str(relion_options.spher_aber),
+        str(relion_options.ampl_contrast),
+        str(relion_options.pixel_size),
+        str(relion_options.invert_hand),
+        "optics1",
+        str(relion_options.pixel_size),
+        f"AlignTiltSeries/job005/tilt_series/{tilt_series_name}.star",
+        str(relion_options.pixel_size_downscaled / relion_options.pixel_size),
+        str(relion_options.tomo_size_x),
+        str(relion_options.tomo_size_y),
+        str(relion_options.vol_z),
+        str(input_file),
+        str(output_file),
+    ]
+
+    # Create or append to the star file for the individual tilt series
+    if not Path(tomograms_file).exists():
+        output_cif = cif.Document()
+        data_movies = output_cif.add_new_block("global")
+
+        movies_loop = data_movies.init_loop(
+            "_rln",
+            [
+                "TomoName",
+                "Voltage",
+                "SphericalAberration",
+                "AmplitudeContrast",
+                "MicrographOriginalPixelSize",
+                "TomoHand",
+                "OpticsGroupName",
+                "TomoTiltSeriesPixelSize",
+                "TomoTiltSeriesStarFile",
+                "TomoTomogramBinning",
+                "TomoSizeX",
+                "TomoSizeY",
+                "TomoSizeZ",
+                "TomoReconstructedTomogram",
+                "TomoReconstructedTomogramSegmented",
+            ],
+        )
+        movies_loop.add_row(added_line)
+        output_cif.write_file(str(tomograms_file), style=cif.Style.Simple)
+    else:
+        with open(tomograms_file, "a") as output_cif:
+            output_cif.write(" ".join(added_line) + "\n")
+
+    return {f"{job_dir}/tomograms.star": ["TomogramGroupMetadata", ["relion"]]}
+
+
 def _cryolo_output_files(
     job_dir: Path,
     input_file: Path,
@@ -667,10 +730,11 @@ _output_files: Dict[str, Callable] = {
     "relion.motioncorr.motioncor2": _motioncorr_output_files,
     "relion.ctffind.ctffind4": _ctffind_output_files,
     "relion.excludetilts": _exclude_tilt_output_files,
-    "relion.aligntiltseries": _align_tilt_output_files,
+    "relion.aligntiltseries.aretomo": _align_tilt_output_files,
     "relion.reconstructtomograms": _tomogram_output_files,
     "relion.denoisetomo": _denoising_output_files,
-    "cryolo.autopick": _cryolo_output_files,
+    "membrain.segment": _membrain_output_files,
+    "cryolo.autopick.tomo": _cryolo_output_files,
 }
 
 
