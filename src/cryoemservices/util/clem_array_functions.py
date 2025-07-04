@@ -644,6 +644,9 @@ def align_image_to_reference(
     lot of jitter in the beginning and tail frames if the images being aligned are
     a defocus series.
     """
+    # Restrict number of threads used by SimpleITK
+    sitk.ProcessObject_SetGlobalDefaultNumberOfThreads(1)
+
     # Get initial dtype
     if str(reference_array.dtype) != str(moving_array.dtype):
         logger.error("The image stacks provided do not have the same dtype")
