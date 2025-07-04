@@ -87,7 +87,8 @@
     "output": {
       "images": 6,
       "ispyb_connector": 10,
-      "movie": 6
+      "movie": 6,
+      "node_creator": 11
     },
     "queue": "segmentation",
     "service": "MembrainSeg"

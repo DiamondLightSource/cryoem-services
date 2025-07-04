@@ -338,7 +338,10 @@ def generate_service_options(
         "care_denoising_model": "",
     }
 
-    job_options["membrain.segment"] = {}
+    job_options["membrain.segment"] = {
+        "pixel_size": relion_options.pixel_size_downscaled,
+        "pretrained_checkpoint": "MemBrain_seg_v10_alpha.ckpt",
+    }
 
     job_options["cryolo.autopick.tomo"] = {
         "model_path": relion_options.cryolo_model_weights,
