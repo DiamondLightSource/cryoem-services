@@ -360,8 +360,8 @@ class NodeCreator(CommonService):
         elif job_info.job_type == "relion.import.movies":
             pipeline_options["fn_in_raw"] = job_info.input_file
         elif job_info.job_type == "relion.importtomo":
-            pipeline_options["movie_files"] = job_info.input_file.split(":")[0]
-            pipeline_options["mdoc_files"] = job_info.input_file.split(":")[1]
+            pipeline_options["fn_in_raw"] = job_info.input_file.split(":")[0]
+            pipeline_options["fn_mdoc"] = job_info.input_file.split(":")[1]
 
         # Mark the job completion status
         job_is_continue = False
@@ -431,7 +431,7 @@ class NodeCreator(CommonService):
         # Load this job as a pipeliner job to create the nodes
         pipeliner_job = read_job(f"{job_dir}/job.star")
         pipeliner_job.output_dir = str(relative_job_dir) + "/"
-        relion_commands = pipeliner_job.get_final_commands()
+        relion_commands = pipeliner_job.get_commands()
 
         # These parts would normally happen in pipeliner_job.prepare_to_run
         pipeliner_job.create_input_nodes()
@@ -555,7 +555,9 @@ class NodeCreator(CommonService):
             if not (job_dir / ".CCPEM_pipeliner_jobinfo").exists():
                 for command in relion_commands:
                     update_jobinfo_file(
-                        process.name, action="Run", command_list=command
+                        process.name,
+                        action="Run",
+                        command_list=command.get_final_command(output_dir=str(job_dir)),
                     )
             # Generate the default_pipeline.star file
             project.check_process_completion()

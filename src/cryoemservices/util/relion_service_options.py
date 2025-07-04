@@ -176,7 +176,6 @@ def generate_service_options(
         "Cs": relion_options.spher_aber,
         "Q0": relion_options.ampl_contrast,
         "tilt_angle": relion_options.tilt_axis_angle,
-        "scale_factor": 1,
         "dose_rate_pertilt": relion_options.dose_per_frame,
         "is_doserate_per_frame": True,
     }
@@ -335,7 +334,7 @@ def generate_service_options(
 
     job_options["relion.denoisetomo"] = {
         "cryocare_path": "topaz",
-        "care_denoising_model": "",
+        "care_denoising_model": "topaz",
     }
 
     job_options["membrain.segment"] = {
