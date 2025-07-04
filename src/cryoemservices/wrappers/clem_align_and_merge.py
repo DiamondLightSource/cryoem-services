@@ -169,6 +169,7 @@ def align_and_merge_stacks(
             raise Exception
         file = file_search[0]
 
+        logger.info(f"Loading {str(file)!r}")
         with TiffFile(file) as tiff_file:
             # Check that there aren't multiple series in the image stack
             if len(tiff_file.series) > 1:
@@ -267,7 +268,8 @@ def align_and_merge_stacks(
     # Align frames within each image stack
     if align_self:
         if print_messages is True:
-            print("Correcting for drift in images...")
+            print(" Correcting for drift in images...")
+        logger.info("Correcting for drift in images")
         with Pool(len(arrays)) as pool:
             arrays = pool.starmap(
                 align_image_to_self,
@@ -280,6 +282,7 @@ def align_and_merge_stacks(
     if flatten:
         if print_messages is True:
             print("Flattening image stacks...")
+        logger.info("Flattening image stacks")
         with Pool(len(arrays)) as pool:
             arrays = pool.starmap(
                 flatten_image,
@@ -316,6 +319,9 @@ def align_and_merge_stacks(
                 print("Aligning images to reference image...")
             reference = arrays[0]  # First image in list is the reference image
             to_align = arrays[1:]
+            logger.info(
+                f"Aligning images using {colors[0]!r} channel as the reference image"
+            )
             with Pool(len(to_align)) as pool:
                 aligned = pool.starmap(
                     align_image_to_reference,
@@ -334,6 +340,7 @@ def align_and_merge_stacks(
     # Colourise images
     if print_messages is True:
         print("Converting images from grayscale to RGB...")
+    logger.info("Converting images from grayscale to RGB")
     with Pool(len(arrays)) as pool:
         arrays = pool.starmap(
             convert_to_rgb, [(arrays[c], colors[c]) for c in range(len(colors))]
@@ -361,6 +368,7 @@ def align_and_merge_stacks(
     # Convert to a composite image
     if print_messages is True:
         print("Creating a composite image...")
+    logger.info("Creating a composite image")
     composite_img = merge_images(arrays)
     if print_messages is True:
         print(" Done")
@@ -385,6 +393,7 @@ def align_and_merge_stacks(
     # Adjust image contrast after merging images
     if print_messages is True:
         print("Applying contrast correction...")
+    logger.info("Applying contrast correction")
     composite_img = stretch_image_contrast(
         composite_img,
         percentile_range=(0, 100),
@@ -412,6 +421,7 @@ def align_and_merge_stacks(
     # Prepare to save image as a TIFF file
     if print_messages is True:
         print("Saving composite image...")
+    logger.info("Saving composite image")
 
     # Set up metadata properties
     final_shape = composite_img.shape
@@ -455,6 +465,7 @@ def align_and_merge_stacks(
     )
     if print_messages is True:
         print(f"Composite image saved as {str(save_name)!r}")
+    logger.info(f"Composite image saved as {str(save_name)!r}")
 
     # Collect and return parameters and result
     result: dict[str, Any] = {
