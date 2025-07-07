@@ -205,6 +205,9 @@ def test_tiff_to_stack_bad_messsage(
     # Check that message was nacked with the expected parameters
     offline_transport.nack.assert_called_once_with(header)
 
+    # Check that the message wasn't erronerously sent
+    offline_transport.send.assert_not_called()
+
 
 # Introduce invalid parameters field-by-field
 tiff_to_stack_params_bad_validation_matrix = (
@@ -262,6 +265,9 @@ def test_tiff_to_stack_service_validation_failed(
     # Check that the message was nacked with the expected parameters
     offline_transport.nack.assert_called_once_with(header)
 
+    # Check that the message wasn't erronerously sent
+    offline_transport.send.assert_not_called()
+
 
 @mock.patch("cryoemservices.services.clem_process_raw_tiffs.convert_tiff_to_stack")
 def test_tiff_to_stack_service_processing_failed(
@@ -303,3 +309,6 @@ def test_tiff_to_stack_service_processing_failed(
 
     # Check that the message was nacked with the expected parameters
     offline_transport.nack.assert_called_once_with(header)
+
+    # Check that the message wasn't erronerously sent
+    offline_transport.send.assert_not_called()

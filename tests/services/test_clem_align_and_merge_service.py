@@ -200,6 +200,9 @@ def test_align_and_merge_bad_messsage(
     # Check that message was nacked with the expected parameters
     offline_transport.nack.assert_called_once_with(header)
 
+    # Check that the message wasn't erronerously sent
+    offline_transport.send.assert_not_called()
+
 
 # Introduce invalid parameters field-by-field
 align_and_merge_params_bad_validation_matrix = (
@@ -273,6 +276,9 @@ def test_align_and_merge_service_validation_failed(
     # Check that the message was nacked
     offline_transport.nack.assert_called_once_with(header)
 
+    # Check that the message wasn't erronerously sent
+    offline_transport.send.assert_not_called()
+
 
 @mock.patch("cryoemservices.services.clem_align_and_merge.align_and_merge_stacks")
 def test_align_and_merge_service_process_failed(
@@ -320,3 +326,6 @@ def test_align_and_merge_service_process_failed(
 
     # Check that the message was nacked with the expected parameters
     offline_transport.nack.assert_called_once_with(header)
+
+    # Check that the message wasn't erronerously sent
+    offline_transport.send.assert_not_called()
