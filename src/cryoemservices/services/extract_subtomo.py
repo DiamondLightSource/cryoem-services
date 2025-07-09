@@ -5,11 +5,11 @@ from pathlib import Path
 
 import mrcfile
 import numpy as np
-import workflows.recipe
 from gemmi import cif
 from pydantic import BaseModel, Field, ValidationError, field_validator
-from workflows.services.common_service import CommonService
+from workflows.recipe import wrap_subscribe
 
+from cryoemservices.services.common_service import CommonService
 from cryoemservices.services.extract import extract_single_particle
 from cryoemservices.util.models import MockRW
 from cryoemservices.util.relion_service_options import (
@@ -71,12 +71,11 @@ class ExtractSubTomo(CommonService):
     def initializing(self):
         """Subscribe to a queue. Received messages must be acknowledged."""
         self.log.info("Extract service starting")
-        workflows.recipe.wrap_subscribe(
+        wrap_subscribe(
             self._transport,
             self._environment["queue"] or "extract_subtomo",
             self.extract_subtomo,
             acknowledgement=True,
-            log_extender=self.extend_log,
             allow_non_recipe_messages=True,
         )
 
