@@ -3,6 +3,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+import matplotlib.pyplot as plt
 import mrcfile
 import numpy as np
 from gemmi import cif
@@ -70,7 +71,7 @@ class ExtractSubTomo(CommonService):
 
     def initializing(self):
         """Subscribe to a queue. Received messages must be acknowledged."""
-        self.log.info("Extract service starting")
+        self.log.info("Sub-tomogram extraction service starting")
         wrap_subscribe(
             self._transport,
             self._environment["queue"] or "extract_subtomo",
@@ -170,6 +171,7 @@ class ExtractSubTomo(CommonService):
 
         # Read in tilt images
         self.log.info("Reading tilt images")
+        tilt_png_names = []
         tilt_images = []
         tilt_numbers = []
         tilt_angles_radians = []
@@ -180,6 +182,8 @@ class ExtractSubTomo(CommonService):
                     break
                 elif line.startswith("/"):
                     tilt_name = line.strip()
+                    tilt_png = Path(tilt_name).with_suffix(".png")
+                    tilt_png_names.append(tilt_png)
                     tilt_numbers.append(_get_tilt_number_v5_12(Path(tilt_name)))
                     tilt_axis_from_file = float(_get_tilt_angle_v5_12(Path(tilt_name)))
                     tilt_angles_radians.append(
@@ -190,14 +194,20 @@ class ExtractSubTomo(CommonService):
                     with mrcfile.open(tilt_name) as mrc:
                         tilt_images.append(mrc.data)
 
+                    plt.imshow(tilt_images[-1])
+                    plt.savefig(tilt_png)
+                    plt.close()
+
         frames = np.zeros((len(particles_x), tilt_count), dtype=int)
+        tilt_coords: list = [[] for tilt in range(tilt_count)]
         for particle in range(len(particles_x)):
             output_mrc_stack = np.array([])
             for tilt in range(tilt_count):
-                if (
+                if extract_subtomo_params.maximum_dose > 0 and (
                     extract_subtomo_params.dose_per_tilt * tilt_numbers[tilt]
                     > extract_subtomo_params.maximum_dose
                 ):
+                    self.log.info(f"Skipping {tilt} due to dose limit")
                     continue
 
                 x_in_tilt, y_in_tilt = get_coord_in_tilt(
@@ -222,6 +232,7 @@ class ExtractSubTomo(CommonService):
                         f.write(
                             f"{particles_x[particle]} {particles_y[particle]} {x_in_tilt} {y_in_tilt}\n"
                         )
+                tilt_coords[tilt].append([x_in_tilt, y_in_tilt])
 
                 particle_subimage, failure_reason = extract_single_particle(
                     input_image=tilt_images[tilt],
@@ -270,7 +281,7 @@ class ExtractSubTomo(CommonService):
                 Path(extract_subtomo_params.output_star).parent
                 / f"{particle}_stack2d.mrcs"
             )
-            self.log.info(f"Extracted particle {particle} of {len(particles_x)}")
+            self.log.info(f"Extracted particle {particle+1} of {len(particles_x)}")
             with mrcfile.new(str(output_mrc_file), overwrite=True) as mrc:
                 mrc.set_data(output_mrc_stack.astype(np.float32))
                 mrc.header.mx = extract_subtomo_params.relion_options.small_boxsize
@@ -283,6 +294,13 @@ class ExtractSubTomo(CommonService):
                     pixel_size * extract_subtomo_params.relion_options.small_boxsize
                 )
                 mrc.header.cella.z = 1
+
+        for tilt in range(tilt_count):
+            plt.imshow(tilt_images[tilt])
+            for loc in tilt_coords[tilt]:
+                plt.scatter(loc[0], loc[1], s=2, color="red")
+            plt.savefig(tilt_png_names[tilt])
+            plt.close()
 
         # Construct the output star file
         extracted_parts_doc = cif.Document()
@@ -350,9 +368,7 @@ class ExtractSubTomo(CommonService):
         }
         rw.send_to("node_creator", node_creator_parameters)
 
-        self.log.info(
-            f"Done {self.job_type} for {extract_subtomo_params.cbox_3d_file}."
-        )
+        self.log.info(f"Done {self.job_type} for {extract_subtomo_params.cbox_3d_file}")
         rw.transport.ack(header)
 
 
