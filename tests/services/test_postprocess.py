@@ -81,8 +81,10 @@ def test_postprocess_first_refine_has_symmetry(
 
     # Set up the mock service and call it
     service = postprocess.PostProcess(
-        environment={"queue": ""}, transport=offline_transport
+        environment={"queue": ""},
+        rabbitmq_credentials=tmp_path,
     )
+    service._transport = offline_transport
     service.initializing()
     service.postprocess(None, header=header, message=postprocess_test_message)
 
@@ -257,8 +259,10 @@ def test_postprocess_first_refine_without_symmetry(
 
     # Set up the mock service and call it
     service = postprocess.PostProcess(
-        environment={"queue": ""}, transport=offline_transport
+        environment={"queue": ""},
+        rabbitmq_credentials=tmp_path,
     )
+    service._transport = offline_transport
     service.initializing()
     service.postprocess(None, header=header, message=postprocess_test_message)
 
@@ -362,8 +366,10 @@ def test_postprocess_bfactor(mock_subprocess, offline_transport, tmp_path):
 
     # Set up the mock service and call it
     service = postprocess.PostProcess(
-        environment={"queue": ""}, transport=offline_transport
+        environment={"queue": ""},
+        rabbitmq_credentials=tmp_path,
     )
+    service._transport = offline_transport
     service.initializing()
     service.postprocess(None, header=header, message=postprocess_test_message)
 

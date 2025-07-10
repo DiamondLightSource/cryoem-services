@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+from pathlib import Path
 from unittest import mock
 
 import pytest
@@ -20,7 +21,11 @@ def offline_transport(mocker):
 def test_plugins_exist():
     """Check the correct images plugins exist"""
     # Set up the mock service
-    service = images.Images(environment={"queue": ""}, transport=mock.Mock())
+    service = images.Images(
+        environment={"queue": ""},
+        rabbitmq_credentials=Path("."),
+    )
+    service._transport = mock.Mock()
     service.initializing()
 
     # Check the expected images plugins are present
@@ -46,7 +51,8 @@ def test_images_call_rw(mock_picker_image):
     images_test_message = {"image_command": "picked_particles"}
 
     # Set up the mock service
-    service = images.Images(environment={"queue": ""}, transport=mock.Mock())
+    service = images.Images(environment={"queue": ""}, rabbitmq_credentials=Path("."))
+    service._transport = mock.Mock()
     service.initializing()
     mock_recipe_wrapper = mock.Mock()
     mock_recipe_wrapper.recipe_step = {"parameters": {"param1": "value1"}}
@@ -72,7 +78,11 @@ def test_images_call_simple_message(mock_picker_image, offline_transport):
     images_test_message = {"image_command": "picked_particles"}
 
     # Set up the mock service and send a message to the service
-    service = images.Images(environment={"queue": ""}, transport=offline_transport)
+    service = images.Images(
+        environment={"queue": ""},
+        rabbitmq_credentials=Path("."),
+    )
+    service._transport = offline_transport
     service.initializing()
     service.image_call(None, header=header, message=images_test_message)
 
@@ -93,7 +103,11 @@ def test_images_call_invalid_message(mock_picker_image, offline_transport):
     }
 
     # Set up the mock service and send a message to the service
-    service = images.Images(environment={"queue": ""}, transport=offline_transport)
+    service = images.Images(
+        environment={"queue": ""},
+        rabbitmq_credentials=Path("."),
+    )
+    service._transport = offline_transport
     service.initializing()
     service.image_call(None, header=header, message="string message")
 
@@ -115,7 +129,11 @@ def test_images_failed_call(mock_picker_image):
     images_test_message = {}
 
     # Set up the mock service
-    service = images.Images(environment={"queue": ""}, transport=mock.Mock())
+    service = images.Images(
+        environment={"queue": ""},
+        rabbitmq_credentials=Path("."),
+    )
+    service._transport = mock.Mock()
     service.initializing()
 
     mock_recipe_wrapper = mock.Mock()
@@ -146,7 +164,11 @@ def test_images_file_not_found(mock_picker_image):
     images_test_message = {}
 
     # Set up the mock service
-    service = images.Images(environment={"queue": ""}, transport=mock.Mock())
+    service = images.Images(
+        environment={"queue": ""},
+        rabbitmq_credentials=Path("."),
+    )
+    service._transport = mock.Mock()
     service.initializing()
 
     mock_recipe_wrapper = mock.Mock()
@@ -176,7 +198,11 @@ def test_images_call_unknown_function():
     images_test_message = {"image_command": "unknown_function"}
 
     # Set up the mock service
-    service = images.Images(environment={"queue": ""}, transport=mock.Mock())
+    service = images.Images(
+        environment={"queue": ""},
+        rabbitmq_credentials=Path("."),
+    )
+    service._transport = mock.Mock()
     service.initializing()
 
     mock_recipe_wrapper = mock.Mock()

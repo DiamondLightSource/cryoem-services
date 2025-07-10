@@ -95,8 +95,9 @@ def test_extract_class_service(mock_requests, offline_transport, tmp_path):
             "slurm_cluster": "default",
             "queue": "",
         },
-        transport=offline_transport,
+        rabbitmq_credentials=tmp_path,
     )
+    service._transport = offline_transport
     service.initializing()
     service.extract_class(None, header=header, message=extract_class_test_message)
 

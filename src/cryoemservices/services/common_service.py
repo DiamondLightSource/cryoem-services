@@ -2,6 +2,11 @@ from __future__ import annotations
 
 import logging
 import queue
+from pathlib import Path
+from typing import Optional
+
+from workflows.transport.common_transport import CommonTransport
+from workflows.transport.pika_transport import PikaTransport
 
 
 class CommonService:
@@ -17,12 +22,24 @@ class CommonService:
         self.log.warning("Initializing is not implemented for the common service")
         pass
 
-    def __init__(self, environment, transport):
-        self._environment = environment
-        self._transport = transport
-        self._queue = queue.PriorityQueue()
+    def __init__(self, environment: dict, rabbitmq_credentials: Path):
+        self._environment: dict = environment
+        self._rabbitmq_credentials: Path = rabbitmq_credentials
+        self._transport: Optional[CommonTransport] = None
+        self._queue: queue.Queue = queue.PriorityQueue()
         self.log = logging.getLogger(self._logger_name)
         self.log.setLevel(logging.INFO)
+
+    def _transport_factory(self):
+        transport_type = PikaTransport()
+        transport_type.load_configuration_file(self._rabbitmq_credentials)
+        return transport_type
+
+    def _get_new_transport(self):
+        new_transport = self._transport_factory()
+        new_transport.connect()
+        new_transport.subscription_callback_set_intercept(self._transport_interceptor)
+        return new_transport
 
     def _transport_interceptor(self, callback):
         """Takes a callback function and adds headers and messages"""
@@ -37,10 +54,7 @@ class CommonService:
         """Start listening and process commands in main loop"""
         try:
             # Setup
-            self._transport.connect()
-            self._transport.subscription_callback_set_intercept(
-                self._transport_interceptor
-            )
+            self._transport = self._get_new_transport()
             self.initializing()
 
             # Main loop

@@ -60,7 +60,11 @@ def test_ctffind4_service_spa(mock_subprocess, offline_transport, tmp_path):
     output_relion_options.update(ctffind_test_message["relion_options"])
 
     # Set up the mock service
-    service = ctffind.CTFFind(environment={"queue": ""}, transport=offline_transport)
+    service = ctffind.CTFFind(
+        environment={"queue": ""},
+        rabbitmq_credentials=tmp_path,
+    )
+    service._transport = offline_transport
     service.initializing()
 
     # Set some parameters then send a message to the service
@@ -202,7 +206,11 @@ def test_ctffind5_service_tomo(mock_subprocess, offline_transport, tmp_path):
     output_relion_options.update(ctffind_test_message["relion_options"])
 
     # Set up the mock service
-    service = ctffind.CTFFind(environment={"queue": ""}, transport=offline_transport)
+    service = ctffind.CTFFind(
+        environment={"queue": ""},
+        rabbitmq_credentials=tmp_path,
+    )
+    service._transport = offline_transport
     service.initializing()
 
     # Set some parameters then send a message to the service
@@ -296,7 +304,11 @@ def test_ctffind5_service_nothickness(mock_subprocess, offline_transport, tmp_pa
     output_relion_options.update(ctffind_test_message["relion_options"])
 
     # Set up the mock service
-    service = ctffind.CTFFind(environment={"queue": ""}, transport=offline_transport)
+    service = ctffind.CTFFind(
+        environment={"queue": ""},
+        rabbitmq_credentials=tmp_path,
+    )
+    service._transport = offline_transport
     service.initializing()
 
     # Set some parameters then send a message to the service
@@ -341,12 +353,16 @@ def test_ctffind5_service_nothickness(mock_subprocess, offline_transport, tmp_pa
     assert offline_transport.send.call_count == 3
 
 
-def test_parse_ctffind_output(offline_transport):
+def test_parse_ctffind_output(offline_transport, tmp_path):
     """
     Send test lines to the output parser
     to check the ctf values are being read in
     """
-    service = ctffind.CTFFind(environment={"queue": ""}, transport=offline_transport)
+    service = ctffind.CTFFind(
+        environment={"queue": ""},
+        rabbitmq_credentials=tmp_path,
+    )
+    service._transport = offline_transport
     service.initializing()
 
     ctffind.CTFFind.parse_ctf_output(service, "Estimated defocus values        : 1 , 2")

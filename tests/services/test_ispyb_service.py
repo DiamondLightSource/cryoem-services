@@ -52,8 +52,9 @@ def test_ispyb_service_run(
     # Set up the mock service and call it
     service = ispyb_connector.EMISPyB(
         environment={"config": f"{tmp_path}/config.yaml", "queue": ""},
-        transport=offline_transport,
+        rabbitmq_credentials=tmp_path,
     )
+    service._transport = offline_transport
     service.initializing()
     service.insert_into_ispyb(None, header=header, message=ispyb_test_message)
 
@@ -110,8 +111,9 @@ def test_ispyb_service_store_result(
     # Set up the mock service and call it
     service = ispyb_connector.EMISPyB(
         environment={"config": f"{tmp_path}/config.yaml", "queue": ""},
-        transport=offline_transport,
+        rabbitmq_credentials=tmp_path,
     )
+    service._transport = offline_transport
     service.initializing()
     service.insert_into_ispyb(rw=mock_rw, header=header, message=ispyb_test_message)
 
@@ -159,8 +161,9 @@ def test_ispyb_service_env_keys(
     # Set up the mock service and call it
     service = ispyb_connector.EMISPyB(
         environment={"config": f"{tmp_path}/config.yaml", "queue": ""},
-        transport=offline_transport,
+        rabbitmq_credentials=tmp_path,
     )
+    service._transport = offline_transport
     service.initializing()
     service.insert_into_ispyb(rw=mock_rw, header=header, message=ispyb_test_message)
 
@@ -211,8 +214,9 @@ def test_ispyb_service_multipart_env_keys(
     # Set up the mock service and call it
     service = ispyb_connector.EMISPyB(
         environment={"config": f"{tmp_path}/config.yaml", "queue": ""},
-        transport=offline_transport,
+        rabbitmq_credentials=tmp_path,
     )
+    service._transport = offline_transport
     service.initializing()
     service.insert_into_ispyb(rw=mock_rw, header=header, message=ispyb_test_message)
 
@@ -259,8 +263,9 @@ def test_ispyb_service_checkpoint(
     # Set up the mock service and call it
     service = ispyb_connector.EMISPyB(
         environment={"config": f"{tmp_path}/config.yaml", "queue": ""},
-        transport=offline_transport,
+        rabbitmq_credentials=tmp_path,
     )
+    service._transport = offline_transport
     service.initializing()
     service.insert_into_ispyb(rw=mock_rw, header=header, message=ispyb_test_message)
 
@@ -364,8 +369,9 @@ def test_ispyb_multipart_message(
     # Set up the mock service and call it
     service = ispyb_connector.EMISPyB(
         environment={"config": f"{tmp_path}/config.yaml", "queue": ""},
-        transport=offline_transport,
+        rabbitmq_credentials=tmp_path,
     )
+    service._transport = offline_transport
     service.initializing()
     service.insert_into_ispyb(rw=mock_rw, header=header, message=ispyb_test_message)
 
@@ -456,8 +462,9 @@ def test_ispyb_service_failed_lookup(
     # Set up the mock service and call it
     service = ispyb_connector.EMISPyB(
         environment={"config": f"{tmp_path}/config.yaml", "queue": ""},
-        transport=offline_transport,
+        rabbitmq_credentials=tmp_path,
     )
+    service._transport = offline_transport
     service.initializing()
     service.insert_into_ispyb(rw=mock_rw, header=header, message=ispyb_test_message)
 

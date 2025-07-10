@@ -109,8 +109,10 @@ def test_motioncor2_service_spa(mock_subprocess, offline_transport, tmp_path):
 
     # Set up the mock service
     service = motioncorr.MotionCorr(
-        environment={"queue": ""}, transport=offline_transport
+        environment={"queue": ""},
+        rabbitmq_credentials=tmp_path,
     )
+    service._transport = offline_transport
     service.initializing()
 
     # Work out the expected shifts
@@ -398,8 +400,10 @@ def test_motioncor_relion_service_spa(mock_subprocess, offline_transport, tmp_pa
 
     # Set up the mock service
     service = motioncorr.MotionCorr(
-        environment={"queue": ""}, transport=offline_transport
+        environment={"queue": ""},
+        rabbitmq_credentials=tmp_path,
     )
+    service._transport = offline_transport
     service.initializing()
 
     # Work out the expected shifts
@@ -637,8 +641,10 @@ def test_motioncor2_service_tomo(mock_subprocess, offline_transport, tmp_path):
 
     # Set up the mock service
     service = motioncorr.MotionCorr(
-        environment={"queue": ""}, transport=offline_transport
+        environment={"queue": ""},
+        rabbitmq_credentials=tmp_path,
     )
+    service._transport = offline_transport
     service.initializing()
 
     # Work out the expected shifts
@@ -839,8 +845,10 @@ def test_motioncor_relion_service_tomo(mock_subprocess, offline_transport, tmp_p
 
     # Set up the mock service
     service = motioncorr.MotionCorr(
-        environment={"queue": ""}, transport=offline_transport
+        environment={"queue": ""},
+        rabbitmq_credentials=tmp_path,
     )
+    service._transport = offline_transport
     service.initializing()
 
     # Work out the expected shifts
@@ -1027,8 +1035,9 @@ def test_motioncor2_slurm_service_spa(mock_requests, offline_transport, tmp_path
             "slurm_cluster": "default",
             "queue": "",
         },
-        transport=offline_transport,
+        rabbitmq_credentials=tmp_path,
     )
+    service._transport = offline_transport
     service.initializing()
 
     # Work out the expected shifts
@@ -1182,8 +1191,9 @@ def test_motioncor_superres_does_slurm(mock_requests, offline_transport, tmp_pat
             "slurm_cluster": "default",
             "queue": "",
         },
-        transport=offline_transport,
+        rabbitmq_credentials=tmp_path,
     )
+    service._transport = offline_transport
     service.initializing()
 
     # Construct the file which contains rest api submission information
@@ -1312,8 +1322,9 @@ def test_motioncor2_slurm_parameters(mock_slurm, offline_transport, tmp_path):
             "slurm_cluster": "default",
             "queue": "",
         },
-        transport=offline_transport,
+        rabbitmq_credentials=tmp_path,
     )
+    service._transport = offline_transport
     service.initializing()
 
     # Work out the expected shifts
@@ -1410,8 +1421,9 @@ def test_motioncor_relion_slurm_parameters(mock_slurm, offline_transport, tmp_pa
             "slurm_cluster": "default",
             "queue": "",
         },
-        transport=offline_transport,
+        rabbitmq_credentials=tmp_path,
     )
+    service._transport = offline_transport
     service.initializing()
 
     # Work out the expected shifts
@@ -1471,14 +1483,16 @@ def test_motioncor_relion_slurm_parameters(mock_slurm, offline_transport, tmp_pa
     )
 
 
-def test_parse_motioncor2_output(offline_transport):
+def test_parse_motioncor2_output(offline_transport, tmp_path):
     """
     Send test lines to the output parser for MotionCor2
     to check the shift values are being read in
     """
     service = motioncorr.MotionCorr(
-        environment={"queue": ""}, transport=offline_transport
+        environment={"queue": ""},
+        rabbitmq_credentials=tmp_path,
     )
+    service._transport = offline_transport
     service.initializing()
 
     # MotionCor2 v1.4.0 case
@@ -1507,8 +1521,10 @@ def test_parse_motioncor2_slurm_output(offline_transport, tmp_path):
     to check the shift values are being read in
     """
     service = motioncorr.MotionCorr(
-        environment={"queue": ""}, transport=offline_transport
+        environment={"queue": ""},
+        rabbitmq_credentials=tmp_path,
     )
+    service._transport = offline_transport
     service.initializing()
 
     with open(tmp_path / "mc_output.txt", "w") as mc_output:
@@ -1528,8 +1544,10 @@ def test_parse_relion_output(offline_transport, tmp_path):
     to check the shift values are being read in
     """
     service = motioncorr.MotionCorr(
-        environment={"queue": ""}, transport=offline_transport
+        environment={"queue": ""},
+        rabbitmq_credentials=tmp_path,
     )
+    service._transport = offline_transport
     service.initializing()
 
     with open(tmp_path / "mc_output.star", "w") as mc_output:

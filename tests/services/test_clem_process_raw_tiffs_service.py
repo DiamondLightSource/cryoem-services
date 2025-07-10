@@ -147,7 +147,10 @@ def test_tiff_to_stack_service(
     mock_convert.return_value = processing_results
 
     # Set up and run the service
-    service = TIFFToStackService(environment={"queue": ""}, transport=offline_transport)
+    service = TIFFToStackService(
+        environment={"queue": ""}, rabbitmq_credentials=Path(".")
+    )
+    service._transport = offline_transport
     service.initializing()
     if use_recwrap:
         recwrap = MockRW(offline_transport)
@@ -192,9 +195,9 @@ def test_tiff_to_stack_bad_messsage(
 
     # Set up and run the service
     service = TIFFToStackService(
-        environment={"queue": ""},
-        transport=offline_transport,
+        environment={"queue": ""}, rabbitmq_credentials=Path(".")
     )
+    service._transport = offline_transport
     service.initializing()
     service.call_process_raw_tiffs(
         None,
@@ -254,7 +257,10 @@ def test_tiff_to_stack_service_validation_failed(
     }
 
     # Set up and run the service
-    service = TIFFToStackService(environment={"queue": ""}, transport=offline_transport)
+    service = TIFFToStackService(
+        environment={"queue": ""}, rabbitmq_credentials=Path(".")
+    )
+    service._transport = offline_transport
     service.initializing()
     service.call_process_raw_tiffs(
         None,
@@ -299,7 +305,10 @@ def test_tiff_to_stack_service_processing_failed(
     mock_convert.return_value = None
 
     # Set up and run the service
-    service = TIFFToStackService(environment={"queue": ""}, transport=offline_transport)
+    service = TIFFToStackService(
+        environment={"queue": ""}, rabbitmq_credentials=Path(".")
+    )
+    service._transport = offline_transport
     service.initializing()
     service.call_process_raw_tiffs(
         None,

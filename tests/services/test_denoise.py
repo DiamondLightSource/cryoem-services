@@ -72,7 +72,11 @@ def test_denoise_local_service(
     output_relion_options["pixel_size_downscaled"] = 1
 
     # Set up the mock service and send a message to the service
-    service = denoise.Denoise(environment={"queue": ""}, transport=offline_transport)
+    service = denoise.Denoise(
+        environment={"queue": ""},
+        rabbitmq_credentials=tmp_path,
+    )
+    service._transport = offline_transport
     service.initializing()
     service.denoise(None, header=header, message=denoise_test_message)
 
@@ -238,8 +242,9 @@ def test_denoise_slurm_service(
             "slurm_cluster": "default",
             "queue": "",
         },
-        transport=offline_transport,
+        rabbitmq_credentials=tmp_path,
     )
+    service._transport = offline_transport
     service.initializing()
 
     # Touch the expected output files
