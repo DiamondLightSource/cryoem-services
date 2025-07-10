@@ -56,8 +56,9 @@ def test_bfactor_service(offline_transport, tmp_path):
 
     # Set up the mock service and call it
     service = bfactor_setup.BFactor(
-        environment={"queue": ""}, transport=offline_transport
+        environment={"queue": ""}, rabbitmq_credentials=tmp_path
     )
+    service._transport = offline_transport
     service.initializing()
     service.bfactor_setup(None, header=header, message=bfactor_test_message)
 

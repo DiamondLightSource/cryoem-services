@@ -101,8 +101,9 @@ def test_tomo_align_slurm_service(
             "slurm_cluster": "default",
             "queue": "",
         },
-        transport=offline_transport,
+        rabbitmq_credentials=tmp_path,
     )
+    service._transport = offline_transport
     service.initializing()
 
     service.rot_centre_z_list = [1.1, 2.1]
@@ -238,8 +239,10 @@ def test_parse_tomo_align_output(offline_transport, tmp_path):
     to check the rotations and offsets are being read in
     """
     service = tomo_align_slurm.TomoAlignSlurm(
-        environment={"queue": ""}, transport=offline_transport
+        environment={"queue": ""},
+        rabbitmq_credentials=tmp_path,
     )
+    service._transport = offline_transport
     service.initializing()
 
     with open(tmp_path / "tomo_output.txt", "w") as tomo_output:

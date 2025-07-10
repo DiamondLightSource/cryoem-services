@@ -62,7 +62,11 @@ def setup_and_run_node_creation(
     }
 
     # set up the mock service and send the message to it
-    service = node_creator.NodeCreator(environment={"queue": ""}, transport=transport)
+    service = node_creator.NodeCreator(
+        environment={"queue": ""},
+        rabbitmq_credentials=Path("."),
+    )
+    service._transport = transport
     service.initializing()
     service.node_creator(None, header=header, message=test_message)
 
@@ -116,8 +120,10 @@ def test_node_creator_failed_job(offline_transport, tmp_path):
 
     # set up the mock service and send the message to it
     service = node_creator.NodeCreator(
-        environment={"queue": ""}, transport=offline_transport
+        environment={"queue": ""},
+        rabbitmq_credentials=tmp_path,
     )
+    service._transport = offline_transport
     service.initializing()
     service.node_creator(None, header=header, message=test_message)
 
@@ -167,8 +173,10 @@ def test_node_creator_rerun_job(offline_transport, tmp_path):
 
     # set up the mock service and send the message to it
     service = node_creator.NodeCreator(
-        environment={"queue": ""}, transport=offline_transport
+        environment={"queue": ""},
+        rabbitmq_credentials=tmp_path,
     )
+    service._transport = offline_transport
     service.initializing()
     service.node_creator(None, header=header, message=test_message)
 

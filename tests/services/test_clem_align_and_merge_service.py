@@ -138,9 +138,9 @@ def test_align_and_merge_service(
 
     # Set up and run the service
     service = AlignAndMergeService(
-        environment={"queue": ""},
-        transport=offline_transport,
+        environment={"queue": ""}, rabbitmq_credentials=Path(".")
     )
+    service._transport = offline_transport
     service.initializing()
     if use_recwrap:
         recwrap = MockRW(offline_transport)
@@ -187,9 +187,9 @@ def test_align_and_merge_bad_messsage(
 
     # Set up and run the service
     service = AlignAndMergeService(
-        environment={"queue": ""},
-        transport=offline_transport,
+        environment={"queue": ""}, rabbitmq_credentials=Path(".")
     )
+    service._transport = offline_transport
     service.initializing()
     service.call_align_and_merge(
         None,
@@ -263,9 +263,9 @@ def test_align_and_merge_service_validation_failed(
 
     # Set up and run the service
     service = AlignAndMergeService(
-        environment={"queue": ""},
-        transport=offline_transport,
+        environment={"queue": ""}, rabbitmq_credentials=Path(".")
     )
+    service._transport = offline_transport
     service.initializing()
     service.call_align_and_merge(
         None,
@@ -314,9 +314,9 @@ def test_align_and_merge_service_process_failed(
 
     # Set up and run the service
     service = AlignAndMergeService(
-        environment={"queue": ""},
-        transport=offline_transport,
+        environment={"queue": ""}, rabbitmq_credentials=Path(".")
     )
+    service._transport = offline_transport
     service.initializing()
     service.call_align_and_merge(
         None,

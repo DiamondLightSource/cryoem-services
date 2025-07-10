@@ -66,8 +66,10 @@ def test_select_particles_service_complete_batch(offline_transport, tmp_path):
 
     # Set up the mock service and send the message to it
     service = select_particles.SelectParticles(
-        environment={"queue": ""}, transport=offline_transport
+        environment={"queue": ""},
+        rabbitmq_credentials=tmp_path,
     )
+    service._transport = offline_transport
     service.initializing()
     service.select_particles(None, header=header, message=select_test_message)
 
@@ -195,8 +197,10 @@ def test_select_particles_service_incomplete_batch(offline_transport, tmp_path):
 
     # Set up the mock service and send the message to it
     service = select_particles.SelectParticles(
-        environment={"queue": ""}, transport=offline_transport
+        environment={"queue": ""},
+        rabbitmq_credentials=tmp_path,
     )
+    service._transport = offline_transport
     service.initializing()
     service.select_particles(None, header=header, message=select_test_message)
 
@@ -300,8 +304,10 @@ def test_select_particles_service_existing_split(offline_transport, tmp_path):
 
     # Set up the mock service and send the message to it
     service = select_particles.SelectParticles(
-        environment={"queue": ""}, transport=offline_transport
+        environment={"queue": ""},
+        rabbitmq_credentials=tmp_path,
     )
+    service._transport = offline_transport
     service.initializing()
     service.select_particles(None, header=header, message=select_test_message)
 
@@ -404,8 +410,10 @@ def test_select_particles_service_no_new_batch(offline_transport, tmp_path):
 
     # Set up the mock service and send the message to it
     service = select_particles.SelectParticles(
-        environment={"queue": ""}, transport=offline_transport
+        environment={"queue": ""},
+        rabbitmq_credentials=tmp_path,
     )
+    service._transport = offline_transport
     service.initializing()
     service.select_particles(None, header=header, message=select_test_message)
 
