@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 from pathlib import Path
 from unittest import mock
 
@@ -151,3 +152,78 @@ def test_class2d_service_complete_batch(mock_subprocess, offline_transport, tmp_
         },
     )
     offline_transport.ack.assert_called_once()
+
+
+@mock.patch("cryoemservices.services.class2d.run_class2d")
+def test_class2d_service_failed_resends(mock_class2d, offline_transport, tmp_path):
+    """Failures of the processing should lead to reinjection of the message"""
+
+    def raise_exception():
+        raise ValueError
+
+    mock_class2d.side_effect = raise_exception
+
+    # Set up the parameters
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+    class2d_test_message = {
+        "batch_is_complete": True,
+        "batch_size": "50000",
+        "class2d_dir": f"{tmp_path}/Class2D/job010",
+        "class2d_grp_uuid": "5",
+        "class2d_nr_classes": "1",
+        "class_uuids": "{'0': 10}",
+        "gpus": "0:1:2:3",
+        "particle_diameter": "180",
+        "particles_file": f"{tmp_path}/Select/job009/particles_split2.star",
+        "picker_id": "6",
+        "relion_options": {},
+    }
+    end_message = copy.deepcopy(class2d_test_message)
+
+    # Set up and run the service
+    service = Class2D(environment={"queue": ""}, rabbitmq_credentials=Path("."))
+    service._transport = offline_transport
+    service.initializing()
+    service.class2d(None, header=header, message=class2d_test_message)
+
+    end_message["requeue"] = 1
+    offline_transport.send.assert_any_call(
+        "class2d",
+        end_message,
+    )
+    offline_transport.ack.assert_called_once()
+
+
+def test_class2d_service_nack_on_requeue(offline_transport, tmp_path):
+    """Messages reinjected 5 times should nack"""
+    # Set up the parameters
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+    class2d_test_message = {
+        "batch_is_complete": True,
+        "batch_size": "50000",
+        "class2d_dir": f"{tmp_path}/Class2D/job010",
+        "class2d_grp_uuid": "5",
+        "class2d_nr_classes": "1",
+        "class_uuids": "{'0': 10}",
+        "gpus": "0:1:2:3",
+        "particle_diameter": "180",
+        "particles_file": f"{tmp_path}/Select/job009/particles_split2.star",
+        "picker_id": "6",
+        "relion_options": {},
+        "requeue": 5,
+    }
+
+    # Set up and run the service
+    service = Class2D(environment={"queue": ""}, rabbitmq_credentials=Path("."))
+    service._transport = offline_transport
+    service.initializing()
+    service.class2d(None, header=header, message=class2d_test_message)
+
+    assert offline_transport.send.call_count == 0
+    offline_transport.nack.assert_called_once()
