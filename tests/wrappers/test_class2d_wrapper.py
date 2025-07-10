@@ -503,7 +503,7 @@ def test_class2d_wrapper_cryodann(
     service_wrapper.run()
 
     # Check the expected command was run
-    assert mock_subprocess.call_count == 9
+    assert mock_subprocess.call_count == 8
     particle_alignment_command = [
         "relion_stack_create",
         "--i",

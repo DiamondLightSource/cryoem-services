@@ -173,7 +173,7 @@ def run_class2d(class2d_params: Class2DParameters, send_to_rabbitmq: Callable):
     project_dir = job_dir.parent.parent
     os.chdir(project_dir)
 
-    job_num_search = re.search("/job[0-9]+/", class2d_params.class2d_dir)
+    job_num_search = re.search("/job[0-9]+", class2d_params.class2d_dir)
     if job_num_search:
         job_num = int(job_num_search[0][4:7])
     else:
