@@ -83,6 +83,7 @@ dev = [
     CLEMLIFToStack = "cryoemservices.services.clem_process_raw_lifs:LIFToStackService"
     CLEMTIFFToStack = "cryoemservices.services.clem_process_raw_tiffs:TIFFToStackService"
     CTFFind = "cryoemservices.services.ctffind:CTFFind"
+    Class2D = "cryoemservices.services.class2d:Class2D"
     ClusterSubmission = "cryoemservices.services.cluster_submission:ClusterSubmission"
     CrYOLO = "cryoemservices.services.cryolo:CrYOLO"
     Denoise = "cryoemservices.services.denoise:Denoise"
