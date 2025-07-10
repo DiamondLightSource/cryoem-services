@@ -73,19 +73,17 @@ class Class2D(CommonService):
 
         # Run the class2d job
         try:
-            successful_run = run_class2d(
-                class2d_params, send_to_rabbitmq=self.send_with_new_connection
-            )
+            successful_run = run_class2d(class2d_params, send_to_rabbitmq=rw.send_to)
         except Exception as e:
             self.log.error(f"Failed to run class2d due to {e}", exc_info=True)
             successful_run = False
         except KeyboardInterrupt:
-            self.send_with_new_connection("class2d", message)
+            rw.send_to("class2d", message)
             raise KeyboardInterrupt
         if successful_run:
-            self.log.error(f"Class2D job completed for {class2d_params.particles_file}")
+            self.log.info(f"Class2D job completed for {class2d_params.particles_file}")
         else:
             self.log.error(f"Class2D job failed for {class2d_params.particles_file}")
             # Send back to the queue but mark a failure in the message
             message["requeue"] = message.get("requeue", 0) + 1
-            self.send_with_new_connection("class2d", message)
+            rw.send_to("class2d", message)

@@ -5,6 +5,7 @@ import queue
 from pathlib import Path
 from typing import Optional
 
+from workflows.transport.common_transport import CommonTransport
 from workflows.transport.pika_transport import PikaTransport
 
 
@@ -24,7 +25,7 @@ class CommonService:
     def __init__(self, environment: dict, rabbitmq_credentials: Path):
         self._environment: dict = environment
         self._rabbitmq_credentials: Path = rabbitmq_credentials
-        self._transport: Optional[PikaTransport] = None
+        self._transport: Optional[CommonTransport] = None
         self._queue: queue.Queue = queue.PriorityQueue()
         self.log = logging.getLogger(self._logger_name)
         self.log.setLevel(logging.INFO)
@@ -39,12 +40,6 @@ class CommonService:
         new_transport.connect()
         new_transport.subscription_callback_set_intercept(self._transport_interceptor)
         return new_transport
-
-    def send_with_new_connection(self, destination_queue: str, message_to_send: dict):
-        self.log.info(f"Sending to {destination_queue}")
-        new_transport = self._get_new_transport()
-        new_transport.send(destination_queue, message_to_send)
-        new_transport.disconnect()
 
     def _transport_interceptor(self, callback):
         """Takes a callback function and adds headers and messages"""
