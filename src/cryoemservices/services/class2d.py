@@ -60,8 +60,8 @@ class Class2D(CommonService):
             return
 
         # In this setup we cannot nack messages on failure, so instead check here
-        if message.get("recursion", 0) >= 5:
-            self.log.warning(f"Recursion detected for {class2d_params.particles_file}")
+        if message.get("requeue", 0) >= 5:
+            self.log.warning(f"Nacking requeued file {class2d_params.particles_file}")
             rw.transport.nack(header)
             return False
 
@@ -70,10 +70,6 @@ class Class2D(CommonService):
             f"Running disconnected Class2D job for {class2d_params.particles_file}"
         )
         rw.transport.ack(header)
-        if self._transport:
-            self._transport.disconnect()
-        if rw.transport.is_connected():
-            rw.transport.disconnect()
 
         # Run the class2d job
         try:
@@ -91,9 +87,5 @@ class Class2D(CommonService):
         else:
             self.log.error(f"Class2D job failed for {class2d_params.particles_file}")
             # Send back to the queue but mark a failure in the message
-            message["recursion"] = message.get("recursion", 0) + 1
+            message["requeue"] = message.get("requeue", 0) + 1
             self.send_with_new_connection("class2d", message)
-
-        # Restart the service, recursion happens
-        self._transport = self.get_new_transport()
-        self.initializing()

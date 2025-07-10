@@ -34,7 +34,7 @@ class CommonService:
         transport_type.load_configuration_file(self._rabbitmq_credentials)
         return transport_type
 
-    def get_new_transport(self):
+    def _get_new_transport(self):
         new_transport = self._transport_factory()
         new_transport.connect()
         new_transport.subscription_callback_set_intercept(self._transport_interceptor)
@@ -42,7 +42,7 @@ class CommonService:
 
     def send_with_new_connection(self, destination_queue: str, message_to_send: dict):
         self.log.info(f"Sending to {destination_queue}")
-        new_transport = self.get_new_transport()
+        new_transport = self._get_new_transport()
         new_transport.send(destination_queue, message_to_send)
         new_transport.disconnect()
 
@@ -59,7 +59,7 @@ class CommonService:
         """Start listening and process commands in main loop"""
         try:
             # Setup
-            self._transport = self.get_new_transport()
+            self._transport = self._get_new_transport()
             self.initializing()
 
             # Main loop
