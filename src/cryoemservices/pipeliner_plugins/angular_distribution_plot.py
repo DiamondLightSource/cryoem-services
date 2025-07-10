@@ -36,6 +36,7 @@ def angular_distribution_plot(
     )
     hp.graticule()
     plt.savefig(output_jpeg)
+    plt.close()
 
 
 def run():
