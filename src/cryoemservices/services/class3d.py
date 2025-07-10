@@ -73,14 +73,12 @@ class Class3D(CommonService):
 
         # Run the class3d job
         try:
-            successful_run = run_class3d(
-                class3d_params, send_to_rabbitmq=self.send_with_new_connection
-            )
+            successful_run = run_class3d(class3d_params, send_to_rabbitmq=rw.send_to)
         except Exception as e:
             self.log.error(f"Failed to run class3d due to {e}", exc_info=True)
             successful_run = False
         except KeyboardInterrupt:
-            self.send_with_new_connection("class3d", message)
+            rw.send_to("class3d", message)
             raise KeyboardInterrupt
         if successful_run:
             self.log.error(f"Class3D job completed for {class3d_params.particles_file}")
@@ -88,4 +86,4 @@ class Class3D(CommonService):
             self.log.error(f"Class3D job failed for {class3d_params.particles_file}")
             # Send back to the queue but mark a failure in the message
             message["requeue"] = message.get("requeue", 0) + 1
-            self.send_with_new_connection("class3d", message)
+            rw.send_to("class3d", message)

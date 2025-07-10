@@ -190,10 +190,7 @@ def test_class2d_service_failed_resends(mock_class2d, offline_transport, tmp_pat
     service.class2d(None, header=header, message=class2d_test_message)
 
     end_message["requeue"] = 1
-    offline_transport.send.assert_any_call(
-        "class2d",
-        end_message,
-    )
+    offline_transport.send.assert_any_call("class2d", end_message)
     offline_transport.ack.assert_called_once()
 
 

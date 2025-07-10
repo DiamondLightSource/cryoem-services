@@ -74,14 +74,12 @@ class Refine3D(CommonService):
 
         # Run the refinement job
         try:
-            successful_run = run_refinement(
-                refine_params, send_to_rabbitmq=self.send_with_new_connection
-            )
+            successful_run = run_refinement(refine_params, send_to_rabbitmq=rw.send_to)
         except Exception as e:
             self.log.error(f"Failed to run refinement due to {e}", exc_info=True)
             successful_run = False
         except KeyboardInterrupt:
-            self.send_with_new_connection("refine3d", message)
+            rw.send_to("refine3d", message)
             raise KeyboardInterrupt
         if successful_run:
             self.log.error(
@@ -91,4 +89,4 @@ class Refine3D(CommonService):
             self.log.error(f"Refinement job failed for {refine_params.particles_file}")
             # Send back to the queue but mark a failure in the message
             message["requeue"] = message.get("requeue", 0) + 1
-            self.send_with_new_connection("refine3d", message)
+            rw.send_to("refine3d", message)
