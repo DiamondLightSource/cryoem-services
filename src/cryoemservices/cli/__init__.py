@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import re
+import sys
 import textwrap
 
 
@@ -33,3 +35,23 @@ class LineWrapHelpFormatter(argparse.RawDescriptionHelpFormatter):
                 ]
                 text_rows[idx] = lines
         return [item for sublist in text_rows for item in sublist]
+
+
+def set_up_logging(debug: bool):
+    """
+    Helper function to configure the 'cryoemservices' logger to log to console when
+    running CLIs
+    """
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.INFO)
+    if debug:
+        root_logger.setLevel(logging.DEBUG)
+
+    # Set up console logger if none are present
+    if not any(
+        isinstance(handler, logging.StreamHandler)
+        and handler.stream in (sys.stdout, sys.stderr)
+        for handler in root_logger.handlers
+    ):
+        handler = logging.StreamHandler()
+        root_logger.addHandler(handler)
