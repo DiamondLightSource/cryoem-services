@@ -51,6 +51,9 @@ def run():
     )
 
     # Print results in output log
-    if results is not None:
+    if results:
         for result in results:
             print(result)
+        print("LIF processing workflow successfully completed")
+    else:
+        print("LIF processing workflow did not produce any image stacks")
