@@ -571,7 +571,7 @@ def is_image_stack(
     Helper function to check if an incoming array can be treated as an image stack
     """
     # Check for 2 dimensions or less
-    if len(array.shape) < 3:
+    if len(array.shape) == 2:
         return False
     # Check if it's a 2D RGB/RGBA image
     if len(array.shape) == 3 and array.shape[-1] in (3, 4):
@@ -579,7 +579,7 @@ def is_image_stack(
 
     # Check for valid 3D image stacks
     # Grayscale image stack
-    if len(array.shape) == 3:
+    if len(array.shape) == 3 and array.shape[-1] not in (3, 4):
         return True
     # RGB/RGBA image stack
     if len(array.shape) == 4 and array.shape[-1] in (3, 4):
