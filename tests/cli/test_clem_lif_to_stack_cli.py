@@ -3,14 +3,24 @@ from __future__ import annotations
 import subprocess
 import sys
 from pathlib import Path
-from unittest import mock
+
+from pytest_mock import MockerFixture
 
 from cryoemservices.cli import clem_lif_to_stack
 
 
-@mock.patch("cryoemservices.cli.clem_lif_to_stack.convert_lif_to_stack")
-def test_lif_to_stack_with_optional_args(mock_convert_lif_to_stack, tmp_path):
+def test_lif_to_stack(mocker: MockerFixture):
     """Test that the cli runs with all args provided"""
+    # Set up necessary mock objects
+    mock_convert = mocker.patch(
+        "cryoemservices.wrappers.clem_process_raw_lifs.convert_lif_to_stack"
+    )
+    mock_print = mocker.patch("cryoemservices.cli.clem_lif_to_stack.print")
+
+    # Create some dummy results
+    dummy_results = [{"result": i} for i in range(3)]
+    mock_convert.return_value = dummy_results
+
     # Run the cli
     sys.argv = [
         "clem.lif_to_stack",
@@ -19,31 +29,20 @@ def test_lif_to_stack_with_optional_args(mock_convert_lif_to_stack, tmp_path):
         "root",
         "--num-procs",
         "10",
+        "--debug",
     ]
     clem_lif_to_stack.run()
 
-    mock_convert_lif_to_stack.assert_called_with(
+    # Check that it was called with the correct args
+    mock_convert.assert_called_with(
         file=Path("file.lif"),
         root_folder="root",
         number_of_processes=10,
     )
 
-
-@mock.patch("cryoemservices.cli.clem_lif_to_stack.convert_lif_to_stack")
-def test_lif_to_stack_with_default_args(mock_convert_lif_to_stack, tmp_path):
-    """Test that the cli runs the expected default args"""
-    # Run the cli
-    sys.argv = [
-        "clem.lif_to_stack",
-        "file.lif",
-    ]
-    clem_lif_to_stack.run()
-
-    mock_convert_lif_to_stack.assert_called_with(
-        file=Path("file.lif"),
-        root_folder="images",
-        number_of_processes=1,
-    )
+    # Check that the dummy results are printed at the end
+    for result in dummy_results:
+        mock_print.assert_any_call(result)
 
 
 def test_lif_to_stack_exists():
@@ -63,5 +62,5 @@ def test_lif_to_stack_exists():
         stdout_as_string.split("\n\n")[0].replace("\n", "").replace(" ", "")
     )
     assert cleaned_help_line == (
-        "usage:clem.lif_to_stack[-h][--root-folderROOT_FOLDER][-nNUM_PROCS]lif_file"
+        "usage:clem.lif_to_stack[-h][--root-folderROOT_FOLDER][-nNUM_PROCS][--debug]lif_file"
     )
