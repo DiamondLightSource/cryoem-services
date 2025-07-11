@@ -15,6 +15,7 @@ from cryoemservices.util.clem_array_functions import (
     flatten_image,
     get_dtype_info,
     get_valid_dtypes,
+    is_grayscale_image,
     is_image_stack,
     merge_images,
     preprocess_img_stk,
@@ -749,6 +750,57 @@ def test_align_image_to_reference(test_params: tuple[int, int, str]):
         atol=5,
         # Absolute intensities can change by quite a bit during alignment
     )
+
+
+is_grayscale_image_test_matrix = (
+    # Shape | Result
+    # These should pass
+    ((64, 64), True),
+    ((1, 64, 64), True),
+    ((5, 64, 64), True),
+    # These should fail without erroring
+    ((64, 64, 3), False),
+    ((64, 64, 4), False),
+    ((1, 64, 64, 3), False),
+    ((5, 64, 64, 3), False),
+    ((1, 64, 64, 4), False),
+    ((5, 64, 64, 4), False),
+)
+
+
+@pytest.mark.parametrize("test_params", is_grayscale_image_test_matrix)
+def test_is_grayscale_image(test_params: tuple[tuple[int, ...], bool]):
+    # Unpack test params
+    shape, result = test_params
+
+    # Construct array
+    array = np.zeros(shape)
+
+    # Check that the result is as expected
+    assert is_grayscale_image(array) is result
+
+
+is_grayscale_image_error_cases = (
+    # Shape
+    # These should all error
+    ((64,),),
+    ((5, 5, 64, 64),),
+    ((5, 64, 64, 5),),
+    ((5, 5, 5, 64, 64),),
+    ((5, 5, 64, 64, 5),),
+)
+
+
+@pytest.mark.parametrize("test_params", is_grayscale_image_error_cases)
+def test_is_grayscale_image_errors(test_params: tuple[tuple[int, ...]]):
+    # Unpack test params
+    (shape,) = test_params
+
+    # Create array
+    array = np.zeros(shape)
+
+    with pytest.raises(ValueError):
+        is_grayscale_image(array)
 
 
 image_coloring_test_matrix = (
