@@ -15,7 +15,7 @@ from pathlib import Path
 from cryoemservices.cli import LineWrapHelpFormatter
 
 
-def setup_logging(debug: bool):
+def set_up_logging(debug: bool):
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.INFO)
     if debug:
@@ -141,7 +141,7 @@ def run():
     args = parser.parse_args()
 
     # Set up the logger before the functions are imported
-    setup_logging(debug=args.debug)
+    set_up_logging(debug=args.debug)
 
     # Import cryoemservices ONLY after logger setup is completed
     from cryoemservices.wrappers.clem_align_and_merge import align_and_merge_stacks
