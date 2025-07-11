@@ -28,6 +28,8 @@ from cryoemservices.util.clem_array_functions import (
     align_image_to_self,
     convert_to_rgb,
     flatten_image,
+    is_grayscale_image,
+    is_image_stack,
     merge_images,
     stretch_image_contrast,
 )
@@ -181,13 +183,7 @@ def align_and_merge_stacks(
             array = tiff_file.series[0].pages.asarray()
 
             # Crop array to middle n frames if selected and a stack is provided
-            if (
-                not len(array.shape) < 3  # 2D grayscale image
-                or not (
-                    len(array.shape) == 3  # 2D RGB/RGBA image
-                    and array.shape[-1] in (3, 4)
-                )
-            ) and isinstance(crop_to_n_frames, int):
+            if is_image_stack(array) and isinstance(crop_to_n_frames, int):
                 m = len(array) // 2
                 n1 = crop_to_n_frames // 2
                 n2 = n1 + 1 if crop_to_n_frames % 2 == 1 else n1
@@ -267,54 +263,66 @@ def align_and_merge_stacks(
 
     # Align frames within each image stack
     if align_self:
-        if print_messages is True:
-            print(" Correcting for drift in images...")
-        logger.info("Correcting for drift in images")
-        with Pool(len(arrays)) as pool:
-            arrays = pool.starmap(
-                align_image_to_self,
-                [(arr, "middle") for arr in arrays],
+        # Perform drift correction only if they are image stacks
+        if all(is_image_stack(array) for array in arrays):
+            if print_messages is True:
+                print(" Correcting for drift in images...")
+            logger.info("Correcting for drift in images")
+            with Pool(len(arrays)) as pool:
+                arrays = pool.starmap(
+                    align_image_to_self,
+                    [(arr, "middle") for arr in arrays],
+                )
+            if print_messages is True:
+                print(" Done")
+        else:
+            logger.info(
+                "Skipping drift correction step as no image stacks were provided"
             )
-        if print_messages is True:
-            print(" Done")
 
     # Flatten images if the option is selected
     if flatten:
-        if print_messages is True:
-            print("Flattening image stacks...")
-        logger.info("Flattening image stacks")
-        with Pool(len(arrays)) as pool:
-            arrays = pool.starmap(
-                flatten_image,
-                [(arr, flatten) for arr in arrays],
-            )
-        # Validate that image flattening was done correctly
-        if len({arr.shape for arr in arrays}) > 1:
-            logger.error("The flattened arrays do not have the same shape")
-            raise ValueError
-        if print_messages is True:
-            print(" Done")
+        # Only flatten if they are image stacks
+        if all(is_image_stack(array) for array in arrays):
+            if print_messages is True:
+                print("Flattening image stacks...")
+            logger.info("Flattening image stacks")
+            with Pool(len(arrays)) as pool:
+                arrays = pool.starmap(
+                    flatten_image,
+                    [(arr, flatten) for arr in arrays],
+                )
+            # Validate that image flattening was done correctly
+            if len({arr.shape for arr in arrays}) > 1:
+                logger.error("The flattened arrays do not have the same shape")
+                raise ValueError
+            if print_messages is True:
+                print(" Done")
 
-        # # Debug
-        if debug and print_messages:
-            print(
+            # # Debug
+            if debug and print_messages:
+                print(
+                    "Properties of array after flattening: \n",
+                    f"Shape: {arrays[0].shape} \n",
+                    f"dtype: {arrays[0].dtype} \n",
+                    f"Min: {np.min(arrays)} \n",
+                    f"Max: {np.max(arrays)} \n",
+                )
+            logger.debug(
                 "Properties of array after flattening: \n",
                 f"Shape: {arrays[0].shape} \n",
                 f"dtype: {arrays[0].dtype} \n",
                 f"Min: {np.min(arrays)} \n",
                 f"Max: {np.max(arrays)} \n",
             )
-        logger.debug(
-            "Properties of array after flattening: \n",
-            f"Shape: {arrays[0].shape} \n",
-            f"dtype: {arrays[0].dtype} \n",
-            f"Min: {np.min(arrays)} \n",
-            f"Max: {np.max(arrays)} \n",
-        )
+        else:
+            logger.info(
+                "Skipping image flattening step as no image stacks were provided"
+            )
 
     # Align other stacks to reference stack
     if align_across:
-        if len(arrays) >= 2:
+        if len(arrays) > 1:
             if print_messages is True:
                 print("Aligning images to reference image...")
             reference = arrays[0]  # First image in list is the reference image
@@ -332,21 +340,24 @@ def align_and_merge_stacks(
                 print(" Done")
         elif len(arrays) == 1:
             if print_messages is True:
-                print("Skipping step as there is only one image")
+                logger.info("Skipping image alignment step as there is only one image")
         else:
             if print_messages is True:
                 print("No image arrays are present")
 
     # Colourise images
-    if print_messages is True:
-        print("Converting images from grayscale to RGB...")
-    logger.info("Converting images from grayscale to RGB")
-    with Pool(len(arrays)) as pool:
-        arrays = pool.starmap(
-            convert_to_rgb, [(arrays[c], colors[c]) for c in range(len(colors))]
-        )
-    if print_messages is True:
-        print(" Done")
+    if all(is_grayscale_image(array) for array in arrays):
+        if print_messages is True:
+            print("Converting images from grayscale to RGB...")
+        logger.info("Converting images from grayscale to RGB")
+        with Pool(len(arrays)) as pool:
+            arrays = pool.starmap(
+                convert_to_rgb, [(arrays[c], colors[c]) for c in range(len(colors))]
+            )
+        if print_messages is True:
+            print(" Done")
+    else:
+        logger.info("Skipping image colorisation step as they are not grayscale")
 
     # Debug
     if debug and print_messages:
