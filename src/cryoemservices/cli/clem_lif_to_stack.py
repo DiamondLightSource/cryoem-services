@@ -3,8 +3,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from cryoemservices.cli import LineWrapHelpFormatter
-from cryoemservices.wrappers.clem_process_raw_lifs import convert_lif_to_stack
+from cryoemservices.cli import LineWrapHelpFormatter, set_up_logging
 
 
 def run():
@@ -32,7 +31,17 @@ def run():
         default=1,
         help="Number of processes to run",
     )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Print additional messages to check functions work as intended",
+    )
     args = parser.parse_args()
+
+    # Set up the logger before importing the module functions
+    set_up_logging(debug=args.debug)
+
+    from cryoemservices.wrappers.clem_process_raw_lifs import convert_lif_to_stack
 
     # Run function
     results = convert_lif_to_stack(
