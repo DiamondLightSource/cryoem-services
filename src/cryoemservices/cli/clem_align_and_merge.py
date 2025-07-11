@@ -7,28 +7,10 @@ use in the subsequent stage of the CLEM workflow.
 from __future__ import annotations
 
 import argparse
-import logging
-import sys
 from ast import literal_eval
 from pathlib import Path
 
-from cryoemservices.cli import LineWrapHelpFormatter
-
-
-def set_up_logging(debug: bool):
-    root_logger = logging.getLogger()
-    root_logger.setLevel(logging.INFO)
-    if debug:
-        root_logger.setLevel(logging.DEBUG)
-
-    # Set up console logger if none are present
-    if not any(
-        isinstance(handler, logging.StreamHandler)
-        and handler.stream in (sys.stdout, sys.stderr)
-        for handler in root_logger.handlers
-    ):
-        handler = logging.StreamHandler()
-        root_logger.addHandler(handler)
+from cryoemservices.cli import LineWrapHelpFormatter, set_up_logging
 
 
 def parse_list_of_paths(values: list[str]):
