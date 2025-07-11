@@ -15,6 +15,7 @@ from cryoemservices.util.clem_array_functions import (
     flatten_image,
     get_dtype_info,
     get_valid_dtypes,
+    is_image_stack,
     merge_images,
     preprocess_img_stk,
     stretch_image_contrast,
@@ -513,6 +514,61 @@ def test_stretch_image_contrast_fails(test_params: tuple[str, Optional[str]]):
             stretch_image_contrast(arr)
         else:
             stretch_image_contrast(arr, target_dtype=target_dtype)
+
+
+is_image_stack_test_matrix = (
+    # Shape | Outcome
+    # These should all pass
+    # Grayscale
+    ((1, 64, 64), True),
+    ((5, 64, 64), True),
+    # RGB/RGBA
+    ((1, 64, 64, 3), True),
+    ((5, 64, 64, 3), True),
+    ((1, 64, 64, 4), True),
+    ((5, 64, 64, 4), True),
+    # These should all fail but not error
+    # Grayscale
+    ((64, 64), False),
+    # RGB/RGBA
+    ((64, 64, 3), False),
+    ((64, 64, 4), False),
+)
+
+
+@pytest.mark.parametrize("test_params", is_image_stack_test_matrix)
+def test_is_image_stack(test_params: tuple[tuple[int, ...], bool]):
+
+    # Unpack test params
+    shape, result = test_params
+
+    # Create test image array
+    array = np.zeros(shape)
+
+    # Check that it's correct
+    assert is_image_stack(array) is result
+
+
+is_image_stack_error_cases = (
+    # Shape
+    # These shapes should all error
+    ((64,),),
+    ((5, 64, 64, 5),),
+    ((5, 64, 64, 64, 5),),
+)
+
+
+@pytest.mark.parametrize("test_params", is_image_stack_error_cases)
+def test_is_image_stack_errors(test_params: tuple[tuple[int, ...]]):
+    # Unpack test params
+    (shape,) = test_params
+
+    # Create test image array
+    array = np.zeros(shape)
+
+    # Check that it errors
+    with pytest.raises(ValueError):
+        is_image_stack(array)
 
 
 self_alignment_test_matrix = (
