@@ -7,11 +7,28 @@ use in the subsequent stage of the CLEM workflow.
 from __future__ import annotations
 
 import argparse
+import logging
+import sys
 from ast import literal_eval
 from pathlib import Path
 
 from cryoemservices.cli import LineWrapHelpFormatter
-from cryoemservices.wrappers.clem_align_and_merge import align_and_merge_stacks
+
+
+def setup_logging(debug: bool):
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.INFO)
+    if debug:
+        root_logger.setLevel(logging.DEBUG)
+
+    # Set up console logger if none are present
+    if not any(
+        isinstance(handler, logging.StreamHandler)
+        and handler.stream in (sys.stdout, sys.stderr)
+        for handler in root_logger.handlers
+    ):
+        handler = logging.StreamHandler()
+        root_logger.addHandler(handler)
 
 
 def parse_list_of_paths(values: list[str]):
@@ -123,6 +140,12 @@ def run():
     # Parse the arguments
     args = parser.parse_args()
 
+    # Set up the logger before the functions are imported
+    setup_logging(debug=args.debug)
+
+    # Import cryoemservices ONLY after logger setup is completed
+    from cryoemservices.wrappers.clem_align_and_merge import align_and_merge_stacks
+
     # Validate image stacks parameter
     image_files: list[Path] = parse_list_of_paths(args.images)
     print("Found all provided image files")
@@ -146,8 +169,6 @@ def run():
         align_self=args.align_self,
         flatten=args.flatten,
         align_across=args.align_across,
-        print_messages=True,  # Print messages when used as a CLI
-        debug=args.debug,  # Print debug messages
     )
 
     if composite_image is not None:
