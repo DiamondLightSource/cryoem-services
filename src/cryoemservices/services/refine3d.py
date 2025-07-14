@@ -50,6 +50,7 @@ class Refine3D(CommonService):
                 refine_params = RefineParameters(
                     **{**rw.recipe_step.get("parameters", {})}
                 )
+                message = {}
         except (ValidationError, TypeError) as e:
             self.log.warning(
                 f"Refine3D parameter validation failed for message: {message} "

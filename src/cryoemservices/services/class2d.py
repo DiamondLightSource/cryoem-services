@@ -50,6 +50,7 @@ class Class2D(CommonService):
                 class2d_params = Class2DParameters(
                     **{**rw.recipe_step.get("parameters", {})}
                 )
+                message = {}
         except (ValidationError, TypeError) as e:
             self.log.warning(
                 f"Class2D parameter validation failed for message: {message} "

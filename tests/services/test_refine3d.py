@@ -130,7 +130,7 @@ def test_refine3d_service_with_mask(
     service = Refine3D(environment={"queue": ""}, rabbitmq_credentials=Path("."))
     service._transport = offline_transport
     service.initializing()
-    service.refine3d(rw=recipe_wrapper, header=header, message={})
+    service.refine3d(rw=recipe_wrapper, header=header, message=None)
 
     # Check the expected refinement command was run
     assert mock_subprocess.call_count == 5
@@ -226,6 +226,41 @@ def test_refine3d_service_with_mask(
             "relion_options": output_relion_options,
         },
     )
+
+
+def test_refine3d_service_no_scaling(offline_transport, tmp_path):
+    """Not requesting rescaling properly should lead to rejection of the message"""
+
+    # Set up the parameters
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+    refine_test_message = {
+        "batch_size": 50000,
+        "class_number": 1,
+        "is_first_refinement": True,
+        "mask_diameter": "190.0",
+        "number_of_particles": 10000,
+        "particle_diameter": "180",
+        "particles_file": f"{tmp_path}/Extract/job020/particles.star",
+        "pixel_size": "3.85",
+        "refine_job_dir": f"{tmp_path}/Refine3D/job021",
+        "relion_options": {},
+        "rescaled_class_reference": f"{tmp_path}/Extract/job020/ref.mrc",
+        "rescaling_command": [],
+    }
+    end_message = copy.deepcopy(refine_test_message)
+
+    # Set up and run the service
+    service = Refine3D(environment={"queue": ""}, rabbitmq_credentials=Path("."))
+    service._transport = offline_transport
+    service.initializing()
+    service.refine3d(None, header=header, message=refine_test_message)
+
+    end_message["requeue"] = 1
+    offline_transport.send.assert_any_call("refine3d", end_message)
+    offline_transport.ack.assert_called_once()
 
 
 @mock.patch("cryoemservices.services.refine3d.run_refinement")

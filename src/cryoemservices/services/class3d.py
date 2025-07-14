@@ -50,6 +50,7 @@ class Class3D(CommonService):
                 class3d_params = Class3DParameters(
                     **{**rw.recipe_step.get("parameters", {})}
                 )
+                message = {}
         except (ValidationError, TypeError) as e:
             self.log.warning(
                 f"Class3D parameter validation failed for message: {message} "

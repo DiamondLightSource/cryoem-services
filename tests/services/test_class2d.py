@@ -125,7 +125,7 @@ def test_class2d_service_incomplete_batch(
     service = Class2D(environment={"queue": ""}, rabbitmq_credentials=Path("."))
     service._transport = offline_transport
     service.initializing()
-    service.class2d(rw=recipe_wrapper, header=header, message={})
+    service.class2d(rw=recipe_wrapper, header=header, message=None)
 
     # Check the expected command was run
     class2d_command = [

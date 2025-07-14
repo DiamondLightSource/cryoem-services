@@ -6,7 +6,7 @@ import os
 import re
 import subprocess
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Callable, Optional, Tuple
 
 import numpy as np
 from gemmi import cif
@@ -97,7 +97,7 @@ def run_initial_model(
     project_dir: Path,
     job_num: int,
     send_to_rabbitmq: Callable,
-):
+) -> Tuple[str, list[dict]]:
     """
     Run the initial model for 3D classification and register results
     """
@@ -176,7 +176,7 @@ def run_initial_model(
             f"Relion initial model failed with exitcode {result.returncode}:\n"
             + result.stderr.decode("utf8", "replace")
         )
-        return False
+        return "", []
 
     ini_model_file = job_dir / "initial_model.mrc"
     align_symmetry_command = [
@@ -226,7 +226,7 @@ def run_initial_model(
             f"failed with exitcode {result.returncode}:\n"
             + result.stderr.decode("utf8", "replace")
         )
-        return "", {}
+        return "", []
 
     # Send Murfey the location of the initial model
     murfey_params = {
@@ -289,7 +289,7 @@ def run_initial_model(
     return f"{ini_model_file}", ini_ispyb_parameters
 
 
-def run_class3d(class3d_params: Class3DParameters, send_to_rabbitmq: Callable):
+def run_class3d(class3d_params: Class3DParameters, send_to_rabbitmq: Callable) -> bool:
     # Class ids get fed in as a string, need to convert these to a dictionary
     class_uuids_dict = json.loads(class3d_params.class_uuids.replace("'", '"'))
     class_uuids_keys = list(class_uuids_dict.keys())
@@ -328,8 +328,8 @@ def run_class3d(class3d_params: Class3DParameters, send_to_rabbitmq: Callable):
             send_to_rabbitmq=send_to_rabbitmq,
         )
     else:
-        initial_model_file = class3d_params.initial_model_file
-        initial_model_ispyb_parameters = {}
+        initial_model_file = class3d_params.initial_model_file or ""
+        initial_model_ispyb_parameters = []
     if not initial_model_file:
         # If there isn't an initial model file something has gone wrong
         logger.error("No initial model file found, stopping.")
