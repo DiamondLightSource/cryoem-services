@@ -22,14 +22,18 @@ def run():
         "--root-folder",
         type=str,
         default="images",
-        help="Name of the top folder that LIF files are stored in. Used to determine destination of the created TIFF image stacks",
+        help=(
+            "Name of the top folder that LIF files are stored in. "
+            "Used to determine destination of the created TIFF image stacks. \n"
+            "DEFAULT:   'images'"
+        ),
     )
     parser.add_argument(
         "-n",
         "--num-procs",
         type=int,
         default=1,
-        help="Number of processes to run",
+        help=("Number of processes to run. \n" "DEFAULT:   1"),
     )
     parser.add_argument(
         "--debug",
