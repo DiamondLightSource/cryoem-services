@@ -56,8 +56,9 @@ def run():
 
     # Print results in output log
     if results:
-        for result in results:
-            print(result)
+        if args.debug:
+            for result in results:
+                print(result)
         print()
         print("LIF processing workflow successfully completed")
     else:
