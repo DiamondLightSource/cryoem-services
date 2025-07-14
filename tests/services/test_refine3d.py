@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import copy
-from pathlib import Path
 from unittest import mock
 
 import pytest
@@ -127,8 +126,7 @@ def test_refine3d_service_with_mask(
     )
 
     # Set up and run the service
-    service = Refine3D(environment={"queue": ""}, rabbitmq_credentials=Path("."))
-    service._transport = offline_transport
+    service = Refine3D(environment={"queue": ""}, transport=offline_transport)
     service.initializing()
     service.refine3d(rw=recipe_wrapper, header=header, message=None)
 
@@ -253,8 +251,7 @@ def test_refine3d_service_no_scaling(offline_transport, tmp_path):
     end_message = copy.deepcopy(refine_test_message)
 
     # Set up and run the service
-    service = Refine3D(environment={"queue": ""}, rabbitmq_credentials=Path("."))
-    service._transport = offline_transport
+    service = Refine3D(environment={"queue": ""}, transport=offline_transport)
     service.initializing()
     service.refine3d(None, header=header, message=refine_test_message)
 
@@ -293,8 +290,7 @@ def test_refine3d_service_failed_resends(mock_refine3d, offline_transport, tmp_p
     end_message = copy.deepcopy(refine_test_message)
 
     # Set up and run the service
-    service = Refine3D(environment={"queue": ""}, rabbitmq_credentials=Path("."))
-    service._transport = offline_transport
+    service = Refine3D(environment={"queue": ""}, transport=offline_transport)
     service.initializing()
     service.refine3d(None, header=header, message=refine_test_message)
 
@@ -326,8 +322,7 @@ def test_refine3d_service_nack_on_requeue(offline_transport, tmp_path):
     }
 
     # Set up and run the service
-    service = Refine3D(environment={"queue": ""}, rabbitmq_credentials=Path("."))
-    service._transport = offline_transport
+    service = Refine3D(environment={"queue": ""}, transport=offline_transport)
     service.initializing()
     service.refine3d(None, header=header, message=refine_test_message)
 
@@ -347,8 +342,7 @@ def test_refine3d_service_nack_wrong_params(offline_transport, tmp_path):
     }
 
     # Set up and run the service
-    service = Refine3D(environment={"queue": ""}, rabbitmq_credentials=Path("."))
-    service._transport = offline_transport
+    service = Refine3D(environment={"queue": ""}, transport=offline_transport)
     service.initializing()
     service.refine3d(None, header=header, message=refine_test_message)
 

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import copy
-from pathlib import Path
 from unittest import mock
 
 import pytest
@@ -97,8 +96,7 @@ def test_class3d_service_has_initial_model(
     )
 
     # Set up and run the service
-    service = Class3D(environment={"queue": ""}, rabbitmq_credentials=Path("."))
-    service._transport = offline_transport
+    service = Class3D(environment={"queue": ""}, transport=offline_transport)
     service.initializing()
     service.class3d(rw=recipe_wrapper, header=header, message=None)
 
@@ -328,8 +326,7 @@ def test_class3d_service_rerun(
     )
 
     # Set up and run the service
-    service = Class3D(environment={"queue": ""}, rabbitmq_credentials=Path("."))
-    service._transport = offline_transport
+    service = Class3D(environment={"queue": ""}, transport=offline_transport)
     service.initializing()
     service.class3d(rw=recipe_wrapper, header=header, message=None)
 
@@ -515,8 +512,7 @@ def test_class3d_service_failed_resends(mock_class3d, offline_transport, tmp_pat
     end_message = copy.deepcopy(class3d_test_message)
 
     # Set up and run the service
-    service = Class3D(environment={"queue": ""}, rabbitmq_credentials=Path("."))
-    service._transport = offline_transport
+    service = Class3D(environment={"queue": ""}, transport=offline_transport)
     service.initializing()
     service.class3d(None, header=header, message=class3d_test_message)
 
@@ -549,8 +545,7 @@ def test_class3d_service_nack_on_requeue(offline_transport, tmp_path):
     }
 
     # Set up and run the service
-    service = Class3D(environment={"queue": ""}, rabbitmq_credentials=Path("."))
-    service._transport = offline_transport
+    service = Class3D(environment={"queue": ""}, transport=offline_transport)
     service.initializing()
     service.class3d(None, header=header, message=class3d_test_message)
 
@@ -570,8 +565,7 @@ def test_class3d_service_nack_wrong_params(offline_transport, tmp_path):
     }
 
     # Set up and run the service
-    service = Class3D(environment={"queue": ""}, rabbitmq_credentials=Path("."))
-    service._transport = offline_transport
+    service = Class3D(environment={"queue": ""}, transport=offline_transport)
     service.initializing()
     service.class3d(None, header=header, message=class3d_test_message)
 
