@@ -8,8 +8,9 @@ from unittest import mock
 from cryoemservices.cli import clem_align_and_merge
 
 
+@mock.patch("cryoemservices.cli.clem_align_and_merge.set_up_logging")
 @mock.patch("cryoemservices.wrappers.clem_align_and_merge.align_and_merge_stacks")
-def test_align_and_merge(mock_align_and_merge, tmp_path):
+def test_align_and_merge_with_optional_args(mock_align_and_merge, mock_setup, tmp_path):
     """Test that the cli runs with all args provided"""
     (tmp_path / "file1").touch()
     (tmp_path / "file2").touch()
@@ -33,6 +34,7 @@ def test_align_and_merge(mock_align_and_merge, tmp_path):
     ]
     clem_align_and_merge.run()
 
+    mock_setup.assert_called_with(debug=True)
     mock_align_and_merge.assert_called_with(
         images=[tmp_path / "file1", tmp_path / "file2"],
         metadata=Path("metadata.xml"),
@@ -40,6 +42,30 @@ def test_align_and_merge(mock_align_and_merge, tmp_path):
         align_self="enabled",
         flatten="min",
         align_across="enabled",
+    )
+
+
+@mock.patch("cryoemservices.cli.clem_align_and_merge.set_up_logging")
+@mock.patch("cryoemservices.wrappers.clem_align_and_merge.align_and_merge_stacks")
+def test_align_and_merge_with_default_args(mock_align_and_merge, mock_setup, tmp_path):
+    """Test that the cli runs the expected default args"""
+    (tmp_path / "file1").touch()
+
+    # Run the cli
+    sys.argv = [
+        "clem.align_and_merge",
+        f"{tmp_path}/file1",
+    ]
+    clem_align_and_merge.run()
+
+    mock_setup.assert_called_once_with(debug=False)
+    mock_align_and_merge.assert_called_with(
+        images=[tmp_path / "file1"],
+        metadata=None,
+        crop_to_n_frames=None,
+        align_self="",
+        flatten="mean",
+        align_across="",
     )
 
 
