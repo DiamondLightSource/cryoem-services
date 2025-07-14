@@ -3,17 +3,22 @@ from __future__ import annotations
 import subprocess
 import sys
 from pathlib import Path
-from unittest import mock
+
+from pytest_mock import MockerFixture
 
 from cryoemservices.cli import clem_align_and_merge
 
 
-@mock.patch("cryoemservices.cli.clem_align_and_merge.set_up_logging")
-@mock.patch("cryoemservices.wrappers.clem_align_and_merge.align_and_merge_stacks")
-def test_align_and_merge_with_optional_args(mock_align_and_merge, mock_setup, tmp_path):
+def test_align_and_merge_with_optional_args(mocker: MockerFixture, tmp_path: Path):
     """Test that the cli runs with all args provided"""
     (tmp_path / "file1").touch()
     (tmp_path / "file2").touch()
+
+    # Set up mocked objects
+    mock_setup = mocker.patch("cryoemservices.cli.clem_align_and_merge.set_up_logging")
+    mock_align_and_merge = mocker.patch(
+        "cryoemservices.wrappers.clem_align_and_merge.align_and_merge_stacks"
+    )
 
     # Run the cli
     sys.argv = [
@@ -45,11 +50,15 @@ def test_align_and_merge_with_optional_args(mock_align_and_merge, mock_setup, tm
     )
 
 
-@mock.patch("cryoemservices.cli.clem_align_and_merge.set_up_logging")
-@mock.patch("cryoemservices.wrappers.clem_align_and_merge.align_and_merge_stacks")
-def test_align_and_merge_with_default_args(mock_align_and_merge, mock_setup, tmp_path):
+def test_align_and_merge_with_default_args(mocker: MockerFixture, tmp_path: Path):
     """Test that the cli runs the expected default args"""
     (tmp_path / "file1").touch()
+
+    # Set up mocked objects
+    mock_setup = mocker.patch("cryoemservices.cli.clem_align_and_merge.set_up_logging")
+    mock_align_and_merge = mocker.patch(
+        "cryoemservices.wrappers.clem_align_and_merge.align_and_merge_stacks"
+    )
 
     # Run the cli
     sys.argv = [
@@ -69,11 +78,15 @@ def test_align_and_merge_with_default_args(mock_align_and_merge, mock_setup, tmp
     )
 
 
-@mock.patch("cryoemservices.wrappers.clem_align_and_merge.align_and_merge_stacks")
-def test_align_and_merge_string_list(mock_align_and_merge, tmp_path):
+def test_align_and_merge_string_list(mocker: MockerFixture, tmp_path):
     """Test that the cli runs the expected default args"""
     (tmp_path / "file1").touch()
     (tmp_path / "file2").touch()
+
+    # Set up mocked objects
+    mock_align_and_merge = mocker.patch(
+        "cryoemservices.wrappers.clem_align_and_merge.align_and_merge_stacks"
+    )
 
     # Run the cli
     sys.argv = [
