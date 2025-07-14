@@ -253,7 +253,7 @@ def test_class3d_service_has_initial_model(
 def test_class3d_service_failed_resends(mock_class3d, offline_transport, tmp_path):
     """Failures of the processing should lead to reinjection of the message"""
 
-    def raise_exception():
+    def raise_exception(*args, **kwargs):
         raise ValueError
 
     mock_class3d.side_effect = raise_exception
@@ -330,7 +330,7 @@ def test_class3d_service_nack_wrong_params(offline_transport, tmp_path):
         "message-id": mock.sentinel,
         "subscription": mock.sentinel,
     }
-    class2d_test_message = {
+    class3d_test_message = {
         "relion_options": {},
     }
 
@@ -338,7 +338,7 @@ def test_class3d_service_nack_wrong_params(offline_transport, tmp_path):
     service = Class3D(environment={"queue": ""}, rabbitmq_credentials=Path("."))
     service._transport = offline_transport
     service.initializing()
-    service.class3d(None, header=header, message=class2d_test_message)
+    service.class3d(None, header=header, message=class3d_test_message)
 
     assert offline_transport.send.call_count == 0
     offline_transport.nack.assert_called_once()

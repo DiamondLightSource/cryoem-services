@@ -411,7 +411,7 @@ def test_class2d_service_complete_batch(mock_subprocess, offline_transport, tmp_
 def test_class2d_service_failed_resends(mock_class2d, offline_transport, tmp_path):
     """Failures of the processing should lead to reinjection of the message"""
 
-    def raise_exception():
+    def raise_exception(*args, **kwargs):
         raise ValueError
 
     mock_class2d.side_effect = raise_exception
