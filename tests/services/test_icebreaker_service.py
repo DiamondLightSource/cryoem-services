@@ -63,10 +63,8 @@ def test_icebreaker_micrographs_service(mock_icebreaker, offline_transport, tmp_
 
     # Set up the mock service and send a message to the service
     service = icebreaker.IceBreaker(
-        environment={"queue": ""},
-        rabbitmq_credentials=tmp_path,
+        environment={"queue": ""}, transport=offline_transport
     )
-    service._transport = offline_transport
     service.initializing()
     service.icebreaker(None, header=header, message=icebreaker_test_message)
 
@@ -141,10 +139,8 @@ def test_icebreaker_enhancecontrast_service(
 
     # Set up the mock service and send a message to the service
     service = icebreaker.IceBreaker(
-        environment={"queue": ""},
-        rabbitmq_credentials=tmp_path,
+        environment={"queue": ""}, transport=offline_transport
     )
-    service._transport = offline_transport
     service.initializing()
     service.icebreaker(None, header=header, message=icebreaker_test_message)
 
@@ -206,10 +202,8 @@ def test_icebreaker_summary_service(mock_icebreaker, offline_transport, tmp_path
 
     # Set up the mock service and send a message to the service
     service = icebreaker.IceBreaker(
-        environment={"queue": ""},
-        rabbitmq_credentials=tmp_path,
+        environment={"queue": ""}, transport=offline_transport
     )
-    service._transport = offline_transport
     service.initializing()
     service.icebreaker(None, header=header, message=icebreaker_test_message)
 
@@ -287,10 +281,8 @@ def test_icebreaker_particles_service(mock_icebreaker, offline_transport, tmp_pa
 
     # Set up the mock service and send a message to the service
     service = icebreaker.IceBreaker(
-        environment={"queue": ""},
-        rabbitmq_credentials=tmp_path,
+        environment={"queue": ""}, transport=offline_transport
     )
-    service._transport = offline_transport
     service.initializing()
     service.icebreaker(None, header=header, message=icebreaker_test_message)
 
@@ -375,9 +367,8 @@ def test_icebreaker_particles_service_slurm(mock_requests, offline_transport, tm
             "slurm_cluster": "default",
             "queue": "",
         },
-        rabbitmq_credentials=tmp_path,
+        transport=offline_transport,
     )
-    service._transport = offline_transport
     service.initializing()
     service.icebreaker(None, header=header, message=icebreaker_test_message)
 

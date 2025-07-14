@@ -69,9 +69,8 @@ def test_cluster_submission_recipeless(
             "slurm_cluster": "default",
             "queue": "",
         },
-        rabbitmq_credentials=tmp_path,
+        transport=offline_transport,
     )
-    service._transport = offline_transport
     service.initializing()
     service.run_submit_job(mock_rw, header=header, message={})
 
@@ -163,9 +162,8 @@ def test_cluster_submission_wrapper(
             "slurm_cluster": "default",
             "queue": "",
         },
-        rabbitmq_credentials=tmp_path,
+        transport=offline_transport,
     )
-    service._transport = offline_transport
     service.initializing()
     service.run_submit_job(mock_rw, header=header, message={})
 
@@ -250,9 +248,8 @@ def test_cluster_submission_extra_cluster(
             "slurm_cluster": "extra",
             "queue": "",
         },
-        rabbitmq_credentials=tmp_path,
+        transport=offline_transport,
     )
-    service._transport = offline_transport
     service.initializing()
     service.run_submit_job(mock_rw, header=header, message={})
 
@@ -333,9 +330,8 @@ def test_cluster_submission_failed_submission(
             "slurm_cluster": "default",
             "queue": "",
         },
-        rabbitmq_credentials=tmp_path,
+        transport=offline_transport,
     )
-    service._transport = offline_transport
     service.initializing()
     service.run_submit_job(mock_rw, header=header, message={})
 
@@ -370,9 +366,8 @@ def test_cluster_submission_directory_failures(mock_rw, offline_transport, tmp_p
             "slurm_cluster": "default",
             "queue": "",
         },
-        rabbitmq_credentials=tmp_path,
+        transport=offline_transport,
     )
-    service._transport = offline_transport
     service.initializing()
 
     # Case of no working dir
@@ -487,9 +482,8 @@ def test_cluster_submission_no_prefer(
             "slurm_cluster": "default",
             "queue": "",
         },
-        rabbitmq_credentials=tmp_path,
+        transport=offline_transport,
     )
-    service._transport = offline_transport
     service.initializing()
     service.run_submit_job(mock_rw, header=header, message={})
 

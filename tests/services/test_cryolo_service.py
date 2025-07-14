@@ -87,11 +87,7 @@ def test_cryolo_service_spa(mock_flatten, mock_subprocess, offline_transport, tm
         )
 
     # Set up the mock service and send the message to it
-    service = cryolo.CrYOLO(
-        environment={"queue": ""},
-        rabbitmq_credentials=tmp_path,
-    )
-    service._transport = offline_transport
+    service = cryolo.CrYOLO(environment={"queue": ""}, transport=offline_transport)
     service.initializing()
     service.cryolo(None, header=header, message=cryolo_test_message)
 
@@ -247,11 +243,7 @@ def test_cryolo_service_tomography(mock_subprocess, offline_transport, tmp_path)
     output_relion_options["cryolo_box_size"] = 40
 
     # Set up the mock service and send the message to it
-    service = cryolo.CrYOLO(
-        environment={"queue": ""},
-        rabbitmq_credentials=tmp_path,
-    )
-    service._transport = offline_transport
+    service = cryolo.CrYOLO(environment={"queue": ""}, transport=offline_transport)
     service.initializing()
     service.cryolo(None, header=header, message=cryolo_test_message)
 
@@ -382,11 +374,7 @@ def test_cryolo_spa_needs_uuids_and_pixel_size(
     }
 
     # Set up the mock service
-    service = cryolo.CrYOLO(
-        environment={"queue": ""},
-        rabbitmq_credentials=tmp_path,
-    )
-    service._transport = offline_transport
+    service = cryolo.CrYOLO(environment={"queue": ""}, transport=offline_transport)
     service.initializing()
 
     # Send messages without pixel_size, mc_uuid and picker_uuid in turn
@@ -408,16 +396,12 @@ def test_cryolo_spa_needs_uuids_and_pixel_size(
     assert offline_transport.nack.call_count == 3
 
 
-def test_parse_cryolo_output(offline_transport, tmp_path):
+def test_parse_cryolo_output(offline_transport):
     """
     Send test lines to the output parser
     to check the number of particles is being read in
     """
-    service = cryolo.CrYOLO(
-        environment={"queue": ""},
-        rabbitmq_credentials=tmp_path,
-    )
-    service._transport = offline_transport
+    service = cryolo.CrYOLO(environment={"queue": ""}, transport=offline_transport)
     service.initializing()
 
     service.number_of_particles = 0

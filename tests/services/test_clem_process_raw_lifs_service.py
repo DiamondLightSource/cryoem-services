@@ -131,10 +131,7 @@ def test_lif_to_stack_service(
     mock_convert.return_value = processing_results
 
     # Set up and run the service
-    service = LIFToStackService(
-        environment={"queue": ""}, rabbitmq_credentials=Path(".")
-    )
-    service._transport = offline_transport
+    service = LIFToStackService(environment={"queue": ""}, transport=offline_transport)
     service.initializing()
     if use_recwrap:
         recwrap = MockRW(offline_transport)
@@ -179,9 +176,9 @@ def test_lif_to_stack_bad_messsage(
 
     # Set up and run the service
     service = LIFToStackService(
-        environment={"queue": ""}, rabbitmq_credentials=Path(".")
+        environment={"queue": ""},
+        transport=offline_transport,
     )
-    service._transport = offline_transport
     service.initializing()
     service.call_process_raw_lifs(
         None,
@@ -240,10 +237,7 @@ def test_lif_to_stack_service_validation_failed(
     }
 
     # Set up and run the service
-    service = LIFToStackService(
-        environment={"queue": ""}, rabbitmq_credentials=Path(".")
-    )
-    service._transport = offline_transport
+    service = LIFToStackService(environment={"queue": ""}, transport=offline_transport)
     service.initializing()
     service.call_process_raw_lifs(
         None,
@@ -285,10 +279,7 @@ def test_lif_to_stack_service_processing_failed(
     mock_convert.return_value = {}
 
     # Set up and run the service
-    service = LIFToStackService(
-        environment={"queue": ""}, rabbitmq_credentials=Path(".")
-    )
-    service._transport = offline_transport
+    service = LIFToStackService(environment={"queue": ""}, transport=offline_transport)
     service.initializing()
     service.call_process_raw_lifs(
         None,

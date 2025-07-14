@@ -136,10 +136,8 @@ def test_select_classes_service_first_batch(
 
     # Set up the mock service and send the message to it
     service = select_classes.SelectClasses(
-        environment={"queue": ""},
-        rabbitmq_credentials=tmp_path,
+        environment={"queue": ""}, transport=offline_transport
     )
-    service._transport = offline_transport
     service.initializing()
     service.select_classes(None, header=header, message=select_test_message)
 
@@ -340,10 +338,8 @@ def test_select_classes_service_cryodann(mock_subprocess, offline_transport, tmp
 
     # Set up the mock service and send the message to it
     service = select_classes.SelectClasses(
-        environment={"queue": ""},
-        rabbitmq_credentials=tmp_path,
+        environment={"queue": ""}, transport=offline_transport
     )
-    service._transport = offline_transport
     service.initializing()
     service.select_classes(None, header=header, message=select_test_message)
 
@@ -397,10 +393,8 @@ def test_select_classes_service_batch_threshold(
 
     # Set up the mock service and send the message to it
     service = select_classes.SelectClasses(
-        environment={"queue": ""},
-        rabbitmq_credentials=tmp_path,
+        environment={"queue": ""}, transport=offline_transport
     )
-    service._transport = offline_transport
     service.initializing()
     service.select_classes(None, header=header, message=select_test_message)
 
@@ -452,10 +446,8 @@ def test_select_classes_service_two_thresholds(
 
     # Set up the mock service and send the message to it
     service = select_classes.SelectClasses(
-        environment={"queue": ""},
-        rabbitmq_credentials=tmp_path,
+        environment={"queue": ""}, transport=offline_transport
     )
-    service._transport = offline_transport
     service.initializing()
     service.select_classes(None, header=header, message=select_test_message)
 
@@ -508,10 +500,8 @@ def test_select_classes_service_last_threshold(
 
     # Set up the mock service and send the message to it
     service = select_classes.SelectClasses(
-        environment={"queue": ""},
-        rabbitmq_credentials=tmp_path,
+        environment={"queue": ""}, transport=offline_transport
     )
-    service._transport = offline_transport
     service.initializing()
     service.select_classes(None, header=header, message=select_test_message)
 
@@ -561,10 +551,8 @@ def test_select_classes_service_not_threshold(
 
     # Set up the mock service and send the message to it
     service = select_classes.SelectClasses(
-        environment={"queue": ""},
-        rabbitmq_credentials=tmp_path,
+        environment={"queue": ""}, transport=offline_transport
     )
-    service._transport = offline_transport
     service.initializing()
     service.select_classes(None, header=header, message=select_test_message)
 
@@ -604,10 +592,8 @@ def test_select_classes_service_past_maximum(
 
     # Set up the mock service and send the message to it
     service = select_classes.SelectClasses(
-        environment={"queue": ""},
-        rabbitmq_credentials=tmp_path,
+        environment={"queue": ""}, transport=offline_transport
     )
-    service._transport = offline_transport
     service.initializing()
     service.select_classes(None, header=header, message=select_test_message)
 
@@ -623,16 +609,14 @@ def test_select_classes_service_past_maximum(
     assert len(offline_transport.send.call_args_list) == 7
 
 
-def test_parse_combiner_output(offline_transport, tmp_path):
+def test_parse_combiner_output(offline_transport):
     """
     Send test lines to the output parser
     to check the number of particles are being read in
     """
     service = select_classes.SelectClasses(
-        environment={"queue": ""},
-        rabbitmq_credentials=tmp_path,
+        environment={"queue": ""}, transport=offline_transport
     )
-    service._transport = offline_transport
     service.initializing()
 
     select_classes.SelectClasses.parse_combiner_output(

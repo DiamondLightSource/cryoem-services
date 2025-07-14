@@ -5,6 +5,7 @@ import logging
 from importlib.metadata import entry_points
 
 import graypy
+from workflows.transport.pika_transport import PikaTransport
 
 from cryoemservices.util.config import config_from_file
 
@@ -60,6 +61,10 @@ def run():
     log = logging.getLogger("cryoemservices.service")
     log.info(f"Launching service {args.service}")
 
+    # Create the transport for rabbitmq
+    transport_type = PikaTransport()
+    transport_type.load_configuration_file(service_config.rabbitmq_credentials)
+
     # Start new service in a separate process
     service_factory = known_services.get(args.service)()
     service_instance = service_factory(
@@ -68,7 +73,7 @@ def run():
             "slurm_cluster": args.slurm,
             "queue": args.queue,
         },
-        rabbitmq_credentials=service_config.rabbitmq_credentials,
+        transport=transport_type,
     )
     log.info(f"Started service {args.service}")
     try:

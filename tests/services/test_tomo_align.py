@@ -91,10 +91,8 @@ def test_tomo_align_service_file_list(
 
     # Set up the mock service
     service = tomo_align.TomoAlign(
-        environment={"queue": ""},
-        rabbitmq_credentials=tmp_path,
+        environment={"queue": ""}, transport=offline_transport
     )
-    service._transport = offline_transport
     service.initializing()
 
     # Set up outputs: stack_Imod file like AreTomo2, no exclusions but with space
@@ -368,10 +366,8 @@ def test_tomo_align_service_file_list_repeated_tilt(
 
     # Set up the mock service
     service = tomo_align.TomoAlign(
-        environment={"queue": ""},
-        rabbitmq_credentials=tmp_path,
+        environment={"queue": ""}, transport=offline_transport
     )
-    service._transport = offline_transport
     service.initializing()
 
     # Set up outputs: stack_Imod file like AreTomo2, no exclusions but with space
@@ -488,10 +484,8 @@ def test_tomo_align_service_file_list_zero_rotation(
 
     # Set up the mock service
     service = tomo_align.TomoAlign(
-        environment={"queue": ""},
-        rabbitmq_credentials=tmp_path,
+        environment={"queue": ""}, transport=offline_transport
     )
-    service._transport = offline_transport
     service.initializing()
 
     # Set up outputs: stack_Imod file like AreTomo2, no exclusions but with space
@@ -593,10 +587,8 @@ def test_tomo_align_service_file_list_bad_tilts(
 
     # Set up the mock service
     service = tomo_align.TomoAlign(
-        environment={"queue": ""},
-        rabbitmq_credentials=tmp_path,
+        environment={"queue": ""}, transport=offline_transport
     )
-    service._transport = offline_transport
     service.initializing()
 
     # Set up outputs: stack_Imod file like AreTomo2, no exclusions but with space
@@ -743,10 +735,8 @@ def test_tomo_align_service_path_pattern(
 
     # Set up the mock service
     service = tomo_align.TomoAlign(
-        environment={"queue": ""},
-        rabbitmq_credentials=tmp_path,
+        environment={"queue": ""}, transport=offline_transport
     )
-    service._transport = offline_transport
     service.initializing()
 
     # Set up outputs: stack_Imod file like AreTomo2, no exclusions without space
@@ -919,10 +909,8 @@ def test_tomo_align_service_dark_images(
 
     # Set up the mock service
     service = tomo_align.TomoAlign(
-        environment={"queue": ""},
-        rabbitmq_credentials=tmp_path,
+        environment={"queue": ""}, transport=offline_transport
     )
-    service._transport = offline_transport
     service.initializing()
 
     x_tilts = ["1.2", "2.4", "3.2", "3.4", "4.2"]
@@ -1135,10 +1123,8 @@ def test_tomo_align_service_all_dark(
 
     # Set up the mock service
     service = tomo_align.TomoAlign(
-        environment={"queue": ""},
-        rabbitmq_credentials=tmp_path,
+        environment={"queue": ""}, transport=offline_transport
     )
-    service._transport = offline_transport
     service.initializing()
 
     # Set up outputs: stack_Imod file like AreTomo2, with exclusions and no spaces
@@ -1196,16 +1182,14 @@ def test_tomo_align_service_all_dark(
     offline_transport.send.assert_any_call("success", {})
 
 
-def test_parse_tomo_align_output(offline_transport, tmp_path):
+def test_parse_tomo_align_output(offline_transport):
     """
     Send test lines to the output parser
     to check the rotations and offsets are being read in
     """
     service = tomo_align.TomoAlign(
-        environment={"queue": ""},
-        rabbitmq_credentials=tmp_path,
+        environment={"queue": ""}, transport=offline_transport
     )
-    service._transport = offline_transport
     service.initializing()
 
     tomo_align.TomoAlign.parse_tomo_output(

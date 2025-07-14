@@ -56,10 +56,8 @@ def test_membrain_seg_service_local(
 
     # Set up the mock service and send a message to it
     service = membrain_seg.MembrainSeg(
-        environment={"queue": ""},
-        rabbitmq_credentials=tmp_path,
+        environment={"queue": ""}, transport=offline_transport
     )
-    service._transport = offline_transport
     service.initializing()
     service.membrain_seg(None, header=header, message=segmentation_test_message)
 
@@ -183,9 +181,8 @@ def test_membrain_seg_service_slurm(
             "slurm_cluster": "default",
             "queue": "",
         },
-        rabbitmq_credentials=tmp_path,
+        transport=offline_transport,
     )
-    service._transport = offline_transport
     service.initializing()
 
     # Touch the expected output files

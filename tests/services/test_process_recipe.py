@@ -49,9 +49,8 @@ def test_process_recipe_service(mock_recipe, mock_rw, offline_transport, tmp_pat
 
     # Set up the mock service
     service = process_recipe.ProcessRecipe(
-        environment={"config": config_file, "queue": ""}, rabbitmq_credentials=tmp_path
+        environment={"config": config_file, "queue": ""}, transport=offline_transport
     )
-    service._transport = offline_transport
     service.initializing()
     service.process(None, header=header, message=recipe_test_message)
 
