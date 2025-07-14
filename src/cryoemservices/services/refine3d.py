@@ -69,7 +69,6 @@ class Refine3D(CommonService):
         # Acknowledge the message and disconnect from rabbitmq
         self.log.info(
             f"Running disconnected Refine3D job for {refine_params.particles_file}"
-            f"Running disconnected Refine3D job for {refine_params.particles_file}"
         )
         rw.transport.ack(header)
 
