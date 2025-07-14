@@ -37,18 +37,18 @@ bad_buffer_commands = [
     {
         "buffer_command": {
             "ispyb_command": "insert_movie",
-            "buffer_lookup": "not a dict",
-        }
+        },
+        "buffer_lookup": "not a dict",
     },
 ]
 
 
-@pytest.mark.parametrize("commands", bad_multipart_message_commands)
+@pytest.mark.parametrize("commands", bad_buffer_commands)
 def test_buffer_bad_commands(commands):
     def ispyb_parameters(p):
-        return {"ispyb_command_list": commands}.get(p)
+        return p
 
-    assert ispyb_commands.buffer({}, ispyb_parameters, mock.MagicMock()) is False
+    assert ispyb_commands.buffer(commands, ispyb_parameters, mock.MagicMock()) is False
 
 
 @mock.patch("cryoemservices.util.ispyb_commands.models")
@@ -1114,7 +1114,7 @@ def test_sql_failures(ispyb_function: Callable):
         raise SQLAlchemyError("Test error")
 
     def mock_processing_parameters(p):
-        return p if p != "timestamp" else None
+        return "10" if p != "timestamp" else None
 
     mock_session = mock.MagicMock()
     mock_session.commit.side_effect = raise_sql_error
