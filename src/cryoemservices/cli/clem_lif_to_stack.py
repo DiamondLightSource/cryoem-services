@@ -58,6 +58,8 @@ def run():
     if results:
         for result in results:
             print(result)
+        print()
         print("LIF processing workflow successfully completed")
     else:
+        print()
         print("LIF processing workflow did not produce any image stacks")
