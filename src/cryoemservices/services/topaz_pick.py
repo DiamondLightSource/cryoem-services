@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 from pydantic import BaseModel, Field, ValidationError
@@ -20,12 +20,12 @@ class TopazPickParameters(BaseModel):
     input_path: str = Field(..., min_length=1)
     output_path: str = Field(..., min_length=1)
     pixel_size: float
+    particle_diameter: float
     scale: int = 8
     log_threshold: float = -6
     log_threshold_for_radius: float = 0
     max_particle_radius: int = 40
     topaz_model: str = "resnet16"
-    particle_diameter: Optional[float] = None
     use_gpu: bool = True
     mc_uuid: int
     picker_uuid: int
@@ -138,25 +138,12 @@ class TopazPick(CommonService):
         )
         scores_for_picking = [v for k, v in stream_from_scoring][0]
 
-        if topaz_params.particle_diameter:
-            scaled_radius_pixels = int(
-                topaz_params.particle_diameter
-                / topaz_params.pixel_size
-                / topaz_params.scale
-                / 2
-            )
-        else:
-            # This uses a higher threshold for speed
-            self.log.info("Estimating radius...")
-            scaled_radius_pixels = predict_radius_scaled_pixels(
-                scores_for_picking,
-                topaz_params.max_particle_radius,
-                topaz_params.log_threshold_for_radius,
-            )
-            topaz_params.particle_diameter = (
-                scaled_radius_pixels * topaz_params.scale * topaz_params.pixel_size * 2
-            )
-            self.log.info(f"Predicted particle size: {topaz_params.particle_diameter}")
+        scaled_radius_pixels = int(
+            topaz_params.particle_diameter
+            / topaz_params.pixel_size
+            / topaz_params.scale
+            / 2
+        )
         n_particles = topaz_extract_particles(
             scores_for_picking, topaz_params, radius=scaled_radius_pixels
         )
@@ -273,87 +260,6 @@ class TopazPick(CommonService):
 
         self.log.info(f"Done {self.job_type} for {topaz_params.input_path}.")
         rw.transport.ack(header)
-
-
-def profile_of_micrograph(
-    scores_from_mic, particle_box_half_size: int, score_threshold: float
-):
-    # Find peaks
-    peaks = np.zeros(np.shape(scores_from_mic))
-    for i in range(
-        particle_box_half_size,
-        np.shape(scores_from_mic)[0] - particle_box_half_size,
-    ):
-        for j in range(
-            particle_box_half_size,
-            np.shape(scores_from_mic)[1] - particle_box_half_size,
-        ):
-            if scores_from_mic[i, j] > score_threshold:
-                if (
-                    max(
-                        scores_from_mic[
-                            i - particle_box_half_size : i + 1 + particle_box_half_size,
-                            j - particle_box_half_size : j + 1 + particle_box_half_size,
-                        ].flatten()
-                    )
-                    == scores_from_mic[i, j]
-                ):
-                    peaks[i, j] = 1
-
-    # Find average particle
-    mean_particle = np.zeros(
-        (particle_box_half_size * 2 + 1, particle_box_half_size * 2 + 1)
-    )
-    for i in range(
-        particle_box_half_size, np.shape(scores_from_mic)[0] - particle_box_half_size
-    ):
-        for j in range(
-            particle_box_half_size,
-            np.shape(scores_from_mic)[1] - particle_box_half_size,
-        ):
-            # Scores are all on log scale
-            if peaks[i, j] == 1:
-                mean_particle += np.exp(
-                    scores_from_mic[
-                        i - particle_box_half_size : i + 1 + particle_box_half_size,
-                        j - particle_box_half_size : j + 1 + particle_box_half_size,
-                    ]
-                ) / np.exp(scores_from_mic[i, j])
-
-    # Determine distances
-    proj_dists = np.zeros(
-        (particle_box_half_size * 2 + 1, particle_box_half_size * 2 + 1)
-    )
-    for i in range(particle_box_half_size * 2 + 1):
-        for j in range(particle_box_half_size * 2 + 1):
-            proj_dists[i, j] = np.sqrt(
-                (i - particle_box_half_size) ** 2 + (j - particle_box_half_size) ** 2
-            )
-
-    # Find the average particle score profile
-    mean_dist = np.zeros(int(particle_box_half_size * 1.25))
-    for i in range(1, int(particle_box_half_size * 1.25)):
-        particles_in_bin = mean_particle.flatten()[
-            (i - 1 < proj_dists.flatten()) * (proj_dists.flatten() < i)
-        ]
-        if len(particles_in_bin):
-            mean_dist[i] = np.mean(particles_in_bin)
-    return mean_dist, mean_particle
-
-
-def predict_radius_scaled_pixels(
-    scores_from_mic, particle_box_half_size: int, score_threshold: float
-) -> int:
-    profile, particle = profile_of_micrograph(
-        scores_from_mic, particle_box_half_size, score_threshold
-    )
-    diff_profile = np.diff(profile)
-    for rad in range(3, len(diff_profile) - 1):
-        if np.isfinite(diff_profile[rad]) and (
-            np.sign(diff_profile[rad]) != np.sign(diff_profile[rad + 1])
-        ):
-            return rad + 1
-    return particle_box_half_size
 
 
 def topaz_extract_particles(
