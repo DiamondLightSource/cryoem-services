@@ -17,7 +17,7 @@ def run():
     }
 
     # Set up parser
-    parser = argparse.ArgumentParser(usage="cryoemservices.service [options]")
+    parser = argparse.ArgumentParser(description="Start up a service")
     parser.add_argument(
         "-s",
         "--service",
@@ -42,6 +42,11 @@ def run():
         required=False,
         default="",
         help="Optional override for the default queue used by the service",
+    )
+    parser.add_argument(
+        "--single_message",
+        action="store_true",
+        help="Consume only a single message then shut down?",
     )
     args = parser.parse_args()
 
@@ -74,6 +79,7 @@ def run():
             "queue": args.queue,
         },
         transport=transport_type,
+        single_message_mode=args.single_message,
     )
     log.info(f"Started service {args.service}")
     try:
