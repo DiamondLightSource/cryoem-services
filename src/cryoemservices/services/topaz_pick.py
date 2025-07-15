@@ -5,13 +5,13 @@ from pathlib import Path
 from typing import Any, Optional
 
 import numpy as np
-import workflows.recipe
 from pydantic import BaseModel, Field, ValidationError
 from topaz.algorithms import non_maximum_suppression
 from topaz.extract import score_images
 from topaz.stats import normalize_images
-from workflows.services.common_service import CommonService
+from workflows.recipe import wrap_subscribe
 
+from cryoemservices.services.common_service import CommonService
 from cryoemservices.util.models import MockRW
 from cryoemservices.util.relion_service_options import RelionServiceOptions
 
@@ -38,9 +38,6 @@ class TopazPick(CommonService):
     A service that runs topaz particle picking
     """
 
-    # Human readable service name
-    _service_name = "Topaz"
-
     # Logger name
     _logger_name = "cryoemservices.services.topaz_pick"
 
@@ -50,12 +47,11 @@ class TopazPick(CommonService):
     def initializing(self):
         """Subscribe to a queue. Received messages must be acknowledged."""
         self.log.info("Topaz service starting")
-        workflows.recipe.wrap_subscribe(
+        wrap_subscribe(
             self._transport,
             self._environment["queue"] or "topaz",
             self.topaz,
             acknowledgement=True,
-            log_extender=self.extend_log,
             allow_non_recipe_messages=True,
         )
 

@@ -65,9 +65,10 @@ def test_topaz_with_diameter(
     output_relion_options.update(topaz_test_message["relion_options"])
 
     # Set up the mock service and send the message to it
-    service = topaz_pick.TopazPick(environment={"queue": ""})
-    service.transport = offline_transport
-    service.start()
+    service = topaz_pick.TopazPick(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
     service.topaz(None, header=header, message=topaz_test_message)
 
     mock_topaz_normalise.assert_called_once()
