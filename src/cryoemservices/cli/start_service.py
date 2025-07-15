@@ -17,7 +17,7 @@ def run():
     }
 
     # Set up parser
-    parser = argparse.ArgumentParser(usage="cryoemservices.service [options]")
+    parser = argparse.ArgumentParser(description="Start up a service")
     parser.add_argument(
         "-s",
         "--service",
@@ -43,6 +43,11 @@ def run():
         default="",
         help="Optional override for the default queue used by the service",
     )
+    parser.add_argument(
+        "--single_message",
+        action="store_true",
+        help="Consume only a single message then shut down?",
+    )
     args = parser.parse_args()
 
     service_config = config_from_file(args.config_file)
@@ -61,11 +66,9 @@ def run():
     log = logging.getLogger("cryoemservices.service")
     log.info(f"Launching service {args.service}")
 
-    # Create Transport factory using given rabbitmq credentials and connect to it
-    def transport_factory():
-        transport_type = PikaTransport()
-        transport_type.load_configuration_file(service_config.rabbitmq_credentials)
-        return transport_type
+    # Create the transport for rabbitmq
+    transport_type = PikaTransport()
+    transport_type.load_configuration_file(service_config.rabbitmq_credentials)
 
     # Start new service in a separate process
     service_factory = known_services.get(args.service)()
@@ -75,7 +78,8 @@ def run():
             "slurm_cluster": args.slurm,
             "queue": args.queue,
         },
-        transport=transport_factory(),
+        transport=transport_type,
+        single_message_mode=args.single_message,
     )
     log.info(f"Started service {args.service}")
     try:
