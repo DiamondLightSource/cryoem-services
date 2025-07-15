@@ -163,11 +163,8 @@ def run_initial_model(
         "command": " ".join(initial_model_command),
         "stdout": result.stdout.decode("utf8", "replace"),
         "stderr": result.stderr.decode("utf8", "replace"),
+        "success": (result.returncode == 0),
     }
-    if result.returncode:
-        node_creator_parameters_refine["success"] = False
-    else:
-        node_creator_parameters_refine["success"] = True
     send_to_rabbitmq("node_creator", node_creator_parameters_refine)
 
     # End here if the command failed
@@ -212,11 +209,8 @@ def run_initial_model(
         "command": " ".join(align_symmetry_command),
         "stdout": result.stdout.decode("utf8", "replace"),
         "stderr": result.stderr.decode("utf8", "replace"),
+        "success": (result.returncode == 0),
     }
-    if result.returncode:
-        node_creator_parameters_symmetry["success"] = False
-    else:
-        node_creator_parameters_symmetry["success"] = True
     send_to_rabbitmq("node_creator", node_creator_parameters_symmetry)
 
     # End here if the command failed
@@ -395,11 +389,8 @@ def run_class3d(class3d_params: Class3DParameters, send_to_rabbitmq: Callable) -
         "command": " ".join(class3d_command),
         "stdout": result.stdout.decode("utf8", "replace"),
         "stderr": result.stderr.decode("utf8", "replace"),
+        "success": (result.returncode == 0),
     }
-    if result.returncode:
-        node_creator_parameters["success"] = False
-    else:
-        node_creator_parameters["success"] = True
     send_to_rabbitmq("node_creator", node_creator_parameters)
 
     # End here if the command failed

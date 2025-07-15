@@ -272,11 +272,8 @@ def run_class2d(class2d_params: Class2DParameters, send_to_rabbitmq: Callable):
         "command": " ".join(class2d_command),
         "stdout": result.stdout.decode("utf8", "replace"),
         "stderr": result.stderr.decode("utf8", "replace"),
+        "success": (result.returncode == 0),
     }
-    if result.returncode:
-        node_creator_parameters["success"] = False
-    else:
-        node_creator_parameters["success"] = True
     send_to_rabbitmq("node_creator", node_creator_parameters)
 
     # End here if the command failed

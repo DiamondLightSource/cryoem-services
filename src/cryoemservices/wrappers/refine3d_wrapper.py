@@ -210,11 +210,8 @@ def run_refinement(refine_params: RefineParameters, send_to_rabbitmq: Callable):
         "stdout": refine_result.stdout.decode("utf8", "replace"),
         "stderr": refine_result.stderr.decode("utf8", "replace"),
         "alias": f"Refine_{refine_params.symmetry}_symmetry",
+        "success": (refine_result.returncode == 0),
     }
-    if refine_result.returncode:
-        node_creator_parameters["success"] = False
-    else:
-        node_creator_parameters["success"] = True
     send_to_rabbitmq("node_creator", node_creator_parameters)
 
     # End here if the command failed
@@ -296,11 +293,8 @@ def run_refinement(refine_params: RefineParameters, send_to_rabbitmq: Callable):
             "stdout": mask_result.stdout.decode("utf8", "replace"),
             "stderr": mask_result.stderr.decode("utf8", "replace"),
             "alias": f"Mask_{refine_params.symmetry}_symmetry",
+            "success": (mask_result.returncode == 0),
         }
-        if mask_result.returncode:
-            node_creator_mask["success"] = False
-        else:
-            node_creator_mask["success"] = True
         send_to_rabbitmq("node_creator", node_creator_mask)
 
         # End here if the command failed
