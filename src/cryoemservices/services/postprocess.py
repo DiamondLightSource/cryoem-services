@@ -8,12 +8,13 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-import workflows.recipe
 from gemmi import cif
 from pydantic import BaseModel, Field, ValidationError
-from workflows.services.common_service import CommonService
+from workflows.recipe import wrap_subscribe
 
+from cryoemservices.pipeliner_plugins.angular_efficiency import find_efficiency
 from cryoemservices.pipeliner_plugins.symmetry_finder import determine_symmetry
+from cryoemservices.services.common_service import CommonService
 from cryoemservices.util.models import MockRW
 from cryoemservices.util.relion_service_options import (
     RelionServiceOptions,
@@ -45,9 +46,6 @@ class PostProcess(CommonService):
     A service for running Relion postprocessing
     """
 
-    # Human readable service name
-    _service_name = "PostProcess"
-
     # Logger name
     _logger_name = "cryoemservices.services.postprocess"
 
@@ -57,12 +55,11 @@ class PostProcess(CommonService):
     def initializing(self):
         """Subscribe to a queue. Received messages must be acknowledged."""
         self.log.info("Postprocessing service starting")
-        workflows.recipe.wrap_subscribe(
+        wrap_subscribe(
             self._transport,
             self._environment["queue"] or "postprocess",
             self.postprocess,
             acknowledgement=True,
-            log_extender=self.extend_log,
             allow_non_recipe_messages=True,
         )
 
@@ -249,6 +246,7 @@ class PostProcess(CommonService):
                 "number_of_particles_per_batch": postprocess_params.number_of_particles,
                 "number_of_classes_per_batch": "1",
                 "symmetry": postprocess_params.symmetry,
+                "binned_pixel_size": str(postprocess_params.pixel_size),
                 "particle_picker_id": postprocess_params.picker_id,
             }
             if job_is_rerun:
@@ -277,6 +275,23 @@ class PostProcess(CommonService):
                 rw.transport.nack(header)
                 return
 
+            data = cif.read_file(
+                f"{Path(postprocess_params.half_map).parent}/run_data.star"
+            )
+            particles_block = data.find_block("particles")
+            class_efficiency = 0
+            if particles_block:
+                angles_rot = np.array(
+                    particles_block.find_loop("_rlnAngleRot"), dtype=float
+                )
+                angles_tilt = np.array(
+                    particles_block.find_loop("_rlnAngleTilt"), dtype=float
+                )
+                class_efficiency = find_efficiency(
+                    theta_degrees=angles_tilt,
+                    phi_degrees=angles_rot,
+                )
+
             refined_ispyb_parameters = {
                 "ispyb_command": "buffer",
                 "buffer_lookup": {
@@ -291,6 +306,8 @@ class PostProcess(CommonService):
                 "translation_accuracy": classes_loop[0, 3],
                 "estimated_resolution": final_resolution,
                 "selected": "1",
+                "angular_efficiency": class_efficiency,
+                "suggested_tilt": 0 if class_efficiency > 0.65 else 30,
             }
             if job_is_rerun:
                 refined_ispyb_parameters["buffer_lookup"].update(

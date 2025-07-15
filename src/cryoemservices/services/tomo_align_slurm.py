@@ -6,10 +6,8 @@ import subprocess
 from pathlib import Path
 from typing import List
 
-from workflows.services.common_service import CommonService
-
 from cryoemservices.services.tomo_align import TomoAlign, TomoParameters
-from cryoemservices.util.slurm_submission import slurm_submission
+from cryoemservices.util.slurm_submission import slurm_submission_for_services
 
 
 def retrieve_files(
@@ -62,7 +60,7 @@ def transfer_files(
     return transferred_items
 
 
-class TomoAlignSlurm(TomoAlign, CommonService):
+class TomoAlignSlurm(TomoAlign):
     """
     A service for submitting AreTomo2 jobs to a slurm cluster via RestAPI
     """
@@ -122,13 +120,13 @@ class TomoAlignSlurm(TomoAlign, CommonService):
         self.log.info("All files transferred")
 
         self.log.info(f"Running AreTomo2 with command: {command}")
-        slurm_outcome = slurm_submission(
+        slurm_outcome = slurm_submission_for_services(
             log=self.log,
             service_config_file=self._environment["config"],
             slurm_cluster=self._environment["slurm_cluster"],
             job_name="AreTomo2",
             command=command,
-            project_dir=Path(self.alignment_output_dir),
+            project_dir=aretomo_output_path.parent,
             output_file=aretomo_output_path,
             cpus=1,
             use_gpu=True,
@@ -142,7 +140,7 @@ class TomoAlignSlurm(TomoAlign, CommonService):
         # Get back any output files and clean up
         self.log.info("Retrieving output files...")
         retrieve_files(
-            job_directory=Path(self.alignment_output_dir),
+            job_directory=aretomo_output_path.parent,
             files_to_skip=[Path(tomo_parameters.stack_file), angle_file],
             basepath=str(Path(tomo_parameters.stack_file).stem),
         )

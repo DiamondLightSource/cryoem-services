@@ -62,9 +62,8 @@ def setup_and_run_node_creation(
     }
 
     # set up the mock service and send the message to it
-    service = node_creator.NodeCreator(environment={"queue": ""})
-    service.transport = transport
-    service.start()
+    service = node_creator.NodeCreator(environment={"queue": ""}, transport=transport)
+    service.initializing()
     service.node_creator(None, header=header, message=test_message)
 
     # Check that the correct general pipeline files have been made
@@ -116,9 +115,10 @@ def test_node_creator_failed_job(offline_transport, tmp_path):
     }
 
     # set up the mock service and send the message to it
-    service = node_creator.NodeCreator(environment={"queue": ""})
-    service.transport = offline_transport
-    service.start()
+    service = node_creator.NodeCreator(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
     service.node_creator(None, header=header, message=test_message)
 
     # Check that the correct general pipeline files have been made
@@ -166,9 +166,10 @@ def test_node_creator_rerun_job(offline_transport, tmp_path):
     }
 
     # set up the mock service and send the message to it
-    service = node_creator.NodeCreator(environment={"queue": ""})
-    service.transport = offline_transport
-    service.start()
+    service = node_creator.NodeCreator(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
     service.node_creator(None, header=header, message=test_message)
 
     # Check that the correct general pipeline files have been made
@@ -488,6 +489,40 @@ def test_node_creator_ctffind(offline_transport, tmp_path):
     assert list(micrographs_data.find_loop("_rlnCtfFigureOfMerit")) == ["5.0"]
     assert list(micrographs_data.find_loop("_rlnCtfMaxResolution")) == ["6.0"]
     assert list(micrographs_data.find_loop("_rlnCtfIceRingDensity")) == ["5.0"]
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+def test_node_creator_ctffind_noicerings(offline_transport, tmp_path):
+    """
+    Send a test message to the node creator for
+    relion.ctffind.ctffind4, with no ice ring values generated
+    """
+    job_dir = "CtfFind/job006"
+    input_file = f"{tmp_path}/MotionCorr/job002/Movies/sample.mrc"
+    output_file = tmp_path / job_dir / "Movies/sample.ctf"
+    relion_options = RelionServiceOptions()
+
+    output_file.parent.mkdir(parents=True)
+    with open(output_file.with_suffix(".txt"), "w") as f:
+        f.write("0.0 1.0 2.0 3.0 4.0 5.0 6.0")
+    with open(f"{output_file.with_suffix('')}_avrot.txt", "w") as f:
+        f.write("header\nheader\nheader\nheader\nheader\n")
+
+    setup_and_run_node_creation(
+        relion_options,
+        offline_transport,
+        tmp_path,
+        job_dir,
+        "relion.ctffind.ctffind4",
+        input_file,
+        output_file,
+    )
+
+    # Check the output file structure
+    assert (tmp_path / job_dir / "micrographs_ctf.star").exists()
+    micrographs_file = cif.read_file(str(tmp_path / job_dir / "micrographs_ctf.star"))
+    micrographs_data = micrographs_file.find_block("micrographs")
+    assert list(micrographs_data.find_loop("_rlnCtfIceRingDensity")) == ["0"]
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
@@ -1298,7 +1333,7 @@ def test_node_creator_aligntiltseries(offline_transport, tmp_path):
         offline_transport,
         tmp_path,
         job_dir,
-        "relion.aligntiltseries",
+        "relion.aligntiltseries.aretomo",
         input_file,
         output_file,
         experiment_type="tomography",
@@ -1400,7 +1435,7 @@ def test_node_creator_tomograms(offline_transport, tmp_path):
     ]
     assert list(global_block.find_loop("_rlnOpticsGroupName")) == ["optics1"]
     assert list(global_block.find_loop("_rlnTomoTiltSeriesPixelSize")) == [
-        str(relion_options.pixel_size_downscaled)
+        str(relion_options.pixel_size)
     ]
     assert list(global_block.find_loop("_rlnTomoTiltSeriesStarFile")) == [
         "AlignTiltSeries/job005/tilt_series/Position_1_2.star"
@@ -1427,7 +1462,7 @@ def test_node_creator_denoisetomo(offline_transport, tmp_path):
     relion.denoisetomo
     """
     job_dir = "Denoise/job007"
-    input_file = f"{tmp_path}/Denoise/job007/tomograms/Position_1_2_stack_aretomo.mrc"
+    input_file = f"{tmp_path}/Tomograms/job006/tomograms/Position_1_2_stack_aretomo.mrc"
     output_file = (
         tmp_path / job_dir / "tomograms/Position_1_2_stack_aretomo.denoised.mrc"
     )
@@ -1468,7 +1503,7 @@ def test_node_creator_denoisetomo(offline_transport, tmp_path):
     ]
     assert list(global_block.find_loop("_rlnOpticsGroupName")) == ["optics1"]
     assert list(global_block.find_loop("_rlnTomoTiltSeriesPixelSize")) == [
-        str(relion_options.pixel_size_downscaled)
+        str(relion_options.pixel_size)
     ]
     assert list(global_block.find_loop("_rlnTomoTiltSeriesStarFile")) == [
         "AlignTiltSeries/job005/tilt_series/Position_1_2.star"
@@ -1492,6 +1527,79 @@ def test_node_creator_denoisetomo(offline_transport, tmp_path):
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+def test_node_creator_membrain(offline_transport, tmp_path):
+    """
+    Send a test message to the node creator for
+    membrain.segment
+    """
+    job_dir = "Segmentation/job008"
+    input_file = f"{tmp_path}/Denoise/job007/tomograms/Position_1_2_stack_aretomo.mrc"
+    output_file = (
+        tmp_path
+        / job_dir
+        / "tomograms/Position_1_2_stack_aretomo.denoised_segmented.mrc"
+    )
+    relion_options = RelionServiceOptions()
+
+    # .Nodes directory doesn't get made by this job
+    (tmp_path / ".Nodes").mkdir()
+
+    setup_and_run_node_creation(
+        relion_options,
+        offline_transport,
+        tmp_path,
+        job_dir,
+        "membrain.segment",
+        input_file,
+        output_file,
+        experiment_type="tomography",
+    )
+
+    # Check the output file structure
+    assert (tmp_path / job_dir / "tomograms.star").exists()
+    tilt_series_file = cif.read_file(str(tmp_path / job_dir / "tomograms.star"))
+
+    global_block = tilt_series_file.find_block("global")
+    assert list(global_block.find_loop("_rlnTomoName")) == ["Position_1_2"]
+    assert list(global_block.find_loop("_rlnVoltage")) == [str(relion_options.voltage)]
+    assert list(global_block.find_loop("_rlnSphericalAberration")) == [
+        str(relion_options.spher_aber)
+    ]
+    assert list(global_block.find_loop("_rlnAmplitudeContrast")) == [
+        str(relion_options.ampl_contrast)
+    ]
+    assert list(global_block.find_loop("_rlnMicrographOriginalPixelSize")) == [
+        str(relion_options.pixel_size)
+    ]
+    assert list(global_block.find_loop("_rlnTomoHand")) == [
+        str(relion_options.invert_hand)
+    ]
+    assert list(global_block.find_loop("_rlnOpticsGroupName")) == ["optics1"]
+    assert list(global_block.find_loop("_rlnTomoTiltSeriesPixelSize")) == [
+        str(relion_options.pixel_size)
+    ]
+    assert list(global_block.find_loop("_rlnTomoTiltSeriesStarFile")) == [
+        "AlignTiltSeries/job005/tilt_series/Position_1_2.star"
+    ]
+    assert list(global_block.find_loop("_rlnTomoTomogramBinning")) == [
+        str(relion_options.pixel_size_downscaled / relion_options.pixel_size)
+    ]
+    assert list(global_block.find_loop("_rlnTomoSizeX")) == [
+        str(relion_options.tomo_size_x)
+    ]
+    assert list(global_block.find_loop("_rlnTomoSizeY")) == [
+        str(relion_options.tomo_size_y)
+    ]
+    assert list(global_block.find_loop("_rlnTomoSizeZ")) == [str(relion_options.vol_z)]
+    assert list(global_block.find_loop("_rlnTomoReconstructedTomogram")) == [
+        str(Path(input_file).relative_to(tmp_path))
+    ]
+    assert list(global_block.find_loop("_rlnTomoReconstructedTomogramSegmented")) == [
+        str(output_file.relative_to(tmp_path))
+    ]
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 def test_node_creator_cryolo_tomo(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
@@ -1507,6 +1615,8 @@ def test_node_creator_cryolo_tomo(offline_transport, tmp_path):
     relion_options = RelionServiceOptions()
 
     relion_options.cryolo_config_file = str(tmp_path / job_dir / "cryolo_config.json")
+    relion_options.pixel_size = 1.2
+    relion_options.pixel_size_downscaled = 4.8
     (tmp_path / job_dir / "cryolo_config.json").touch()
 
     with open(
@@ -1527,7 +1637,7 @@ def test_node_creator_cryolo_tomo(offline_transport, tmp_path):
         offline_transport,
         tmp_path,
         job_dir,
-        "cryolo.autopick",
+        "cryolo.autopick.tomo",
         input_file,
         output_file,
         experiment_type="tomography",
@@ -1551,15 +1661,15 @@ def test_node_creator_cryolo_tomo(offline_transport, tmp_path):
         "Position_1_2",
         "Position_1_2",
     ]
-    assert list(particles_block.find_loop("_rlnCenteredCoordinateXAngst")) == [
-        "62.5",
-        "94.0",
-    ]
-    assert list(particles_block.find_loop("_rlnCenteredCoordinateYAngst")) == [
-        "73.0",
-        "105.0",
-    ]
-    assert list(particles_block.find_loop("_rlnCenteredCoordinateZAngst")) == [
-        "80",
-        "110",
-    ]
+    x_coords = list(particles_block.find_loop("_rlnCoordinateX"))
+    y_coords = list(particles_block.find_loop("_rlnCoordinateY"))
+    z_coords = list(particles_block.find_loop("_rlnCoordinateZ"))
+    assert len(x_coords) == 2
+    assert float(x_coords[0]) == 62.5 * 4
+    assert float(x_coords[1]) == 94.0 * 4
+    assert len(y_coords) == 2
+    assert float(y_coords[0]) == 73 * 4
+    assert float(y_coords[1]) == 105 * 4
+    assert len(z_coords) == 2
+    assert float(z_coords[0]) == 80 * 4
+    assert float(z_coords[1]) == 110 * 4

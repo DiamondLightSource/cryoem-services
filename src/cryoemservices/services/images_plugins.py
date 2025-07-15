@@ -10,7 +10,9 @@ import numpy as np
 import pandas as pd
 import PIL.Image
 import starfile
-from PIL import ImageDraw, ImageEnhance, ImageFilter
+from PIL import ImageDraw, ImageEnhance, ImageFilter, ImageFont
+
+from cryoemservices.services.cryolo import grid_bar_histogram
 
 logger = logging.getLogger("cryoemservices.services.images_plugins")
 logger.setLevel(logging.INFO)
@@ -56,13 +58,27 @@ def mrc_to_jpeg(plugin_params: Callable):
         data = data * 255 / data.max()
         data = data.astype("uint8")
         im = PIL.Image.fromarray(data, mode="L")
-        try:
-            im.save(outfile)
-        except FileNotFoundError:
-            logger.error(
-                f"Trying to save to file {outfile} but directory does not exist"
+
+        if plugin_params("pixel_spacing"):
+            scalebar_nm = float(plugin_params("pixel_spacing")) / 10 * data.shape[0] / 3
+            colour_im = im.convert("RGB")
+            dim = ImageDraw.Draw(colour_im)
+            dim.line(
+                ((20, data.shape[0] / 3), (20, data.shape[0] * 2 / 3)),
+                fill="yellow",
+                width=5,
             )
-            return False
+            font_to_use = ImageFont.load_default(size=26)
+            dim.text(
+                (25, data.shape[0] / 2),
+                f"{scalebar_nm:.0f} nm",
+                anchor="lm",
+                font=font_to_use,
+                fill="yellow",
+            )
+            colour_im.save(outfile)
+        else:
+            im.save(outfile)
     elif len(data.shape) == 3:
         if allframes:
             for i, frame in enumerate(data):
@@ -71,26 +87,14 @@ def mrc_to_jpeg(plugin_params: Callable):
                 frame = frame.astype("uint8")
                 im = PIL.Image.fromarray(frame, mode="L")
                 frame_outfile = outfile.parent / f"{outfile.stem}_{i+1}.jpeg"
-                try:
-                    im.save(frame_outfile)
-                except FileNotFoundError:
-                    logger.error(
-                        f"Trying to save to file {frame_outfile} but directory does not exist"
-                    )
-                    return False
+                im.save(frame_outfile)
                 outfiles.append(frame_outfile)
         else:
             data = data - data[0].min()
             data = data * 255 / data[0].max()
             data = data.astype("uint8")
             im = PIL.Image.fromarray(data[0], mode="L")
-            try:
-                im.save(outfile)
-            except FileNotFoundError:
-                logger.error(
-                    f"Trying to save to file {outfile} but directory does not exist"
-                )
-                return False
+            im.save(outfile)
     timing = time.perf_counter() - start
 
     logger.info(
@@ -131,6 +135,13 @@ def picked_particles(plugin_params: Callable):
             f"File {basefilename} could not be opened. It may be corrupted or not in mrc format"
         )
         return False
+
+    if plugin_params("flatten_image"):
+        flat_data = grid_bar_histogram(data)
+        if flat_data is not None:
+            contrast_factor = 1
+            data = flat_data
+
     mean = np.mean(data)
     sdev = np.std(data)
     sigma_min = mean - 3 * sdev
@@ -182,6 +193,8 @@ def picked_particles(plugin_params: Callable):
         f"Particle picker image {outfile} saved in {timing:.1f} seconds",
         extra={"image-processing-time": timing},
     )
+    if plugin_params("remove_input"):
+        basefilename.unlink()
     return outfile
 
 
@@ -228,11 +241,7 @@ def mrc_central_slice(plugin_params: Callable):
     central_slice_data = central_slice_data.astype("uint8")
     im = PIL.Image.fromarray(central_slice_data, mode="L")
     im.thumbnail((512, 512))
-    try:
-        im.save(outfile)
-    except FileNotFoundError:
-        logger.error(f"Trying to save to file {outfile} but directory does not exist")
-        return False
+    im.save(outfile)
     timing = time.perf_counter() - start
 
     logger.info(
@@ -246,7 +255,6 @@ def mrc_to_apng(plugin_params: Callable):
     if not required_parameters(plugin_params, ["file"]):
         return False
     filepath = Path(plugin_params("file"))
-    skip_rescaling = plugin_params("skip_rescaling")
     if not filepath.is_file():
         logger.error(f"File {filepath} not found")
         return False
@@ -265,7 +273,7 @@ def mrc_to_apng(plugin_params: Callable):
         images_to_append = []
         for frame in data:
             frame = np.ndarray.copy(frame)
-            if not skip_rescaling:
+            if not plugin_params("skip_rescaling"):
                 mean = np.mean(frame)
                 sdev = np.std(frame)
                 sigma_min = mean - 3 * sdev
@@ -274,16 +282,19 @@ def mrc_to_apng(plugin_params: Callable):
                 frame[frame > sigma_max] = sigma_max
             frame = frame - frame.min()
             frame = frame * 255 / frame.max()
-            clipped_frame = np.random.choice([0, 1], np.shape(frame))
-            clipped_frame[2:-2, 2:-2] = frame[2:-2, 2:-2]
-            frame = clipped_frame.astype("uint8")
+            if plugin_params("jitter_edge"):
+                clipped_frame = np.random.choice([0, 1], np.shape(frame))
+                clipped_frame[2:-2, 2:-2] = frame[2:-2, 2:-2]
+                frame = clipped_frame.astype("uint8")
+            else:
+                frame = frame.astype("uint8")
             im = PIL.Image.fromarray(frame, mode="L")
             im.thumbnail((512, 512))
             images_to_append.append(im)
         try:
             im_frame0 = images_to_append[0]
             im_frame0.save(outfile, save_all=True, append_images=images_to_append[1:])
-        except (IndexError, FileNotFoundError):
+        except IndexError:
             logger.error(f"Unable to save movie to file {outfile}")
             return False
     else:
@@ -401,11 +412,7 @@ def picked_particles_3d_central_slice(plugin_params: Callable):
     )
 
     outfile = str(Path(coords_file).with_suffix("")) + "_thumbnail.jpeg"
-    try:
-        colour_im.save(outfile)
-    except FileNotFoundError:
-        logger.error(f"Trying to save to file {outfile} but directory does not exist")
-        return False
+    colour_im.save(outfile)
 
     logger.info(f"3D particle picker central slice {outfile} saved")
     return outfile
@@ -445,7 +452,7 @@ def picked_particles_3d_apng(plugin_params: Callable):
     try:
         im_frame0 = images_to_append[0]
         im_frame0.save(outfile, save_all=True, append_images=images_to_append[1:])
-    except (IndexError, FileNotFoundError):
+    except IndexError:
         logger.error(f"Unable to save movie to file {outfile}")
         return False
 

@@ -3,11 +3,11 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-import workflows.recipe
 from gemmi import cif
 from pydantic import BaseModel, Field, ValidationError
-from workflows.services.common_service import CommonService
+from workflows.recipe import wrap_subscribe
 
+from cryoemservices.services.common_service import CommonService
 from cryoemservices.util.models import MockRW
 from cryoemservices.util.relion_service_options import RelionServiceOptions
 from cryoemservices.util.spa_output_files import get_optics_table
@@ -26,9 +26,6 @@ class SelectParticles(CommonService):
     A service for batching particles
     """
 
-    # Human readable service name
-    _service_name = "SelectParticles"
-
     # Logger name
     _logger_name = "cryoemservices.services.select_particles"
 
@@ -38,12 +35,11 @@ class SelectParticles(CommonService):
     def initializing(self):
         """Subscribe to a queue. Received messages must be acknowledged."""
         self.log.info("Select particles service starting")
-        workflows.recipe.wrap_subscribe(
+        wrap_subscribe(
             self._transport,
             self._environment["queue"] or "select_particles",
             self.select_particles,
             acknowledgement=True,
-            log_extender=self.extend_log,
             allow_non_recipe_messages=True,
         )
 
@@ -216,10 +212,6 @@ class SelectParticles(CommonService):
             }
             rw.send_to("node_creator", node_creator_params)
 
-        class2d_params = {
-            "class2d_dir": f"{project_dir}/Class2D/job",
-            "batch_size": select_params.batch_size,
-        }
         if select_output_file == f"{select_dir}/particles_split1.star":
             # If still on the first file then register it with murfey
             send_to_2d_classification = False
@@ -241,7 +233,11 @@ class SelectParticles(CommonService):
                 self.log.info(
                     f"Sending incomplete batch {select_output_file} to Murfey"
                 )
-                class2d_params["particles_file"] = f"{select_dir}/particles_split1.star"
+                class2d_params = {
+                    "class2d_dir": f"{project_dir}/Class2D/job",
+                    "batch_size": select_params.batch_size,
+                    "particles_file": f"{select_dir}/particles_split1.star",
+                }
                 murfey_params = {
                     "register": "incomplete_particles_file",
                     "class2d_message": class2d_params,
@@ -251,9 +247,11 @@ class SelectParticles(CommonService):
         if new_finished_files:
             for new_split in new_finished_files:
                 # Set up Class2D job parameters
-                class2d_params["particles_file"] = (
-                    f"{select_dir}/particles_split{new_split}.star"
-                )
+                class2d_params = {
+                    "class2d_dir": f"{project_dir}/Class2D/job",
+                    "batch_size": select_params.batch_size,
+                    "particles_file": f"{select_dir}/particles_split{new_split}.star",
+                }
 
                 # Send all newly completed files to murfey
                 self.log.info(

@@ -1,5 +1,5 @@
 # This Dockerfile is used for cryolo
-FROM rockylinux:8 AS conda-build
+FROM rockylinux:9 AS conda-build
 
 # Set up conda environment
 RUN curl -L -O "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-$(uname)-$(uname -m).sh"
@@ -12,10 +12,8 @@ RUN source "/conda/etc/profile.d/conda.sh" && source "/conda/etc/profile.d/mamba
     mamba create -p /install/cryolo_env -c conda-forge pyqt=5 python=3.7 cudatoolkit=10.0.130 cudnn=7.6.5 numpy==1.18.5 libtiff wxPython=4.1.1 --override-channels -y
 
 # Install cryoem-services and Cryolo in their own environments
-RUN mkdir /install/cryoem-services
-COPY packages/cryoem-services /install/cryoem-services
 RUN source "/conda/etc/profile.d/conda.sh" && conda activate /install/services_env && \
-    pip install --cache-dir /tmp /install/cryoem-services
+    pip install --cache-dir /tmp cryoemservices
 RUN source "/conda/etc/profile.d/conda.sh" && conda activate /install/cryolo_env && pip install cryolo[cpu]
 
 # Pack the environments
@@ -31,7 +29,7 @@ RUN source "/conda/etc/profile.d/conda.sh" && conda activate /install/venv_cryol
 
 
 # Second stage extracts the conda environments
-FROM rockylinux:8
+FROM rockylinux:9
 
 # Create EM user
 ARG groupid
@@ -47,7 +45,7 @@ COPY cryolo_models/gmodel_phosnet_202005_N63_c17.h5 gmodel_phosnet_202005_N63_c1
 RUN chown "${userid}":"${groupid}" gmodel_phosnet_202005_N63_c17.h5
 USER "${userid}":"${groupid}"
 
-RUN echo '#!/bin/bash\n\nif [ ! -z ${RECURSION_PROTECTION} ]; then\n    echo "Unintended recursion detected in zocalo indirection ($0)"\n    exit 1\nfi\nexport RECURSION_PROTECTION=1\n\nexport PATH="/install/venv_cryolo/bin:${PATH}"\ncryolo_predict.py "$@"' > /install/venv_services/bin/cryolo_predict.py && \
+RUN echo '#!/bin/bash\n\nif [ ! -z ${RECURSION_PROTECTION} ]; then\n    echo "Unintended recursion detected in indirection ($0)"\n    exit 1\nfi\nexport RECURSION_PROTECTION=1\n\nexport PATH="/install/venv_cryolo/bin:${PATH}"\ncryolo_predict.py "$@"' > /install/venv_services/bin/cryolo_predict.py && \
     chmod +x /install/venv_services/bin/cryolo_predict.py
 
 ENV PATH="/install/venv_services/bin:${PATH}"

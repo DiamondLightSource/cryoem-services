@@ -7,6 +7,7 @@ from unittest import mock
 import mrcfile
 import numpy as np
 import pytest
+import starfile
 from workflows.transport.offline_transport import OfflineTransport
 
 from cryoemservices.services import select_classes
@@ -49,7 +50,7 @@ def select_classes_common_setup(
 
     Path(job_dir / "MotionCorr/job002/Movies").mkdir(parents=True, exist_ok=True)
     with mrcfile.new(job_dir / "MotionCorr/job002/Movies/movie.mrc") as mrc:
-        mrc.set_data(np.array([[0.1, 0.2], [0.3, 0.4]], dtype=np.float32))
+        mrc.set_data(np.random.random((64, 64)).astype(np.float32))
         mrc.header.mx = 100
         mrc.header.my = 50
         mrc.header.mz = 1
@@ -134,9 +135,10 @@ def test_select_classes_service_first_batch(
     )
 
     # Set up the mock service and send the message to it
-    service = select_classes.SelectClasses(environment={"queue": ""})
-    service.transport = offline_transport
-    service.start()
+    service = select_classes.SelectClasses(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
     service.select_classes(None, header=header, message=select_test_message)
 
     # Check the correct particle counts were found and split files made
@@ -268,6 +270,8 @@ def test_select_classes_service_first_batch(
             "pixel_size": 0.5,
             "diameter": 100.0,
             "outfile": f"{tmp_path}/AutoPick/job007/STAR/movie.jpeg",
+            "remove_input": False,
+            "flatten_image": True,
         },
     )
     offline_transport.send.assert_any_call(
@@ -287,6 +291,73 @@ def test_select_classes_service_first_batch(
                 "batch_size": 50000,
             },
         },
+    )
+    offline_transport.send.assert_any_call(
+        "murfey_feedback",
+        {
+            "register": "done_class_selection",
+        },
+    )
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+@mock.patch("cryoemservices.services.select_classes.subprocess.run")
+def test_select_classes_service_cryodann(mock_subprocess, offline_transport, tmp_path):
+    """
+    Send a test message to the select classes service when it is a new job
+    and cryodann ran in the 2d classification
+    """
+    mock_subprocess().returncode = 0
+    mock_subprocess().stdout = "stdout".encode("ascii")
+    mock_subprocess().stderr = "stderr".encode("ascii")
+
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+    select_test_message, relion_options = select_classes_common_setup(
+        tmp_path, initial_particle_count=0, particles_to_add=60000
+    )
+
+    # Write the required particles file from cryodann
+    (tmp_path / "Class2D/job010").mkdir(parents=True)
+    with open(tmp_path / "Class2D/job010/run_it020_data.star", "w") as data_star:
+        data_star.write("data_optics\n\nloop_\n_group\nopticsGroup1\n\n")
+        data_star.write(
+            "data_particles\n\nloop_\n"
+            "_rlnClassNumber\n_rlnCoordinateX\n_particle\n_movie\n_rlnCryodannScore\n"
+        )
+        for i in range(1, 6):
+            data_star.write(
+                f"{i} {i} {i}@Extract/job008/classes.mrcs MotionCorr/job002/Movies/movie.mrc {i}\n"
+            )
+
+    # Write the output class scores
+    with open(tmp_path / "Select/job012/rank_model.star", "w") as rank_star:
+        rank_star.write("data_model_classes\n\nloop_\n_rlnClassScore\n5\n4\n3\n2\n1\n")
+
+    # Set up the mock service and send the message to it
+    service = select_classes.SelectClasses(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
+    service.select_classes(None, header=header, message=select_test_message)
+
+    # Check the mock calls
+    assert mock_subprocess.call_count == 4
+
+    # Check cryodann scores selection happened
+    output_data_star = starfile.read(tmp_path / "Select/job012/particles.star")
+    assert len(output_data_star["particles"]) == 2
+    assert output_data_star["particles"]["rlnClassNumber"][0] == 3
+    assert output_data_star["particles"]["rlnParticleScore"][0] == 9
+    assert output_data_star["particles"]["rlnParticleScore"][1] == 8
+
+    # Check that the correct messages were sent (and no score was sent to murfey)
+    assert offline_transport.send.call_count == 7
+    offline_transport.send.assert_any_call(
+        "murfey_feedback",
+        {"register": "save_class_selection_score", "class_selection_score": 3},
     )
     offline_transport.send.assert_any_call(
         "murfey_feedback",
@@ -321,9 +392,10 @@ def test_select_classes_service_batch_threshold(
     )
 
     # Set up the mock service and send the message to it
-    service = select_classes.SelectClasses(environment={"queue": ""})
-    service.transport = offline_transport
-    service.start()
+    service = select_classes.SelectClasses(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
     service.select_classes(None, header=header, message=select_test_message)
 
     # Check the correct particle counts were found and split files made
@@ -373,9 +445,10 @@ def test_select_classes_service_two_thresholds(
     )
 
     # Set up the mock service and send the message to it
-    service = select_classes.SelectClasses(environment={"queue": ""})
-    service.transport = offline_transport
-    service.start()
+    service = select_classes.SelectClasses(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
     service.select_classes(None, header=header, message=select_test_message)
 
     # Check the correct particle counts were found and split files made
@@ -426,9 +499,10 @@ def test_select_classes_service_last_threshold(
     )
 
     # Set up the mock service and send the message to it
-    service = select_classes.SelectClasses(environment={"queue": ""})
-    service.transport = offline_transport
-    service.start()
+    service = select_classes.SelectClasses(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
     service.select_classes(None, header=header, message=select_test_message)
 
     # Check the correct particle counts were found and split files made
@@ -476,9 +550,10 @@ def test_select_classes_service_not_threshold(
     )
 
     # Set up the mock service and send the message to it
-    service = select_classes.SelectClasses(environment={"queue": ""})
-    service.transport = offline_transport
-    service.start()
+    service = select_classes.SelectClasses(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
     service.select_classes(None, header=header, message=select_test_message)
 
     # Check the correct particle counts were found and split files made
@@ -516,9 +591,10 @@ def test_select_classes_service_past_maximum(
     )
 
     # Set up the mock service and send the message to it
-    service = select_classes.SelectClasses(environment={"queue": ""})
-    service.transport = offline_transport
-    service.start()
+    service = select_classes.SelectClasses(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
     service.select_classes(None, header=header, message=select_test_message)
 
     # Check the correct particle counts were found and split files made
@@ -538,9 +614,10 @@ def test_parse_combiner_output(offline_transport):
     Send test lines to the output parser
     to check the number of particles are being read in
     """
-    service = select_classes.SelectClasses(environment={"queue": ""})
-    service.transport = offline_transport
-    service.start()
+    service = select_classes.SelectClasses(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
 
     select_classes.SelectClasses.parse_combiner_output(
         service, "Adding Select/job/particles_all.star with 10 particles"

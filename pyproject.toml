@@ -7,7 +7,7 @@ requires = [
 
 [project]
 name = "cryoemservices"
-version = "1.0.3"
+version = "1.2.5"
 description = "Services for CryoEM processing"
 readme = "README.md"
 keywords = [
@@ -34,7 +34,7 @@ dependencies = [
     "graypy",
     "healpy",
     "icebreaker-em",
-    "ispyb>=10.2.3",
+    "ispyb>=11.0.3",
     "mrcfile",
     "numpy<2",
     "pillow",
@@ -42,12 +42,12 @@ dependencies = [
     "pydantic>=2",
     "pystackreg", # CLEM workflow
     "readlif", # CLEM workflow
+    "requests",
     "SimpleITK", # CLEM workflow
     "starfile",
     "stomp-py==8.1.0",
     "tifffile", # CLEM workflow
     "workflows>=3",
-    "zocalo>=1.2",
 ]
 [project.optional-dependencies]
 dev = [
@@ -70,6 +70,8 @@ torch = [
     "clem.lif_to_stack" = "cryoemservices.cli.clem_lif_to_stack:run"
     "clem.tiff_to_stack" = "cryoemservices.cli.clem_tiff_to_stack:run"
     "combine_star_files" = "cryoemservices.pipeliner_plugins.combine_star_files:main"
+    "cryoemservices.angular_distribution_plot" = "cryoemservices.pipeliner_plugins.angular_distribution_plot:run"
+    "cryoemservices.angular_efficiency" = "cryoemservices.pipeliner_plugins.angular_efficiency:run"
     "cryoemservices.dlq_rabbitmq" = "cryoemservices.cli.dlq_rabbitmq:run"
     "cryoemservices.find_symmetry" = "cryoemservices.pipeliner_plugins.symmetry_finder:run"
     "cryoemservices.reextract" = "cryoemservices.pipeliner_plugins.reextract:run"
@@ -79,8 +81,34 @@ torch = [
     "relipy.link" = "cryoemservices.cli.project_linker:run"
 [project.entry-points."ccpem_pipeliner.jobs"]
     "combine_star_files_job" = "cryoemservices.pipeliner_plugins.combine_star_job:ProcessStarFiles"
-[project.entry-points."cryoemservices.services.cluster.schedulers"]
-    slurm = "cryoemservices.services.cluster_submission:submit_to_slurm"
+[project.entry-points."cryoemservices.services"]
+    BFactor = "cryoemservices.services.bfactor_setup:BFactor"
+    CLEMAlignAndMerge = "cryoemservices.services.clem_align_and_merge:AlignAndMergeService"
+    CLEMLIFToStack = "cryoemservices.services.clem_process_raw_lifs:LIFToStackService"
+    CLEMTIFFToStack = "cryoemservices.services.clem_process_raw_tiffs:TIFFToStackService"
+    CTFFind = "cryoemservices.services.ctffind:CTFFind"
+    Class2D = "cryoemservices.services.class2d:Class2D"
+    Class3D = "cryoemservices.services.class3d:Class3D"
+    ClusterSubmission = "cryoemservices.services.cluster_submission:ClusterSubmission"
+    CrYOLO = "cryoemservices.services.cryolo:CrYOLO"
+    Denoise = "cryoemservices.services.denoise:Denoise"
+    DenoiseSlurm = "cryoemservices.services.denoise_slurm:DenoiseSlurm"
+    EMISPyB = "cryoemservices.services.ispyb_connector:EMISPyB"
+    Extract = "cryoemservices.services.extract:Extract"
+    ExtractClass = "cryoemservices.services.extract_class:ExtractClass"
+    IceBreaker = "cryoemservices.services.icebreaker:IceBreaker"
+    Images = "cryoemservices.services.images:Images"
+    MembrainSeg = "cryoemservices.services.membrain_seg:MembrainSeg"
+    MotionCorr = "cryoemservices.services.motioncorr:MotionCorr"
+    NodeCreator = "cryoemservices.services.node_creator:NodeCreator"
+    PostProcess = "cryoemservices.services.postprocess:PostProcess"
+    ProcessRecipe = "cryoemservices.services.process_recipe:ProcessRecipe"
+    Refine3D = "cryoemservices.services.refine3d:Refine3D"
+    SelectClasses = "cryoemservices.services.select_classes:SelectClasses"
+    SelectParticles = "cryoemservices.services.select_particles:SelectParticles"
+    TomoAlign = "cryoemservices.services.tomo_align:TomoAlign"
+    TomoAlignSlurm = "cryoemservices.services.tomo_align_slurm:TomoAlignSlurm"
+    TopazPick = "cryoemservices.services.topaz_pick:TopazPick"
 [project.entry-points."cryoemservices.services.images.plugins"]
     "mrc_central_slice" = "cryoemservices.services.images_plugins:mrc_central_slice"
     "mrc_to_apng" = "cryoemservices.services.images_plugins:mrc_to_apng"
@@ -97,28 +125,6 @@ torch = [
     Class2D = "cryoemservices.wrappers.class2d_wrapper:Class2DWrapper"
     Class3D = "cryoemservices.wrappers.class3d_wrapper:Class3DWrapper"
     Refine3D = "cryoemservices.wrappers.refine3d_wrapper:Refine3DWrapper"
-[project.entry-points."workflows.services"]
-    BFactor = "cryoemservices.services.bfactor_setup:BFactor"
-    CTFFind = "cryoemservices.services.ctffind:CTFFind"
-    ClusterSubmission = "cryoemservices.services.cluster_submission:ClusterSubmission"
-    CrYOLO = "cryoemservices.services.cryolo:CrYOLO"
-    Denoise = "cryoemservices.services.denoise:Denoise"
-    DenoiseSlurm = "cryoemservices.services.denoise_slurm:DenoiseSlurm"
-    EMISPyB = "cryoemservices.services.ispyb_connector:EMISPyB"
-    Extract = "cryoemservices.services.extract:Extract"
-    ExtractClass = "cryoemservices.services.extract_class:ExtractClass"
-    IceBreaker = "cryoemservices.services.icebreaker:IceBreaker"
-    Images = "cryoemservices.services.images:Images"
-    MembrainSeg = "cryoemservices.services.membrain_seg:MembrainSeg"
-    MotionCorr = "cryoemservices.services.motioncorr:MotionCorr"
-    NodeCreator = "cryoemservices.services.node_creator:NodeCreator"
-    PostProcess = "cryoemservices.services.postprocess:PostProcess"
-    ProcessRecipe = "cryoemservices.services.process_recipe:ProcessRecipe"
-    SelectClasses = "cryoemservices.services.select_classes:SelectClasses"
-    SelectParticles = "cryoemservices.services.select_particles:SelectParticles"
-    TomoAlign = "cryoemservices.services.tomo_align:TomoAlign"
-    TomoAlignSlurm = "cryoemservices.services.tomo_align_slurm:TomoAlignSlurm"
-    TopazPick = "cryoemservices.services.topaz_pick:TopazPick"
 
 [tool.setuptools]
 package-dir = { "" = "src" }

@@ -4,12 +4,13 @@ import subprocess
 from pathlib import Path
 from typing import Optional
 
-import workflows.recipe
 from pydantic import BaseModel, Field, ValidationError
-from workflows.services.common_service import CommonService
+from workflows.recipe import wrap_subscribe
 
+from cryoemservices.services.common_service import CommonService
 from cryoemservices.util.models import MockRW
-from cryoemservices.util.slurm_submission import slurm_submission
+from cryoemservices.util.relion_service_options import RelionServiceOptions
+from cryoemservices.util.slurm_submission import slurm_submission_for_services
 
 
 class MembrainSegParameters(BaseModel):
@@ -28,6 +29,7 @@ class MembrainSegParameters(BaseModel):
     segmentation_threshold: Optional[float] = None
     cleanup_output: bool = True
     submit_to_slurm: bool = False
+    relion_options: RelionServiceOptions
 
 
 class MembrainSeg(CommonService):
@@ -35,21 +37,20 @@ class MembrainSeg(CommonService):
     A service for segmenting cryoEM tomograms using membrain-seg
     """
 
-    # Human readable service name
-    _service_name = "MembrainSeg"
-
     # Logger name
     _logger_name = "cryoemservices.services.membrain_seg"
+
+    # Job name
+    job_type = "membrain.segment"
 
     def initializing(self):
         """Subscribe to a queue. Received messages must be acknowledged."""
         self.log.info("membrain-seg service starting")
-        workflows.recipe.wrap_subscribe(
+        wrap_subscribe(
             self._transport,
             self._environment["queue"] or "segmentation",
             self.membrain_seg,
             acknowledgement=True,
-            log_extender=self.extend_log,
             allow_non_recipe_messages=True,
         )
 
@@ -140,7 +141,7 @@ class MembrainSeg(CommonService):
 
         # Submit the command to slurm or run locally
         if membrain_seg_params.submit_to_slurm:
-            result = slurm_submission(
+            result = slurm_submission_for_services(
                 log=self.log,
                 service_config_file=self._environment["config"],
                 slurm_cluster=self._environment["slurm_cluster"],
@@ -156,6 +157,23 @@ class MembrainSeg(CommonService):
             )
         else:
             result = subprocess.run(command, capture_output=True)
+
+        # Send to node creator
+        self.log.info("Sending segmentation to node creator")
+        node_creator_parameters = {
+            "experiment_type": "tomography",
+            "job_type": self.job_type,
+            "input_file": membrain_seg_params.tomogram,
+            "output_file": str(segmented_path),
+            "relion_options": dict(membrain_seg_params.relion_options),
+            "command": " ".join(command),
+            "stdout": result.stdout.decode("utf8", "replace"),
+            "stderr": result.stderr.decode("utf8", "replace"),
+            "success": True,
+        }
+        if result.returncode:
+            node_creator_parameters["success"] = False
+        rw.send_to("node_creator", node_creator_parameters)
 
         # Stop here if the job failed
         if result.returncode:

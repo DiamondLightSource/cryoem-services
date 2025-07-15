@@ -1,4 +1,4 @@
 apiVersion: v2
 name: select_particles
 description: A Helm chart for particle selection service
-version: 1.0.3
+version: 1.2.5

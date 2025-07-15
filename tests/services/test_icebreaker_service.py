@@ -1,44 +1,18 @@
 from __future__ import annotations
 
-import os
 import sys
 from pathlib import Path
 from unittest import mock
 
 import pytest
+from requests import Response
 from workflows.transport.offline_transport import OfflineTransport
 
 from cryoemservices.services import icebreaker
 from cryoemservices.util.relion_service_options import RelionServiceOptions
+from tests.test_utils.config import cluster_submission_configuration
 
 output_relion_options = dict(RelionServiceOptions())
-
-
-def cluster_submission_configuration(tmp_path):
-    # Create a config file
-    config_file = tmp_path / "config.yaml"
-    with open(config_file, "w") as cf:
-        cf.write("rabbitmq_credentials: rmq_creds\n")
-        cf.write(f"recipe_directory: {tmp_path}/recipes\n")
-        cf.write("slurm_credentials:\n")
-        cf.write(f"  default: {tmp_path}/slurm_credentials.yaml\n")
-    os.environ["USER"] = "user"
-
-    # Create dummy slurm credentials files
-    with open(tmp_path / "slurm_credentials.yaml", "w") as slurm_creds:
-        slurm_creds.write(
-            "user: user\n"
-            "user_home: /home\n"
-            f"user_token: {tmp_path}/token.txt\n"
-            "required_directories: [directory1, directory2]\n"
-            "partition: partition\n"
-            "partition_preference: preference\n"
-            "cluster: cluster\n"
-            "url: /url/of/slurm/restapi\n"
-            "api_version: v0.0.40\n"
-        )
-    with open(tmp_path / "token.txt", "w") as token:
-        token.write("token_key")
 
 
 @pytest.fixture
@@ -88,9 +62,10 @@ def test_icebreaker_micrographs_service(mock_icebreaker, offline_transport, tmp_
     }
 
     # Set up the mock service and send a message to the service
-    service = icebreaker.IceBreaker(environment={"queue": ""})
-    service.transport = offline_transport
-    service.start()
+    service = icebreaker.IceBreaker(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
     service.icebreaker(None, header=header, message=icebreaker_test_message)
 
     # Check the correct icebreaker command was run
@@ -163,9 +138,10 @@ def test_icebreaker_enhancecontrast_service(
     }
 
     # Set up the mock service and send a message to the service
-    service = icebreaker.IceBreaker(environment={"queue": ""})
-    service.transport = offline_transport
-    service.start()
+    service = icebreaker.IceBreaker(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
     service.icebreaker(None, header=header, message=icebreaker_test_message)
 
     # Check the correct icebreaker command was run
@@ -225,9 +201,10 @@ def test_icebreaker_summary_service(mock_icebreaker, offline_transport, tmp_path
     }
 
     # Set up the mock service and send a message to the service
-    service = icebreaker.IceBreaker(environment={"queue": ""})
-    service.transport = offline_transport
-    service.start()
+    service = icebreaker.IceBreaker(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
     service.icebreaker(None, header=header, message=icebreaker_test_message)
 
     # Check the correct icebreaker command was run
@@ -303,9 +280,10 @@ def test_icebreaker_particles_service(mock_icebreaker, offline_transport, tmp_pa
     }
 
     # Set up the mock service and send a message to the service
-    service = icebreaker.IceBreaker(environment={"queue": ""})
-    service.transport = offline_transport
-    service.start()
+    service = icebreaker.IceBreaker(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
     service.icebreaker(None, header=header, message=icebreaker_test_message)
 
     # Check the correct icebreaker command was run and the starfile was made
@@ -346,19 +324,20 @@ def test_icebreaker_particles_service(mock_icebreaker, offline_transport, tmp_pa
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-@mock.patch("cryoemservices.util.slurm_submission.subprocess.run")
-def test_icebreaker_particles_service_slurm(
-    mock_subprocess, offline_transport, tmp_path
-):
+@mock.patch("cryoemservices.util.slurm_submission.requests")
+def test_icebreaker_particles_service_slurm(mock_requests, offline_transport, tmp_path):
     """
     Send a test message to IceBreaker for running the particle analysis job
     using the slurm submission method
     """
-    mock_subprocess().returncode = 0
-    mock_subprocess().stdout = (
-        '{"job_id": "1", "jobs": [{"job_state": ["COMPLETED"]}]}'.encode("ascii")
-    )
-    mock_subprocess().stderr = "stderr".encode("ascii")
+    # Set up the returned job number
+    response_object = Response()
+    response_object._content = (
+        '{"job_id": 1, "error_code": 0, "error": "", "jobs": [{"job_state": ["COMPLETED"]}]}'
+    ).encode("utf8")
+    response_object.status_code = 200
+    mock_requests.Session().post.return_value = response_object
+    mock_requests.Session().get.return_value = response_object
 
     header = {
         "message-id": mock.sentinel,
@@ -387,28 +366,55 @@ def test_icebreaker_particles_service_slurm(
             "config": f"{tmp_path}/config.yaml",
             "slurm_cluster": "default",
             "queue": "",
-        }
+        },
+        transport=offline_transport,
     )
-    service.transport = offline_transport
-    service.start()
+    service.initializing()
     service.icebreaker(None, header=header, message=icebreaker_test_message)
 
+    ib_command = [
+        "ib_group",
+        "--j",
+        "1",
+        "--in_mics",
+        "IceBreaker/job003/Movies/sample_grouped.star",
+        "--in_parts Select/job009/particles_split1.star",
+        f"--o {tmp_path}/IceBreaker/job011/",
+    ]
+
     # Check the slurm commands were run
-    slurm_submit_command = (
-        f'curl -H "X-SLURM-USER-NAME:user" -H "X-SLURM-USER-TOKEN:token_key" '
-        '-H "Content-Type: application/json" -X POST '
-        "/url/of/slurm/restapi/slurm/v0.0.40/job/submit "
-        f"-d @{tmp_path}/IceBreaker/job011/slurm.json"
+    mock_requests.Session.assert_called()
+    mock_requests.Session().headers.__setitem__.assert_any_call(
+        "X-SLURM-USER-NAME", "user"
     )
-    slurm_status_command = (
-        'curl -H "X-SLURM-USER-NAME:user" -H "X-SLURM-USER-TOKEN:token_key" '
-        '-H "Content-Type: application/json" -X GET '
-        "/url/of/slurm/restapi/slurm/v0.0.40/job/1"
+    mock_requests.Session().headers.__setitem__.assert_any_call(
+        "X-SLURM-USER-TOKEN", "token_key"
     )
-    assert mock_subprocess.call_count == 5
-    mock_subprocess.assert_any_call(
-        slurm_submit_command, capture_output=True, shell=True
+    mock_requests.Session().post.assert_called_with(
+        url="/url/of/slurm/restapi/slurm/v0.0.40/job/submit",
+        json={
+            "script": (
+                "#!/bin/bash\n"
+                "echo \"$(date '+%Y-%m-%d %H:%M:%S.%3N'): running slurm job\"\n"
+                "source /etc/profile.d/modules.sh\n"
+                "module load EM/icebreaker/dev\n" + " ".join(ib_command)
+            ),
+            "job": {
+                "cpus_per_task": 1,
+                "current_working_directory": str(tmp_path),
+                "standard_output": f"{tmp_path}/IceBreaker/job011/slurm.out",
+                "standard_error": f"{tmp_path}/IceBreaker/job011/slurm.err",
+                "environment": ["USER=user", "HOME=/home"],
+                "name": "IceBreaker",
+                "nodes": "1",
+                "partition": "partition",
+                "prefer": "preference",
+                "tasks": 1,
+                "memory_per_node": {"number": 1000, "set": True, "infinite": False},
+                "time_limit": {"number": 60, "set": True, "infinite": False},
+            },
+        },
     )
-    mock_subprocess.assert_any_call(
-        slurm_status_command, capture_output=True, shell=True
+    mock_requests.Session().get.assert_called_with(
+        url="/url/of/slurm/restapi/slurm/v0.0.40/job/1"
     )

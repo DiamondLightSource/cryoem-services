@@ -27,7 +27,7 @@ spec:
             cpu: {{ .Values.cpuLimit }}
             memory: {{ .Values.memoryLimit }}
         command: ["/bin/sh"]
-        args: 
+        args:
           - -c
           - >-
               {{ .Values.command }}
@@ -71,6 +71,10 @@ spec:
 {{- if .Values.global.nodeSelector }}
       nodeSelector:
 {{ toYaml .Values.global.nodeSelector | indent 8 }}
+{{ end }}
+{{- if .Values.global.imagePullSecrets }}
+      imagePullSecrets:
+      - name: {{ .Values.global.imagePullSecrets }}
 {{ end }}
 
 {{- if .Values.scaleOnQueueLength }}

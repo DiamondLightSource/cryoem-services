@@ -5,8 +5,9 @@ from importlib.metadata import entry_points
 from pathlib import Path
 
 import workflows.recipe
-from workflows.services.common_service import CommonService
+from workflows import Error as WorkflowsError
 
+from cryoemservices.services.common_service import CommonService
 from cryoemservices.util.config import ServiceConfig, config_from_file
 
 
@@ -22,7 +23,7 @@ def filter_load_recipes_from_files(
             named_recipe = workflows.recipe.Recipe(recipe=rcp.read())
         try:
             named_recipe.validate()
-        except workflows.Error as e:
+        except WorkflowsError as e:
             raise ValueError(f"Named recipe {recipefile} failed validation. {e}")
         message["recipe"] = message["recipe"].merge(named_recipe)
     return message, parameters
@@ -40,9 +41,6 @@ class ProcessRecipe(CommonService):
     Service that takes in a data collection ID or a processing recipe,
     and mangles these into something that can be processed by downstream services.
     """
-
-    # Human readable service name
-    _service_name = "ProcessRecipe"
 
     # Logger name
     _logger_name = "cryoemservices.services.process_recipe"
@@ -69,7 +67,6 @@ class ProcessRecipe(CommonService):
             self._environment["queue"] or "processing_recipe",
             self.process,
             acknowledgement=True,
-            log_extender=self.extend_log,
             allow_non_recipe_messages=True,
         )
 

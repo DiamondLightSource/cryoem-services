@@ -11,15 +11,16 @@ from typing import Any
 
 import mrcfile
 import numpy as np
-import workflows.recipe
+import starfile
 from gemmi import cif
 from pydantic import BaseModel, Field, ValidationError
-from workflows.services.common_service import CommonService
+from workflows.recipe import wrap_subscribe
 
 from cryoemservices.pipeliner_plugins.combine_star_files import (
     combine_star_files,
     split_star_file,
 )
+from cryoemservices.services.common_service import CommonService
 from cryoemservices.util.models import MockRW
 from cryoemservices.util.relion_service_options import RelionServiceOptions
 
@@ -45,9 +46,6 @@ class SelectClasses(CommonService):
     A service for running Relion autoselection on 2D classes
     """
 
-    # Human readable service name
-    _service_name = "SelectClasses"
-
     # Logger name
     _logger_name = "cryoemservices.services.select_classes"
 
@@ -67,12 +65,11 @@ class SelectClasses(CommonService):
     def initializing(self):
         """Subscribe to a queue. Received messages must be acknowledged."""
         self.log.info("Select classes service starting")
-        workflows.recipe.wrap_subscribe(
+        wrap_subscribe(
             self._transport,
             self._environment["queue"] or "select_classes",
             self.select_classes,
             acknowledgement=True,
-            log_extender=self.extend_log,
             allow_non_recipe_messages=True,
         )
 
@@ -183,35 +180,65 @@ class SelectClasses(CommonService):
             autoselect_command, cwd=str(project_dir), capture_output=True
         )
 
-        if (
-            not autoselect_params.autoselect_min_score
-            and not autoselect_result.returncode
-        ):
-            # If a minimum score isn't given, then work it out and rerun the job
-            star_doc = cif.read_file(str(select_dir / "rank_model.star"))
-            star_block = star_doc["model_classes"]
-            class_scores = np.array(star_block.find_loop("_rlnClassScore"), dtype=float)
-            quantile_threshold = np.quantile(
-                class_scores,
-                float(autoselect_params.class2d_fraction_of_classes_to_remove),
-            )
+        particle_data_starfile = autoselect_params.input_file.replace(
+            "_optimiser", "_data"
+        )
+        input_particle_data = None
+        if Path(particle_data_starfile).is_file():
+            input_particle_data = starfile.read(particle_data_starfile)
+        if not autoselect_result.returncode:
+            quantile_threshold = autoselect_params.autoselect_min_score
+            if not autoselect_params.autoselect_min_score:
+                # If a minimum score isn't given, then work it out
+                star_doc = cif.read_file(str(select_dir / "rank_model.star"))
+                star_block = star_doc["model_classes"]
+                class_scores = np.array(
+                    star_block.find_loop("_rlnClassScore"), dtype=float
+                )
+                quantile_threshold = np.quantile(
+                    class_scores,
+                    float(autoselect_params.class2d_fraction_of_classes_to_remove),
+                )
 
-            self.log.info(f"Sending new threshold {quantile_threshold} to Murfey")
-            murfey_params = {
-                "register": "save_class_selection_score",
-                "class_selection_score": quantile_threshold,
-            }
-            rw.send_to("murfey_feedback", murfey_params)
+                self.log.info(f"Sending new threshold {quantile_threshold} to Murfey")
+                murfey_params = {
+                    "register": "save_class_selection_score",
+                    "class_selection_score": quantile_threshold,
+                }
+                rw.send_to("murfey_feedback", murfey_params)
 
-            self.log.info(
-                f"Re-running class selection with new threshold {quantile_threshold}"
-            )
-            autoselect_command[-1] = str(quantile_threshold)
-
-            # Re-run the class selection
-            autoselect_result = subprocess.run(
-                autoselect_command, cwd=str(project_dir), capture_output=True
-            )
+            if (
+                input_particle_data
+                and "rlnCryodannScore" in input_particle_data["particles"].columns
+            ):
+                model_score_data = starfile.read(select_dir / "rank_model.star")
+                class_scores = list(model_score_data["rlnClassScore"])
+                input_particle_data["particles"][
+                    "rlnParticleScore"
+                ] = input_particle_data["particles"].apply(
+                    lambda r: r["rlnCryodannScore"]
+                    * class_scores[r["rlnClassNumber"] - 1],
+                    axis=1,
+                )
+                input_particle_data["particles"] = (
+                    input_particle_data["particles"]
+                    .sort_values("rlnParticleScore", ascending=False)
+                    .head(len(input_particle_data["particles"]) // 2)
+                )
+                starfile.write(
+                    input_particle_data,
+                    select_dir / autoselect_params.particles_file,
+                    overwrite=True,
+                )
+            elif not autoselect_params.autoselect_min_score:
+                # Re-run the class selection if a score was not given
+                self.log.info(
+                    f"Re-running class selection with new threshold {quantile_threshold}"
+                )
+                autoselect_command[-1] = str(quantile_threshold)
+                autoselect_result = subprocess.run(
+                    autoselect_command, cwd=str(project_dir), capture_output=True
+                )
 
         # Send class selection job to node creator
         self.log.info(f"Sending {self.job_type} to node creator")
@@ -524,6 +551,8 @@ class SelectClasses(CommonService):
                     "pixel_size": original_pixel_size,
                     "diameter": autoselect_params.particle_diameter,
                     "outfile": str(Path(cryolo_output_path).with_suffix(".jpeg")),
+                    "remove_input": False,
+                    "flatten_image": True,
                 },
             )
 

@@ -31,7 +31,8 @@
       "path_pattern": "{path_pattern}",
       "pixel_size": "{pixel_size}",
       "relion_options": {},
-      "stack_file": "{stack_file}"
+      "stack_file": "{stack_file}",
+      "tilt_axis": "{tilt_axis}"
     },
     "queue": "tomo_align",
     "service": "TomoAlign"
@@ -86,7 +87,8 @@
     "output": {
       "images": 6,
       "ispyb_connector": 10,
-      "movie": 6
+      "movie": 6,
+      "node_creator": 11
     },
     "queue": "segmentation",
     "service": "MembrainSeg"

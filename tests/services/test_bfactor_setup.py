@@ -55,9 +55,10 @@ def test_bfactor_service(offline_transport, tmp_path):
     output_relion_options["batch_size"] = 10000
 
     # Set up the mock service and call it
-    service = bfactor_setup.BFactor(environment={"queue": ""})
-    service.transport = offline_transport
-    service.start()
+    service = bfactor_setup.BFactor(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
     service.bfactor_setup(None, header=header, message=bfactor_test_message)
 
     # Check the output files were made

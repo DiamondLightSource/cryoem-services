@@ -8,12 +8,30 @@ from functools import partial
 from pathlib import Path
 from queue import Empty, Queue
 
+import requests
+from pydantic import BaseModel
 from workflows.transport.pika_transport import PikaTransport
-from zocalo.util.rabbitmq import RabbitMQAPI
 
 from cryoemservices.util.config import config_from_file
 
 dlq_dump_path = Path("./DLQ")
+
+
+class QueueInfo(BaseModel):
+    name: str
+    vhost: str
+    messages: int
+
+
+class RabbitMQAPI:
+    def __init__(self, url: str, user: str, password: str):
+        self._url = url
+        self._session = requests.Session()
+        self._session.auth = (user, password)
+
+    def queues(self) -> list[QueueInfo]:
+        response = self._session.get(f"{self._url}/queues")
+        return [QueueInfo(**qi) for qi in response.json()]
 
 
 def check_dlq_rabbitmq(rabbitmq_credentials: Path) -> dict:
@@ -37,9 +55,7 @@ def check_dlq_rabbitmq(rabbitmq_credentials: Path) -> dict:
     return {
         q.name: q.messages
         for q in rmq.queues()
-        if q.name.startswith("dlq.")
-        and q.vhost == rabbitmq_connection["vhost"]
-        and q.messages
+        if q.name.startswith("dlq.") and q.messages
     }
 
 

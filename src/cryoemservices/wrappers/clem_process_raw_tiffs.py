@@ -16,7 +16,6 @@ import numpy as np
 from defusedxml.ElementTree import parse
 from PIL import Image
 from pydantic import BaseModel, ValidationError, field_validator, model_validator
-from zocalo.wrapper import BaseWrapper
 
 from cryoemservices.util.clem_array_functions import (
     estimate_int_dtype,
@@ -38,7 +37,7 @@ def process_tiff_files(
     series_name_short: str,
     series_name_long: str,
     save_dir: Path,
-) -> list[dict] | None:
+) -> list[dict]:
     """
     Opens the TIFF files as NumPy arrays and stacks them.
     """
@@ -47,7 +46,7 @@ def process_tiff_files(
     # Convert to list for Python 3.9 compatibility
     if list(metadata_file.parents)[-2] != list(tiff_list[0].parents)[-2]:
         logger.error("The base paths of the metadata and TIFF files do not match")
-        return None
+        return []
 
     # Load relevant metadata
     elem_list = get_image_elements(parse(metadata_file).getroot())
@@ -209,7 +208,7 @@ def convert_tiff_to_stack(
     tiff_list: list[Path],  # List of files associated with this series
     root_folder: str,  # Name of the folder to treat as the root folder
     metadata_file: Optional[Path] = None,  # Option to manually provide metadata file
-) -> list[dict] | None:
+) -> list[dict]:
     """
     Takes a list of TIFF files for a distinct image series and converts them into a
     TIFF image stack with the key metadata embedded. Stacks are saved in a folder
@@ -268,7 +267,7 @@ def convert_tiff_to_stack(
             f"Subpath {root_folder!r} was not found in image path "
             f"{str(series_path.parent)!r}"
         )
-        return None
+        return []
 
     # Construct long name of the series for database records
     series_name_long = "--".join(path_parts[root_index + 1 :]).replace(" ", "_")
@@ -289,7 +288,7 @@ def convert_tiff_to_stack(
             logger.info(f"Metadata file found at {xml_file}")
         else:
             logger.error(f"No metadata file found at {xml_file}")
-            return None
+            return []
     else:
         xml_file = metadata_file
 
@@ -301,7 +300,6 @@ def convert_tiff_to_stack(
         series_name_long=series_name_long,
         save_dir=save_dir,
     )
-
     return results
 
 
@@ -370,16 +368,17 @@ class TIFFToStackParameters(BaseModel):
         return model
 
 
-class TIFFToStackWrapper(BaseWrapper):
+class TIFFToStackWrapper:
+    def __init__(self, recwrap):
+        self.log = logging.LoggerAdapter(logger)
+        self.recwrap = recwrap
+
     def run(self) -> bool:
         """
         Reads the Zocalo wrapper recipe, loads the parameters, and passes them to the
         TIFF file processing function. Upon collecting the results, it sends them back
         to Murfey for the next stage of the workflow.
         """
-        if not hasattr(self, "recwrap"):
-            logger.error("No RecipeWrapper object found")
-            return False
         params_dict = self.recwrap.recipe_step["job_parameters"]
         try:
             params = TIFFToStackParameters(**params_dict)
@@ -420,7 +419,7 @@ class TIFFToStackWrapper(BaseWrapper):
         )
 
         # Log errors and warnings
-        if results is None:
+        if not results:
             logger.error(f"Process failed for TIFF series {series_name!r}")
             return False
         for result in results:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import re
 import subprocess
@@ -8,17 +9,17 @@ from pathlib import Path
 from typing import Any, List, Optional
 
 import plotly.express as px
-import workflows.recipe
 from gemmi import cif
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
-from workflows.services.common_service import CommonService
+from workflows.recipe import wrap_subscribe
 
+from cryoemservices.services.common_service import CommonService
 from cryoemservices.util.models import MockRW
 from cryoemservices.util.relion_service_options import (
     RelionServiceOptions,
     update_relion_options,
 )
-from cryoemservices.util.slurm_submission import slurm_submission
+from cryoemservices.util.slurm_submission import slurm_submission_for_services
 
 
 class MotionCorrParameters(BaseModel):
@@ -81,9 +82,6 @@ class MotionCorr(CommonService):
     A service for motion correcting cryoEM movies using MotionCor2
     """
 
-    # Human readable service name
-    _service_name = "MotionCorr"
-
     # Logger name
     _logger_name = "cryoemservices.services.motioncorr"
 
@@ -99,12 +97,11 @@ class MotionCorr(CommonService):
     def initializing(self):
         """Subscribe to a queue. Received messages must be acknowledged."""
         self.log.info("Motion correction service starting")
-        workflows.recipe.wrap_subscribe(
+        wrap_subscribe(
             self._transport,
             self._environment["queue"] or "motioncorr",
             self.motion_correction,
             acknowledgement=True,
-            log_extender=self.extend_log,
             allow_non_recipe_messages=True,
         )
 
@@ -177,7 +174,7 @@ class MotionCorr(CommonService):
 
     def motioncor2_slurm(self, command: List[str], mrc_out: Path):
         """Submit MotionCor2 jobs to a slurm cluster via the RestAPI"""
-        slurm_outcome = slurm_submission(
+        slurm_outcome = slurm_submission_for_services(
             log=self.log,
             service_config_file=self._environment["config"],
             slurm_cluster=self._environment["slurm_cluster"],
@@ -194,9 +191,8 @@ class MotionCorr(CommonService):
 
         if not slurm_outcome.returncode:
             # Read in the output logs
-            slurm_output_file = f"{mrc_out}.out"
-            slurm_error_file = f"{mrc_out}.err"
-            submission_file = f"{mrc_out}.json"
+            slurm_output_file = mrc_out.with_suffix(".out")
+            slurm_error_file = mrc_out.with_suffix(".err")
             if Path(slurm_output_file).is_file():
                 self.parse_mc2_slurm_output(slurm_output_file)
 
@@ -204,7 +200,6 @@ class MotionCorr(CommonService):
             if self.x_shift_list and self.y_shift_list:
                 Path(slurm_output_file).unlink()
                 Path(slurm_error_file).unlink()
-                Path(submission_file).unlink()
             else:
                 self.log.error(f"Reading shifts from {slurm_output_file} failed")
                 slurm_outcome.returncode = 1
@@ -224,7 +219,7 @@ class MotionCorr(CommonService):
 
     def relion_motioncorr_slurm(self, command: List[str], mrc_out: Path):
         """Submit Relion's own motion correction to a slurm cluster via the RestAPI"""
-        result = slurm_submission(
+        result = slurm_submission_for_services(
             log=self.log,
             service_config_file=self._environment["config"],
             slurm_cluster=self._environment["slurm_cluster"],
@@ -285,6 +280,7 @@ class MotionCorr(CommonService):
 
         # Check if the gain file exists:
         if mc_params.gain_ref and not Path(mc_params.gain_ref).is_file():
+            self.log.warning(f"Gain reference {mc_params.gain_ref} does not exist")
             mc_params.gain_ref = ""
 
         # Generate the plotting paths
@@ -499,7 +495,12 @@ class MotionCorr(CommonService):
 
         # Extract results for ispyb
         fig = px.scatter(x=self.x_shift_list, y=self.y_shift_list)
-        fig.write_json(plot_path)
+        fig_as_json = {
+            "data": [json.loads(fig["data"][0].to_json())],
+            "layout": json.loads(fig["layout"].to_json()),
+        }
+        with open(plot_path, "w") as plot_json:
+            json.dump(fig_as_json, plot_json)
         snapshot_path = Path(mc_params.mrc_out).with_suffix(".jpeg")
 
         # Forward results to ISPyB

@@ -16,7 +16,6 @@ from xml.etree import ElementTree as ET
 import numpy as np
 from pydantic import BaseModel, ValidationError
 from readlif.reader import LifFile
-from zocalo.wrapper import BaseWrapper
 
 from cryoemservices.util.clem_array_functions import (
     estimate_int_dtype,
@@ -71,7 +70,7 @@ def process_lif_substack(
     # Get name of sub-image
     file_name = file.stem.replace(" ", "_")  # Remove spaces
     img_name = metadata.attrib["Name"].replace(" ", "_")  # Remove spaces
-    logger.info(f"Processing {file_name}-{img_name}")
+    logger.info(f"Processing {file_name}--{img_name}")
 
     # Create save dirs for TIFF files and their metadata
     save_dir = (  # Save directory for all substacks from this LIF file
@@ -168,7 +167,7 @@ def process_lif_substack(
         )
 
         # Process the image stack
-        logger.info("Processing image stack")
+        logger.info("Applying image stack processing routine to image stack")
         arr = preprocess_img_stk(
             array=arr,
             initial_dtype=dtype_init,
@@ -184,7 +183,7 @@ def process_lif_substack(
         )
 
         # Save as a greyscale TIFF
-        logger.info("Processing image stack")
+        logger.info("Saving image stack as a TIFF file")
         img_stk_file = write_stack_to_tiff(
             array=arr,
             save_dir=img_dir,
@@ -215,7 +214,7 @@ def convert_lif_to_stack(
     file: Path,
     root_folder: str,  # Name of the folder to treat as the root folder for LIF files
     number_of_processes: int = 1,  # Number of processing threads to run
-) -> list[dict] | None:
+) -> list[dict]:
     """
     Takes a LIF file, extracts its metadata as an XML tree, then parses through the
     sub-images stored inside it, saving each channel in the sub-image as a separate
@@ -258,7 +257,7 @@ def convert_lif_to_stack(
         logger.error(
             f"Subpath {root_folder!r} was not found in image path " f"{str(file)!r}"
         )
-        return None
+        return []
     processed_dir = Path("/".join(path_parts[: root_index + 1]))
 
     # Save master metadata relative to raw file
@@ -295,10 +294,10 @@ def convert_lif_to_stack(
             f"Metadata entries: {len(metadata_list)} "
             f"Sub-images: {len(scene_list)} "
         )
-        return None
+        return []
 
     # Iterate through scenes
-    logger.info("Examining sub-images")
+    logger.info(f"Examining sub-images in {file.name!r}")
 
     # Set up multiprocessing arguments
     pool_args = []
@@ -316,6 +315,7 @@ def convert_lif_to_stack(
 
     # Parallel process image stacks and return results
     with mp.Pool(processes=num_procs) as pool:
+        logger.info(f"Starting processing of LIF substacks in {file.name!r}")
         # Each thread will return a list of dicts
         results_map = pool.starmap(process_lif_substack, pool_args)
 
@@ -339,7 +339,11 @@ class LIFToStackParameters(BaseModel):
     num_procs: int = 20  # Number of processing threads to run
 
 
-class LIFToStackWrapper(BaseWrapper):
+class LIFToStackWrapper:
+    def __init__(self, recwrap):
+        self.log = logging.LoggerAdapter(logger)
+        self.recwrap = recwrap
+
     def run(self) -> bool:
         """
         Reads the Zocalo wrapper recipe, loads the parameters, and passes them to the
@@ -347,9 +351,6 @@ class LIFToStackWrapper(BaseWrapper):
         back to Murfey for the next stage in the workflow.
         """
 
-        if not hasattr(self, "recwrap"):
-            logger.error("No RecipeWrapper object found")
-            return False
         params_dict = self.recwrap.recipe_step["job_parameters"]
         try:
             params = LIFToStackParameters(**params_dict)
@@ -368,7 +369,7 @@ class LIFToStackWrapper(BaseWrapper):
         )
 
         # Return False and log error if the command fails to execute
-        if results is None:
+        if not results:
             logger.error(
                 f"Failed to extract image stacks from {str(params.lif_file)!r}"
             )

@@ -8,7 +8,6 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Optional
 
-import workflows.recipe
 from pipeliner.api.api_utils import (
     edit_jobstar,
     job_default_parameters_dict,
@@ -20,8 +19,9 @@ from pipeliner.job_factory import read_job
 from pipeliner.project_graph import ProjectGraph
 from pipeliner.utils import DirectoryBasedLock, update_jobinfo_file
 from pydantic import BaseModel, Field, ValidationError, field_validator
-from workflows.services.common_service import CommonService
+from workflows.recipe import wrap_subscribe
 
+from cryoemservices.services.common_service import CommonService
 from cryoemservices.util.models import MockRW
 from cryoemservices.util.relion_service_options import (
     RelionServiceOptions,
@@ -81,7 +81,7 @@ pipeline_jobs: dict[str, dict] = {
     "relion.import.movies": {"folder": "Import", "spa_input": {"fn_in_raw": "*.tiff"}},
     "relion.importtomo": {
         "folder": "Import",
-        "tomography_input": {"movie_files": "*.tiff", "mdoc_files": "*.mdoc"},
+        "tomography_input": {"fn_in_raw": "*.tiff", "fn_mdoc": "*.mdoc"},
     },
     "relion.motioncorr.own": {
         "folder": "MotionCorr",
@@ -113,7 +113,6 @@ pipeline_jobs: dict[str, dict] = {
     "cryolo.autopick": {
         "folder": "AutoPick",
         "spa_input": {"input_file": "corrected_micrographs.star"},
-        "tomography_input": {"input_file": "tomograms.star"},  # should be in_tomoset
     },
     "relion.autopick.topaz.pick": {
         "folder": "AutoPick",
@@ -190,7 +189,7 @@ pipeline_jobs: dict[str, dict] = {
         "folder": "ExcludeTiltImages",
         "tomography_input": {"in_tiltseries": "tilt_series_ctf.star"},
     },
-    "relion.aligntiltseries": {
+    "relion.aligntiltseries.aretomo": {
         "folder": "AlignTiltSeries",
         "tomography_input": {"in_tiltseries": "selected_tilt_series.star"},
     },
@@ -201,6 +200,14 @@ pipeline_jobs: dict[str, dict] = {
     "relion.denoisetomo": {
         "folder": "Denoise",
         "tomography_input": {"in_tomoset": "tomograms.star"},
+    },
+    "membrain.segment": {
+        "folder": "Segmentation",
+        "tomography_input": {"in_tomoset": "tomograms.star"},
+    },
+    "cryolo.autopick.tomo": {
+        "folder": "AutoPick",
+        "tomography_input": {"input_file": "tomograms.star"},
     },
 }
 
@@ -231,9 +238,6 @@ class NodeCreator(CommonService):
     A service for setting up pipeliner jobs
     """
 
-    # Human readable service name
-    _service_name = "NodeCreator"
-
     # Logger name
     _logger_name = "cryoemservices.services.node_creator"
 
@@ -242,12 +246,11 @@ class NodeCreator(CommonService):
         self.log.info(
             f"Relion node creator service starting for queue {self._environment['queue']}"
         )
-        workflows.recipe.wrap_subscribe(
+        wrap_subscribe(
             self._transport,
             self._environment["queue"] or "node_creator",
             self.node_creator,
             acknowledgement=True,
-            log_extender=self.extend_log,
             allow_non_recipe_messages=True,
         )
 
@@ -361,12 +364,26 @@ class NodeCreator(CommonService):
         elif job_info.job_type == "relion.import.movies":
             pipeline_options["fn_in_raw"] = job_info.input_file
         elif job_info.job_type == "relion.importtomo":
-            pipeline_options["movie_files"] = job_info.input_file.split(":")[0]
-            pipeline_options["mdoc_files"] = job_info.input_file.split(":")[1]
+            pipeline_options["fn_in_raw"] = job_info.input_file.split(":")[0]
+            pipeline_options["fn_mdoc"] = job_info.input_file.split(":")[1]
+
+        # Mark the job completion status
+        job_is_continue = False
+        for exit_file in job_dir.glob("PIPELINER_JOB_EXIT_*"):
+            if exit_file.name == "PIPELINER_JOB_EXIT_SUCCESS" and job_info.success:
+                job_is_continue = True
+            exit_file.unlink()
+        if job_info.success:
+            (job_dir / SUCCESS_FILE).touch()
+        else:
+            (job_dir / FAIL_FILE).touch()
 
         try:
-            # If this is a new job we need a job.star
-            if not Path(f"{job_info.job_type.replace('.', '_')}_job.star").is_file():
+            # If this is a new job number we need a job.star
+            if (
+                not job_is_continue
+                or not Path(f"{job_info.job_type.replace('.', '_')}_job.star").is_file()
+            ):
                 self.log.info(f"Generating options for new job: {job_info.job_type}")
                 write_default_jobstar(job_info.job_type)
                 params = job_default_parameters_dict(job_info.job_type)
@@ -397,17 +414,6 @@ class NodeCreator(CommonService):
             Path(f"{job_info.job_type.replace('.', '_')}_job.star").read_bytes()
         )
 
-        # Mark the job completion status
-        job_is_continue = False
-        for exit_file in job_dir.glob("PIPELINER_JOB_EXIT_*"):
-            if exit_file.name == "PIPELINER_JOB_EXIT_SUCCESS" and job_info.success:
-                job_is_continue = True
-            exit_file.unlink()
-        if job_info.success:
-            (job_dir / SUCCESS_FILE).touch()
-        else:
-            (job_dir / FAIL_FILE).touch()
-
         # Get the files and directories relative to the project if possible
         relative_job_dir = (
             job_dir.relative_to(project_dir)
@@ -429,7 +435,7 @@ class NodeCreator(CommonService):
         # Load this job as a pipeliner job to create the nodes
         pipeliner_job = read_job(f"{job_dir}/job.star")
         pipeliner_job.output_dir = str(relative_job_dir) + "/"
-        relion_commands = pipeliner_job.get_final_commands()
+        relion_commands = pipeliner_job.get_commands()
 
         # These parts would normally happen in pipeliner_job.prepare_to_run
         pipeliner_job.create_input_nodes()
@@ -553,7 +559,9 @@ class NodeCreator(CommonService):
             if not (job_dir / ".CCPEM_pipeliner_jobinfo").exists():
                 for command in relion_commands:
                     update_jobinfo_file(
-                        process.name, action="Run", command_list=command
+                        process.name,
+                        action="Run",
+                        command_list=command.get_final_command(output_dir=str(job_dir)),
                     )
             # Generate the default_pipeline.star file
             project.check_process_completion()

@@ -24,12 +24,16 @@ def parameters_with_replacement(param: str, message: dict, all_parameters: Calla
     """
     if message.get(param) and "$" not in str(message[param]):
         # Precedence for command list items
-        return message[param]
+        value_to_return = message[param]
     elif message.get(param):
         # Run lookup on dollar parameters
-        return all_parameters(message[param])
-    # Lookup anything else
-    return all_parameters(param)
+        value_to_return = all_parameters(message[param])
+    else:
+        # Lookup anything else
+        value_to_return = all_parameters(param)
+    if value_to_return == "None":
+        value_to_return = None
+    return value_to_return
 
 
 def multipart_message(
@@ -404,6 +408,8 @@ def insert_particle_classification(
             bFactorFitIntercept=full_parameters("bfactor_fit_intercept"),
             bFactorFitLinear=full_parameters("bfactor_fit_linear"),
             bFactorFitQuadratic=full_parameters("bfactor_fit_quadratic"),
+            angularEfficiency=full_parameters("angular_efficiency"),
+            suggestedTilt=full_parameters("suggested_tilt"),
         )
         particle_classification = (
             session.query(models.ParticleClassification)
@@ -458,6 +464,7 @@ def insert_particle_classification_group(
             numberOfParticlesPerBatch=full_parameters("number_of_particles_per_batch"),
             numberOfClassesPerBatch=full_parameters("number_of_classes_per_batch"),
             symmetry=full_parameters("symmetry"),
+            binnedPixelSize=full_parameters("binned_pixel_size"),
         )
         particle_classification_group = (
             session.query(models.ParticleClassificationGroup)

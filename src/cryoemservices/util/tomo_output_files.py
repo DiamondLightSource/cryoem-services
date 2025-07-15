@@ -26,14 +26,14 @@ def _get_tilt_angle_v5_12(p: Path) -> str:
     return split_name[angle_idx]
 
 
-def _get_tilt_number_v5_12(p: Path) -> str:
+def _get_tilt_number_v5_12(p: Path) -> int:
     split_name = p.stem.split("_")
     angle_idx = _find_angle_index(split_name)
     try:
         int(split_name[angle_idx - 1])
     except ValueError:
-        return "0"
-    return split_name[angle_idx - 1]
+        return 0
+    return int(split_name[angle_idx - 1])
 
 
 def _get_tilt_name_v5_12(p: Path) -> str:
@@ -131,11 +131,7 @@ def _import_output_files(
         str(relion_options.frame_count),
         str(stage_tilt_angle),
         str(relion_options.tilt_axis_angle),
-        str(
-            int(tilt_number)
-            * relion_options.frame_count
-            * relion_options.dose_per_frame
-        ),
+        str(tilt_number * relion_options.frame_count * relion_options.dose_per_frame),
         str(relion_options.defocus),
     ]
 
@@ -194,11 +190,7 @@ def _motioncorr_output_files(
         str(relion_options.frame_count),
         str(stage_tilt_angle),
         str(relion_options.tilt_axis_angle),
-        str(
-            int(tilt_number)
-            * relion_options.frame_count
-            * relion_options.dose_per_frame
-        ),
+        str(tilt_number * relion_options.frame_count * relion_options.dose_per_frame),
         str(relion_options.defocus),
         str(output_file),
         str(output_file.with_suffix(".star")),
@@ -275,11 +267,7 @@ def _ctffind_output_files(
         str(relion_options.frame_count),
         str(stage_tilt_angle),
         str(relion_options.tilt_axis_angle),
-        str(
-            int(tilt_number)
-            * relion_options.frame_count
-            * relion_options.dose_per_frame
-        ),
+        str(tilt_number * relion_options.frame_count * relion_options.dose_per_frame),
         str(relion_options.defocus),
         str(input_file),
         str(output_file.with_suffix(".ctf")) + ":mrc",
@@ -354,11 +342,7 @@ def _exclude_tilt_output_files(
         str(relion_options.frame_count),
         str(stage_tilt_angle),
         str(relion_options.tilt_axis_angle),
-        str(
-            int(tilt_number)
-            * relion_options.frame_count
-            * relion_options.dose_per_frame
-        ),
+        str(tilt_number * relion_options.frame_count * relion_options.dose_per_frame),
         str(relion_options.defocus),
         str(input_file),
     ]
@@ -437,11 +421,7 @@ def _align_tilt_output_files(
         str(relion_options.frame_count),
         str(stage_tilt_angle),
         str(relion_options.tilt_axis_angle),
-        str(
-            int(tilt_number)
-            * relion_options.frame_count
-            * relion_options.dose_per_frame
-        ),
+        str(tilt_number * relion_options.frame_count * relion_options.dose_per_frame),
         str(relion_options.defocus),
         str(input_file),
         ctf_results[1],
@@ -508,7 +488,7 @@ def _tomogram_output_files(
         str(relion_options.pixel_size),
         str(relion_options.invert_hand),
         "optics1",
-        str(relion_options.pixel_size_downscaled),
+        str(relion_options.pixel_size),
         f"AlignTiltSeries/job005/tilt_series/{tilt_series_name}.star",
         str(relion_options.pixel_size_downscaled / relion_options.pixel_size),
         str(relion_options.tomo_size_x),
@@ -569,7 +549,7 @@ def _denoising_output_files(
         str(relion_options.pixel_size),
         str(relion_options.invert_hand),
         "optics1",
-        str(relion_options.pixel_size_downscaled),
+        str(relion_options.pixel_size),
         f"AlignTiltSeries/job005/tilt_series/{tilt_series_name}.star",
         str(relion_options.pixel_size_downscaled / relion_options.pixel_size),
         str(relion_options.tomo_size_x),
@@ -613,6 +593,69 @@ def _denoising_output_files(
     return {f"{job_dir}/tomograms.star": ["TomogramGroupMetadata", ["relion"]]}
 
 
+def _membrain_output_files(
+    job_dir: Path,
+    input_file: Path,
+    output_file: Path,
+    relion_options: RelionServiceOptions,
+    results: dict,
+):
+    """Segmentation can list the details of each tomogram"""
+    tilt_series_name = _get_tilt_name_v5_12(output_file)
+    tomograms_file = job_dir / "tomograms.star"
+
+    added_line = [
+        tilt_series_name,
+        str(relion_options.voltage),
+        str(relion_options.spher_aber),
+        str(relion_options.ampl_contrast),
+        str(relion_options.pixel_size),
+        str(relion_options.invert_hand),
+        "optics1",
+        str(relion_options.pixel_size),
+        f"AlignTiltSeries/job005/tilt_series/{tilt_series_name}.star",
+        str(relion_options.pixel_size_downscaled / relion_options.pixel_size),
+        str(relion_options.tomo_size_x),
+        str(relion_options.tomo_size_y),
+        str(relion_options.vol_z),
+        str(input_file),
+        str(output_file),
+    ]
+
+    # Create or append to the star file for the individual tilt series
+    if not Path(tomograms_file).exists():
+        output_cif = cif.Document()
+        data_movies = output_cif.add_new_block("global")
+
+        movies_loop = data_movies.init_loop(
+            "_rln",
+            [
+                "TomoName",
+                "Voltage",
+                "SphericalAberration",
+                "AmplitudeContrast",
+                "MicrographOriginalPixelSize",
+                "TomoHand",
+                "OpticsGroupName",
+                "TomoTiltSeriesPixelSize",
+                "TomoTiltSeriesStarFile",
+                "TomoTomogramBinning",
+                "TomoSizeX",
+                "TomoSizeY",
+                "TomoSizeZ",
+                "TomoReconstructedTomogram",
+                "TomoReconstructedTomogramSegmented",
+            ],
+        )
+        movies_loop.add_row(added_line)
+        output_cif.write_file(str(tomograms_file), style=cif.Style.Simple)
+    else:
+        with open(tomograms_file, "a") as output_cif:
+            output_cif.write(" ".join(added_line) + "\n")
+
+    return {f"{job_dir}/tomograms.star": ["TomogramGroupMetadata", ["relion"]]}
+
+
 def _cryolo_output_files(
     job_dir: Path,
     input_file: Path,
@@ -643,8 +686,7 @@ def _cryolo_output_files(
         with open(particles_file, "w") as pf:
             pf.write(
                 "data_particles\n\nloop_\n"
-                "_rlnTomoName\n_rlnCenteredCoordinateXAngst\n"
-                "_rlnCenteredCoordinateYAngst\n_rlnCenteredCoordinateZAngst\n"
+                "_rlnTomoName\n_rlnCoordinateX\n_rlnCoordinateY\n_rlnCoordinateZ\n"
             )
 
     # Read in the output particles
@@ -659,14 +701,23 @@ def _cryolo_output_files(
     loop_width = cryolo_block.find_loop("_EstWidth")
     loop_height = cryolo_block.find_loop("_EstHeight")
 
+    # Scale coordinates back to original tilt size
+    scaling_factor = relion_options.pixel_size_downscaled / relion_options.pixel_size
+
     # Append all the particles to the particles file
     with open(particles_file, "a") as output_cif:
         for particle in range(len(loop_x)):
             added_line = [
                 tilt_series_name,
-                str(float(loop_x[particle]) + float(loop_width[particle]) / 2),
-                str(float(loop_y[particle]) + float(loop_height[particle]) / 2),
-                loop_z[particle],
+                str(
+                    (float(loop_x[particle]) + float(loop_width[particle]) / 2)
+                    * scaling_factor
+                ),
+                str(
+                    (float(loop_y[particle]) + float(loop_height[particle]) / 2)
+                    * scaling_factor
+                ),
+                str(float(loop_z[particle]) * scaling_factor),
             ]
             output_cif.write(" ".join(added_line) + "\n")
 
@@ -679,10 +730,11 @@ _output_files: Dict[str, Callable] = {
     "relion.motioncorr.motioncor2": _motioncorr_output_files,
     "relion.ctffind.ctffind4": _ctffind_output_files,
     "relion.excludetilts": _exclude_tilt_output_files,
-    "relion.aligntiltseries": _align_tilt_output_files,
+    "relion.aligntiltseries.aretomo": _align_tilt_output_files,
     "relion.reconstructtomograms": _tomogram_output_files,
     "relion.denoisetomo": _denoising_output_files,
-    "cryolo.autopick": _cryolo_output_files,
+    "membrain.segment": _membrain_output_files,
+    "cryolo.autopick.tomo": _cryolo_output_files,
 }
 
 

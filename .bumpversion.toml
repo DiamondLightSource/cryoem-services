@@ -1,5 +1,5 @@
 [tool.bumpversion]
-current_version = "1.0.3"
+current_version = "1.2.5"
 commit = true
 tag = true
 
@@ -20,6 +20,21 @@ replace = 'version: {new_version}'
 
 [[tool.bumpversion.files]]
 filename = "Helm/charts/bfactor_setup/Chart.yaml"
+search = 'version: {current_version}'
+replace = 'version: {new_version}'
+
+[[tool.bumpversion.files]]
+filename = "Helm/charts/clem_align_and_merge/Chart.yaml"
+search = 'version: {current_version}'
+replace = 'version: {new_version}'
+
+[[tool.bumpversion.files]]
+filename = "Helm/charts/clem_process_raw_lifs/Chart.yaml"
+search = 'version: {current_version}'
+replace = 'version: {new_version}'
+
+[[tool.bumpversion.files]]
+filename = "Helm/charts/clem_process_raw_tiffs/Chart.yaml"
 search = 'version: {current_version}'
 replace = 'version: {new_version}'
 
