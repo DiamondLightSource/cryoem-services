@@ -23,10 +23,8 @@ class TopazPickParameters(BaseModel):
     particle_diameter: float
     scale: int = 8
     log_threshold: float = -6
-    log_threshold_for_radius: float = 0
-    max_particle_radius: int = 40
     topaz_model: str = "resnet16"
-    use_gpu: bool = True
+    use_gpu: bool = False
     mc_uuid: int
     picker_uuid: int
     relion_options: RelionServiceOptions
@@ -119,7 +117,7 @@ class TopazPick(CommonService):
             scale=topaz_params.scale,
             affine=False,
             niters=100,
-            alpha=9000,
+            alpha=900,
             beta=1,
             sample=10,
             metadata=False,
