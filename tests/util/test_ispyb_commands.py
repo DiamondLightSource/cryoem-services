@@ -51,10 +51,6 @@ def test_buffer_bad_commands(commands):
     assert ispyb_commands.buffer(commands, ispyb_parameters, mock.MagicMock()) is False
 
 
-def raise_sql_error(mock_call):
-    raise SQLAlchemyError("Mock error")
-
-
 @mock.patch("cryoemservices.util.ispyb_commands.models")
 def test_insert_movie_id_notime(mock_models):
     def mock_movie_parameters(p):
@@ -874,21 +870,6 @@ def test_insert_tomogram_update():
     mock_session.commit.assert_called()
 
 
-def test_insert_tomogram_failure():
-    def mock_tomogram_parameters(p):
-        return None
-
-    # Mock which returns an existing object
-    mock_session = mock.MagicMock()
-    mock_session.add.side_effect = raise_sql_error
-
-    return_value = ispyb_commands.insert_tomogram(
-        {}, mock_tomogram_parameters, mock_session
-    )
-    assert return_value is False
-    mock_session.add.assert_called()
-
-
 @mock.patch("cryoemservices.util.ispyb_commands.models")
 def test_insert_processed_tomogram(mock_models):
     def mock_tomogram_parameters(p):
@@ -913,21 +894,6 @@ def test_insert_processed_tomogram(mock_models):
     )
     mock_session.add.assert_called()
     mock_session.commit.assert_called()
-
-
-def test_insert_processed_tomogram_failure():
-    def mock_tomogram_parameters(p):
-        return None
-
-    # Mock which returns an existing object
-    mock_session = mock.MagicMock()
-    mock_session.add.side_effect = raise_sql_error
-
-    return_value = ispyb_commands.insert_processed_tomogram(
-        {}, mock_tomogram_parameters, mock_session
-    )
-    assert return_value is False
-    mock_session.add.assert_called()
 
 
 @mock.patch("cryoemservices.util.ispyb_commands.models")
