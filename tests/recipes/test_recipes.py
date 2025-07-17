@@ -46,6 +46,9 @@ class ISPyBParameters(BaseModel):
     status: str
     store_result: str
     tomogram_id: int
+    grid_square_id: int
+    pixel_location_x: float
+    pixel_location_y: float
 
 
 class MurfeyParameters(BaseModel):
