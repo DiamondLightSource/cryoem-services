@@ -162,6 +162,7 @@ def test_cryolo_service_spa(mock_flatten, mock_subprocess, offline_transport, tm
             "diameter": 1.1,
             "outfile": str(output_path.with_suffix(".jpeg")),
             "remove_input": False,
+            "contrast_factor": 6,
         },
     )
     offline_transport.send.assert_any_call(
@@ -239,6 +240,7 @@ def test_cryolo_service_tomography(mock_subprocess, offline_transport, tmp_path)
     output_relion_options["cryolo_config_file"] = str(
         tmp_path / "AutoPick/job007/cryolo_config.json"
     )
+    output_relion_options["cryolo_box_size"] = 40
 
     # Set up the mock service and send the message to it
     service = cryolo.CrYOLO(environment={"queue": ""}, transport=offline_transport)
@@ -323,7 +325,7 @@ def test_cryolo_service_tomography(mock_subprocess, offline_transport, tmp_path)
     offline_transport.send.assert_any_call(
         "node_creator",
         {
-            "job_type": "cryolo.autopick",
+            "job_type": "cryolo.autopick.tomo",
             "input_file": cryolo_test_message["input_path"],
             "output_file": str(output_path),
             "relion_options": output_relion_options,
@@ -415,7 +417,7 @@ def test_flatten_grid_bars_smooth(mock_hist, tmp_path):
         (np.arange(51), np.arange(49, 0, -1))
     ), np.arange(100)
 
-    data = np.arange(100).reshape(10, 10)
+    data = np.arange(256).reshape(16, 16)
     with mrcfile.new(tmp_path / "normal.mrc") as mrc:
         mrc.set_data(data.astype(np.float32))
 
@@ -430,8 +432,7 @@ def test_flatten_grid_bars_two_peaks(mock_hist, tmp_path):
         (np.arange(26), np.arange(24, 0, -1), np.arange(26), np.arange(24, 0, -1))
     ), np.arange(100)
 
-    data = np.arange(100).reshape(10, 10)
-
+    data = np.arange(256).reshape(16, 16)
     with mrcfile.new(tmp_path / "two_normals.mrc") as mrc:
         mrc.set_data(data.astype(np.float32))
 

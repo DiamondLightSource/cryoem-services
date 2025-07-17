@@ -1,5 +1,5 @@
 # This Dockerfile is used for cryolo
-FROM rockylinux:8 AS conda-build
+FROM rockylinux:9 AS conda-build
 
 # Set up conda environment
 RUN curl -L -O "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-$(uname)-$(uname -m).sh"
@@ -29,7 +29,7 @@ RUN source "/conda/etc/profile.d/conda.sh" && conda activate /install/venv_cryol
 
 
 # Second stage extracts the conda environments
-FROM rockylinux:8
+FROM rockylinux:9
 
 # Create EM user
 ARG groupid

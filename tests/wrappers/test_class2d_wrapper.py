@@ -3,6 +3,7 @@ from __future__ import annotations
 import sys
 from unittest import mock
 
+import numpy as np
 import pytest
 from workflows.recipe.wrapper import RecipeWrapper
 from workflows.transport.offline_transport import OfflineTransport
@@ -118,10 +119,10 @@ def test_class2d_wrapper_incomplete_batch(
     with open(tmp_path / "Class2D/job010/run_it200_model.star", "w") as model_star:
         model_star.write(
             "data_model_classes\nloop_\n"
-            "_rlnReferenceImage\n_Fraction\n_Rotation\n_Translation\n"
+            "_rlnReferenceImage\n_vdam1\n_vdam2\n_Fraction\n_Rotation\n_Translation\n"
             "_Resolution\n_Completeness\n_OffsetX\n_OffsetY\n"
-            "1@Class2D/job010/run_it020_classes.mrcs 0.4 30.3 33.3 12.2 1.0 0.6 0.01\n"
-            "2@Class2D/job010/run_it020_classes.mrcs 0.6 20.2 22.2 10.0 0.9 -0.5 -0.02"
+            "1@Class2D/job010/run_it020_classes.mrcs vdam vdam 0.4 30.3 33.3 12.2 1.0 0.6 0.01\n"
+            "2@Class2D/job010/run_it020_classes.mrcs vdam vdam 0.6 20.2 22.2 10.0 0.9 -0.5 -0.02"
         )
 
     # Create a recipe wrapper with the test message
@@ -414,6 +415,153 @@ def test_class2d_wrapper_complete_batch(
             "relion_options": output_relion_options,
         },
     )
+    mock_recwrap_send.assert_any_call(
+        "select_classes",
+        {
+            "input_file": f"{tmp_path}/Class2D/job010/run_it020_optimiser.star",
+            "relion_options": output_relion_options,
+            "class_uuids": "{'0': 10}",
+        },
+    )
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+@mock.patch("cryoemservices.wrappers.class2d_wrapper.subprocess.run")
+@mock.patch("workflows.recipe.wrapper.RecipeWrapper.send_to")
+def test_class2d_wrapper_cryodann(
+    mock_recwrap_send, mock_subprocess, offline_transport, tmp_path
+):
+    """
+    Send a test message to the Class2D wrapper for a complete batch with cryodann on
+    """
+    mock_subprocess().returncode = 0
+    mock_subprocess().stdout = "stdout".encode("utf8")
+    mock_subprocess().stderr = "stderr".encode("utf8")
+
+    # Example recipe wrapper message to run the service with
+    class2d_test_message = {
+        "recipe": {
+            "start": [[1, []]],
+            "1": {
+                "job_parameters": {
+                    "batch_is_complete": True,
+                    "batch_size": "50000",
+                    "class2d_dir": f"{tmp_path}/Class2D/job010",
+                    "class2d_grp_uuid": "5",
+                    "class2d_nr_classes": "1",
+                    "class_uuids": "{'0': 10}",
+                    "do_icebreaker_jobs": True,
+                    "do_vdam": False,
+                    "gpus": "0:1:2:3",
+                    "particle_diameter": "180",
+                    "particles_file": f"{tmp_path}/Select/job009/particles_split2.star",
+                    "picker_id": "6",
+                    "do_cryodann": True,
+                    "cryodann_dataset": "cryodann/dataset",
+                    "relion_options": {},
+                },
+            },
+        },
+        "recipe-pointer": 1,
+        "environment": {"ID": "envID"},
+    }
+    output_relion_options = RelionServiceOptions()
+    output_relion_options.particle_diameter = 180
+    output_relion_options.class2d_nr_classes = 1
+    output_relion_options.class2d_nr_iter = 20
+    output_relion_options = dict(output_relion_options)
+
+    # Create the expected output files
+    (tmp_path / "Class2D/job010").mkdir(parents=True, exist_ok=True)
+    with open(tmp_path / "Class2D/job010/run_it020_data.star", "w") as data_star:
+        data_star.write(
+            "data_optics\nloop_\n_rlnImagePixelSize\n2.5\n\n"
+            "data_particles\nloop_\n_rlnCoordinateX\n1\n2\n3\n4\n5"
+        )
+    with open(tmp_path / "Class2D/job010/run_it020_model.star", "w") as model_star:
+        model_star.write(
+            "data_model_classes\nloop_\n"
+            "_rlnReferenceImage\n_Fraction\n_Rotation\n_Translation\n"
+            "_Resolution\n_Completeness\n_OffsetX\n_OffsetY\n"
+            "1@Class2D/job010/run_it020_classes.mrcs 0.4 30.3 33.3 12.2 1.0 0.6 0.01\n"
+        )
+
+    # Create cryodann outputs
+    (tmp_path / "Class2D/job010/cryodann/lightning_logs").mkdir(parents=True)
+    np.save(
+        tmp_path / "Class2D/job010/cryodann/lightning_logs/scores.npy",
+        np.array([1, 2, 3, 4, 5]),
+    )
+
+    # Create a recipe wrapper with the test message
+    recipe_wrapper = RecipeWrapper(
+        message=class2d_test_message, transport=offline_transport
+    )
+
+    # Set up and run the mock service
+    service_wrapper = class2d_wrapper.Class2DWrapper(recipe_wrapper)
+    service_wrapper.run()
+
+    # Check the expected command was run
+    assert mock_subprocess.call_count == 8
+    particle_alignment_command = [
+        "relion_stack_create",
+        "--i",
+        f"{tmp_path}/Class2D/job010/run_it020_data.star",
+        "--o",
+        f"{tmp_path}/Class2D/job010/aligned_particles/aligned",
+    ]
+    lowpass_command = [
+        "relion_image_handler",
+        "--i",
+        f"{tmp_path}/Class2D/job010/aligned_particles/aligned.mrcs",
+        "--lowpass",
+        "10",
+        "--o",
+        f"{tmp_path}/Class2D/job010/aligned_particles/aligned_lowpassed.mrcs",
+    ]
+    cryovae_command = [
+        "cryovae",
+        f"{tmp_path}/Class2D/job010/aligned_particles/aligned_lowpassed.mrcs",
+        f"{tmp_path}/Class2D/job010/cryodann/cryovae",
+        "--beta=0.1",
+    ]
+    cryodann_command = [
+        "cryodann",
+        "cryodann/dataset",
+        f"{tmp_path}/Class2D/job010/cryodann/cryovae/recons.mrcs",
+        f"{tmp_path}/Class2D/job010/cryodann",
+        "--particle_file",
+        f"{tmp_path}/Class2D/job010/aligned_particles/aligned.star",
+        "--keep_percent",
+        "0.5",
+    ]
+
+    mock_subprocess.assert_any_call(
+        particle_alignment_command, cwd=str(tmp_path), capture_output=True
+    )
+    mock_subprocess.assert_any_call(
+        lowpass_command, cwd=str(tmp_path), capture_output=True
+    )
+    mock_subprocess.assert_any_call(
+        cryovae_command, cwd=str(tmp_path), capture_output=True
+    )
+    mock_subprocess.assert_any_call(
+        cryodann_command, cwd=str(tmp_path), capture_output=True
+    )
+
+    # Check cryodann wrote scores
+    with open(tmp_path / "Class2D/job010/run_it020_data.star", "r") as data_star:
+        output_particles_data = data_star.read()
+    assert output_particles_data == (
+        "data_optics\nloop_\n_rlnImagePixelSize\n2.5\n\n"
+        "data_particles\nloop_\n_rlnCoordinateX\n_rlnCryodannScore\n"
+        "1 1\n2 2\n3 3\n4 4\n5 5\n"
+    )
+
+    # Check the expected message sends to other processes
+    assert mock_recwrap_send.call_count == 5
+    # Don't need to re-test the node_creator, images or ispyb messages
     mock_recwrap_send.assert_any_call(
         "select_classes",
         {

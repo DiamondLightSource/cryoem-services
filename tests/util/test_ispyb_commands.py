@@ -1,9 +1,54 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Callable
 from unittest import mock
 
+import pytest
+from sqlalchemy.exc import SQLAlchemyError
+
 from cryoemservices.util import ispyb_commands
+
+bad_multipart_message_commands = [
+    None,
+    {"not a list": "not a list"},
+    [],
+    [{"missing_command": "not here"}],
+    [{"ispyb_command": "non_existant"}],
+]
+
+
+@pytest.mark.parametrize("commands", bad_multipart_message_commands)
+def test_multipart_message_bad_commands(commands):
+    def ispyb_parameters(p):
+        return {"ispyb_command_list": commands}.get(p)
+
+    assert (
+        ispyb_commands.multipart_message({}, ispyb_parameters, mock.MagicMock())
+        is False
+    )
+
+
+bad_buffer_commands = [
+    {},
+    {"buffer_command": "not a dict"},
+    {"buffer_command": {"ispyb_command": None}},
+    {"buffer_command": {"ispyb_command": "non_existant"}},
+    {
+        "buffer_command": {
+            "ispyb_command": "insert_movie",
+        },
+        "buffer_lookup": "not a dict",
+    },
+]
+
+
+@pytest.mark.parametrize("commands", bad_buffer_commands)
+def test_buffer_bad_commands(commands):
+    def ispyb_parameters(p):
+        return p
+
+    assert ispyb_commands.buffer(commands, ispyb_parameters, mock.MagicMock()) is False
 
 
 @mock.patch("cryoemservices.util.ispyb_commands.models")
@@ -1043,3 +1088,35 @@ def test_register_processing(mock_models):
     )
     mock_session.add.assert_called()
     mock_session.commit.assert_called()
+
+
+ispyb_insertion_functions = [
+    ispyb_commands.insert_movie,
+    ispyb_commands.insert_motion_correction,
+    ispyb_commands.insert_relative_ice_thickness,
+    ispyb_commands.insert_ctf,
+    ispyb_commands.insert_particle_picker,
+    ispyb_commands.insert_particle_classification,
+    ispyb_commands.insert_particle_classification_group,
+    ispyb_commands.insert_cryoem_initial_model,
+    ispyb_commands.insert_bfactor_fit,
+    ispyb_commands.insert_tomogram,
+    ispyb_commands.insert_processed_tomogram,
+    ispyb_commands.insert_tilt_image_alignment,
+    ispyb_commands.update_processing_status,
+    ispyb_commands.register_processing,
+]
+
+
+@pytest.mark.parametrize("ispyb_function", ispyb_insertion_functions)
+def test_sql_failures(ispyb_function: Callable):
+    def raise_sql_error():
+        raise SQLAlchemyError("Test error")
+
+    def mock_processing_parameters(p):
+        return "10" if p != "timestamp" else None
+
+    mock_session = mock.MagicMock()
+    mock_session.commit.side_effect = raise_sql_error
+
+    assert ispyb_function({}, mock_processing_parameters, mock_session) is False

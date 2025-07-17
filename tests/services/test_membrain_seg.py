@@ -8,6 +8,7 @@ from requests import Response
 from workflows.transport.offline_transport import OfflineTransport
 
 from cryoemservices.services import membrain_seg
+from cryoemservices.util.relion_service_options import RelionServiceOptions
 from tests.test_utils.config import cluster_submission_configuration
 
 
@@ -30,6 +31,8 @@ def test_membrain_seg_service_local(
     This should call the mock subprocess then send messages to the images service.
     """
     mock_subprocess().returncode = 0
+    mock_subprocess().stdout = "stdout".encode("ascii")
+    mock_subprocess().stderr = "stderr".encode("ascii")
 
     header = {
         "message-id": mock.sentinel,
@@ -47,7 +50,9 @@ def test_membrain_seg_service_local(
         "window_size": 100,
         "connected_component_threshold": 2,
         "segmentation_threshold": 4,
+        "relion_options": {},
     }
+    output_relion_options = dict(RelionServiceOptions())
 
     # Set up the mock service and send a message to it
     service = membrain_seg.MembrainSeg(
@@ -79,11 +84,25 @@ def test_membrain_seg_service_local(
         "--store-probabilities",
         "--store-connected-components",
     ]
-    assert mock_subprocess.call_count == 2
+    assert mock_subprocess.call_count == 4
     mock_subprocess.assert_any_call(membrain_command, capture_output=True)
 
     # Check the images service request
-    assert offline_transport.send.call_count == 3
+    assert offline_transport.send.call_count == 4
+    offline_transport.send.assert_any_call(
+        "node_creator",
+        {
+            "experiment_type": "tomography",
+            "job_type": "membrain.segment",
+            "input_file": f"{tmp_path}/Denoise/job007/tomograms/test_stack_aretomo.denoised.mrc",
+            "output_file": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented.mrc",
+            "relion_options": output_relion_options,
+            "command": " ".join(membrain_command),
+            "stdout": "stdout",
+            "stderr": "stderr",
+            "success": True,
+        },
+    )
     offline_transport.send.assert_any_call(
         "images",
         {
@@ -148,7 +167,9 @@ def test_membrain_seg_service_slurm(
         "segmentation_threshold": 4,
         "cleanup_output": False,
         "submit_to_slurm": True,
+        "relion_options": {},
     }
+    output_relion_options = dict(RelionServiceOptions())
 
     # Construct the file which contains rest api submission information
     cluster_submission_configuration(tmp_path)
@@ -241,7 +262,21 @@ def test_membrain_seg_service_slurm(
     )
 
     # Check the images service request
-    assert offline_transport.send.call_count == 3
+    assert offline_transport.send.call_count == 4
+    offline_transport.send.assert_any_call(
+        "node_creator",
+        {
+            "experiment_type": "tomography",
+            "job_type": "membrain.segment",
+            "input_file": f"{tmp_path}/Denoise/job007/tomograms/test_stack_aretomo.denoised.mrc",
+            "output_file": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented.mrc",
+            "relion_options": output_relion_options,
+            "command": " ".join(segment_command),
+            "stdout": "",
+            "stderr": "",
+            "success": True,
+        },
+    )
     offline_transport.send.assert_any_call(
         "images",
         {

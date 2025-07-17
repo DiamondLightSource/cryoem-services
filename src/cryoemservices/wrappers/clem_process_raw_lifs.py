@@ -70,7 +70,7 @@ def process_lif_substack(
     # Get name of sub-image
     file_name = file.stem.replace(" ", "_")  # Remove spaces
     img_name = metadata.attrib["Name"].replace(" ", "_")  # Remove spaces
-    logger.info(f"Processing {file_name}-{img_name}")
+    logger.info(f"Processing {file_name}--{img_name}")
 
     # Create save dirs for TIFF files and their metadata
     save_dir = (  # Save directory for all substacks from this LIF file
@@ -167,7 +167,7 @@ def process_lif_substack(
         )
 
         # Process the image stack
-        logger.info("Processing image stack")
+        logger.info("Applying image stack processing routine to image stack")
         arr = preprocess_img_stk(
             array=arr,
             initial_dtype=dtype_init,
@@ -183,7 +183,7 @@ def process_lif_substack(
         )
 
         # Save as a greyscale TIFF
-        logger.info("Processing image stack")
+        logger.info("Saving image stack as a TIFF file")
         img_stk_file = write_stack_to_tiff(
             array=arr,
             save_dir=img_dir,
@@ -297,7 +297,7 @@ def convert_lif_to_stack(
         return []
 
     # Iterate through scenes
-    logger.info("Examining sub-images")
+    logger.info(f"Examining sub-images in {file.name!r}")
 
     # Set up multiprocessing arguments
     pool_args = []
@@ -315,6 +315,7 @@ def convert_lif_to_stack(
 
     # Parallel process image stacks and return results
     with mp.Pool(processes=num_procs) as pool:
+        logger.info(f"Starting processing of LIF substacks in {file.name!r}")
         # Each thread will return a list of dicts
         results_map = pool.starmap(process_lif_substack, pool_args)
 
@@ -368,7 +369,7 @@ class LIFToStackWrapper:
         )
 
         # Return False and log error if the command fails to execute
-        if results is None:
+        if not results:
             logger.error(
                 f"Failed to extract image stacks from {str(params.lif_file)!r}"
             )

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import subprocess
 import sys
+from importlib.metadata import entry_points
 from pathlib import Path
 from unittest import mock
 
@@ -8,14 +10,9 @@ from cryoemservices.cli import start_service
 
 
 @mock.patch("cryoemservices.cli.start_service.PikaTransport")
-@mock.patch("cryoemservices.cli.start_service.multiprocessing.Process")
 @mock.patch("cryoemservices.services.motioncorr.MotionCorr")
-def test_start_service_with_optional_args(
-    mock_service, mock_multiprocess, mock_transport, tmp_path
-):
+def test_start_service_with_optional_args(mock_service, mock_transport, tmp_path):
     """Test that wrappers can be started and run"""
-    mock_multiprocess().is_alive.side_effect = [True, False]
-
     # Create a sample config file
     config_file = tmp_path / "config.yaml"
     with open(config_file, "w") as cf:
@@ -24,7 +21,7 @@ def test_start_service_with_optional_args(
 
     # Run the wrapper starter
     sys.argv = [
-        "cryoemservices.wrap",
+        "cryoemservices.service",
         "--service",
         "MotionCorr",
         "--config_file",
@@ -39,9 +36,6 @@ def test_start_service_with_optional_args(
     # Check the calls which should be made
     mock_transport.assert_called()
     mock_transport().load_configuration_file.assert_called_with(Path("rmq_creds"))
-    mock_transport().connect.assert_called()
-    mock_transport().disconnect.assert_called()
-    mock_transport().is_connected.assert_called()
 
     mock_service.assert_called_with(
         environment={
@@ -50,23 +44,15 @@ def test_start_service_with_optional_args(
             "queue": "motioncorr",
         },
         transport=mock.ANY,
+        single_message_mode=False,
     )
-
-    mock_multiprocess.assert_called_with(target=mock.ANY)
-    mock_multiprocess().start.assert_called()
-    mock_multiprocess().is_alive.assert_called()
-    mock_multiprocess().terminate.assert_called()
-    mock_multiprocess().join.assert_called()
+    mock_service().start.assert_called_once()
 
 
 @mock.patch("cryoemservices.cli.start_service.PikaTransport")
-@mock.patch("cryoemservices.cli.start_service.multiprocessing.Process")
 @mock.patch("cryoemservices.services.motioncorr.MotionCorr")
-def test_start_service_with_default_args(
-    mock_service, mock_multiprocess, mock_transport, tmp_path
-):
+def test_start_service_with_default_args(mock_service, mock_transport, tmp_path):
     """Test that wrappers can be started and run"""
-    mock_multiprocess().is_alive.side_effect = [True, False]
 
     # Create a sample config file
     config_file = tmp_path / "config.yaml"
@@ -76,20 +62,18 @@ def test_start_service_with_default_args(
 
     # Run the wrapper starter
     sys.argv = [
-        "cryoemservices.wrap",
+        "cryoemservices.service",
         "--service",
         "MotionCorr",
         "--config_file",
         str(config_file),
+        "--single_message",
     ]
     start_service.run()
 
     # Check the calls which should be made
     mock_transport.assert_called()
     mock_transport().load_configuration_file.assert_called_with(Path("rmq_creds"))
-    mock_transport().connect.assert_called()
-    mock_transport().disconnect.assert_called()
-    mock_transport().is_connected.assert_called()
 
     mock_service.assert_called_with(
         environment={
@@ -98,10 +82,31 @@ def test_start_service_with_default_args(
             "queue": "",
         },
         transport=mock.ANY,
+        single_message_mode=True,
     )
+    mock_service().start.assert_called_once()
 
-    mock_multiprocess.assert_called_with(target=mock.ANY)
-    mock_multiprocess().start.assert_called()
-    mock_multiprocess().is_alive.assert_called()
-    mock_multiprocess().terminate.assert_called()
-    mock_multiprocess().join.assert_called()
+
+def test_start_service_exists():
+    """Test the service CLI is made"""
+    result = subprocess.run(
+        [
+            "cryoemservices.service",
+            "--help",
+        ],
+        capture_output=True,
+    )
+    assert not result.returncode
+
+    known_services = [e.name for e in entry_points(group="cryoemservices.services")]
+
+    # Find the first line of the help and strip out all the spaces and newlines
+    stdout_as_string = result.stdout.decode("utf8", "replace")
+    cleaned_help_line = (
+        stdout_as_string.split("\n\n")[0].replace("\n", "").replace(" ", "")
+    )
+    assert cleaned_help_line == (
+        "usage:cryoemservices.service[-h]-s{"
+        + ",".join(sorted(known_services))
+        + "}-cCONFIG_FILE[--slurmSLURM][--queueQUEUE][--single_message]"
+    )

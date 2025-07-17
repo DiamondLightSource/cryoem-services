@@ -51,6 +51,7 @@ def plugin_params_parpick(jpeg_path, outfile):
             "angpix": 0.5,
             "diameter": 190,
             "outfile": outfile,
+            "flatten_image": True,
         }
         return p.get(key) or default
 

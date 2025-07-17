@@ -27,7 +27,7 @@ spec:
             cpu: {{ .Values.cpuLimit }}
             memory: {{ .Values.memoryLimit }}
         command: ["/bin/sh"]
-        args: 
+        args:
           - -c
           - >-
               {{ .Values.command }}

@@ -165,7 +165,7 @@ class CrYOLO(CommonService):
                     flatten_grid_bars(Path(cryolo_params.input_path))
                 )
             except IndexError as e:
-                self.log.error(f"Making flat image failed with error {e}")
+                self.log.error(f"Making flat image failed with error: {e}")
                 scaled_input_path = cryolo_params.input_path
         else:
             scaled_input_path = cryolo_params.input_path
@@ -212,6 +212,7 @@ class CrYOLO(CommonService):
         )
 
         # Create the config file
+        cryolo_params.relion_options.cryolo_box_size = cryolo_params.cryolo_box_size
         cryolo_params.relion_options.cryolo_config_file = str(
             job_dir / "cryolo_config.json"
         )
@@ -246,7 +247,8 @@ class CrYOLO(CommonService):
         # Register the cryolo job with the node creator
         self.log.info(f"Sending {self.job_type} to node creator")
         node_creator_parameters: dict[str, Any] = {
-            "job_type": self.job_type,
+            "job_type": self.job_type
+            + (".tomo" if cryolo_params.experiment_type == "tomography" else ""),
             "input_file": cryolo_params.input_path,
             "output_file": cryolo_params.output_path,
             "relion_options": dict(cryolo_params.relion_options),
@@ -448,6 +450,9 @@ class CrYOLO(CommonService):
             "remove_input": (
                 True if scaled_input_path != cryolo_params.input_path else False
             ),
+            "contrast_factor": (
+                1 if scaled_input_path != cryolo_params.input_path else 6
+            ),
         }
         rw.send_to("images", images_parameters)
 
@@ -503,12 +508,17 @@ class CrYOLO(CommonService):
         rw.transport.ack(header)
 
 
-def flatten_grid_bars(micrograph_mrc: Path) -> Path:
-    with mrcfile.open(micrograph_mrc) as mrc:
-        image = mrc.data
+def grid_bar_histogram(full_image: np.ndarray) -> Optional[np.narray]:
+    # Bin the image
+    full_shape = np.shape(full_image)
+    small_image = (
+        full_image.reshape((int(full_shape[0] / 4), 4, int(full_shape[1] / 4), 4))
+        .mean(-1)
+        .mean(1)
+    )
 
     # Make histogram and find turning points in it
-    hist = plt.hist(image.flatten(), bins=100)
+    hist = plt.hist(small_image.flatten(), bins=100)
     tp_values = np.sign(np.diff(hist[0]))[:-1] - np.sign(np.diff(hist[0]))[1:]
     all_turning_points = np.where(tp_values != 0)[0]
     all_tp_vals = np.abs(tp_values[tp_values != 0])
@@ -534,23 +544,27 @@ def flatten_grid_bars(micrograph_mrc: Path) -> Path:
         for i, tp in enumerate(all_turning_points)
         if tp not in invalid_turning_points and all_tp_vals[i] == 2
     ]
-    if len(turning_points) == 1:
-        return micrograph_mrc
-    elif len(turning_points) == 3:
+    if len(turning_points) == 3:
         minima_loc = turning_points[1] + 5
         minima_val = hist[1][minima_loc]
 
         maxima_loc = turning_points[2] + 5
         maxima_val = hist[1][maxima_loc]
 
-        new_image = np.copy(image)
+        new_image = np.copy(full_image)
         new_image[new_image < minima_val] = maxima_val
+        return new_image
+    return None
 
+
+def flatten_grid_bars(micrograph_mrc: Path) -> Path:
+    with mrcfile.open(micrograph_mrc) as mrc:
+        full_image = mrc.data
+
+    new_image_data = grid_bar_histogram(full_image)
+    if new_image_data is not None:
         flat_micrograph = micrograph_mrc.parent / (micrograph_mrc.stem + "_flat.mrc")
-        with mrcfile.new(flat_micrograph) as mrc:
-            mrc.set_data(new_image)
+        with mrcfile.new(flat_micrograph, overwrite=True) as mrc:
+            mrc.set_data(new_image_data)
         return flat_micrograph
-    else:
-        raise IndexError(
-            f"Found {len(turning_points)} turning points for {micrograph_mrc}"
-        )
+    return micrograph_mrc

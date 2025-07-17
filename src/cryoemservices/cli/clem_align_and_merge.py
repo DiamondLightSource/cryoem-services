@@ -10,8 +10,7 @@ import argparse
 from ast import literal_eval
 from pathlib import Path
 
-from cryoemservices.cli import LineWrapHelpFormatter
-from cryoemservices.wrappers.clem_align_and_merge import align_and_merge_stacks
+from cryoemservices.cli import LineWrapHelpFormatter, set_up_logging
 
 
 def parse_list_of_paths(values: list[str]):
@@ -123,6 +122,12 @@ def run():
     # Parse the arguments
     args = parser.parse_args()
 
+    # Set up the logger before the functions are imported
+    set_up_logging(debug=args.debug)
+
+    # Import cryoemservices ONLY after logger setup is completed
+    from cryoemservices.wrappers.clem_align_and_merge import align_and_merge_stacks
+
     # Validate image stacks parameter
     image_files: list[Path] = parse_list_of_paths(args.images)
     print("Found all provided image files")
@@ -146,8 +151,6 @@ def run():
         align_self=args.align_self,
         flatten=args.flatten,
         align_across=args.align_across,
-        print_messages=True,  # Print messages when used as a CLI
-        debug=args.debug,  # Print debug messages
     )
 
     if composite_image is not None:
