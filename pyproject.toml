@@ -34,7 +34,7 @@ dependencies = [
     "graypy",
     "healpy",
     "icebreaker-em",
-    "ispyb>=11.0.3",
+    "ispyb>=11.0.5",
     "mrcfile",
     "numpy<2",
     "pillow",

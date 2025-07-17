@@ -744,6 +744,9 @@ def test_insert_tomogram_new(mock_models):
             "proj_xy": "/path/to/xy",
             "proj_xz": "/path/to/xz",
             "alignment_quality": 0.2,
+            "grid_square_id": 12345,
+            "pixel_location_x": 200,
+            "pixel_location_y": 400,
         }
         return tomogram_parameters[p]
 
@@ -783,6 +786,9 @@ def test_insert_tomogram_new(mock_models):
         projXY="/path/to/xy",
         projXZ="/path/to/xz",
         globalAlignmentQuality=0.2,
+        gridSquareId=12345,
+        pixelLocationX=200,
+        pixelLocationY=400,
     )
     mock_session.add.assert_called()
     mock_session.commit.assert_called()
@@ -812,6 +818,9 @@ def test_insert_tomogram_update():
             "proj_xy": "/path/to/xy",
             "proj_xz": "/path/to/xz",
             "alignment_quality": 0.2,
+            "grid_square_id": 12345,
+            "pixel_location_x": 200,
+            "pixel_location_y": 400,
         }
         return tomogram_parameters[p]
 
@@ -852,6 +861,9 @@ def test_insert_tomogram_update():
             "projXY": "/path/to/xy",
             "projXZ": "/path/to/xz",
             "globalAlignmentQuality": 0.2,
+            "gridSquareId": 12345,
+            "pixelLocationX": 200,
+            "pixelLocationY": 400,
         }
     )
     mock_session.add.assert_not_called()
