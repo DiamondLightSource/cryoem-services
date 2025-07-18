@@ -52,7 +52,7 @@ def get_processing_info(processing_id: int, session: Session) -> dict:
     return processing_info
 
 
-def get_dc_info(dcid: int, session: Session) -> dict:
+def get_image_directory(dcid: int, session: Session) -> str:
     """Find a data collection in ispyb"""
     dc_query = (
         session.execute(
@@ -63,17 +63,10 @@ def get_dc_info(dcid: int, session: Session) -> dict:
         .scalars()
         .first()
     )
-    if dc_query is None:
-        logger.error(f"Data collection {dcid} not found")
-        return {}
-    if not dc_query.imageDirectory or not dc_query.fileTemplate:
-        logger.error(f"No image directory or file path for {dcid}")
-        return {}
-    dc_info = {
-        "imageDirectory": dc_query.imageDirectory,
-        "fileTemplate": dc_query.fileTemplate,
-    }
-    return dc_info
+    if dc_query is None or not dc_query.imageDirectory:
+        logger.error(f"Data collection {dcid} not found or no image directory present")
+        return ""
+    return dc_query.imageDirectory
 
 
 def get_visit_directory_from_image_directory(data_directory: Path) -> Path:
@@ -119,24 +112,22 @@ def ispyb_filter(
         parameters.update(processing_info)
         dc_id = parameters["ispyb_dcid"]
 
-        dc_info = get_dc_info(dc_id, session)
-        if not dc_info:
+        image_directory = get_image_directory(dc_id, session)
+        if not image_directory:
             raise ValueError(f"No ispyb entry found for dcid={dc_id}")
 
     recipe_uuid = parameters.get("guid") or str(uuid.uuid4())
-    image_directory = Path(dc_info["imageDirectory"])
 
     parameters["ispyb_beamline"] = "microscope"
-    parameters["ispyb_dc_info"] = dc_info
-
+    parameters["ispyb_image_directory"] = image_directory
     parameters["ispyb_visit_directory"] = str(
-        get_visit_directory_from_image_directory(image_directory)
+        get_visit_directory_from_image_directory(Path(image_directory))
     )
     parameters["ispyb_working_directory"] = str(
-        get_working_directory(image_directory, recipe_uuid)
+        get_working_directory(Path(image_directory), recipe_uuid)
     )
     parameters["ispyb_results_directory"] = str(
-        get_processed_directory(image_directory, recipe_uuid)
+        get_processed_directory(Path(image_directory), recipe_uuid)
     )
 
     # Prefix recipe name coming from ispyb with 'ispyb-'

@@ -15,6 +15,8 @@ NODE_PARTICLEGROUPMETADATA = "ParticleGroupMetadata"
 def get_ice_ring_density(output_file: Path):
     with open(f"{output_file.with_suffix('')}_avrot.txt", "r") as f:
         ctf_rings = f.readlines()[5:7]
+    if not ctf_rings:
+        return 0
     ring_levels = np.array(ctf_rings[0].split(), dtype=float)
     ice_values = np.array(ctf_rings[1].split(), dtype=float)
     return np.sum(np.abs(ice_values[(ring_levels > 0.25) * (ring_levels < 0.28)]))
@@ -278,14 +280,17 @@ def _icebreaker_output_files(
             output_cif.write(" ".join(added_line) + "\n")
 
 
-def _cryolo_output_files(
+def _autopick_output_files(
     job_dir: Path,
     input_file: Path,
     output_file: Path,
     relion_options: RelionServiceOptions,
     results: dict,
 ):
-    """Cryolo jobs save a list of micrographs and files with particle coordinates"""
+    """
+    Cryolo or Topaz pick jobs save a list of micrographs
+    and files with particle coordinates
+    """
     star_file = job_dir / "autopick.star"
     added_line = [str(input_file), str(output_file)]
 
@@ -379,7 +384,8 @@ _output_files: Dict[str, Callable] = {
     "icebreaker.micrograph_analysis.enhancecontrast": _icebreaker_output_files,
     "icebreaker.micrograph_analysis.summary": _icebreaker_output_files,
     "relion.ctffind.ctffind4": _ctffind_output_files,
-    "cryolo.autopick": _cryolo_output_files,
+    "cryolo.autopick": _autopick_output_files,
+    "relion.autopick.topaz.pick": _autopick_output_files,
     "relion.extract": _extract_output_files,
     "relion.select.split": _select_output_files,
     "icebreaker.micrograph_analysis.particles": _icebreaker_output_files,

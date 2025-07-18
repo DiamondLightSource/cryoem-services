@@ -6,13 +6,12 @@ RUN curl -L -O "https://github.com/conda-forge/miniforge/releases/latest/downloa
 RUN bash Miniforge3-$(uname)-$(uname -m).sh -b -p "conda"
 
 RUN source "/conda/etc/profile.d/conda.sh" && conda install -c conda-forge conda-pack
-RUN source "/conda/etc/profile.d/conda.sh" && source "/conda/etc/profile.d/mamba.sh" && mamba create -c conda-forge -p /install/pythonenv python=3.11 pip libtiff=4.4.0 numpy=1.26.4 --override-channels -y
+RUN source "/conda/etc/profile.d/conda.sh" && source "/conda/etc/profile.d/mamba.sh" && \
+    mamba create -c conda-forge -p /install/pythonenv python=3.11 pip libtiff=4.4.0 numpy=1.26.4 --override-channels -y
 
 # Install cryoem-services
-RUN mkdir /install/cryoem-services
-COPY packages/cryoem-services /install/cryoem-services
 RUN source "/conda/etc/profile.d/conda.sh" && conda activate /install/pythonenv && \
-    pip install --cache-dir /tmp /install/cryoem-services
+    pip install --cache-dir /tmp cryoemservices
 
 # Pack the environment
 RUN /conda/bin/conda-pack -p /install/pythonenv -o /tmp/env.tar.gz
@@ -36,7 +35,6 @@ ENV PATH="/install/venv/bin:${PATH}"
 
 # Install MotionCor2 executable
 COPY --chown="${userid}":"${groupid}" packages/motioncor-1.4.0 /MotionCor2/1.4.0
-WORKDIR /MotionCor2/1.4.0
 RUN rm MotionCor2 && ln -s MotionCor2_1.4.0_Cuda102 MotionCor2
 ENV PATH=/MotionCor2/1.4.0:${PATH}
 RUN chmod +x /MotionCor2/1.4.0

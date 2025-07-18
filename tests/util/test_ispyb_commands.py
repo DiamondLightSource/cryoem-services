@@ -1,13 +1,58 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Callable
 from unittest import mock
+
+import pytest
+from sqlalchemy.exc import SQLAlchemyError
 
 from cryoemservices.util import ispyb_commands
 
+bad_multipart_message_commands = [
+    None,
+    {"not a list": "not a list"},
+    [],
+    [{"missing_command": "not here"}],
+    [{"ispyb_command": "non_existant"}],
+]
+
+
+@pytest.mark.parametrize("commands", bad_multipart_message_commands)
+def test_multipart_message_bad_commands(commands):
+    def ispyb_parameters(p):
+        return {"ispyb_command_list": commands}.get(p)
+
+    assert (
+        ispyb_commands.multipart_message({}, ispyb_parameters, mock.MagicMock())
+        is False
+    )
+
+
+bad_buffer_commands = [
+    {},
+    {"buffer_command": "not a dict"},
+    {"buffer_command": {"ispyb_command": None}},
+    {"buffer_command": {"ispyb_command": "non_existant"}},
+    {
+        "buffer_command": {
+            "ispyb_command": "insert_movie",
+        },
+        "buffer_lookup": "not a dict",
+    },
+]
+
+
+@pytest.mark.parametrize("commands", bad_buffer_commands)
+def test_buffer_bad_commands(commands):
+    def ispyb_parameters(p):
+        return p
+
+    assert ispyb_commands.buffer(commands, ispyb_parameters, mock.MagicMock()) is False
+
 
 @mock.patch("cryoemservices.util.ispyb_commands.models")
-def test_insert_movie_notime(mock_models):
+def test_insert_movie_id_notime(mock_models):
     def mock_movie_parameters(p):
         movie_params = {
             "dcid": 101,
@@ -36,7 +81,7 @@ def test_insert_movie_notime(mock_models):
 
 
 @mock.patch("cryoemservices.util.ispyb_commands.models")
-def test_insert_movie_timestamp(mock_models):
+def test_insert_movie_id_timestamp(mock_models):
     def mock_movie_parameters(p):
         movie_params = {
             "dcid": 101,
@@ -59,6 +104,65 @@ def test_insert_movie_timestamp(mock_models):
         movieFullPath="/path/to/movie",
         createdTimeStamp=datetime.fromtimestamp(1).strftime("%Y-%m-%d %H:%M:%S"),
     )
+    mock_session.add.assert_called()
+    mock_session.commit.assert_called()
+
+
+@mock.patch("cryoemservices.util.ispyb_commands.models")
+def test_insert_movie_noid_timestamp(mock_models):
+    def mock_movie_parameters(p):
+        movie_params = {
+            "dcid": 101,
+            "foil_hole_id": "None",
+            "movie_number": 1,
+            "movie_path": "/path/to/movie",
+            "timestamp": 1,
+        }
+        return movie_params[p]
+
+    mock_session = mock.MagicMock()
+
+    return_value = ispyb_commands.insert_movie({}, mock_movie_parameters, mock_session)
+    assert return_value.get("success")
+    assert return_value["return_value"]
+
+    mock_models.Movie.assert_called_with(
+        dataCollectionId=101,
+        foilHoleId=None,
+        movieNumber=1,
+        movieFullPath="/path/to/movie",
+        createdTimeStamp=datetime.fromtimestamp(1).strftime("%Y-%m-%d %H:%M:%S"),
+    )
+
+    mock_session.add.assert_called()
+    mock_session.commit.assert_called()
+
+
+@mock.patch("cryoemservices.util.ispyb_commands.models")
+def test_insert_movie_noid_notime(mock_models):
+    def mock_movie_parameters(p):
+        movie_params = {
+            "dcid": 101,
+            "foil_hole_id": None,
+            "movie_number": 1,
+            "movie_path": "/path/to/movie",
+            "timestamp": None,
+        }
+        return movie_params[p]
+
+    mock_session = mock.MagicMock()
+
+    return_value = ispyb_commands.insert_movie({}, mock_movie_parameters, mock_session)
+    assert return_value.get("success")
+    assert return_value["return_value"]
+
+    mock_models.Movie.assert_called_with(
+        dataCollectionId=101,
+        foilHoleId=None,
+        movieNumber=1,
+        movieFullPath="/path/to/movie",
+    )
+
     mock_session.add.assert_called()
     mock_session.commit.assert_called()
 
@@ -291,6 +395,8 @@ def test_insert_particle_classification_new(mock_models):
             "bfactor_fit_intercept": 0.2,
             "bfactor_fit_linear": 50,
             "bfactor_fit_quadratic": 0,
+            "angular_efficiency": 0.8,
+            "suggested_tilt": 0,
         }
         return class_parameters[p]
 
@@ -323,6 +429,8 @@ def test_insert_particle_classification_new(mock_models):
         bFactorFitIntercept=0.2,
         bFactorFitLinear=50,
         bFactorFitQuadratic=0,
+        angularEfficiency=0.8,
+        suggestedTilt=0,
     )
     mock_session.add.assert_called()
     mock_session.commit.assert_called()
@@ -345,6 +453,8 @@ def test_insert_particle_classification_update():
             "bfactor_fit_intercept": 0.2,
             "bfactor_fit_linear": 50,
             "bfactor_fit_quadratic": 0,
+            "angular_efficiency": 0.5,
+            "suggested_tilt": 30,
         }
         return class_parameters[p]
 
@@ -378,6 +488,8 @@ def test_insert_particle_classification_update():
             "bFactorFitIntercept": 0.2,
             "bFactorFitLinear": 50,
             "bFactorFitQuadratic": 0,
+            "angularEfficiency": 0.5,
+            "suggestedTilt": 30,
         }
     )
     mock_session.add.assert_not_called()
@@ -396,6 +508,7 @@ def test_insert_particle_classification_group_new(mock_models):
             "number_of_particles_per_batch": 50000,
             "number_of_classes_per_batch": 50,
             "symmetry": "C1",
+            "binned_pixel_size": "2.5",
         }
         return group_parameters[p]
 
@@ -422,6 +535,7 @@ def test_insert_particle_classification_group_new(mock_models):
         numberOfParticlesPerBatch=50000,
         numberOfClassesPerBatch=50,
         symmetry="C1",
+        binnedPixelSize="2.5",
     )
     mock_session.add.assert_called()
     mock_session.commit.assert_called()
@@ -438,6 +552,7 @@ def test_insert_particle_classification_group_update():
             "number_of_particles_per_batch": 50000,
             "number_of_classes_per_batch": 50,
             "symmetry": "C1",
+            "binned_pixel_size": "3.0",
         }
         return group_parameters[p]
 
@@ -465,6 +580,7 @@ def test_insert_particle_classification_group_update():
             "numberOfParticlesPerBatch": 50000,
             "numberOfClassesPerBatch": 50,
             "symmetry": "C1",
+            "binnedPixelSize": "3.0",
         }
     )
     mock_session.add.assert_not_called()
@@ -475,7 +591,7 @@ def test_insert_particle_classification_group_update():
 def test_insert_initial_model_new(mock_models):
     def mock_model_parameters(p):
         model_parameters = {
-            "cryoem_initial_model_id": None,
+            "cryoem_initial_model_id": "None",
             "particle_classification_id": 401,
             "resolution": 15.1,
             "number_of_particles": 21000,
@@ -628,6 +744,9 @@ def test_insert_tomogram_new(mock_models):
             "proj_xy": "/path/to/xy",
             "proj_xz": "/path/to/xz",
             "alignment_quality": 0.2,
+            "grid_square_id": 12345,
+            "pixel_location_x": 200,
+            "pixel_location_y": 400,
         }
         return tomogram_parameters[p]
 
@@ -667,6 +786,9 @@ def test_insert_tomogram_new(mock_models):
         projXY="/path/to/xy",
         projXZ="/path/to/xz",
         globalAlignmentQuality=0.2,
+        gridSquareId=12345,
+        pixelLocationX=200,
+        pixelLocationY=400,
     )
     mock_session.add.assert_called()
     mock_session.commit.assert_called()
@@ -696,6 +818,9 @@ def test_insert_tomogram_update():
             "proj_xy": "/path/to/xy",
             "proj_xz": "/path/to/xz",
             "alignment_quality": 0.2,
+            "grid_square_id": 12345,
+            "pixel_location_x": 200,
+            "pixel_location_y": 400,
         }
         return tomogram_parameters[p]
 
@@ -736,6 +861,9 @@ def test_insert_tomogram_update():
             "projXY": "/path/to/xy",
             "projXZ": "/path/to/xz",
             "globalAlignmentQuality": 0.2,
+            "gridSquareId": 12345,
+            "pixelLocationX": 200,
+            "pixelLocationY": 400,
         }
     )
     mock_session.add.assert_not_called()
@@ -972,3 +1100,35 @@ def test_register_processing(mock_models):
     )
     mock_session.add.assert_called()
     mock_session.commit.assert_called()
+
+
+ispyb_insertion_functions = [
+    ispyb_commands.insert_movie,
+    ispyb_commands.insert_motion_correction,
+    ispyb_commands.insert_relative_ice_thickness,
+    ispyb_commands.insert_ctf,
+    ispyb_commands.insert_particle_picker,
+    ispyb_commands.insert_particle_classification,
+    ispyb_commands.insert_particle_classification_group,
+    ispyb_commands.insert_cryoem_initial_model,
+    ispyb_commands.insert_bfactor_fit,
+    ispyb_commands.insert_tomogram,
+    ispyb_commands.insert_processed_tomogram,
+    ispyb_commands.insert_tilt_image_alignment,
+    ispyb_commands.update_processing_status,
+    ispyb_commands.register_processing,
+]
+
+
+@pytest.mark.parametrize("ispyb_function", ispyb_insertion_functions)
+def test_sql_failures(ispyb_function: Callable):
+    def raise_sql_error():
+        raise SQLAlchemyError("Test error")
+
+    def mock_processing_parameters(p):
+        return "10" if p != "timestamp" else None
+
+    mock_session = mock.MagicMock()
+    mock_session.commit.side_effect = raise_sql_error
+
+    assert ispyb_function({}, mock_processing_parameters, mock_session) is False

@@ -3,8 +3,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from cryoemservices.cli import LineWrapHelpFormatter
-from cryoemservices.wrappers.clem_process_raw_tiffs import convert_tiff_to_stack
+from cryoemservices.cli import LineWrapHelpFormatter, set_up_logging
 
 
 def run():
@@ -33,8 +32,20 @@ def run():
         type=str,
         help="Path to the XLIF file associated with this dataset. If not provided, the script will use relative file paths to find what it thinks is the appropriate file",
     )
+    # Add debug option
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Print additional messages to check functions work as intended",
+    )
     # Parse the arguments
     args = parser.parse_args()
+
+    # Configure logger to log to console
+    set_up_logging(debug=args.debug)
+
+    # Import module only after logger has been set up
+    from cryoemservices.wrappers.clem_process_raw_tiffs import convert_tiff_to_stack
 
     # Generate list from the single file provided
     tiff_file = Path(args.tiff_file)
@@ -50,12 +61,19 @@ def run():
     # Parse metadata argument
     metadata = None if not args.metadata else Path(args.metadata)
 
-    result = convert_tiff_to_stack(
+    results = convert_tiff_to_stack(
         tiff_list=tiff_list,
         root_folder=args.root_folder,
         metadata_file=metadata,
     )
 
     # Print result to output log
-    if result is not None:
-        print(result)
+    if results:
+        if args.debug:
+            for result in results:
+                print(result)
+        print()
+        print("TIFF processing workflow successfully completed")
+    else:
+        print()
+        print("TIFF procesisng workflow did not produce any image stacks")

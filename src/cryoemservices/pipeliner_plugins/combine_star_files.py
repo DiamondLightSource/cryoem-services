@@ -38,9 +38,10 @@ def combine_star_files(files_to_process: List[Path], output_dir: Path):
 
     # Make a temporary star file to get the table headings from
     reference_optics = None
-    with open(files_to_process[0], "r") as full_starfile, open(
-        output_dir / ".particles_tmp.star", "w"
-    ) as tmp_starfile:
+    with (
+        open(files_to_process[0], "r") as full_starfile,
+        open(output_dir / ".particles_tmp.star", "w") as tmp_starfile,
+    ):
         for line_counter in range(50):
             line = full_starfile.readline()
             if line.startswith("opticsGroup"):
@@ -95,9 +96,10 @@ def combine_star_files(files_to_process: List[Path], output_dir: Path):
 
         # Add the particles lines to the final star file
         file_particles_count = 0
-        with open(split_file, "r") as added_starfile, open(
-            output_dir / ".particles_all_tmp.star", "a"
-        ) as particles_file:
+        with (
+            open(split_file, "r") as added_starfile,
+            open(output_dir / ".particles_all_tmp.star", "a") as particles_file,
+        ):
             while True:
                 particle_line = added_starfile.readline()
                 if not particle_line:
@@ -131,12 +133,14 @@ def split_star_file(
     """
 
     # Make a temporary star file to get the table headings from
-    with open(file_to_process, "r") as full_starfile, open(
-        output_dir / ".particles_tmp.star", "w"
-    ) as tmp_starfile:
+    with (
+        open(file_to_process, "r") as full_starfile,
+        open(output_dir / ".particles_tmp.star", "w") as tmp_starfile,
+    ):
         for line_counter in range(50):
             line = full_starfile.readline()
             if not line:
+                line_counter -= 1
                 break
             tmp_starfile.write(line)
 
@@ -144,7 +148,7 @@ def split_star_file(
     (output_dir / ".particles_tmp.star").unlink()
 
     # Find the number of lines in the full file
-    starfile_starter_lines = line_counter - star_dictionary["particles"].shape[0]
+    starfile_starter_lines = line_counter + 1 - star_dictionary["particles"].shape[0]
     count = 0
     with open(file_to_process, "r") as full_starfile:
         for count, line in enumerate(full_starfile):

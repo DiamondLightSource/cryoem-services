@@ -38,12 +38,7 @@ def test_run_wrapper(mock_rw, mock_transport, mock_class2d, tmp_path):
     mock_transport().connect.assert_called()
     mock_rw.assert_called_with(message={"test": "test"}, transport=mock_transport())
 
-    mock_class2d.assert_called()
-    mock_class2d().set_recipe_wrapper.assert_called()
-    mock_class2d().prepare.assert_called_with({"status_message": "Starting processing"})
+    mock_class2d.assert_called_once()
     mock_class2d().run.assert_called()
-    mock_class2d().success.assert_called_with(
-        {"status_message": "Finished processing", "status": "success"}
-    )
 
     mock_transport().disconnect.assert_called()
