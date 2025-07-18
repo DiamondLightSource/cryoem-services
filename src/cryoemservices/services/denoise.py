@@ -12,6 +12,14 @@ from cryoemservices.services.common_service import CommonService
 from cryoemservices.util.models import MockRW
 from cryoemservices.util.relion_service_options import RelionServiceOptions
 
+try:
+    import torch
+    from topaz.denoise import Denoise3D, denoise_tomogram_stream
+
+    run_subprocess = False
+except ImportError:
+    run_subprocess = True
+
 
 class DenoiseParameters(BaseModel):
     volume: str = Field(..., min_length=1)
@@ -93,10 +101,8 @@ class Denoise(CommonService):
         denoise_parameters: DenoiseParameters,
         denoised_full_path: Path,
     ):
-        try:
-            import torch
-            from topaz.denoise import Denoise3D, denoise_tomogram_stream
-        except ImportError:
+        if run_subprocess:
+            self.log.info("Running topaz through subprocess")
             return subprocess.run(topaz_command, capture_output=True)
 
         torch.set_num_threads(1)
