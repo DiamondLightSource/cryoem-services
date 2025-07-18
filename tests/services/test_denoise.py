@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-import sys
 from unittest import mock
 
 import pytest
@@ -20,7 +19,6 @@ def offline_transport(mocker):
     return transport
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.denoise.torch")
 @mock.patch("cryoemservices.services.denoise.Denoise3D")
 @mock.patch("cryoemservices.services.denoise.denoise_tomogram_stream")
@@ -205,7 +203,6 @@ def test_denoise_local_topaz_service(
     )
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.denoise.run_subprocess")
 @mock.patch("cryoemservices.services.denoise.subprocess.run")
 def test_denoise_local_subprocess_service(
@@ -374,7 +371,6 @@ def test_denoise_local_subprocess_service(
     )
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.util.slurm_submission.requests")
 @mock.patch("cryoemservices.services.denoise_slurm.transfer_files")
 @mock.patch("cryoemservices.services.denoise_slurm.retrieve_files")
