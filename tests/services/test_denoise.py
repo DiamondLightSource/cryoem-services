@@ -21,9 +21,196 @@ def offline_transport(mocker):
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+@mock.patch("cryoemservices.services.denoise.torch")
+@mock.patch("cryoemservices.services.denoise.Denoise3D")
+@mock.patch("cryoemservices.services.denoise.denoise_tomogram_stream")
+def test_denoise_local_topaz_service(
+    mock_denoise_tomogram_stream,
+    mock_denoise3d,
+    mock_torch,
+    offline_transport,
+    tmp_path,
+):
+    """
+    Send a test message to Denoising for the locally-running version
+    This should call the topaz commands then send messages on to
+    the membrain-seg and images services.
+    """
+    mock_denoise_tomogram_stream.return_value = [
+        f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc"
+    ]
+
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+    denoise_test_message = {
+        "volume": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
+        "output_dir": f"{tmp_path}/Denoise/job007/denoised",
+        "suffix": ".denoised",
+        "model": "unet-3d",
+        "even_train_path": None,
+        "odd_train_path": None,
+        "n_train": 1000,
+        "n_test": 200,
+        "crop": 96,
+        "base_kernel_width": 11,
+        "optim": "adagrad",
+        "lr": "0.001",
+        "criteria": "L2",
+        "momentum": "0.8",
+        "batch_size": 10,
+        "num_epochs": 500,
+        "weight_decay": 0,
+        "save_interval": 10,
+        "save_prefix": "prefix",
+        "num_workers": 1,
+        "num_threads": 0,
+        "gaussian": 0,
+        "patch_size": 96,
+        "patch_padding": 48,
+        "device": "-2",
+        "relion_options": {"pixel_size_downscaled": 1},
+    }
+    output_relion_options = dict(RelionServiceOptions())
+    output_relion_options["pixel_size_downscaled"] = 1
+
+    # Set up the mock service and send a message to the service
+    service = denoise.Denoise(environment={"queue": ""}, transport=offline_transport)
+    service.initializing()
+    service.denoise(None, header=header, message=denoise_test_message)
+
+    # Check the denoising command
+    denoise_command = [
+        "topaz",
+        "denoise3d",
+        f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
+        "-o",
+        f"{tmp_path}/Denoise/job007/denoised",
+        "--suffix",
+        ".denoised",
+        "-m",
+        "unet-3d",
+        "--N-train",
+        "1000",
+        "--N-test",
+        "200",
+        "-c",
+        "96",
+        "--base-kernel-width",
+        "11",
+        "--optim",
+        "adagrad",
+        "--lr",
+        "0.001",
+        "--criteria",
+        "L2",
+        "--momentum",
+        "0.8",
+        "--batch-size",
+        "10",
+        "--num-epochs",
+        "500",
+        "-w",
+        "0",
+        "--save-interval",
+        "10",
+        "--save-prefix",
+        "prefix",
+        "--num-workers",
+        "1",
+        "-j",
+        "0",
+        "-g",
+        "0",
+        "-s",
+        "96",
+        "-p",
+        "48",
+        "-d",
+        "-2",
+    ]
+    mock_torch.set_num_threads.assert_called_once_with(1)
+    mock_torch.cuda.set_device.assert_called_once_with(0)
+
+    mock_denoise3d.assert_called_once_with("unet-3d", True)
+    mock_denoise_tomogram_stream.assert_called_once_with(
+        volumes=[f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc"],
+        model=mock.ANY,
+        output_path=f"{tmp_path}/Denoise/job007/denoised",
+        suffix=".denoised",
+        gaus=0,
+        patch_size=96,
+        padding=48,
+        verbose=True,
+        use_cuda=True,
+    )
+
+    # Check the images service request
+    assert offline_transport.send.call_count == 6
+    offline_transport.send.assert_any_call(
+        "node_creator",
+        {
+            "experiment_type": "tomography",
+            "job_type": "relion.denoisetomo",
+            "input_file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
+            "output_file": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
+            "relion_options": output_relion_options,
+            "command": " ".join(denoise_command),
+            "stdout": "",
+            "stderr": "",
+            "success": True,
+        },
+    )
+    offline_transport.send.assert_any_call(
+        "images",
+        {
+            "image_command": "mrc_central_slice",
+            "file": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
+        },
+    )
+    offline_transport.send.assert_any_call(
+        "movie",
+        {
+            "image_command": "mrc_to_apng",
+            "file": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
+        },
+    )
+    offline_transport.send.assert_any_call(
+        "ispyb_connector",
+        {
+            "ispyb_command": "insert_processed_tomogram",
+            "file_path": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
+            "processing_type": "Denoised",
+        },
+    )
+    offline_transport.send.assert_any_call(
+        "segmentation",
+        {
+            "tomogram": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
+            "output_dir": f"{tmp_path}/Segmentation/job008/tomograms",
+            "pixel_size": "1.0",
+            "relion_options": output_relion_options,
+        },
+    )
+    offline_transport.send.assert_any_call(
+        "cryolo",
+        {
+            "input_path": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
+            "output_path": f"{tmp_path}/AutoPick/job009/CBOX_3D/test_stack_aretomo.denoised.cbox",
+            "experiment_type": "tomography",
+            "cryolo_box_size": 40,
+            "relion_options": output_relion_options,
+        },
+    )
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+@mock.patch("cryoemservices.services.denoise.run_subprocess")
 @mock.patch("cryoemservices.services.denoise.subprocess.run")
-def test_denoise_local_service(
+def test_denoise_local_subprocess_service(
     mock_subprocess,
+    mock_skip_imports,
     offline_transport,
     tmp_path,
 ):
