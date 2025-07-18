@@ -1,4 +1,4 @@
 apiVersion: v2
 name: extract
 description: A Helm chart for Extraction service
-version: 1.2.5
+version: 1.2.6

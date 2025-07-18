@@ -1,4 +1,4 @@
 apiVersion: v2
 name: clem_process_raw_tiffs
 description: A Helm chart for the processing of raw TIFF files from the CLEM workflow
-version: 1.2.5
+version: 1.2.6
