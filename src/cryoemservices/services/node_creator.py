@@ -114,6 +114,10 @@ pipeline_jobs: dict[str, dict] = {
         "folder": "AutoPick",
         "spa_input": {"input_file": "corrected_micrographs.star"},
     },
+    "relion.autopick.topaz.pick": {
+        "folder": "AutoPick",
+        "spa_input": {"fn_input_autopick": "corrected_micrographs.star"},
+    },
     "relion.extract": {
         "folder": "Extract",
         "spa_input": {

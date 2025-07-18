@@ -569,6 +569,44 @@ def test_node_creator_cryolo(offline_transport, tmp_path):
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+def test_node_creator_topaz_pick(offline_transport, tmp_path):
+    """
+    Send a test message to the node creator for
+    relion.autopick.topaz.pick
+    """
+    job_dir = "AutoPick/job007"
+    input_file = f"{tmp_path}/MotionCorr/job002/Movies/sample.mrc"
+    output_file = tmp_path / job_dir / "STAR/sample.star"
+    relion_options = RelionServiceOptions()
+    relion_options.particle_diameter = 100
+
+    (tmp_path / "MotionCorr/job002/").mkdir(parents=True)
+    (tmp_path / "MotionCorr/job002/corrected_micrographs.star").touch()
+
+    setup_and_run_node_creation(
+        relion_options,
+        offline_transport,
+        tmp_path,
+        job_dir,
+        "relion.autopick.topaz.pick",
+        input_file,
+        output_file,
+    )
+
+    # Check the output file structure
+    assert (tmp_path / job_dir / "autopick.star").exists()
+    micrographs_file = cif.read_file(str(tmp_path / job_dir / "autopick.star"))
+
+    micrographs_data = micrographs_file.find_block("coordinate_files")
+    assert list(micrographs_data.find_loop("_rlnMicrographName")) == [
+        "MotionCorr/job002/Movies/sample.mrc"
+    ]
+    assert list(micrographs_data.find_loop("_rlnMicrographCoordinates")) == [
+        "AutoPick/job007/STAR/sample.star"
+    ]
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 def test_node_creator_extract(offline_transport, tmp_path):
     """
     Send a test message to the node creator for

@@ -58,6 +58,10 @@ dev = [
     "pytest-datafiles",
     "pytest-mock",
 ]
+torch = [
+    "membrain-seg",
+    "topaz-em",
+]
 [project.urls]
     Bug-Tracker = "https://github.com/DiamondLightSource/cryoem-services/issues"
     GitHub = "https://github.com/DiamondLightSource/cryoem-services"
@@ -104,6 +108,7 @@ dev = [
     SelectParticles = "cryoemservices.services.select_particles:SelectParticles"
     TomoAlign = "cryoemservices.services.tomo_align:TomoAlign"
     TomoAlignSlurm = "cryoemservices.services.tomo_align_slurm:TomoAlignSlurm"
+    TopazPick = "cryoemservices.services.topaz_pick:TopazPick"
 [project.entry-points."cryoemservices.services.images.plugins"]
     "mrc_central_slice" = "cryoemservices.services.images_plugins:mrc_central_slice"
     "mrc_to_apng" = "cryoemservices.services.images_plugins:mrc_to_apng"

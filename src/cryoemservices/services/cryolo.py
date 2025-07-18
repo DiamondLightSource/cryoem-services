@@ -461,17 +461,17 @@ class CrYOLO(CommonService):
             "ctf_values": cryolo_params.ctf_values,
             "micrographs_file": cryolo_params.input_path,
             "coord_list_file": cryolo_params.output_path,
-        }
-        extraction_params["extract_file"] = str(
-            Path(
-                re.sub(
-                    "MotionCorr/job002/.+",
-                    f"Extract/job{job_number + 1:03}/Movies/",
-                    cryolo_params.input_path,
+            "extract_file": str(
+                Path(
+                    re.sub(
+                        "MotionCorr/job002/.+",
+                        f"Extract/job{job_number + 1:03}/Movies/",
+                        cryolo_params.input_path,
+                    )
                 )
-            )
-            / (Path(cryolo_params.input_path).stem + "_extract.star")
-        )
+                / (Path(cryolo_params.input_path).stem + "_extract.star")
+            ),
+        }
 
         # Forward results to murfey
         self.log.info("Sending to Murfey for particle extraction")
