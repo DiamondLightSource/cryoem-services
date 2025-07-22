@@ -177,7 +177,7 @@ def test_tomo_align_service_file_list(
         {
             "job_type": "relion.excludetilts",
             "experiment_type": "tomography",
-            "input_file": f"{tmp_path}/MotionCorr/job002/Movies/Position_1_001_0.0.mrc",
+            "input_file": f"{tmp_path}/CtfFind/job003/Movies/Position_1_001_0.0.mrc",
             "output_file": f"{tmp_path}/ExcludeTiltImages/job004/tilts/Position_1_001_0.0.mrc",
             "relion_options": output_relion_options,
             "command": "",
@@ -432,7 +432,7 @@ def test_tomo_align_service_file_list_repeated_tilt(
         {
             "job_type": "relion.excludetilts",
             "experiment_type": "tomography",
-            "input_file": f"{tmp_path}/MotionCorr/job002/Movies/Position_1_003_0.0.mrc",
+            "input_file": f"{tmp_path}/CtfFind/job003/Movies/Position_1_003_0.0.mrc",
             "output_file": f"{tmp_path}/ExcludeTiltImages/job004/tilts/Position_1_003_0.0.mrc",
             "relion_options": output_relion_options,
             "command": "",
@@ -639,7 +639,7 @@ def test_tomo_align_service_file_list_bad_tilts(
         {
             "job_type": "relion.excludetilts",
             "experiment_type": "tomography",
-            "input_file": f"{tmp_path}/MotionCorr/job002/Movies/Position_1_001_0.0.mrc",
+            "input_file": f"{tmp_path}/CtfFind/job003/Movies/Position_1_001_0.0.mrc",
             "output_file": f"{tmp_path}/ExcludeTiltImages/job004/tilts/Position_1_001_0.0.mrc",
             "relion_options": output_relion_options,
             "command": "",
@@ -653,7 +653,7 @@ def test_tomo_align_service_file_list_bad_tilts(
         {
             "job_type": "relion.excludetilts",
             "experiment_type": "tomography",
-            "input_file": f"{tmp_path}/MotionCorr/job002/Movies/Position_1_002_0.0.mrc",
+            "input_file": f"{tmp_path}/CtfFind/job003/Movies/Position_1_002_0.0.mrc",
             "output_file": f"{tmp_path}/ExcludeTiltImages/job004/tilts/Position_1_002_0.0.mrc",
             "relion_options": output_relion_options,
             "command": "",
@@ -985,7 +985,7 @@ def test_tomo_align_service_dark_images(
             {
                 "job_type": "relion.excludetilts",
                 "experiment_type": "tomography",
-                "input_file": f"{tmp_path}/MotionCorr/job002/Movies/Position_1_00{image}_0.0.mrc",
+                "input_file": f"{tmp_path}/CtfFind/job003/Movies/Position_1_00{image}_0.0.mrc",
                 "output_file": f"{tmp_path}/ExcludeTiltImages/job004/tilts/Position_1_00{image}_0.0.mrc",
                 "relion_options": output_relion_options,
                 "command": "",

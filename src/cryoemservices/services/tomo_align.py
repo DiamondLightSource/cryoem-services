@@ -549,7 +549,9 @@ class TomoAlign(CommonService):
                         {
                             "job_type": "relion.excludetilts",
                             "experiment_type": "tomography",
-                            "input_file": str(movie[0]),
+                            "input_file": movie[0].replace(
+                                "MotionCorr/job002", "CtfFind/job003"
+                            ),
                             "output_file": str(
                                 project_dir
                                 / f"ExcludeTiltImages/job{job_number - 2:03}/tilts"
