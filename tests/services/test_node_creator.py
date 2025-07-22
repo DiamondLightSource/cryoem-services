@@ -1252,6 +1252,14 @@ def test_node_creator_excludetilts(offline_transport, tmp_path):
     output_file = tmp_path / job_dir / "tilts/Position_1_2_001_1.50_fractions.mrc"
     relion_options = RelionServiceOptions()
 
+    # Make ctf output file
+    ctf_output_file = (
+        tmp_path / "CtfFind/job003/Movies/Position_1_2_001_1.50_fractions.ctf"
+    )
+    ctf_output_file.parent.mkdir(parents=True)
+    with open(ctf_output_file.with_suffix(".txt"), "w") as f:
+        f.write("0.0 1.0 2.0 3.0 4.0 5.0 6.0")
+
     # .Nodes directory doesn't get made by this job
     (tmp_path / ".Nodes").mkdir()
 
@@ -1298,6 +1306,9 @@ def test_node_creator_excludetilts(offline_transport, tmp_path):
     assert list(tilts_block.find_loop("_rlnMicrographName")) == [
         "MotionCorr/job002/Movies/Position_1_2_001_1.50_fractions.mrc"
     ]
+    assert list(tilts_block.find_loop("_rlnDefocusU")) == ["1.0"]
+    assert list(tilts_block.find_loop("_rlnDefocusV")) == ["2.0"]
+    assert list(tilts_block.find_loop("_rlnDefocusAngle")) == ["3.0"]
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
@@ -1316,7 +1327,6 @@ def test_node_creator_aligntiltseries(offline_transport, tmp_path):
     ctf_output_file = (
         tmp_path / "CtfFind/job003/Movies/Position_1_2_001_1.50_fractions.ctf"
     )
-
     ctf_output_file.parent.mkdir(parents=True)
     with open(ctf_output_file.with_suffix(".txt"), "w") as f:
         f.write("0.0 1.0 2.0 3.0 4.0 5.0 6.0")
@@ -1380,6 +1390,7 @@ def test_node_creator_aligntiltseries(offline_transport, tmp_path):
     ]
     assert list(tilts_block.find_loop("_rlnDefocusU")) == ["1.0"]
     assert list(tilts_block.find_loop("_rlnDefocusV")) == ["2.0"]
+    assert list(tilts_block.find_loop("_rlnDefocusAngle")) == ["3.0"]
     assert list(tilts_block.find_loop("_rlnTomoXTilt")) == ["0.00"]
     assert list(tilts_block.find_loop("_rlnTomoYTilt")) == ["4.00"]
     assert list(tilts_block.find_loop("_rlnTomoZRot")) == ["83.5"]

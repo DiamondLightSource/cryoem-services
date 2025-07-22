@@ -465,24 +465,29 @@ class NodeCreator(CommonService):
         extra_output_nodes = None
         if job_info.success:
             # Write the output files which Relion produces
-            if job_info.experiment_type == "spa":
-                extra_output_nodes = create_spa_output_files(
-                    job_type=job_info.job_type,
-                    job_dir=relative_job_dir,
-                    input_file=relative_input_file,
-                    output_file=relative_output_file,
-                    relion_options=job_info.relion_options,
-                    results=job_info.results,
-                )
-            else:
-                extra_output_nodes = create_tomo_output_files(
-                    job_type=job_info.job_type,
-                    job_dir=relative_job_dir,
-                    input_file=relative_input_file,
-                    output_file=relative_output_file,
-                    relion_options=job_info.relion_options,
-                    results=job_info.results,
-                )
+            try:
+                if job_info.experiment_type == "spa":
+                    extra_output_nodes = create_spa_output_files(
+                        job_type=job_info.job_type,
+                        job_dir=relative_job_dir,
+                        input_file=relative_input_file,
+                        output_file=relative_output_file,
+                        relion_options=job_info.relion_options,
+                        results=job_info.results,
+                    )
+                else:
+                    extra_output_nodes = create_tomo_output_files(
+                        job_type=job_info.job_type,
+                        job_dir=relative_job_dir,
+                        input_file=relative_input_file,
+                        output_file=relative_output_file,
+                        relion_options=job_info.relion_options,
+                        results=job_info.results,
+                    )
+            except FileNotFoundError as e:
+                self.log.error(f"Cannot find expected file: {e}", exc_info=True)
+                rw.transport.ack(header)
+                return
             if extra_output_nodes:
                 # Add any extra nodes if they are not already present
                 existing_nodes = []

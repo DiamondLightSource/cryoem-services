@@ -354,11 +354,8 @@ def _exclude_tilt_output_files(
         ctf_txt_file = input_file.with_suffix(".txt")
 
     # Later extraction jobs require some ctf parameters for the tilts
-    if ctf_txt_file.is_file():
-        with open(ctf_txt_file, "r") as f:
-            ctf_results = f.readlines()[-1].split()
-    else:
-        ctf_results = ["error", "ctf", "not", "found"]
+    with open(ctf_txt_file, "r") as f:
+        ctf_results = f.readlines()[-1].split()
 
     added_line = [
         str(relion_options.frame_count),
@@ -443,11 +440,8 @@ def _align_tilt_output_files(
         ctf_txt_file = input_file.with_suffix(".txt")
 
     # Later extraction jobs require some ctf parameters for the tilts
-    if ctf_txt_file.is_file():
-        with open(ctf_txt_file, "r") as f:
-            ctf_results = f.readlines()[-1].split()
-    else:
-        ctf_results = ["error", "ctf", "not", "found"]
+    with open(ctf_txt_file, "r") as f:
+        ctf_results = f.readlines()[-1].split()
 
     added_line = [
         str(relion_options.frame_count),
