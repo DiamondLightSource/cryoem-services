@@ -338,6 +338,28 @@ def _exclude_tilt_output_files(
     if not (job_dir / "tilt_series").is_dir():
         (job_dir / "tilt_series").mkdir()
 
+    # Try and figure out where the CTF output files will be
+    mc_job_num_search = re.search("/job[0-9]+", str(input_file))
+    if "MotionCorr" in input_file.parts and mc_job_num_search:
+        job_number = int(mc_job_num_search[0][4:])
+        relative_tilt = input_file.relative_to(
+            f"{job_dir.parent.parent}/MotionCorr/job{job_number:03}"
+        )
+        ctf_txt_file = (
+            job_dir.parent.parent
+            / (f"CtfFind/job{job_number + 1:03}")
+            / relative_tilt.with_suffix(".txt")
+        )
+    else:
+        ctf_txt_file = input_file.with_suffix(".txt")
+
+    # Later extraction jobs require some ctf parameters for the tilts
+    if ctf_txt_file.is_file():
+        with open(ctf_txt_file, "r") as f:
+            ctf_results = f.readlines()[-1].split()
+    else:
+        ctf_results = ["error", "ctf", "not", "found"]
+
     added_line = [
         str(relion_options.frame_count),
         str(stage_tilt_angle),
@@ -345,6 +367,9 @@ def _exclude_tilt_output_files(
         str(tilt_number * relion_options.frame_count * relion_options.dose_per_frame),
         str(relion_options.defocus),
         str(input_file),
+        ctf_results[1],
+        ctf_results[2],
+        ctf_results[3],
     ]
 
     # Create or append to the star file for the individual tilt series
@@ -361,6 +386,9 @@ def _exclude_tilt_output_files(
                 "MicrographPreExposure",
                 "TomoNominalDefocus",
                 "MicrographName",
+                "DefocusU",
+                "DefocusV",
+                "DefocusAngle",
             ],
         )
         movies_loop.add_row(added_line)
@@ -401,12 +429,16 @@ def _align_tilt_output_files(
 
     # Try and figure out where the CTF output files will be
     mc_job_num_search = re.search("/job[0-9]+", str(input_file))
-    if input_file.is_relative_to("MotionCorr") and mc_job_num_search:
+    if "MotionCorr" in input_file.parts and mc_job_num_search:
         job_number = int(mc_job_num_search[0][4:])
-        relative_tilt = input_file.relative_to(f"MotionCorr/job{job_number:03}")
-        ctf_txt_file = Path(
-            f"CtfFind/job{job_number + 1:03}"
-        ) / relative_tilt.with_suffix(".txt")
+        relative_tilt = input_file.relative_to(
+            f"{job_dir.parent.parent}/MotionCorr/job{job_number:03}"
+        )
+        ctf_txt_file = (
+            job_dir.parent.parent
+            / (f"CtfFind/job{job_number + 1:03}")
+            / relative_tilt.with_suffix(".txt")
+        )
     else:
         ctf_txt_file = input_file.with_suffix(".txt")
 
