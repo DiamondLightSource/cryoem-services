@@ -350,8 +350,12 @@ def _exclude_tilt_output_files(
             / (f"CtfFind/job{job_number + 1:03}")
             / relative_tilt.with_suffix(".txt")
         )
+        micrograph_name = str(input_file)
     else:
         ctf_txt_file = input_file.with_suffix(".txt")
+        micrograph_name = str(input_file.with_suffix(".mrc")).replace(
+            "CtfFind/job003", "MotionCorr/job002"
+        )
 
     # Later extraction jobs require some ctf parameters for the tilts
     with open(ctf_txt_file, "r") as f:
@@ -363,7 +367,7 @@ def _exclude_tilt_output_files(
         str(relion_options.tilt_axis_angle),
         str(tilt_number * relion_options.frame_count * relion_options.dose_per_frame),
         str(relion_options.defocus),
-        str(input_file),
+        micrograph_name,
         ctf_results[1],
         ctf_results[2],
         ctf_results[3],
