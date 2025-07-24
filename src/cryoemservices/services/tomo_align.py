@@ -523,9 +523,14 @@ class TomoAlign(CommonService):
         (project_dir / f"ExcludeTiltImages/job{job_number - 2:03}").mkdir(
             parents=True, exist_ok=True
         )
+        (project_dir / f"ExcludeTiltImages/job{job_number - 2:03}/tilts").symlink_to(
+            project_dir / "MotionCorr/job002/Movies"
+        )
         (project_dir / f"AlignTiltSeries/job{job_number - 1:03}").mkdir(
             parents=True, exist_ok=True
         )
+        if self.rot:
+            tomo_params.relion_options.tilt_axis_angle = self.rot
         for im, movie in enumerate(self.input_file_list_of_lists):
             if im + 1 in missing_indices:
                 im_diff += 1
