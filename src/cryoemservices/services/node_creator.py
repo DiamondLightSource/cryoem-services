@@ -486,7 +486,7 @@ class NodeCreator(CommonService):
                     )
             except FileNotFoundError as e:
                 self.log.error(f"Cannot find expected file: {e}", exc_info=True)
-                rw.transport.ack(header)
+                rw.transport.nack(header)
                 return
             if extra_output_nodes:
                 # Add any extra nodes if they are not already present
