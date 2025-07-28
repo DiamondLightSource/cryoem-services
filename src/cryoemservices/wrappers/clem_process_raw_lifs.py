@@ -213,6 +213,33 @@ def process_lif_substack(
     return results
 
 
+def lif_file_pool_dispatcher(
+    file: Path,
+    scene_num: int,
+    metadata: ET.Element,
+    root_save_dir: Path,
+):
+    """
+    Helper function called by the pool that is used to decide which workflow to pass the
+    LIF file sub-image to. Currently, it supports:
+    1. Conversion of z-stacks into image stacks
+    2. Stitching montage images together to create an atlas of the grid
+    """
+
+    # Interpret the metadata to see if it's montage or a z-stack
+    dims = metadata.findall(".//DimensionDescription")
+    if not dims:
+        logger.warning(f"No dimensional information found; skipping Scene {scene_num}")
+        return []
+    # A montage will have a dimension with ID 10
+    if "10" in (dim.get("DimID", "") for dim in dims):
+        logger.info(f"Processing Scene {scene_num} as a montage")
+        return []
+    # Otherwise, process it as an image stack or 2D image
+    logger.info(f"Processing Scene {scene_num} as an image stack")
+    return process_lif_substack(file, scene_num, metadata, root_save_dir)
+
+
 def process_lif_file(
     file: Path,
     root_folder: str,  # Name of the folder to treat as the root folder for LIF files
@@ -320,7 +347,7 @@ def process_lif_file(
     with mp.Pool(processes=num_procs) as pool:
         logger.info(f"Starting processing of LIF substacks in {file.name!r}")
         # Each thread will return a list of dicts
-        results_map = pool.starmap(process_lif_substack, pool_args)
+        results_map = pool.starmap(lif_file_pool_dispatcher, pool_args)
 
     # Return flattened list of dicts
     results = list(itertools.chain.from_iterable(results_map))
