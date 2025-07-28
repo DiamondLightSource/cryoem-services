@@ -6,7 +6,6 @@ processing workflow.
 
 from __future__ import annotations
 
-import itertools
 import logging
 import multiprocessing as mp
 from pathlib import Path
@@ -56,7 +55,7 @@ def process_lif_image_stack(
     scene_num: int,
     metadata: ET.Element,
     root_save_dir: Path,
-) -> list[dict]:
+) -> dict:
     """
     Takes the LIF file and its corresponding metadata and loads the relevant sub-stack.
     For image stacks, it will load each colour channel as its own image stack, rescale
@@ -126,8 +125,16 @@ def process_lif_image_stack(
     # Load timestamps (might be useful in the future)
     # timestamps = metadata.find("Data/Image/TimeStampList")
 
+    # Start constructing the dictionary to store the results in
+    result: dict = {
+        "series_name": series_name,
+        "number_of_members": len(channels),
+        "data_type": "image_stack",
+        "channel_data": {},
+        "metadata": str(img_xml_file.resolve()),
+        "parent_lif": str(file.resolve()),
+    }
     # Process channels as individual TIFFs
-    results: list[dict] = []
     for c in range(len(colors)):
 
         # Get color
@@ -200,17 +207,9 @@ def process_lif_image_stack(
             photometric="minisblack",
         )
         # Collect the image stacks created
-        result = {
-            "image_stack": str(img_stk_file.resolve()),
-            "metadata": str(img_xml_file.resolve()),
-            "series_name": series_name,
-            "channel": color,
-            "number_of_members": len(channels),
-            "parent_lif": str(file.resolve()),
-        }
-        results.append(result)
+        result["channel_data"][color] = str(img_stk_file.resolve())
 
-    return results
+    return result
 
 
 def lif_file_pool_dispatcher(
@@ -230,11 +229,11 @@ def lif_file_pool_dispatcher(
     dims = metadata.findall(".//DimensionDescription")
     if not dims:
         logger.warning(f"No dimensional information found; skipping Scene {scene_num}")
-        return []
+        return {}
     # A montage will have a dimension with ID 10
     if "10" in (dim.get("DimID", "") for dim in dims):
         logger.info(f"Processing Scene {scene_num} as a montage")
-        return []
+        return {}
     # Otherwise, process it as an image stack or 2D image
     logger.info(f"Processing Scene {scene_num} as an image stack")
     return process_lif_image_stack(file, scene_num, metadata, root_save_dir)
@@ -347,10 +346,7 @@ def process_lif_file(
     with mp.Pool(processes=num_procs) as pool:
         logger.info(f"Starting processing of LIF substacks in {file.name!r}")
         # Each thread will return a list of dicts
-        results_map = pool.starmap(lif_file_pool_dispatcher, pool_args)
-
-    # Return flattened list of dicts
-    results = list(itertools.chain.from_iterable(results_map))
+        results = pool.starmap(lif_file_pool_dispatcher, pool_args)
     return results
 
 
