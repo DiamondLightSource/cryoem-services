@@ -51,7 +51,7 @@ def get_lif_xml_metadata(
     return xml_root
 
 
-def process_lif_substack(
+def process_lif_image_stack(
     file: Path,
     scene_num: int,
     metadata: ET.Element,
@@ -237,7 +237,7 @@ def lif_file_pool_dispatcher(
         return []
     # Otherwise, process it as an image stack or 2D image
     logger.info(f"Processing Scene {scene_num} as an image stack")
-    return process_lif_substack(file, scene_num, metadata, root_save_dir)
+    return process_lif_image_stack(file, scene_num, metadata, root_save_dir)
 
 
 def process_lif_file(

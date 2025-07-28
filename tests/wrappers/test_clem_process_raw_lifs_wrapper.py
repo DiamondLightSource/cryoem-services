@@ -20,7 +20,7 @@ from cryoemservices.wrappers.clem_process_raw_lifs import (
     LIFToStackWrapper,
     get_lif_xml_metadata,
     process_lif_file,
-    process_lif_substack,
+    process_lif_image_stack,
 )
 from tests.test_utils.clem import create_xml_metadata
 
@@ -125,7 +125,7 @@ def dummy_result(
 
 
 @mock.patch("cryoemservices.wrappers.clem_process_raw_lifs.LifFile")
-def test_process_lif_substack(
+def test_process_lif_image_stack(
     mock_lif_file,
     lif_file: Path,
     raw_xml_metadata: Element,
@@ -161,7 +161,7 @@ def test_process_lif_substack(
     mock_lif_file.return_value.get_image.return_value = mock_lif_image
 
     # Run the function
-    results = process_lif_substack(
+    results = process_lif_image_stack(
         lif_file,
         scene_num,
         metadata,
@@ -247,7 +247,7 @@ def test_process_lif_file(
 
     # Check that arguments were fed into the multiprocessing function correctly
     mock_pool_instance.starmap.assert_called_once_with(
-        process_lif_substack,
+        process_lif_image_stack,
         [
             [
                 lif_file,
