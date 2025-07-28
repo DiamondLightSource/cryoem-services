@@ -13,7 +13,7 @@ def test_lif_to_stack_with_optional_args(mocker: MockerFixture):
     """Test that the cli runs with all args provided"""
     # Set up necessary mock objects
     mock_convert = mocker.patch(
-        "cryoemservices.wrappers.clem_process_raw_lifs.convert_lif_to_stack"
+        "cryoemservices.wrappers.clem_process_raw_lifs.process_lif_file"
     )
     mock_print = mocker.patch("cryoemservices.cli.clem_lif_to_stack.print")
     mock_setup = mocker.patch("cryoemservices.cli.clem_lif_to_stack.set_up_logging")
@@ -51,7 +51,7 @@ def test_lif_to_stack_with_default_args(mocker: MockerFixture):
     """Test that the cli runs with all args provided"""
     # Set up necessary mock objects
     mock_convert = mocker.patch(
-        "cryoemservices.wrappers.clem_process_raw_lifs.convert_lif_to_stack"
+        "cryoemservices.wrappers.clem_process_raw_lifs.process_lif_file"
     )
     mock_setup = mocker.patch("cryoemservices.cli.clem_lif_to_stack.set_up_logging")
 

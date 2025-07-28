@@ -58,10 +58,13 @@ def process_lif_substack(
     root_save_dir: Path,
 ) -> list[dict]:
     """
-    Takes the LIF file and its corresponding metadata and loads the relevant sub-stack,
-    with each channel as its own array. Rescales their intensity values to utilise the
-    whole channel, scales them down to 8-bit, then saves each each array as a separate
-    TIFF image stack.
+    Takes the LIF file and its corresponding metadata and loads the relevant sub-stack.
+    For image stacks, it will load each colour channel as its own image stack, rescale
+    the intensity values to utilise the whole channel, convert it into 8-bit grayscale,
+    and save them as individual image stacks.
+
+    For montages, it will stitch the different sub-images together and save the final
+    composite image as an atlas.
     """
 
     # Load LIF file
@@ -210,7 +213,7 @@ def process_lif_substack(
     return results
 
 
-def convert_lif_to_stack(
+def process_lif_file(
     file: Path,
     root_folder: str,  # Name of the folder to treat as the root folder for LIF files
     number_of_processes: int = 1,  # Number of processing threads to run
@@ -362,7 +365,7 @@ class LIFToStackWrapper:
             return False
 
         # Process files and collect output
-        results = convert_lif_to_stack(
+        results = process_lif_file(
             file=params.lif_file,
             root_folder=params.root_folder,
             number_of_processes=params.num_procs,

@@ -7,7 +7,7 @@ from cryoemservices.services.common_service import CommonService
 from cryoemservices.util.models import MockRW
 from cryoemservices.wrappers.clem_process_raw_lifs import (
     LIFToStackParameters,
-    convert_lif_to_stack,
+    process_lif_file,
 )
 
 
@@ -65,7 +65,7 @@ class LIFToStackService(CommonService):
             return
 
         # Process files and collect output
-        results = convert_lif_to_stack(
+        results = process_lif_file(
             file=params.lif_file,
             root_folder=params.root_folder,
             number_of_processes=params.num_procs,

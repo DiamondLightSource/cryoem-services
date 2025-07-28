@@ -99,7 +99,7 @@ lif_to_stack_params_matrix = (
 
 
 @pytest.mark.parametrize("test_params", lif_to_stack_params_matrix)
-@mock.patch("cryoemservices.services.clem_process_raw_lifs.convert_lif_to_stack")
+@mock.patch("cryoemservices.services.clem_process_raw_lifs.process_lif_file")
 def test_lif_to_stack_service(
     mock_convert,
     test_params: tuple[bool],
@@ -252,7 +252,7 @@ def test_lif_to_stack_service_validation_failed(
     offline_transport.send.assert_not_called()
 
 
-@mock.patch("cryoemservices.services.clem_process_raw_lifs.convert_lif_to_stack")
+@mock.patch("cryoemservices.services.clem_process_raw_lifs.process_lif_file")
 def test_lif_to_stack_service_processing_failed(
     mock_convert,
     lif_file: Path,

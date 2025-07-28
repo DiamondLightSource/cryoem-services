@@ -18,8 +18,8 @@ from cryoemservices.util.clem_raw_metadata import (
 )
 from cryoemservices.wrappers.clem_process_raw_lifs import (
     LIFToStackWrapper,
-    convert_lif_to_stack,
     get_lif_xml_metadata,
+    process_lif_file,
     process_lif_substack,
 )
 from tests.test_utils.clem import create_xml_metadata
@@ -188,7 +188,7 @@ def test_process_lif_substack(
 @mock.patch("multiprocessing.Pool")
 @mock.patch("cryoemservices.wrappers.clem_process_raw_lifs.get_lif_xml_metadata")
 @mock.patch("cryoemservices.wrappers.clem_process_raw_lifs.LifFile")
-def test_convert_lif_to_stack(
+def test_process_lif_file(
     mock_load_lif_file,
     mock_get_lif_xml_metadata,
     mock_pool_class,
@@ -239,7 +239,7 @@ def test_convert_lif_to_stack(
     mock_pool_class.return_value.__enter__.return_value = mock_pool_instance
 
     # Run the function
-    results = convert_lif_to_stack(
+    results = process_lif_file(
         lif_file,
         root_folder=raw_folder,
         number_of_processes=1,
@@ -274,7 +274,7 @@ def offline_transport(mocker):
 # Patches are matched to variables on last in, first out basis
 @mock.patch("workflows.recipe.wrapper.RecipeWrapper.send_to")  # = mock_send_to
 @mock.patch(
-    "cryoemservices.wrappers.clem_process_raw_lifs.convert_lif_to_stack"
+    "cryoemservices.wrappers.clem_process_raw_lifs.process_lif_file"
 )  # = mock_lif_to_stack
 def test_lif_to_stack_wrapper(
     mock_lif_to_stack,
