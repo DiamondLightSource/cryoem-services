@@ -212,7 +212,7 @@ def process_lif_image_stack(
     return result
 
 
-def lif_file_pool_dispatcher(
+def process_lif_file_pool_dispatcher(
     file: Path,
     scene_num: int,
     metadata: ET.Element,
@@ -346,7 +346,7 @@ def process_lif_file(
     with mp.Pool(processes=num_procs) as pool:
         logger.info(f"Starting processing of LIF substacks in {file.name!r}")
         # Each thread will return a list of dicts
-        results = pool.starmap(lif_file_pool_dispatcher, pool_args)
+        results = pool.starmap(process_lif_file_pool_dispatcher, pool_args)
     return results
 
 
