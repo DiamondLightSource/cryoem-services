@@ -580,7 +580,7 @@ def run_class3d(class3d_params: Class3DParameters, send_to_rabbitmq: Callable) -
     )
     for cid in class_sorting:
         if (
-            class3d_params.batch_size == 200000
+            class3d_params.batch_size >= 200000
             and class_resolutions[cid] < 11
             and (class_efficiencies[cid] > 0.65 or class3d_params.symmetry != "C1")
         ):
