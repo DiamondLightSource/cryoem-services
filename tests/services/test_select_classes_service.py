@@ -29,11 +29,13 @@ def select_classes_common_setup(
     particles_file.parent.mkdir(parents=True)
     with open(particles_file, "w") as f:
         f.write("data_optics\n\nloop_\n_group\nopticsGroup1\n\n")
-        f.write("data_particles\n\nloop_\n_x\n_y\n_particle\n_movie\n")
+        f.write(
+            "data_particles\n\nloop_\n_x\n_y\n_particle\n_movie\n_rlnCryodannScore\n"
+        )
         for i in range(particles_to_add):
             f.write(
                 f"{i / 100} {i / 100} {i}@Extract/job008/classes.mrcs "
-                f"MotionCorr/job002/Movies/movie.mrc\n"
+                f"MotionCorr/job002/Movies/movie.mrc {np.random.random()}\n"
             )
 
     if initial_particle_count:
@@ -41,11 +43,13 @@ def select_classes_common_setup(
         particles_file.parent.mkdir(parents=True)
         with open(particles_file, "w") as f:
             f.write("data_optics\n\nloop_\n_group\nopticsGroup1\n\n")
-            f.write("data_particles\n\nloop_\n_x\n_y\n_particle\n_movie\n")
+            f.write(
+                "data_particles\n\nloop_\n_x\n_y\n_particle\n_movie\n_rlnCryodannScore\n"
+            )
             for i in range(initial_particle_count):
                 f.write(
                     f"{i/100} {i/100} {i}@Extract/job008/classes.mrcs "
-                    f"MotionCorr/job002/Movies/movie.mrc\n"
+                    f"MotionCorr/job002/Movies/movie.mrc {np.random.random()}\n"
                 )
 
     Path(job_dir / "MotionCorr/job002/Movies").mkdir(parents=True, exist_ok=True)
@@ -607,6 +611,57 @@ def test_select_classes_service_past_maximum(
     # Don't bother to check the auto-selection calls here, they are checked above
     # Do check the Murfey 3D calls
     assert len(offline_transport.send.call_args_list) == 7
+
+
+@mock.patch("cryoemservices.services.select_classes.subprocess.run")
+def test_select_classes_service_do_batch_past_maximum(
+    mock_subprocess, offline_transport, tmp_path
+):
+    """
+    Test the service for the case where the existing particle count exceeds the maximum.
+    In this case the next power (400000) is crossed so
+    3D classification should be run for a subset
+    """
+    mock_subprocess().returncode = 0
+    mock_subprocess().stdout = "stdout".encode("ascii")
+    mock_subprocess().stderr = "stderr".encode("ascii")
+
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+    select_test_message, relion_options = select_classes_common_setup(
+        tmp_path, initial_particle_count=390000, particles_to_add=20000
+    )
+
+    # Set up the mock service and send the message to it
+    service = select_classes.SelectClasses(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
+    service.select_classes(None, header=header, message=select_test_message)
+
+    # Check the correct particle counts were found and split files made
+    assert service.previous_total_count == 390000
+    assert service.total_count == 410000
+    assert (tmp_path / "Select/job013/particles_split1.star").is_file()
+    assert (tmp_path / "Select/job013/particles_split2.star").is_file()
+    assert len(list(tmp_path.glob("Select/job013/particles_batch_*"))) == 0
+
+    # Don't bother to check the auto-selection calls here, they are checked above
+    # Do check the Murfey 3D calls
+    assert len(offline_transport.send.call_args_list) == 8
+    offline_transport.send.assert_any_call(
+        "murfey_feedback",
+        {
+            "register": "run_class3d",
+            "class3d_message": {
+                "particles_file": f"{tmp_path}/Select/job013/particles_best_400000.star",
+                "class3d_dir": f"{tmp_path}/Class3D/job",
+                "batch_size": 400000,
+            },
+        },
+    )
 
 
 def test_parse_combiner_output(offline_transport):

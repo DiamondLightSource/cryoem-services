@@ -123,8 +123,6 @@ class RelionServiceOptions(BaseModel):
     autoselect_min_score: float = 0.7
     # 2D classification particle batch size
     batch_size: int = 50000
-    # Maximum batch size for the single batch of 3D classification
-    class3d_max_size: int = 200000
     # Initial lowpass filter on 3D reference
     initial_lowpass: int = 40
 
