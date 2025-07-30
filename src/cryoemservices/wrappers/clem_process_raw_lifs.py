@@ -13,6 +13,7 @@ from typing import Optional
 from xml.etree import ElementTree as ET
 
 import numpy as np
+from matplotlib import pyplot as plt
 from pydantic import BaseModel, ValidationError
 from readlif.reader import LifFile
 
@@ -21,7 +22,7 @@ from cryoemservices.util.clem_array_functions import (
     preprocess_img_stk,
     write_stack_to_tiff,
 )
-from cryoemservices.util.clem_raw_metadata import get_image_elements
+from cryoemservices.util.clem_raw_metadata import find_image_elements
 
 # Create logger object to output messages with
 logger = logging.getLogger("cryoemservices.wrappers.clem_process_raw_lifs")
@@ -50,14 +51,15 @@ def get_lif_xml_metadata(
     return xml_root
 
 
-def process_lif_image_stack(
+def process_lif_subimage(
     file: Path,
     scene_num: int,
     metadata: ET.Element,
     root_save_dir: Path,
+    save_path: str = "",
 ) -> dict:
     """
-    Takes the LIF file and its corresponding metadata and loads the relevant sub-stack.
+    Takes the LIF file and its corresponding metadata and loads the relevant sub-image.
     For image stacks, it will load each colour channel as its own image stack, rescale
     the intensity values to utilise the whole channel, convert it into 8-bit grayscale,
     and save them as individual image stacks.
@@ -72,31 +74,27 @@ def process_lif_image_stack(
     # Get name of sub-image
     file_name = file.stem.replace(" ", "_")  # Remove spaces
     img_name = metadata.attrib["Name"].replace(" ", "_")  # Remove spaces
-    logger.info(f"Processing {file_name}--{img_name}")
 
-    # Create save dirs for TIFF files and their metadata
+    # Construct path to save images and metadata to
     save_dir = (  # Save directory for all substacks from this LIF file
         root_save_dir
         / "/".join(file.relative_to(root_save_dir.parent).parts[1:-1])
-        / file_name
+        / (save_path if save_path else Path(file_name) / img_name)
     )
-    img_dir = save_dir / img_name  # Save directory for this specific substack
-    img_xml_dir = img_dir / "metadata"  # Save metadata relative to the substack
-    for folder in (img_dir, img_xml_dir):
-        if not folder.exists():
-            # Potential race condition when generating folders from multiple pools
-            folder.mkdir(parents=True, exist_ok=True)
-            logger.info(f"Created {folder}")
-        else:
-            logger.info(f"{folder} already exists")
 
     # Create a name for this series
     series_name = (
-        img_dir.relative_to(root_save_dir)
+        save_dir.relative_to(root_save_dir)
         .as_posix()
         .replace("/", "--")
         .replace(" ", "_")
     )
+    logger.info(f"Processing {series_name!r}")
+
+    # Save metadata relative to the substack
+    img_xml_dir = save_dir / "metadata"
+    img_xml_dir.mkdir(parents=True, exist_ok=True)
+    logger.info("Created folders to save image and metadata to")
 
     # Save image stack XML metadata (all channels together)
     img_xml_file = img_xml_dir / (img_name + ".xml")
@@ -106,137 +104,265 @@ def process_lif_image_stack(
     logger.info(f"Image stack metadata saved to {img_xml_file}")
 
     # Load channels
-    channels = metadata.findall(
-        "Data/Image/ImageDescription/Channels/ChannelDescription"
-    )
+    channels = metadata.findall(".//ChannelDescription")
     colors = [channels[c].attrib["LUTName"].lower() for c in range(len(channels))]
 
-    # Generate slice labels for later
-    num_frames = image.dims.z
-    image_labels = [f"{f}" for f in range(num_frames)]
+    # Load dimension information
+    dims = metadata.findall(".//DimensionDescription")
+    if not dims:
+        logger.error(
+            f"No dimensional information found; skipping series {series_name!r}"
+        )
+        return {}
 
-    # Get x, y, and z resolution (pixels per um)
-    x_res = image.scale[0]
-    y_res = image.scale[1]
-
-    # Process z-axis if it exists
-    z_res: float = image.scale[2] if num_frames > 1 else float(0)
-
-    # Load timestamps (might be useful in the future)
-    # timestamps = metadata.find("Data/Image/TimeStampList")
-
-    # Start constructing the dictionary to store the results in
+    # Template of results dictionary
     result: dict = {
         "series_name": series_name,
         "number_of_members": len(channels),
-        "data_type": "image_stack",
+        "data_type": "",
         "channel_data": {},
         "metadata": str(img_xml_file.resolve()),
         "parent_lif": str(file.resolve()),
+        "extent": [],  # [x_min, x_max, y_min, y_max] in real space
     }
-    # Process channels as individual TIFFs
-    for c in range(len(colors)):
 
-        # Get color
-        color = colors[c]
-        logger.info(f"Processing {color} channel")
+    # if-block to construct atlas from sub-image
+    if "10" in (dim.get("DimID", "") for dim in dims):
+        result["data_type"] = "atlas"
+        logger.info(f"Processing {series_name} as a montage")
 
-        # Load image stack to array
-        logger.info("Loading image stack")
-        for z in range(num_frames):
-            frame = image.get_frame(z=z, t=0, c=c)  # PIL object; array-like
-            if z == 0:
-                arr = np.array([frame])
-            else:
-                arr = np.append(arr, [frame], axis=0)
-        logger.debug(
-            f"{img_name} {color} array properties: \n"
-            f"Shape: {arr.shape} \n"
-            f"dtype: {arr.dtype} \n"
-            f"Min value: {arr.min()} \n"
-            f"Max value: {arr.max()} \n"
+        # Extract tile scan info
+        tile_scan_info = next(
+            (
+                elem
+                for elem in metadata.findall(".//Attachment")
+                if elem.get("Name", "") == "TileScanInfo"
+            ),
+            None,
         )
+        if tile_scan_info is None:
+            logger.error(f"No tile scan information found in series {series_name}")
+            return {}
+        tile_scans = list(tile_scan_info)
 
-        # Estimate initial NumPy dtype
-        bit_depth = image.bit_depth[c]
-        dtype_init = estimate_int_dtype(arr, bit_depth=bit_depth)
+        # Get the size of each image in tile
+        try:
+            x_len = dims[0].get("Length", "")
+            x_pix = dims[0].get("NumberOfElements", "")
+            y_len = dims[1].get("Length", "")
+            y_pix = dims[1].get("NumberOfElements", "")
 
-        # Rescale intensity values for fluorescent channels
-        adjust_contrast = (
-            "stretch"
-            if color
-            in (
-                "blue",
-                "cyan",
-                "green",
-                "magenta",
-                "red",
-                "yellow",
+            # Calculate end-to-end width and height of image
+            # Assumption 1: Recorded length is the midpoint-to-midpoint length
+            w = float(x_len) / (float(x_pix) - 1) * float(x_pix)  # metres
+            h = float(y_len) / (float(y_pix) - 1) * float(y_pix)  # metres
+
+            # Assumption 2: It's the end-to-end length
+            # w = float(x_len)
+            # h = float(y_len)
+
+            logger.debug(f"Image width is {w} m")
+            logger.debug(f"Image height is {h} m")
+        except (TypeError, ValueError):
+            logger.error("Unable to extract dimensional information")
+            return {}
+
+        # Iterate by color channels, if multiple are present
+        for c, color in enumerate(colors):
+            logger.info(f"Processing {color} channel")
+
+            # Initial arbitrary limits of the atlas in real space
+            x_min = 10e10
+            x_max = float(0)
+            y_min = 10e10
+            y_max = float(0)
+
+            # Create the figure to save the image onto
+            fig, ax = plt.subplots()
+
+            # Load the coordinates
+            for t, tile in enumerate(tile_scans):
+                try:
+                    logger.info(f"Processing tile {t}")
+                    # Convert tile coordinates into floats
+                    x = float(tile.get("PosX", ""))
+                    y = float(tile.get("PosY", ""))
+                    # Find the coordinates of the image's 4 corners in real space
+                    tile_extent = [x, x + w, y, y + h]
+
+                    # Add image frame to the plot
+                    ax.imshow(
+                        image.get_frame(m=t),
+                        extent=tile_extent,
+                        origin="lower",
+                        cmap="gray",
+                    )
+
+                    # Update new limits for the atlas
+                    x_min = x if x < x_min else x_min
+                    y_min = y if y < y_min else y_min
+                    x_max = x + w if x + w > x_max else x_max
+                    y_max = y + h if y + h > y_max else y_max
+
+                except (TypeError, ValueError):
+                    logger.warning(
+                        f"Unable to extract coordinate information for tile {t}"
+                    )
+                    continue
+
+            # Crop plotted area to just the populated space
+            logger.info("Adjusting ploting settings...")
+            ax.set_xlim(x_min, x_max)
+            ax.set_ylim(y_min, y_max)
+            ax.invert_yaxis()  # Set origin (0,0) to top left
+            ax.set_aspect("equal")  # Ensure x- and y-axis have the same scale
+            ax.axis("off")  # Switch off axis ticks and labels
+
+            # Save just the contents of the plot
+            logger.info("Rendering image...")
+            fig.canvas.draw()  # Render the figure
+            renderer = fig.canvas.get_renderer()
+            bbox = ax.get_tightbbox(renderer).transformed(
+                fig.dpi_scale_trans.inverted()
             )
-            else None
-        )
+            fig_name = save_dir / f"{color}.png"
+            fig.savefig(
+                fig_name, bbox_inches=bbox, pad_inches=0, dpi=400, facecolor="black"
+            )
+            plt.close()
+            logger.info(f"Atlas image saved as {fig_name}")
 
-        # Process the image stack
-        logger.info("Applying image stack processing routine to image stack")
-        arr = preprocess_img_stk(
-            array=arr,
-            initial_dtype=dtype_init,
-            target_dtype="uint8",
-            adjust_contrast=adjust_contrast,
-        )
-        logger.debug(
-            f"{img_name} {color} array properties: \n"
-            f"Shape: {arr.shape} \n"
-            f"dtype: {arr.dtype} \n"
-            f"Min value: {arr.min()} \n"
-            f"Max value: {arr.max()} \n"
-        )
+            # Add the image to the result dictionary
+            result["channel_data"][color] = fig_name
 
-        # Save as a greyscale TIFF
-        logger.info("Saving image stack as a TIFF file")
-        img_stk_file = write_stack_to_tiff(
-            array=arr,
-            save_dir=img_dir,
-            file_name=color,
-            x_res=x_res,
-            y_res=y_res,
-            z_res=z_res,
-            units="micron",
-            axes="ZYX",
-            image_labels=image_labels,
-            photometric="minisblack",
-        )
-        # Collect the image stacks created
-        result["channel_data"][color] = str(img_stk_file.resolve())
+            # Add the extent covered by the atlas image to the dictionary
+            result["extent"] = [x_min, x_max, y_min, y_max]
+
+    # if-block to construct image stack from sub-image
+    else:
+        result["data_type"] = "image"
+        logger.info(f"Processing {series_name} as an image stack")
+
+        # Generate slice labels for later
+        num_frames = image.dims.z
+        image_labels = [f"{f}" for f in range(num_frames)]
+
+        # Get x, y, and z resolution (pixels per um)
+        x_res = image.scale[0]
+        y_res = image.scale[1]
+
+        # Process z-axis if it exists
+        z_res: float = image.scale[2] if num_frames > 1 else float(0)
+
+        # Load timestamps (might be useful in the future)
+        # timestamps = metadata.find("Data/Image/TimeStampList")
+
+        # Get the size of each image in real space
+        try:
+            x_len = dims[0].get("Length", "")
+            x_pix = dims[0].get("NumberOfElements", "")
+            y_len = dims[1].get("Length", "")
+            y_pix = dims[1].get("NumberOfElements", "")
+
+            # Calculate end-to-end width and height of image
+            # Assumption 1: Recorded length is the midpoint-to-midpoint length
+            w = float(x_len) / (float(x_pix) - 1) * float(x_pix)  # metres
+            h = float(y_len) / (float(y_pix) - 1) * float(y_pix)  # metres
+
+            # Assumption 2: It's the end-to-end length
+            # w = float(x_len)
+            # h = float(y_len)
+
+            logger.debug(f"Image width is {w} m")
+            logger.debug(f"Image height is {h} m")
+
+            # Get the stage position
+            camera_settings = metadata.findall(".//ATLCameraSettingDefinition")[0]
+            x = float(camera_settings.get("StagePosX", ""))
+            y = float(camera_settings.get("StagePosY", ""))
+            # Find the coordinates of the image's 4 corners in real space
+            extent = [x, x + w, y, y + h]
+
+        except (TypeError, ValueError):
+            logger.warning(
+                f"Unable to extract dimensional information for {series_name}"
+            )
+            extent = []
+
+        # Process channels as individual TIFFs
+        for c, color in enumerate(colors):
+            logger.info(f"Processing {color} channel")
+
+            # Load image stack to array
+            logger.info("Loading image stack")
+            for z in range(num_frames):
+                frame = image.get_frame(z=z, t=0, c=c)  # PIL object; array-like
+                if z == 0:
+                    arr = np.array([frame])
+                else:
+                    arr = np.append(arr, [frame], axis=0)
+            logger.debug(
+                f"{img_name} {color} array properties: \n"
+                f"Shape: {arr.shape} \n"
+                f"dtype: {arr.dtype} \n"
+                f"Min value: {arr.min()} \n"
+                f"Max value: {arr.max()} \n"
+            )
+
+            # Estimate initial NumPy dtype
+            bit_depth = image.bit_depth[c]
+            dtype_init = estimate_int_dtype(arr, bit_depth=bit_depth)
+
+            # Rescale intensity values for fluorescent channels
+            adjust_contrast = (
+                "stretch"
+                if color
+                in (
+                    "blue",
+                    "cyan",
+                    "green",
+                    "magenta",
+                    "red",
+                    "yellow",
+                )
+                else None
+            )
+
+            # Process the image stack
+            logger.info("Applying image stack processing routine to image stack")
+            arr = preprocess_img_stk(
+                array=arr,
+                initial_dtype=dtype_init,
+                target_dtype="uint8",
+                adjust_contrast=adjust_contrast,
+            )
+            logger.debug(
+                f"{img_name} {color} array properties: \n"
+                f"Shape: {arr.shape} \n"
+                f"dtype: {arr.dtype} \n"
+                f"Min value: {arr.min()} \n"
+                f"Max value: {arr.max()} \n"
+            )
+
+            # Save as a greyscale TIFF
+            logger.info("Saving image stack as a TIFF file")
+            img_stk_file = write_stack_to_tiff(
+                array=arr,
+                save_dir=save_dir,
+                file_name=color,
+                x_res=x_res,
+                y_res=y_res,
+                z_res=z_res,
+                units="micron",
+                axes="ZYX",
+                image_labels=image_labels,
+                photometric="minisblack",
+            )
+            # Collect the image stacks created
+            result["channel_data"][color] = str(img_stk_file.resolve())
+            result["extent"] = extent
 
     return result
-
-
-def process_lif_file_pool_dispatcher(
-    file: Path,
-    scene_num: int,
-    metadata: ET.Element,
-    root_save_dir: Path,
-):
-    """
-    Helper function called by the pool that is used to decide which workflow to pass the
-    LIF file sub-image to. Currently, it supports:
-    1. Conversion of z-stacks into image stacks
-    2. Stitching montage images together to create an atlas of the grid
-    """
-
-    # Interpret the metadata to see if it's montage or a z-stack
-    dims = metadata.findall(".//DimensionDescription")
-    if not dims:
-        logger.warning(f"No dimensional information found; skipping Scene {scene_num}")
-        return {}
-    # A montage will have a dimension with ID 10
-    if "10" in (dim.get("DimID", "") for dim in dims):
-        logger.info(f"Processing Scene {scene_num} as a montage")
-        return {}
-    # Otherwise, process it as an image stack or 2D image
-    logger.info(f"Processing Scene {scene_num} as an image stack")
-    return process_lif_image_stack(file, scene_num, metadata, root_save_dir)
 
 
 def process_lif_file(
@@ -289,16 +415,11 @@ def process_lif_file(
         return []
     processed_dir = Path("/".join(path_parts[: root_index + 1]))
 
-    # Save master metadata relative to raw file
-    raw_xml_dir = file.parent / "metadata"
-
     # Create folders if not already present
+    raw_xml_dir = file.parent / "metadata"
     for folder in (processed_dir, raw_xml_dir):
-        if not folder.exists():
-            folder.mkdir(parents=True)
-            logger.info(f"Created {str(folder)!r}")
-        else:
-            logger.info(f"{str(folder)!r} already exists")
+        folder.mkdir(parents=True, exist_ok=True)
+        logger.info("Created processing directory and folder to store raw metadata in")
 
     # Load LIF file as a LifFile class
     logger.info(f"Loading {file.name!r}")
@@ -313,14 +434,14 @@ def process_lif_file(
     )
 
     # Recursively generate list of metadata-containing elements
-    metadata_list = get_image_elements(xml_root)
+    metadata_dict = find_image_elements(xml_root)
 
     # Check that elements match number of images
-    if not len(metadata_list) == len(scene_list):
+    if not len(metadata_dict) == len(scene_list):
         logger.error(
             "Error matching metadata list to list of sub-images. "
             # Show what went wrong
-            f"Metadata entries: {len(metadata_list)} "
+            f"Metadata entries: {len(metadata_dict)} "
             f"Sub-images: {len(scene_list)} "
         )
         return []
@@ -330,15 +451,16 @@ def process_lif_file(
 
     # Set up multiprocessing arguments
     pool_args = []
-    for i in range(len(scene_list)):
+    for i, (elem_path, metadata) in enumerate(metadata_dict.items()):
         pool_args.append(
             # Arguments need to be pickle-able; no complex objects allowed
             #   Follow order of args in the function
             [
                 file,
                 i,
-                metadata_list[i],
+                metadata,
                 processed_dir,
+                elem_path,
             ]
         )
 
@@ -346,7 +468,7 @@ def process_lif_file(
     with mp.Pool(processes=num_procs) as pool:
         logger.info(f"Starting processing of LIF substacks in {file.name!r}")
         # Each thread will return a list of dicts
-        results = pool.starmap(process_lif_file_pool_dispatcher, pool_args)
+        results = pool.starmap(process_lif_subimage, pool_args)
     return results
 
 
