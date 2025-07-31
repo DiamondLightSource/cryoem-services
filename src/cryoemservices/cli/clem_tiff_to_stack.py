@@ -45,7 +45,7 @@ def run():
     set_up_logging(debug=args.debug)
 
     # Import module only after logger has been set up
-    from cryoemservices.wrappers.clem_process_raw_tiffs import convert_tiff_to_stack
+    from cryoemservices.wrappers.clem_process_raw_tiffs import process_tiff_files
 
     # Generate list from the single file provided
     tiff_file = Path(args.tiff_file)
@@ -61,7 +61,7 @@ def run():
     # Parse metadata argument
     metadata = None if not args.metadata else Path(args.metadata)
 
-    results = convert_tiff_to_stack(
+    results = process_tiff_files(
         tiff_list=tiff_list,
         root_folder=args.root_folder,
         metadata_file=metadata,
