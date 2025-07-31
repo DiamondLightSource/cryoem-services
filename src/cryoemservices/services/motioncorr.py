@@ -63,6 +63,7 @@ class MotionCorrParameters(BaseModel):
     dose_motionstats_cutoff: float = 4.0
     do_icebreaker_jobs: bool = True
     mc_uuid: int
+    app_id: int
     picker_uuid: int
     relion_options: RelionServiceOptions
     ctf: dict = {}
@@ -687,6 +688,17 @@ class MotionCorr(CommonService):
                     "register": "motion_corrected",
                     "movie": mc_params.movie,
                     "mrc_out": mc_params.mrc_out,
+                },
+            )
+        else:
+            self.log.info("Sending to smartem if configured")
+            rw.send_to(
+                "smartem",
+                {
+                    "total_motion": total_motion,
+                    "average_motion": average_motion_per_frame,
+                    "app_id": mc_params.app_id,
+                    "mc_uuid": mc_params.mc_uuid,
                 },
             )
 
