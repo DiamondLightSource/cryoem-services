@@ -45,6 +45,7 @@ class CTFParameters(BaseModel):
     movie: Optional[str] = None
     ctffind_version: int = 4
     mc_uuid: int
+    app_id: int
     picker_uuid: int
     relion_options: RelionServiceOptions
     autopick: dict = {}
@@ -320,6 +321,17 @@ class CTFFind(CommonService):
             ctf_params.autopick["mc_uuid"] = ctf_params.mc_uuid
             ctf_params.autopick["picker_uuid"] = ctf_params.picker_uuid
             ctf_params.autopick["pixel_size"] = ctf_params.pixel_size
+
+            self.log.info("Sending to smartem if configured")
+            rw.send_to(
+                "smartem",
+                {
+                    "ctf_max_resolution_estimate": self.estimated_resolution,
+                    "app_id": ctf_params.app_id,
+                    "mc_uuid": ctf_params.mc_uuid,
+                },
+            )
+
             rw.send_to("cryolo", ctf_params.autopick)
 
         # Register completion with Murfey if this is tomography
