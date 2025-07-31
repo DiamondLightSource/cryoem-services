@@ -347,13 +347,33 @@ class PostProcess(CommonService):
         }
         ispyb_parameters.append(bfactor_ispyb_parameters)
 
-        rw.send_to(
-            "ispyb_connector",
-            {
-                "ispyb_command": "multipart_message",
-                "ispyb_command_list": ispyb_parameters,
-            },
-        )
+        # If this is not running with C1 symmetry look for a previous C1 run
+        unsymmetrised_resolution = None
+        if (
+            postprocess_params.is_first_refinement
+            and postprocess_params.symmetry != "C1"
+            and (
+                project_dir / "PostProcess/PostProcess_C1_symmetry/postprocess.star"
+            ).is_file()
+        ):
+            c1_run = cif.read_file(
+                str(
+                    project_dir / "PostProcess/PostProcess_C1_symmetry/postprocess.star"
+                )
+            )
+            unsymmetrised_resolution = float(
+                c1_run.find_block("general").find_pair("_rlnFinalResolution")[1]
+            )
+
+        # Skip ispyb inserts if C1 resolution was better
+        if not unsymmetrised_resolution or final_resolution <= unsymmetrised_resolution:
+            rw.send_to(
+                "ispyb_connector",
+                {
+                    "ispyb_command": "multipart_message",
+                    "ispyb_command_list": ispyb_parameters,
+                },
+            )
 
         # Tell Murfey the refinement has finished
         if postprocess_params.is_first_refinement:

@@ -394,3 +394,135 @@ def test_postprocess_bfactor(mock_subprocess, offline_transport, tmp_path):
             ],
         },
     )
+
+
+@mock.patch("cryoemservices.services.postprocess.find_efficiency")
+@mock.patch("cryoemservices.services.postprocess.subprocess.run")
+def test_postprocess_first_refine_has_symmetry_worse_than_c1(
+    mock_subprocess, mock_efficiency, offline_transport, tmp_path
+):
+    """
+    Send a test message to the PostProcess service for a symmetrised job
+    In this case C1 did better so ispyb parameters should not be inserted
+    """
+    mock_subprocess().returncode = 0
+    mock_subprocess().stdout = (
+        "+ apply b-factor of: 50\n+ FINAL RESOLUTION: 4.5\n".encode("ascii")
+    )
+    mock_subprocess().stderr = "stderr".encode("ascii")
+    mock_efficiency.return_value = 0.7
+
+    # Symmetry not C1
+    symmetry = "O"
+
+    # Previous better job at C1
+    (tmp_path / "PostProcess/PostProcess_C1_symmetry").mkdir(parents=True)
+    with open(
+        tmp_path / "PostProcess/PostProcess_C1_symmetry/postprocess.star", "w"
+    ) as c1_out:
+        c1_out.write("data_general\n\n_rlnFinalResolution  4.2\n")
+
+    # Create the expected input files
+    (tmp_path / "Refine3D/job013").mkdir(parents=True)
+    with open(tmp_path / "Refine3D/job013/run_data.star", "w") as data_star:
+        data_star.write(
+            "data_particles\nloop_\n_rlnAngleRot\n_rlnAngleTilt\n0.5 1.0\n1.5 2.0\n"
+        )
+    with open(tmp_path / "Refine3D/job013/run_model.star", "w") as f:
+        f.write(
+            "data_model_classes\n\nloop_\n_rlnReferenceImage\n"
+            "_Angles\n_Rotation\n_Translation\n_Resolution\n_FourierCompleteness\n"
+            "image 0 10 20 4 90"
+        )
+
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+    postprocess_test_message = {
+        "half_map": str(tmp_path / "Refine3D/job013/half_map1.mrc"),
+        "mask": str(tmp_path / "MaskCreate/job014/mask.mrc"),
+        "rescaled_class_reference": str(tmp_path / "class_ref.mrc"),
+        "job_dir": str(tmp_path / "PostProcess/job015"),
+        "is_first_refinement": True,
+        "pixel_size": 1.0,
+        "number_of_particles": 5,
+        "batch_size": 5,
+        "class_number": 1,
+        "postprocess_lowres": 10,
+        "symmetry": symmetry,
+        "particles_file": f"{tmp_path}/Extract/job012/particles.star",
+        "picker_id": 1,
+        "refined_grp_uuid": 2,
+        "refined_class_uuid": 3,
+        "relion_options": {},
+    }
+    output_relion_options = dict(RelionServiceOptions())
+    output_relion_options["batch_size"] = 5
+    output_relion_options["pixel_size"] = 1.0
+    output_relion_options["symmetry"] = symmetry
+    output_relion_options.update(postprocess_test_message["relion_options"])
+
+    # Set up the mock service and call it
+    service = postprocess.PostProcess(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
+    service.postprocess(None, header=header, message=postprocess_test_message)
+
+    postprocess_command = [
+        "relion_postprocess",
+        "--i",
+        postprocess_test_message["half_map"],
+        "--o",
+        str(tmp_path / "PostProcess/job015/postprocess"),
+        "--mask",
+        postprocess_test_message["mask"],
+        "--angpix",
+        "1.0",
+        "--auto_bfac",
+        "--autob_lowres",
+        "10.0",
+        "--pipeline_control",
+        f"{tmp_path}/PostProcess/job015/",
+    ]
+
+    assert mock_subprocess.call_count == 4
+    mock_subprocess.assert_called_with(postprocess_command, capture_output=True)
+
+    # Check that the correct messages were sent
+    assert offline_transport.send.call_count == 2
+    offline_transport.send.assert_any_call(
+        "murfey_feedback",
+        {
+            "register": "done_refinement",
+            "project_dir": str(tmp_path),
+            "resolution": 4.5,
+            "number_of_particles": 5,
+            "refined_grp_uuid": 2,
+            "refined_class_uuid": 3,
+            "class_reference": postprocess_test_message["rescaled_class_reference"],
+            "class_number": 1,
+            "mask_file": postprocess_test_message["mask"],
+            "pixel_size": 1.0,
+            "symmetry": symmetry,
+        },
+    )
+    offline_transport.send.assert_any_call(
+        "node_creator",
+        {
+            "job_type": "relion.postprocess",
+            "input_file": (
+                postprocess_test_message["half_map"]
+                + ":"
+                + postprocess_test_message["mask"]
+            ),
+            "output_file": f"{tmp_path}/PostProcess/job015/postprocess_masked.mrc",
+            "relion_options": output_relion_options,
+            "command": " ".join(postprocess_command),
+            "stdout": "+ apply b-factor of: 50\n+ FINAL RESOLUTION: 4.5\n",
+            "stderr": "stderr",
+            "alias": f"PostProcess_{symmetry}_symmetry",
+            "success": True,
+        },
+    )
