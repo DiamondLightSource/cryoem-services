@@ -417,8 +417,10 @@ def test_postprocess_first_refine_has_symmetry_worse_than_c1(
 
     # Previous better job at C1
     (tmp_path / "PostProcess/PostProcess_C1_symmetry").mkdir(parents=True)
-    with open(tmp_path / "PostProcess/PostProcess_C1_symmetry/run.out", "w") as c1_out:
-        c1_out.write("last one\n+ apply b-factor of: 50\n+ FINAL RESOLUTION: 4.2\n")
+    with open(
+        tmp_path / "PostProcess/PostProcess_C1_symmetry/postprocess.star", "w"
+    ) as c1_out:
+        c1_out.write("data_general\n\n_rlnFinalResolution  4.2\n")
 
     # Create the expected input files
     (tmp_path / "Refine3D/job013").mkdir(parents=True)

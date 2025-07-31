@@ -352,20 +352,21 @@ class PostProcess(CommonService):
         if (
             postprocess_params.is_first_refinement
             and postprocess_params.symmetry != "C1"
-            and (project_dir / "PostProcess/PostProcess_C1_symmetry/run.out").is_file()
+            and (
+                project_dir / "PostProcess/PostProcess_C1_symmetry/postprocess.star"
+            ).is_file()
         ):
-            with open(
-                project_dir / "PostProcess/PostProcess_C1_symmetry/run.out"
-            ) as c1_run:
-                while True:
-                    line = c1_run.readline()
-                    if not line:
-                        break
-                    if "+ FINAL RESOLUTION:" in line:
-                        unsymmetrised_resolution = float(line.split()[-1])
+            c1_run = cif.read_file(
+                str(
+                    project_dir / "PostProcess/PostProcess_C1_symmetry/postprocess.star"
+                )
+            )
+            unsymmetrised_resolution = float(
+                c1_run.find_block("general").find_pair("_rlnFinalResolution")[1]
+            )
 
         # Skip ispyb inserts if C1 resolution was better
-        if not unsymmetrised_resolution or final_resolution < unsymmetrised_resolution:
+        if not unsymmetrised_resolution or final_resolution <= unsymmetrised_resolution:
             rw.send_to(
                 "ispyb_connector",
                 {
