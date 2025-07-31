@@ -88,8 +88,8 @@ class LIFToStackService(CommonService):
             }
             rw.send_to("murfey_feedback", murfey_params)
             self.log.info(
-                f"Submitted {result['series_name']!r} {result['channel']!r} "
-                "image stack and associated metadata to Murfey for registration"
+                f"Submitted processed data for {result['series_name']!r} "
+                "and associated metadata to Murfey for registration"
             )
 
         rw.transport.ack(header)

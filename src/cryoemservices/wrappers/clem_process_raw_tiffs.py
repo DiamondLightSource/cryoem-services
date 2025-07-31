@@ -530,8 +530,8 @@ class TIFFToStackWrapper:
         }
         self.recwrap.send_to("murfey_feedback", murfey_params)
         logger.info(
-            f"Submitted {result['series_name']!r} {result['channel']!r} "
-            "image stack and associated metadata for registration"
+            f"Submitted processed data for {result['series_name']!r} "
+            "and associated metadata to Murfey for registration"
         )
 
         return True

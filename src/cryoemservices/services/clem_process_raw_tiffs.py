@@ -7,7 +7,7 @@ from cryoemservices.services.common_service import CommonService
 from cryoemservices.util.models import MockRW
 from cryoemservices.wrappers.clem_process_raw_tiffs import (
     TIFFToStackParameters,
-    convert_tiff_to_stack,
+    process_tiff_files,
 )
 
 
@@ -83,30 +83,28 @@ class TIFFToStackService(CommonService):
         )
 
         # Process files and collect output
-        results = convert_tiff_to_stack(
+        result = process_tiff_files(
             tiff_list=params.tiff_list,
             root_folder=params.root_folder,
             metadata_file=params.metadata,
         )
 
         # Nack message and log error if the command fails to execute
-        if not results:
+        if not result:
             self.log.error(f"Process failed for TIFF series {series_name!r}")
             rw.transport.nack(header)
             return
 
-        # Send each subset of output files to Murfey for registration
-        for result in results:
-            # Create dictionary and send it to Murfey's "feedback_callback" function
-            murfey_params = {
-                "register": "clem.register_tiff_preprocessing_result",
-                "result": result,
-            }
-            rw.send_to("murfey_feedback", murfey_params)
-            self.log.info(
-                f"Submitted {result['series_name']!r} {result['channel']!r} "
-                "image stack and associated metadata to Murfey for registration"
-            )
+        # Create dictionary and send it to Murfey's "feedback_callback" function
+        murfey_params = {
+            "register": "clem.register_tiff_preprocessing_result",
+            "result": result,
+        }
+        rw.send_to("murfey_feedback", murfey_params)
+        self.log.info(
+            f"Submitted processed data for {result['series_name']!r} "
+            "and associated metadata to Murfey for registration"
+        )
 
         rw.transport.ack(header)
         return
