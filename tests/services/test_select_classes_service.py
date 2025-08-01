@@ -325,7 +325,7 @@ def test_select_classes_service_cryodann(mock_subprocess, offline_transport, tmp
         data_star.write("data_optics\n\nloop_\n_group\nopticsGroup1\n\n")
         data_star.write(
             "data_particles\n\nloop_\n"
-            "_rlnClassNumber\n_rlnCoordinateX\n_particle\n_movie\n_rlnCryodannScore\n"
+            "_rlnClassNumber\n_rlnCoordinateX\n_particle\n_rlnMicrographName\n_rlnCryodannScore\n"
         )
         for i in range(1, 6):
             data_star.write(
