@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 import subprocess
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from pydantic import BaseModel, Field, ValidationError, field_validator
 from workflows.recipe import wrap_subscribe
@@ -44,6 +44,7 @@ class CTFParameters(BaseModel):
     # IDs
     ctffind_version: int = 4
     mc_uuid: int
+    app_id: Optional[int] = None
     picker_uuid: int
     relion_options: RelionServiceOptions
     autopick: dict = {}
@@ -318,6 +319,17 @@ class CTFFind(CommonService):
             ctf_params.autopick["picker_uuid"] = ctf_params.picker_uuid
             ctf_params.autopick["pixel_size"] = ctf_params.pixel_size
             rw.send_to("cryolo", ctf_params.autopick)
+
+            if ctf_params.app_id is not None:
+                self.log.info("Sending to smartem if configured")
+                rw.send_to(
+                    "smartem",
+                    {
+                        "ctf_max_resolution_estimate": self.estimated_resolution,
+                        "app_id": ctf_params.app_id,
+                        "mc_uuid": ctf_params.mc_uuid,
+                    },
+                )
 
         self.log.info(f"Done {self.job_type} for {ctf_params.input_image}.")
         rw.transport.ack(header)
