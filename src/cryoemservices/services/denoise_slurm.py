@@ -5,7 +5,7 @@ import subprocess
 from pathlib import Path
 from typing import List
 
-from cryoemservices.services.denoise import Denoise
+from cryoemservices.services.denoise import Denoise, DenoiseParameters
 from cryoemservices.services.tomo_align_slurm import retrieve_files, transfer_files
 from cryoemservices.util.slurm_submission import slurm_submission_for_services
 
@@ -23,10 +23,11 @@ class DenoiseSlurm(Denoise):
         self,
         topaz_command: List[str],
         alignment_output_dir: Path,
-        tomogram_volume: Path,
+        denoise_parameters: DenoiseParameters,
         denoised_full_path: Path,
     ):
         """Submit topaz jobs to a slurm cluster"""
+        tomogram_volume = Path(denoise_parameters.volume)
 
         # Transfer the required files
         self.log.info("Transferring files...")
