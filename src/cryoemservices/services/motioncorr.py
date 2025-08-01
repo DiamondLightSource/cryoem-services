@@ -63,7 +63,7 @@ class MotionCorrParameters(BaseModel):
     dose_motionstats_cutoff: float = 4.0
     do_icebreaker_jobs: bool = True
     mc_uuid: int
-    app_id: int
+    app_id: Optional[int] = None
     picker_uuid: int
     relion_options: RelionServiceOptions
     ctf: dict = {}
@@ -690,7 +690,7 @@ class MotionCorr(CommonService):
                     "mrc_out": mc_params.mrc_out,
                 },
             )
-        else:
+        elif mc_params.app_id is not None:
             self.log.info("Sending to smartem if configured")
             rw.send_to(
                 "smartem",
