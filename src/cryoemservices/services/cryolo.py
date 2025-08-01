@@ -37,6 +37,7 @@ class CryoloParameters(BaseModel):
     tomo_tracing_search_range: int = -1
     on_the_fly: bool = True
     mc_uuid: Optional[int] = None
+    app_id: Optional[int] = None
     picker_uuid: Optional[int] = None
     relion_options: RelionServiceOptions
     ctf_values: dict = {}
@@ -465,6 +466,18 @@ class CrYOLO(CommonService):
                 / (Path(cryolo_params.input_path).stem + "_extract.star")
             ),
         }
+
+        if cryolo_params.app_id is not None:
+            self.log.info("Sending to smartem if configured")
+            rw.send_to(
+                "smartem",
+                {
+                    "number_of_picked_particles": len(cryolo_particle_sizes),
+                    "pick_distribution": {},
+                    "mc_uuid": cryolo_params.mc_uuid,
+                    "app_id": cryolo_params.app_id,
+                },
+            )
 
         # Forward results to murfey
         self.log.info("Sending to Murfey for particle extraction")
