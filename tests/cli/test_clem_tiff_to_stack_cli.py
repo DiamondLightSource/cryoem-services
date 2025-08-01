@@ -6,7 +6,7 @@ from pathlib import Path
 
 from pytest_mock import MockerFixture
 
-from cryoemservices.cli import clem_tiff_to_stack
+from cryoemservices.cli import clem_process_raw_tiffs
 
 
 def test_tiff_to_stack_with_optional_args(mocker: MockerFixture, tmp_path: Path):
@@ -41,7 +41,7 @@ def test_tiff_to_stack_with_optional_args(mocker: MockerFixture, tmp_path: Path)
         str(metadata_file),
         "--debug",
     ]
-    clem_tiff_to_stack.run()
+    clem_process_raw_tiffs.run()
 
     # Check that calls were made with the expected values
     mock_setup.assert_called_once_with(debug=True)
@@ -69,7 +69,7 @@ def test_tiff_to_stack_with_default_args(mocker: MockerFixture, tmp_path: Path):
         "clem_tiff_to_stack",
         str(tiff_file),
     ]
-    clem_tiff_to_stack.run()
+    clem_process_raw_tiffs.run()
 
     # Check that calls were mae with the expected values
     mock_setup.assert_called_once_with(debug=False)

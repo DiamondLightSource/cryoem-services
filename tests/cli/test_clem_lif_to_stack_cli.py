@@ -6,7 +6,7 @@ from pathlib import Path
 
 from pytest_mock import MockerFixture
 
-from cryoemservices.cli import clem_lif_to_stack
+from cryoemservices.cli import clem_process_raw_lifs
 
 
 def test_lif_to_stack_with_optional_args(mocker: MockerFixture):
@@ -32,7 +32,7 @@ def test_lif_to_stack_with_optional_args(mocker: MockerFixture):
         "10",
         "--debug",
     ]
-    clem_lif_to_stack.run()
+    clem_process_raw_lifs.run()
 
     # Check that it was called with the correct args
     mock_setup.assert_called_with(debug=True)
@@ -64,7 +64,7 @@ def test_lif_to_stack_with_default_args(mocker: MockerFixture):
         "clem.lif_to_stack",
         "file.lif",
     ]
-    clem_lif_to_stack.run()
+    clem_process_raw_lifs.run()
 
     # Check that it was called with the correct args
     mock_setup.assert_called_with(debug=False)
