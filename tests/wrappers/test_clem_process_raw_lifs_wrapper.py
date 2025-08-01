@@ -12,15 +12,12 @@ from readlif.reader import LifFile, LifImage
 from workflows.recipe.wrapper import RecipeWrapper
 from workflows.transport.offline_transport import OfflineTransport
 
-from cryoemservices.util.clem_raw_metadata import (
-    get_axis_resolution,
-    get_image_elements,
-)
+from cryoemservices.util.clem_metadata import find_image_elements, get_axis_resolution
 from cryoemservices.wrappers.clem_process_raw_lifs import (
     LIFToStackWrapper,
     get_lif_xml_metadata,
     process_lif_file,
-    process_lif_image_stack,
+    process_lif_subimage,
 )
 from tests.test_utils.clem import create_xml_metadata
 
@@ -134,7 +131,7 @@ def test_process_lif_image_stack(
 
     # Pick a single scene from the LIF file to analyse
     scene_num = 0
-    metadata = get_image_elements(raw_xml_metadata)[scene_num]
+    metadata = list(find_image_elements(raw_xml_metadata).values())[scene_num]
 
     # Mock out the LifImage object
     mock_lif_image = MagicMock(spec=LifImage)
@@ -161,7 +158,7 @@ def test_process_lif_image_stack(
     mock_lif_file.return_value.get_image.return_value = mock_lif_image
 
     # Run the function
-    results = process_lif_image_stack(
+    results = process_lif_subimage(
         lif_file,
         scene_num,
         metadata,
@@ -220,7 +217,7 @@ def test_process_lif_file(
 
     # Mock out XML metadata extracted from LIF file
     mock_get_lif_xml_metadata.return_value = raw_xml_metadata
-    metadata_list = get_image_elements(raw_xml_metadata)
+    metadata_list = list(find_image_elements(raw_xml_metadata).values())
 
     # Mock out the multiprocessing function and its outputs
     mock_pool_instance = MagicMock()
@@ -247,7 +244,7 @@ def test_process_lif_file(
 
     # Check that arguments were fed into the multiprocessing function correctly
     mock_pool_instance.starmap.assert_called_once_with(
-        process_lif_image_stack,
+        process_lif_subimage,
         [
             [
                 lif_file,

@@ -22,7 +22,7 @@ from cryoemservices.util.clem_array_functions import (
     preprocess_img_stk,
     write_stack_to_tiff,
 )
-from cryoemservices.util.clem_raw_metadata import find_image_elements
+from cryoemservices.util.clem_metadata import find_image_elements
 
 # Create logger object to output messages with
 logger = logging.getLogger("cryoemservices.wrappers.clem_process_raw_lifs")
