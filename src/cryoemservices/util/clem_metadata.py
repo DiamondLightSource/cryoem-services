@@ -55,7 +55,7 @@ def find_image_elements(
     return result
 
 
-def get_channels(node: ET.Element) -> dict[str, dict]:
+def get_channel_info(node: ET.Element) -> dict[str, dict]:
     """
     Parses the XML metadata of a single dataset (this will raise an error if
     the XML metadata contains multiple datasets) to extract information about
@@ -88,7 +88,7 @@ def get_channels(node: ET.Element) -> dict[str, dict]:
     return channel_info
 
 
-def get_dimensions(node: ET.Element) -> dict[str, dict]:
+def get_dimension_info(node: ET.Element) -> dict[str, dict]:
     """
     Parses the XML metadata from a single dataset (this will raise an error
     if the XML metadata contains multiple datasets) to calculate and return
@@ -159,6 +159,37 @@ def get_dimensions(node: ET.Element) -> dict[str, dict]:
         else:
             dims_info[dim_name] = {"num_tiles": num_elements}
     return dims_info
+
+
+def get_tile_scan_info(node: ET.Element):
+    # Placeholder dict
+    tile_scan_info: dict[int, dict] = {}
+
+    # Look for nodes named "TileScanInfo"
+    search_results = [
+        child
+        for child in node.findall(".//Attachment")
+        if child.get("Name", "") == "TileScanInfo"
+    ]
+    # Raise error if more than one node found
+    if not search_results:
+        logger.warning("No tile scan information found")
+        return tile_scan_info
+    if len(search_results) > 1:
+        raise ValueError(
+            "More than one 'TileScanInfo' node found. "
+            "Metadata for multiple datasets are likely present."
+        )
+
+    # Extract tile position information
+    for t, tile in enumerate(search_results[0]):
+        tile_scan_info[t] = {
+            "field_x": int(tile.get("FieldX", "")),
+            "field_y": int(tile.get("FieldY", "")),
+            "pos_x": float(tile.get("PosX", "")),
+            "pos_y": float(tile.get("PosY", "")),
+        }
+    return tile_scan_info
 
 
 def get_axis_resolution(node: ET.Element) -> float:
