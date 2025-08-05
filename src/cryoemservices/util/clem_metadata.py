@@ -55,6 +55,39 @@ def find_image_elements(
     return result
 
 
+def get_channels(node: ET.Element) -> dict:
+    """
+    Parses the XML metadata of a single dataset (this will raise an error if
+    the XML metadata contains multiple datasets) to extract information about
+    the colour chnanels present in the dataset.
+    """
+
+    # Load channels
+    channels = node.findall(".//ChannelDescription")
+
+    # Raise error if multiple datasets are present
+    colors = [channel.get("LUTName", "").lower() for channel in channels]
+    if len(colors) != len(set(colors)):
+        raise ValueError(
+            "More than one node found describing the same colour channel. "
+            "Metadata for multiple datasets are likely present."
+        )
+
+    # Extract channel information
+    channel_info = {}
+    for c, channel in enumerate(channels):
+        try:
+            channel_info[channel.get("LUTName", "").lower()] = {
+                "bit_depth": int(channel.get("Resolution", "")),
+                "min": float(channel.get("Min", "")),
+                "max": float(channel.get("Max", "")),
+            }
+        except (ValueError, TypeError):
+            logger.error("Unable to extract channel information")
+            continue
+    return channel_info
+
+
 def get_dimensions(node: ET.Element) -> dict:
     """
     Parses the XML metadata from a single dataset (this will raise an error
