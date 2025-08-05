@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
 from xml.etree import ElementTree as ET
 
 logger = logging.getLogger("cryoemservice.util.clem_raw_metadata")
@@ -55,7 +55,7 @@ def find_image_elements(
     return result
 
 
-def get_channels(node: ET.Element) -> dict:
+def get_channels(node: ET.Element) -> dict[str, dict]:
     """
     Parses the XML metadata of a single dataset (this will raise an error if
     the XML metadata contains multiple datasets) to extract information about
@@ -75,7 +75,7 @@ def get_channels(node: ET.Element) -> dict:
 
     # Extract channel information
     channel_info = {}
-    for c, channel in enumerate(channels):
+    for channel in channels:
         try:
             channel_info[channel.get("LUTName", "").lower()] = {
                 "bit_depth": int(channel.get("Resolution", "")),
@@ -88,7 +88,7 @@ def get_channels(node: ET.Element) -> dict:
     return channel_info
 
 
-def get_dimensions(node: ET.Element) -> dict:
+def get_dimensions(node: ET.Element) -> dict[str, dict]:
     """
     Parses the XML metadata from a single dataset (this will raise an error
     if the XML metadata contains multiple datasets) to calculate and return
@@ -109,7 +109,7 @@ def get_dimensions(node: ET.Element) -> dict:
 
     dims = node.findall(".//DimensionDescription")
 
-    dims_info: dict[str, Any] = {}
+    dims_info: dict[str, dict] = {}
     for dim_id, dim_name in dimensions_key:
         # Check that the metadata is for one dataset only
         search_results = [dim for dim in dims if dim.get("DimID") == dim_id]
