@@ -22,7 +22,12 @@ from cryoemservices.util.clem_array_functions import (
     preprocess_img_stk,
     write_stack_to_tiff,
 )
-from cryoemservices.util.clem_metadata import find_image_elements
+from cryoemservices.util.clem_metadata import (
+    find_image_elements,
+    get_channel_info,
+    get_dimension_info,
+    get_tile_scan_info,
+)
 
 # Create logger object to output messages with
 logger = logging.getLogger("cryoemservices.wrappers.clem_process_raw_lifs")
@@ -94,109 +99,141 @@ def process_lif_subimage(
     # Save metadata relative to the substack
     img_xml_dir = save_dir / "metadata"
     img_xml_dir.mkdir(parents=True, exist_ok=True)
-    logger.info("Created folders to save image and metadata to")
+    logger.info(f"Created folders to save image and metadata for {series_name!r} to")
 
     # Save image stack XML metadata (all channels together)
     img_xml_file = img_xml_dir / (img_name + ".xml")
-    metadata_tree = ET.ElementTree(metadata)
+    metadata_tree = ET.ElementTree(metadata)  # For saving
     ET.indent(metadata_tree, "  ")
     metadata_tree.write(img_xml_file, encoding="utf-8")
     logger.info(f"Image stack metadata saved to {img_xml_file}")
 
-    # Load channels
-    channels = metadata.findall(".//ChannelDescription")
-    colors = [channels[c].attrib["LUTName"].lower() for c in range(len(channels))]
-
-    # Load dimension information
-    dims = metadata.findall(".//DimensionDescription")
-    if not dims:
+    # Extract metadata using helper functions
+    try:
+        channels = get_channel_info(metadata)
+        dims = get_dimension_info(metadata)
+        tile_scan_info = get_tile_scan_info(metadata)
+    except Exception:
         logger.error(
-            f"No dimensional information found; skipping series {series_name!r}"
+            f"Failed to parse metadata file for {series_name!r}", exc_info=True
         )
-        return {}
+
+    # Get width and height for a single frame
+    w = float(dims["x"]["length"])
+    h = float(dims["y"]["length"])
+
+    # Get number of frames
+    num_frames = int(dims["z"].get("num_frames", 1))
+    num_tiles = int(dims["m"].get("num_tiles", 1))
+
+    # Initial arbitrary limits of the atlas in real space
+    x_min = 10e10
+    x_max = float(0)
+    y_min = 10e10
+    y_max = float(0)
 
     # Template of results dictionary
     result: dict = {
         "series_name": series_name,
         "number_of_members": len(channels),
-        "data_type": "",
-        "channel_data": {},
+        "is__stack": num_frames > 1,
+        "is_montage": num_tiles > 1,
+        "output_files": {},
         "metadata": str(img_xml_file.resolve()),
         "parent_lif": str(file.resolve()),
+        "pixels_x": None,
+        "pixels_y": None,
+        "units": "",
+        "pixel_size": None,
+        "resolution": None,
         "extent": [],  # [x_min, x_max, y_min, y_max] in real space
     }
 
-    # if-block to construct atlas from sub-image
-    if "10" in (dim.get("DimID", "") for dim in dims):
-        result["data_type"] = "atlas"
-        logger.info(f"Processing {series_name} as a montage")
+    # Iterate by color, then z-frame, then tile
+    for c, color in enumerate(channels.keys()):
+        logger.info(f"Processing {color} channel for {series_name!r}")
+        logger.info(f"Loading images for {series_name!r}")
+        for z in range(num_frames):
+            # Stitch montages together for a given frame
+            if num_tiles > 1:
+                fig, ax = plt.subplots(facecolor="black")
+                fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
+                fig.set_dpi(400)
+                for t, tile in tile_scan_info.items():
+                    try:
+                        x = float(tile["pos_x"])
+                        y = float(tile["pos_y"])
+                        tile_extent = [x, x + w, y, y + h]
 
-        # Extract tile scan info
-        tile_scan_info = next(
-            (
-                elem
-                for elem in metadata.findall(".//Attachment")
-                if elem.get("Name", "") == "TileScanInfo"
-            ),
-            None,
-        )
-        if tile_scan_info is None:
-            logger.error(f"No tile scan information found in series {series_name}")
-            return {}
-        tile_scans = list(tile_scan_info)
+                        # Add image frame to the plot
+                        ax.imshow(
+                            image.get_frame(m=t),
+                            extent=tile_extent,
+                            origin="lower",
+                            cmap="gray",
+                        )
 
-        # Get the size of each image in tile
-        try:
-            x_len = dims[0].get("Length", "")
-            x_pix = dims[0].get("NumberOfElements", "")
-            y_len = dims[1].get("Length", "")
-            y_pix = dims[1].get("NumberOfElements", "")
+                        # Update new limits for the atlas
+                        x_min = x if x < x_min else x_min
+                        y_min = y if y < y_min else y_min
+                        x_max = x + w if x + w > x_max else x_max
+                        y_max = y + h if y + h > y_max else y_max
+                    except Exception:
+                        logger.warning(
+                            f"Unable to process tile {t} for frame {z} "
+                            f"for color channel {color!r} "
+                            f"for series {series_name!r}",
+                            exc_info=True,
+                        )
+                        continue
 
-            # Calculate end-to-end width and height of image
-            # Assumption 1: Recorded length is the midpoint-to-midpoint length
-            w = float(x_len) / (float(x_pix) - 1) * float(x_pix)  # metres
-            h = float(y_len) / (float(y_pix) - 1) * float(y_pix)  # metres
+                # Crop plotted area to just the populated space
+                ax.set_xlim(x_min, x_max)
+                ax.set_ylim(y_min, y_max)
+                ax.invert_yaxis()  # Set origin (0,0) to top left
+                ax.set_aspect("equal")  # Ensure x- and y-axis have the same scale
+                ax.axis("off")  # Switch off axis ticks and labels
+                ax.set_facecolor("black")  # Set background to black
 
-            # Assumption 2: It's the end-to-end length
-            # w = float(x_len)
-            # h = float(y_len)
+                # Save just the contents of the plot
+                logger.info(f"Rendering frame {z}")
+                fig.canvas.draw()  # Render the figure
+                canvas = np.frombuffer(fig.canvas.buffer_rgba(), dtype=np.uint8)
+                canvas = canvas.reshape(
+                    fig.canvas.get_width_height()[1],  # Height
+                    fig.canvas.get_width_height()[0],  # Width
+                    4,  # RGBA channels
+                )
+                logger.debug(f"Rendered canvas has shape {canvas.shape}")
 
-            logger.debug(f"Image width is {w} m")
-            logger.debug(f"Image height is {h} m")
-        except (TypeError, ValueError):
-            logger.error("Unable to extract dimensional information")
-            return {}
-
-        # Iterate by color channels, if multiple are present
-        for c, color in enumerate(colors):
-            logger.info(f"Processing {color} channel")
-
-            # Initial arbitrary limits of the atlas in real space
-            x_min = 10e10
-            x_max = float(0)
-            y_min = 10e10
-            y_max = float(0)
-
-            # Create the figure to save the image onto
-            fig, ax = plt.subplots()
-
-            # Load the coordinates
-            for t, tile in enumerate(tile_scans):
-                try:
-                    logger.info(f"Processing tile {t}")
-                    # Convert tile coordinates into floats
-                    x = float(tile.get("PosX", ""))
-                    y = float(tile.get("PosY", ""))
-                    # Find the coordinates of the image's 4 corners in real space
-                    tile_extent = [x, x + w, y, y + h]
-
-                    # Add image frame to the plot
-                    ax.imshow(
-                        image.get_frame(m=t),
-                        extent=tile_extent,
-                        origin="lower",
-                        cmap="gray",
+                # Do once per dataset
+                if z == 0 and c == 0:
+                    # Find the extent of the stitched image on the rendered canvas
+                    bbox = ax.get_window_extent().transformed(
+                        fig.dpi_scale_trans.inverted()
                     )
+                    x0, y0, x1, y1 = [int(coord * fig.dpi) for coord in bbox.extents]
+                    logger.debug(f"Image extents on canvas are {[x0, x1, y0, y1]}")
+
+                    # Update the resolution and pixel size to reflect new scale
+                    dims["x"]["num_pixels"] = x1 - x0
+                    dims["x"]["resolution"] = (x1 - x0) / (x_max - x_min)
+                    dims["x"]["pixel_size"] = (x_max - x_min) / (x1 - x0)
+                    dims["y"]["num_pixels"] = y1 - y0
+                    dims["y"]["resolution"] = (y1 - y0) / (y_max - y_min)
+                    dims["y"]["pixel_size"] = (y_max - y_min) / (y1 - y0)
+
+                # Remove alpha channel and convert to grayscale
+                frame = np.array(canvas[y0:y1, x0:x1, :3].mean(axis=-1), dtype=np.uint8)
+                logger.debug(f"Image frame has shape {frame.shape}")
+
+            # Otherwise, just load the frame and calculate
+            else:
+                frame = image.get_frame(z=z, t=0, c=c)
+                # Do once per dataset
+                if z == 0 and c == 0:
+                    x = float(tile_scan_info[0]["pos_x"])
+                    y = float(tile_scan_info[0]["pos_y"])
 
                     # Update new limits for the atlas
                     x_min = x if x < x_min else x_min
@@ -204,164 +241,91 @@ def process_lif_subimage(
                     x_max = x + w if x + w > x_max else x_max
                     y_max = y + h if y + h > y_max else y_max
 
-                except (TypeError, ValueError):
-                    logger.warning(
-                        f"Unable to extract coordinate information for tile {t}"
-                    )
-                    continue
+            # Do once per dataset
+            if z == 0 and c == 0:
+                # Update results dictionary
+                result["pixels_x"] = dims["x"]["num_pixels"]
+                result["pixels_y"] = dims["y"]["num_pixels"]
+                result["units"] = dims["x"]["units"]
+                result["pixel_size"] = dims["x"]["pixel_size"]
+                result["resolution"] = dims["x"]["resolution"]
+                extent = [x_min, x_max, y_min, y_max]
+                result["extent"] = extent
 
-            # Crop plotted area to just the populated space
-            logger.info("Adjusting ploting settings...")
-            ax.set_xlim(x_min, x_max)
-            ax.set_ylim(y_min, y_max)
-            ax.invert_yaxis()  # Set origin (0,0) to top left
-            ax.set_aspect("equal")  # Ensure x- and y-axis have the same scale
-            ax.axis("off")  # Switch off axis ticks and labels
+                logger.debug(f"Current extent is {extent}")
 
-            # Save just the contents of the plot
-            logger.info("Rendering image...")
-            fig.canvas.draw()  # Render the figure
-            renderer = fig.canvas.get_renderer()
-            bbox = ax.get_tightbbox(renderer).transformed(
-                fig.dpi_scale_trans.inverted()
+            if z == 0:
+                arr = np.array([frame])
+            else:
+                arr = np.append(arr, [frame], axis=0)
+
+        # Estimate initial NumPy dtype
+        bit_depth = 8 if dims["m"] else image.bit_depth[c]
+        dtype_init = estimate_int_dtype(arr, bit_depth=bit_depth)
+
+        # Rescale intensity values for fluorescent channels
+        adjust_contrast = (
+            "stretch"
+            if color
+            in (
+                "blue",
+                "cyan",
+                "green",
+                "magenta",
+                "red",
+                "yellow",
             )
-            fig_name = save_dir / f"{color}.png"
-            fig.savefig(
-                fig_name, bbox_inches=bbox, pad_inches=0, dpi=400, facecolor="black"
-            )
-            plt.close()
-            logger.info(f"Atlas image saved as {fig_name}")
+            else None
+        )
 
-            # Add the image to the result dictionary
-            result["channel_data"][color] = fig_name
+        # Process the image stack
+        logger.info("Applying image stack processing routine to image stack")
+        arr = preprocess_img_stk(
+            array=arr,
+            initial_dtype=dtype_init,
+            target_dtype="uint8",
+            adjust_contrast=adjust_contrast,
+        )
+        logger.debug(
+            f"{img_name} {color} array properties: \n"
+            f"Shape: {arr.shape} \n"
+            f"dtype: {arr.dtype} \n"
+            f"Min value: {arr.min()} \n"
+            f"Max value: {arr.max()} \n"
+        )
 
-            # Add the extent covered by the atlas image to the dictionary
-            result["extent"] = [x_min, x_max, y_min, y_max]
+        # Extract metadata needed for saving the image
+        image_labels = [str(z) for z in range(dims["z"].get("num_frames", 1))]
+        x_res = float(dims["x"]["resolution"])
+        y_res = float(dims["y"]["resolution"])
+        z_res = float(dims["z"]["resolution"]) if dims.get("z", {}) else float(0)
+        units = dims["x"]["units"]
 
-    # if-block to construct image stack from sub-image
-    else:
-        result["data_type"] = "image"
-        logger.info(f"Processing {series_name} as an image stack")
+        # Convert units to microns just for the image
+        if units == "m":
+            units = "micron"
+            x_res /= 10**6
+            y_res /= 10**6
+            z_res /= 10**6
+        logger.info("Saving image stack as a TIFF file")
 
-        # Generate slice labels for later
-        num_frames = image.dims.z
-        image_labels = [f"{f}" for f in range(num_frames)]
+        # Save as a greyscale TIFF
+        img_stk_file = write_stack_to_tiff(
+            array=arr,
+            save_dir=save_dir,
+            file_name=color,
+            x_res=x_res,
+            y_res=y_res,
+            z_res=z_res,
+            units=units,
+            axes="ZYX",
+            image_labels=image_labels,
+            photometric="minisblack",
+        )
+        # Collect the image stacks created
+        result["output_files"][color] = str(img_stk_file.resolve())
 
-        # Get x, y, and z resolution (pixels per um)
-        x_res = image.scale[0]
-        y_res = image.scale[1]
-
-        # Process z-axis if it exists
-        z_res: float = image.scale[2] if num_frames > 1 else float(0)
-
-        # Load timestamps (might be useful in the future)
-        # timestamps = metadata.find("Data/Image/TimeStampList")
-
-        # Get the size of each image in real space
-        try:
-            x_len = dims[0].get("Length", "")
-            x_pix = dims[0].get("NumberOfElements", "")
-            y_len = dims[1].get("Length", "")
-            y_pix = dims[1].get("NumberOfElements", "")
-
-            # Calculate end-to-end width and height of image
-            # Assumption 1: Recorded length is the midpoint-to-midpoint length
-            w = float(x_len) / (float(x_pix) - 1) * float(x_pix)  # metres
-            h = float(y_len) / (float(y_pix) - 1) * float(y_pix)  # metres
-
-            # Assumption 2: It's the end-to-end length
-            # w = float(x_len)
-            # h = float(y_len)
-
-            logger.debug(f"Image width is {w} m")
-            logger.debug(f"Image height is {h} m")
-
-            # Get the stage position
-            camera_settings = metadata.findall(".//ATLCameraSettingDefinition")[0]
-            x = float(camera_settings.get("StagePosX", ""))
-            y = float(camera_settings.get("StagePosY", ""))
-            # Find the coordinates of the image's 4 corners in real space
-            extent = [x, x + w, y, y + h]
-
-        except (TypeError, ValueError):
-            logger.warning(
-                f"Unable to extract dimensional information for {series_name}"
-            )
-            extent = []
-
-        # Process channels as individual TIFFs
-        for c, color in enumerate(colors):
-            logger.info(f"Processing {color} channel")
-
-            # Load image stack to array
-            logger.info("Loading image stack")
-            for z in range(num_frames):
-                frame = image.get_frame(z=z, t=0, c=c)  # PIL object; array-like
-                if z == 0:
-                    arr = np.array([frame])
-                else:
-                    arr = np.append(arr, [frame], axis=0)
-            logger.debug(
-                f"{img_name} {color} array properties: \n"
-                f"Shape: {arr.shape} \n"
-                f"dtype: {arr.dtype} \n"
-                f"Min value: {arr.min()} \n"
-                f"Max value: {arr.max()} \n"
-            )
-
-            # Estimate initial NumPy dtype
-            bit_depth = image.bit_depth[c]
-            dtype_init = estimate_int_dtype(arr, bit_depth=bit_depth)
-
-            # Rescale intensity values for fluorescent channels
-            adjust_contrast = (
-                "stretch"
-                if color
-                in (
-                    "blue",
-                    "cyan",
-                    "green",
-                    "magenta",
-                    "red",
-                    "yellow",
-                )
-                else None
-            )
-
-            # Process the image stack
-            logger.info("Applying image stack processing routine to image stack")
-            arr = preprocess_img_stk(
-                array=arr,
-                initial_dtype=dtype_init,
-                target_dtype="uint8",
-                adjust_contrast=adjust_contrast,
-            )
-            logger.debug(
-                f"{img_name} {color} array properties: \n"
-                f"Shape: {arr.shape} \n"
-                f"dtype: {arr.dtype} \n"
-                f"Min value: {arr.min()} \n"
-                f"Max value: {arr.max()} \n"
-            )
-
-            # Save as a greyscale TIFF
-            logger.info("Saving image stack as a TIFF file")
-            img_stk_file = write_stack_to_tiff(
-                array=arr,
-                save_dir=save_dir,
-                file_name=color,
-                x_res=x_res,
-                y_res=y_res,
-                z_res=z_res,
-                units="micron",
-                axes="ZYX",
-                image_labels=image_labels,
-                photometric="minisblack",
-            )
-            # Collect the image stacks created
-            result["channel_data"][color] = str(img_stk_file.resolve())
-            result["extent"] = extent
-
+    logger.debug(f"Processing results are as follows: {result}")
     return result
 
 
