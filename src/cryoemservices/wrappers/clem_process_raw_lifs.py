@@ -64,24 +64,24 @@ def process_lif_subimage(
     save_path: str = "",
 ) -> dict:
     """
-    Takes the LIF file and its corresponding metadata and loads the relevant sub-image.
+    Takes the LIF file and its corresponding metadata and loads the relevant subimage.
     For image stacks, it will load each colour channel as its own image stack, rescale
     the intensity values to utilise the whole channel, convert it into 8-bit grayscale,
-    and save them as individual image stacks.
+    and save them as individual images or image stacks.
 
-    For montages, it will stitch the different sub-images together and save the final
+    For montages, it will stitch the different subimages together and save the final
     composite image as an atlas.
     """
 
     # Load LIF file
     image = LifFile(str(file)).get_image(scene_num)
 
-    # Get name of sub-image
+    # Get name of subimage
     file_name = file.stem.replace(" ", "_")  # Remove spaces
     img_name = metadata.attrib["Name"].replace(" ", "_")  # Remove spaces
 
     # Construct path to save images and metadata to
-    save_dir = (  # Save directory for all substacks from this LIF file
+    save_dir = (  # Save directory for all subimages from this LIF file
         root_save_dir
         / "/".join(file.relative_to(root_save_dir.parent).parts[1:-1])
         / (save_path if save_path else Path(file_name) / img_name)
@@ -96,17 +96,17 @@ def process_lif_subimage(
     )
     logger.info(f"Processing {series_name!r}")
 
-    # Save metadata relative to the substack
+    # Save metadata relative to the subimage
     img_xml_dir = save_dir / "metadata"
     img_xml_dir.mkdir(parents=True, exist_ok=True)
     logger.info(f"Created folders to save image and metadata for {series_name!r} to")
 
-    # Save image stack XML metadata (all channels together)
+    # Save image XML metadata (all channels together)
     img_xml_file = img_xml_dir / (img_name + ".xml")
     metadata_tree = ET.ElementTree(metadata)  # For saving
     ET.indent(metadata_tree, "  ")
     metadata_tree.write(img_xml_file, encoding="utf-8")
-    logger.info(f"Image stack metadata saved to {img_xml_file}")
+    logger.info(f"Image metadata saved to {img_xml_file}")
 
     # Extract metadata using helper functions
     try:
@@ -136,7 +136,7 @@ def process_lif_subimage(
     result: dict = {
         "series_name": series_name,
         "number_of_members": len(channels),
-        "is__stack": num_frames > 1,
+        "is_stack": num_frames > 1,
         "is_montage": num_tiles > 1,
         "output_files": {},
         "metadata": str(img_xml_file.resolve()),
@@ -278,8 +278,8 @@ def process_lif_subimage(
             else None
         )
 
-        # Process the image stack
-        logger.info("Applying image stack processing routine to image stack")
+        # Process the subimage
+        logger.info("Applying image processing routine to subimage")
         arr = preprocess_img_stk(
             array=arr,
             initial_dtype=dtype_init,
@@ -307,7 +307,7 @@ def process_lif_subimage(
             x_res /= 10**6
             y_res /= 10**6
             z_res /= 10**6
-        logger.info("Saving image stack as a TIFF file")
+        logger.info("Saving subimage as a TIFF file")
 
         # Save as a greyscale TIFF
         img_stk_file = write_stack_to_tiff(
@@ -322,7 +322,7 @@ def process_lif_subimage(
             image_labels=image_labels,
             photometric="minisblack",
         )
-        # Collect the image stacks created
+        # Collect the images created
         result["output_files"][color] = str(img_stk_file.resolve())
 
     logger.debug(f"Processing results are as follows: {result}")
@@ -336,9 +336,9 @@ def process_lif_file(
 ) -> list[dict]:
     """
     Takes a LIF file, extracts its metadata as an XML tree, then parses through the
-    sub-images stored inside it, saving each channel in the sub-image as a separate
-    image stack. It uses information stored in the XML metadata to name the individual
-    image stacks.
+    subimages stored inside it, saving each channel in the subimage as a separate
+    image or image stack. It uses information stored in the metadata to name the
+    individual series.
 
     FOLDER STRUCTURE:
     parent_folder
@@ -349,8 +349,8 @@ def process_lif_file(
     |__ processed       <- Processed data goes here
         |__ sample_name
             |__ lif_file_names      <- Folders for data from the same LIF file
-                |__ sub_image       <- Folders for individual sub-images
-                |   |__ tiffs       <- Save channels as individual image stacks
+                |__ sub_image       <- Folders for individual subimages
+                |   |__ tiffs       <- Save channels as individual images or image stacks
                 |   |__ metadata    <- Individual XML files saved here (not yet implemented)
     """
 
@@ -403,7 +403,7 @@ def process_lif_file(
     # Check that elements match number of images
     if not len(metadata_dict) == len(scene_list):
         logger.error(
-            "Error matching metadata list to list of sub-images. "
+            "Error matching metadata list to list of subimages. "
             # Show what went wrong
             f"Metadata entries: {len(metadata_dict)} "
             f"Sub-images: {len(scene_list)} "
@@ -411,7 +411,7 @@ def process_lif_file(
         return []
 
     # Iterate through scenes
-    logger.info(f"Examining sub-images in {file.name!r}")
+    logger.info(f"Examining subimages in {file.name!r}")
 
     # Set up multiprocessing arguments
     pool_args = []
@@ -428,9 +428,9 @@ def process_lif_file(
             ]
         )
 
-    # Parallel process image stacks and return results
+    # Parallel process subimages and return results
     with mp.Pool(processes=num_procs) as pool:
-        logger.info(f"Starting processing of LIF substacks in {file.name!r}")
+        logger.info(f"Starting processing of LIF subimages in {file.name!r}")
         # Each thread will return a list of dicts
         results = pool.starmap(process_lif_subimage, pool_args)
     return results
@@ -482,9 +482,7 @@ class LIFToStackWrapper:
 
         # Return False and log error if the command fails to execute
         if not results:
-            logger.error(
-                f"Failed to extract image stacks from {str(params.lif_file)!r}"
-            )
+            logger.error(f"Failed to extract subimages from {str(params.lif_file)!r}")
             return False
         # Send each subset of output files to Murfey for registration
         for result in results:
