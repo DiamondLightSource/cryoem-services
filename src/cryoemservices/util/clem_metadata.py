@@ -171,23 +171,40 @@ def get_tile_scan_info(node: ET.Element):
         for child in node.findall(".//Attachment")
         if child.get("Name", "") == "TileScanInfo"
     ]
-    # Raise error if more than one node found
-    if not search_results:
-        logger.warning("No tile scan information found")
-        return tile_scan_info
-    if len(search_results) > 1:
-        raise ValueError(
-            "More than one 'TileScanInfo' node found. "
-            "Metadata for multiple datasets are likely present."
-        )
-
-    # Extract tile position information
-    for t, tile in enumerate(search_results[0]):
-        tile_scan_info[t] = {
-            "field_x": int(tile.get("FieldX", "")),
-            "field_y": int(tile.get("FieldY", "")),
-            "pos_x": float(tile.get("PosX", "")),
-            "pos_y": float(tile.get("PosY", "")),
+    if search_results:
+        # Raise error if more than one is found
+        if len(search_results) > 1:
+            raise ValueError(
+                "More than one 'TileScanInfo' node found. "
+                "Metadata for multiple datasets are likely present."
+            )
+        # Extract tile position information
+        for t, tile in enumerate(search_results[0]):
+            tile_scan_info[t] = {
+                "field_x": int(tile.get("FieldX", "")),
+                "field_y": int(tile.get("FieldY", "")),
+                "pos_x": float(tile.get("PosX", "")),
+                "pos_y": float(tile.get("PosY", "")),
+            }
+    # If "TileScanInfo" is not found, look for "ATLCameraSettingDefinition"
+    else:
+        search_results = node.findall(".//ATLCameraSettingDefinition")
+        if not search_results:
+            raise KeyError(
+                "No tile scan information was found in the provided metadata"
+            )
+        # Raise error if more than one is found
+        if len(search_results) > 1:
+            raise ValueError(
+                "More than one 'ATLCameraSettingDefinition' node found. "
+                "Metadata for multiple datasets are likely present."
+            )
+        camera_settings = search_results[0]
+        tile_scan_info[0] = {
+            "field_x": 0,
+            "field_y": 0,
+            "pos_x": float(camera_settings.get("StagePosX", "")),
+            "pos_y": float(camera_settings.get("StagePosY", "")),
         }
     return tile_scan_info
 
