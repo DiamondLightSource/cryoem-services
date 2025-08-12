@@ -600,13 +600,6 @@ class TomoAlign(CommonService):
         for tilt_params in node_creator_params_list:
             rw.send_to("node_creator", tilt_params)
 
-        ispyb_parameters = {
-            "ispyb_command": "multipart_message",
-            "ispyb_command_list": ispyb_command_list,
-        }
-        self.log.info(f"Sending to ispyb {ispyb_parameters}")
-        rw.send_to("ispyb_connector", ispyb_parameters)
-
         # Forward results to images service
         self.log.info(f"Sending to images service {tomo_params.stack_file}")
         rw.send_to(
@@ -664,6 +657,14 @@ class TomoAlign(CommonService):
                 "relion_options": dict(tomo_params.relion_options),
             },
         )
+
+        # Insert tomogram into ispyb
+        ispyb_parameters = {
+            "ispyb_command": "multipart_message",
+            "ispyb_command_list": ispyb_command_list,
+        }
+        self.log.info(f"Sending to ispyb {ispyb_parameters}")
+        rw.send_to("ispyb_connector", ispyb_parameters)
 
         # Update success processing status
         rw.send_to("success", {})

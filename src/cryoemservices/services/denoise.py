@@ -230,14 +230,6 @@ class Denoise(CommonService):
             },
         )
 
-        # Insert the denoised tomogram into ISPyB
-        ispyb_parameters = {
-            "ispyb_command": "insert_processed_tomogram",
-            "file_path": str(denoised_full_path),
-            "processing_type": "Denoised",
-        }
-        rw.send_to("ispyb_connector", ispyb_parameters)
-
         # Send to segmentation and picking
         self.log.info(f"Sending {denoised_full_path} for segmentation and picking")
         if denoise_params.output_dir:
@@ -272,6 +264,14 @@ class Denoise(CommonService):
         }
         rw.send_to("segmentation", segmentation_parameters)
         rw.send_to("cryolo", cryolo_parameters)
+
+        # Insert the denoised tomogram into ISPyB
+        ispyb_parameters = {
+            "ispyb_command": "insert_processed_tomogram",
+            "file_path": str(denoised_full_path),
+            "processing_type": "Denoised",
+        }
+        rw.send_to("ispyb_connector", ispyb_parameters)
 
         self.log.info(f"Done denoising for {denoise_params.volume}")
         rw.transport.ack(header)

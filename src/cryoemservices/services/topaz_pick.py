@@ -191,22 +191,6 @@ class TopazPick(CommonService):
             # Only do the node creator inserts for new files
             rw.send_to("node_creator", node_creator_parameters)
 
-        # Forward results to ISPyB
-        ispyb_parameters_spa: dict = {
-            "ispyb_command": "buffer",
-            "buffer_lookup": {"motion_correction_id": topaz_params.mc_uuid},
-            "buffer_command": {"ispyb_command": "insert_particle_picker"},
-            "buffer_store": topaz_params.picker_uuid,
-            "particle_picking_template": topaz_params.topaz_model,
-            "number_of_particles": n_particles,
-            "summary_image_full_path": str(
-                Path(topaz_params.output_path).with_suffix(".jpeg")
-            ),
-            "particle_diameter": topaz_params.particle_diameter,
-        }
-        self.log.info(f"Sending to ispyb {ispyb_parameters_spa}")
-        rw.send_to("ispyb_connector", ispyb_parameters_spa)
-
         # Read picks for images service
         try:
             with open(topaz_params.output_path, "r") as coords_file:
@@ -255,6 +239,22 @@ class TopazPick(CommonService):
                 "extraction_parameters": extraction_params,
             },
         )
+
+        # Forward results to ISPyB
+        ispyb_parameters_spa: dict = {
+            "ispyb_command": "buffer",
+            "buffer_lookup": {"motion_correction_id": topaz_params.mc_uuid},
+            "buffer_command": {"ispyb_command": "insert_particle_picker"},
+            "buffer_store": topaz_params.picker_uuid,
+            "particle_picking_template": topaz_params.topaz_model,
+            "number_of_particles": n_particles,
+            "summary_image_full_path": str(
+                Path(topaz_params.output_path).with_suffix(".jpeg")
+            ),
+            "particle_diameter": topaz_params.particle_diameter,
+        }
+        self.log.info(f"Sending to ispyb {ispyb_parameters_spa}")
+        rw.send_to("ispyb_connector", ispyb_parameters_spa)
 
         self.log.info(f"Done {self.job_type} for {topaz_params.input_path}.")
         rw.transport.ack(header)
