@@ -401,6 +401,9 @@ def run_class3d(class3d_params: Class3DParameters, send_to_rabbitmq: Callable) -
         )
         return False
 
+    # Actual batch size may not be the same as the input value, check it in the data
+    true_batch_size = class3d_params.batch_size
+
     # Generate healpix image of the particle distribution
     logger.info("Generating healpix angular distribution image")
     data = cif.read_file(
@@ -417,6 +420,7 @@ def run_class3d(class3d_params: Class3DParameters, send_to_rabbitmq: Callable) -
         class_numbers = np.array(
             particles_block.find_loop("_rlnClassNumber"), dtype=int
         )
+        true_batch_size = len(angles_rot)
 
         for class_id in range(class3d_params.class3d_nr_classes):
             if not len(angles_tilt[class_numbers == class_id + 1]):
@@ -492,9 +496,7 @@ def run_class3d(class3d_params: Class3DParameters, send_to_rabbitmq: Callable) -
                 f"{class3d_params.class3d_dir}/"
                 f"run_it{class3d_params.class3d_nr_iter:03}_class{class_id + 1:03}.mrc"
             ),
-            "particles_per_class": (
-                float(classes_loop[class_id, 1]) * class3d_params.batch_size
-            ),
+            "particles_per_class": float(classes_loop[class_id, 1]) * true_batch_size,
             "class_distribution": classes_loop[class_id, 1],
             "rotation_accuracy": classes_loop[class_id, 2],
             "translation_accuracy": classes_loop[class_id, 3],
@@ -580,7 +582,7 @@ def run_class3d(class3d_params: Class3DParameters, send_to_rabbitmq: Callable) -
     )
     for cid in class_sorting:
         if (
-            class3d_params.batch_size == 200000
+            class3d_params.batch_size >= 200000
             and class_resolutions[cid] < 11
             and (class_efficiencies[cid] > 0.65 or class3d_params.symmetry != "C1")
         ):

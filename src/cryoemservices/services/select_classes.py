@@ -400,36 +400,43 @@ class SelectClasses(CommonService):
         # Determine the next split size to use and whether to run 3D classification
         send_to_3d_classification = False
         if self.previous_total_count == 0:
-            # First run of this job, use class3d_max_size
+            # First run of this job, use class3d_batch_size
             next_batch_size = autoselect_params.class3d_batch_size
             if self.total_count > autoselect_params.class3d_batch_size:
                 # Do 3D classification if there are more particles than the batch size
                 send_to_3d_classification = True
-        elif self.previous_total_count >= autoselect_params.class3d_max_size:
-            # Iterations beyond those where 3D classification is run
-            next_batch_size = autoselect_params.class3d_max_size
         else:
-            # Re-runs with fewer particles than the maximum
-            previous_batch_multiple = (
-                self.previous_total_count // autoselect_params.class3d_batch_size
-            )
-            new_batch_multiple = (
-                self.total_count // autoselect_params.class3d_batch_size
-            )
-            if new_batch_multiple > previous_batch_multiple:
+            # Re-runs with doubling particle count each time
+            if self.previous_total_count >= autoselect_params.class3d_batch_size:
+                previous_batch_power = int(
+                    np.log(
+                        self.previous_total_count
+                        // autoselect_params.class3d_batch_size
+                    )
+                    / np.log(2)
+                )
+            else:
+                previous_batch_power = 0
+            if self.total_count >= autoselect_params.class3d_batch_size:
+                new_batch_power = int(
+                    np.log(self.total_count // autoselect_params.class3d_batch_size)
+                    / np.log(2)
+                )
+            else:
+                new_batch_power = 0
+            if new_batch_power > previous_batch_power:
                 # Do 3D classification if a batch threshold has been crossed
                 send_to_3d_classification = True
                 # Set the batch size from the total count, but do not exceed the maximum
-                next_batch_size = (
-                    new_batch_multiple * autoselect_params.class3d_batch_size
+                next_batch_size = int(
+                    np.power(2, new_batch_power) * autoselect_params.class3d_batch_size
                 )
-                if next_batch_size > autoselect_params.class3d_max_size:
-                    next_batch_size = autoselect_params.class3d_max_size
             else:
                 # Otherwise just get the next threshold
-                next_batch_size = (
-                    previous_batch_multiple + 1
-                ) * autoselect_params.class3d_batch_size
+                next_batch_size = int(
+                    np.power(2, (previous_batch_power + 1))
+                    * autoselect_params.class3d_batch_size
+                )
 
         # Run the combine star files job to split particles_all.star into batches
         split_node_creator_params: dict[str, Any] = {
@@ -440,7 +447,7 @@ class SelectClasses(CommonService):
             "command": (
                 f"combine_star_files {combine_star_dir}/particles_all.star "
                 f"--output_dir {combine_star_dir} "
-                f"--split --split_size {next_batch_size}"
+                f"--split --split_size {min(next_batch_size, autoselect_params.class3d_max_size)}"
             ),
             "stdout": "",
             "stderr": "",
@@ -454,7 +461,7 @@ class SelectClasses(CommonService):
                 split_star_file(
                     file_to_process=combine_star_dir / "particles_all.star",
                     output_dir=combine_star_dir,
-                    split_size=next_batch_size,
+                    split_size=min(next_batch_size, autoselect_params.class3d_max_size),
                 )
                 split_node_creator_params["success"] = True
             except (IndexError, KeyError):
@@ -557,7 +564,10 @@ class SelectClasses(CommonService):
             )
 
         # Create 3D classification jobs
-        if send_to_3d_classification:
+        if (
+            send_to_3d_classification
+            and next_batch_size <= autoselect_params.class3d_max_size
+        ):
             # Only send to 3D if a new multiple of the batch threshold is crossed
             # and the count has not passed the maximum
             self.log.info("Sending to Murfey for Class3D")
@@ -579,6 +589,28 @@ class SelectClasses(CommonService):
                 "class3d_message": class3d_params,
             }
             rw.send_to("murfey_feedback", murfey_3d_params)
+        elif send_to_3d_classification:
+            found_sample = resample_best_particles(
+                combine_star_dir / "particles_all.star",
+                combine_star_dir / f"particles_best_{next_batch_size}.star",
+            )
+            if found_sample:
+                # Tell Murfey to do Class3D
+                class3d_params = {
+                    "particles_file": f"{combine_star_dir}/particles_best_{next_batch_size}.star",
+                    "class3d_dir": f"{project_dir}/Class3D/job",
+                    "batch_size": next_batch_size,
+                }
+                murfey_3d_params = {
+                    "register": "run_class3d",
+                    "class3d_message": class3d_params,
+                }
+                rw.send_to("murfey_feedback", murfey_3d_params)
+            else:
+                self.log.warning(
+                    "Cannot rerun Class3D as no scores available in "
+                    f"{combine_star_dir}/particles_all.star"
+                )
 
         murfey_confirmation = {
             "register": "done_class_selection",
@@ -592,3 +624,17 @@ class SelectClasses(CommonService):
 
         self.log.info(f"Done {self.job_type} for {autoselect_params.input_file}.")
         rw.transport.ack(header)
+
+
+def resample_best_particles(particles_all: Path, output_star: Path):
+    data = starfile.read(particles_all)
+    if "rlnCryodannScore" in data["particles"].keys():
+        cutoff_score = sorted(data["particles"]["rlnCryodannScore"], reverse=True)[
+            200000
+        ]
+        data["particles"] = data["particles"][
+            data["particles"]["rlnCryodannScore"] > cutoff_score
+        ]
+        starfile.write(data, output_star)
+        return True
+    return False

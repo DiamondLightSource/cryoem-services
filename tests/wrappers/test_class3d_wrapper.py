@@ -347,7 +347,7 @@ def test_class3d_wrapper_do_initial_model(
                     "estimated_resolution": 12.2,
                     "ispyb_command": "buffer",
                     "overall_fourier_completeness": 1.0,
-                    "particles_per_class": 20000.0,
+                    "particles_per_class": 1.6,
                     "rotation_accuracy": "30.3",
                     "translation_accuracy": "33.3",
                     "angular_efficiency": 0.7,
@@ -367,7 +367,7 @@ def test_class3d_wrapper_do_initial_model(
                     "estimated_resolution": 10.0,
                     "ispyb_command": "buffer",
                     "overall_fourier_completeness": 0.9,
-                    "particles_per_class": 30000.0,
+                    "particles_per_class": 2.4,
                     "rotation_accuracy": "20.2",
                     "translation_accuracy": "22.2",
                     "angular_efficiency": 0.7,
@@ -483,8 +483,8 @@ def test_class3d_wrapper_has_initial_model(
             "data_model_classes\nloop_\n"
             "_rlnReferenceImage\n_Fraction\n_Rotation\n_Translation\n"
             "_Resolution\n_Completeness\n_OffsetX\n_OffsetY\n"
-            "1@Class3D/job015/run_it020_classes.mrcs 0.4 30.3 33.3 12.2 1.0 0.6 0.01\n"
-            "2@Class3D/job015/run_it020_classes.mrcs 0.6 20.2 22.2 10.0 0.9 -0.5 -0.02"
+            "1@Class3D/job015/run_it020_classes.mrcs 0.2 30.3 33.3 12.2 1.0 0.6 0.01\n"
+            "2@Class3D/job015/run_it020_classes.mrcs 0.8 20.2 22.2 10.0 0.9 -0.5 -0.02"
         )
 
     # Create a recipe wrapper with the test message
@@ -592,7 +592,7 @@ def test_class3d_wrapper_has_initial_model(
                     },
                     "buffer_lookup": {"particle_classification_group_id": 5},
                     "buffer_store": 10,
-                    "class_distribution": "0.4",
+                    "class_distribution": "0.2",
                     "class_image_full_path": (
                         f"{tmp_path}/Class3D/job015/run_it020_class001.mrc"
                     ),
@@ -600,7 +600,7 @@ def test_class3d_wrapper_has_initial_model(
                     "estimated_resolution": 12.2,
                     "ispyb_command": "buffer",
                     "overall_fourier_completeness": 1.0,
-                    "particles_per_class": 40000.0,
+                    "particles_per_class": 0.8,
                     "rotation_accuracy": "30.3",
                     "translation_accuracy": "33.3",
                     "angular_efficiency": 0.6,
@@ -612,7 +612,7 @@ def test_class3d_wrapper_has_initial_model(
                     },
                     "buffer_lookup": {"particle_classification_group_id": 5},
                     "buffer_store": 11,
-                    "class_distribution": "0.6",
+                    "class_distribution": "0.8",
                     "class_image_full_path": (
                         f"{tmp_path}/Class3D/job015/run_it020_class002.mrc"
                     ),
@@ -620,7 +620,7 @@ def test_class3d_wrapper_has_initial_model(
                     "estimated_resolution": 10.0,
                     "ispyb_command": "buffer",
                     "overall_fourier_completeness": 0.9,
-                    "particles_per_class": 60000.0,
+                    "particles_per_class": 3.2,
                     "rotation_accuracy": "20.2",
                     "translation_accuracy": "22.2",
                     "angular_efficiency": 0.6,
