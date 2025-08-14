@@ -503,25 +503,6 @@ class MotionCorr(CommonService):
             json.dump(fig_as_json, plot_json)
         snapshot_path = Path(mc_params.mrc_out).with_suffix(".jpeg")
 
-        # Forward results to ISPyB
-        ispyb_parameters = {
-            "ispyb_command": "buffer",
-            "buffer_command": {"ispyb_command": "insert_motion_correction"},
-            "buffer_store": mc_params.mc_uuid,
-            "first_frame": 1,
-            "last_frame": len(self.x_shift_list),
-            "total_motion": total_motion,
-            "average_motion_per_frame": average_motion_per_frame,
-            "drift_plot_full_path": str(plot_path),
-            "micrograph_snapshot_full_path": str(snapshot_path),
-            "micrograph_full_path": str(mc_params.mrc_out),
-            "patches_used_x": mc_params.patch_sizes["x"],
-            "patches_used_y": mc_params.patch_sizes["y"],
-            "dose_per_frame": mc_params.dose_per_frame,
-        }
-        self.log.info(f"Sending to ispyb {ispyb_parameters}")
-        rw.send_to("ispyb_connector", ispyb_parameters)
-
         # Determine and set up the next jobs
         if mc_params.experiment_type == "spa":
             # Set up icebreaker if requested, then ctffind
@@ -600,7 +581,6 @@ class MotionCorr(CommonService):
                 )
             ).with_suffix(".ctf")
         )
-        rw.send_to("ctffind", mc_params.ctf)
 
         # Forward results to images service
         self.log.info(f"Sending to images service {mc_params.mrc_out}")
@@ -689,6 +669,28 @@ class MotionCorr(CommonService):
                     "mrc_out": mc_params.mrc_out,
                 },
             )
+
+        # Forward results to ISPyB
+        ispyb_parameters = {
+            "ispyb_command": "buffer",
+            "buffer_command": {"ispyb_command": "insert_motion_correction"},
+            "buffer_store": mc_params.mc_uuid,
+            "first_frame": 1,
+            "last_frame": len(self.x_shift_list),
+            "total_motion": total_motion,
+            "average_motion_per_frame": average_motion_per_frame,
+            "drift_plot_full_path": str(plot_path),
+            "micrograph_snapshot_full_path": str(snapshot_path),
+            "micrograph_full_path": str(mc_params.mrc_out),
+            "patches_used_x": mc_params.patch_sizes["x"],
+            "patches_used_y": mc_params.patch_sizes["y"],
+            "dose_per_frame": mc_params.dose_per_frame,
+        }
+        self.log.info(f"Sending to ispyb {ispyb_parameters}")
+
+        # Do these sends together at the end to minimise the chance of double-insertion
+        rw.send_to("ctffind", mc_params.ctf)
+        rw.send_to("ispyb_connector", ispyb_parameters)
 
         self.log.info(f"Done {self.job_type} for {mc_params.movie}.")
         rw.transport.ack(header)

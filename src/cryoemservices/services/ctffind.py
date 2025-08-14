@@ -249,6 +249,16 @@ class CTFFind(CommonService):
         astigmatism = self.defocus1 - self.defocus2
         estimated_defocus = (self.defocus1 + self.defocus2) / 2
 
+        # Forward results to images service
+        self.log.info(f"Sending to images service {ctf_params.output_image}")
+        rw.send_to(
+            "images",
+            {
+                "image_command": "mrc_to_jpeg",
+                "file": ctf_params.output_image,
+            },
+        )
+
         # Forward results to ispyb
         ispyb_parameters = {
             "ispyb_command": "buffer",
@@ -272,17 +282,6 @@ class CTFFind(CommonService):
             ),  # path to output mrc (would be jpeg if we could convert in SW)
         }
         self.log.info(f"Sending to ispyb {ispyb_parameters}")
-        rw.send_to("ispyb_connector", ispyb_parameters)
-
-        # Forward results to images service
-        self.log.info(f"Sending to images service {ctf_params.output_image}")
-        rw.send_to(
-            "images",
-            {
-                "image_command": "mrc_to_jpeg",
-                "file": ctf_params.output_image,
-            },
-        )
 
         # If this is SPA, also set up a cryolo job
         if ctf_params.experiment_type == "spa":
@@ -318,6 +317,8 @@ class CTFFind(CommonService):
             ctf_params.autopick["picker_uuid"] = ctf_params.picker_uuid
             ctf_params.autopick["pixel_size"] = ctf_params.pixel_size
             rw.send_to("cryolo", ctf_params.autopick)
+
+        rw.send_to("ispyb_connector", ispyb_parameters)
 
         self.log.info(f"Done {self.job_type} for {ctf_params.input_image}.")
         rw.transport.ack(header)
