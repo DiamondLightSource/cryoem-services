@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import os
-import sys
 from pathlib import Path
 from unittest import mock
 
@@ -22,7 +21,6 @@ def offline_transport(mocker):
     return transport
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.motioncorr.subprocess.run")
 def test_motioncor2_service_spa(mock_subprocess, offline_transport, tmp_path):
     """
@@ -204,6 +202,7 @@ def test_motioncor2_service_spa(mock_subprocess, offline_transport, tmp_path):
     assert drift_data["data"][0]["y"] == [4.0, -4.0]
 
     # Check that the correct messages were sent
+    assert offline_transport.send.call_count == 7
     offline_transport.send.assert_any_call(
         "icebreaker",
         {
@@ -234,6 +233,7 @@ def test_motioncor2_service_spa(mock_subprocess, offline_transport, tmp_path):
         "ctffind",
         {
             "ctf": "ctf",
+            "movie": motioncorr_test_message["movie"],
             "input_image": motioncorr_test_message["mrc_out"],
             "mc_uuid": motioncorr_test_message["mc_uuid"],
             "picker_uuid": motioncorr_test_message["picker_uuid"],
@@ -302,7 +302,6 @@ def test_motioncor2_service_spa(mock_subprocess, offline_transport, tmp_path):
     )
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.motioncorr.subprocess.run")
 def test_motioncor_relion_service_spa(mock_subprocess, offline_transport, tmp_path):
     """
@@ -460,6 +459,7 @@ def test_motioncor_relion_service_spa(mock_subprocess, offline_transport, tmp_pa
     mock_subprocess.assert_called_with(mc_command, capture_output=True)
 
     # Check that the correct messages were sent
+    assert offline_transport.send.call_count == 7
     offline_transport.send.assert_any_call(
         "icebreaker",
         {
@@ -490,6 +490,7 @@ def test_motioncor_relion_service_spa(mock_subprocess, offline_transport, tmp_pa
         "ctffind",
         {
             "ctf": "ctf",
+            "movie": motioncorr_test_message["movie"],
             "input_image": motioncorr_test_message["mrc_out"],
             "mc_uuid": motioncorr_test_message["mc_uuid"],
             "picker_uuid": motioncorr_test_message["picker_uuid"],
@@ -558,7 +559,6 @@ def test_motioncor_relion_service_spa(mock_subprocess, offline_transport, tmp_pa
     )
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.motioncorr.subprocess.run")
 def test_motioncor2_service_tomo(mock_subprocess, offline_transport, tmp_path):
     """
@@ -680,10 +680,12 @@ def test_motioncor2_service_tomo(mock_subprocess, offline_transport, tmp_path):
     )
 
     # Check that the correct messages were sent
+    assert offline_transport.send.call_count == 5
     offline_transport.send.assert_any_call(
         "ctffind",
         {
             "ctf": "ctf",
+            "movie": motioncorr_test_message["movie"],
             "input_image": motioncorr_test_message["mrc_out"],
             "output_image": f"{tmp_path}/CtfFind/job003/Movies/sample_motion_corrected.ctf",
             "mc_uuid": motioncorr_test_message["mc_uuid"],
@@ -710,14 +712,6 @@ def test_motioncor2_service_tomo(mock_subprocess, offline_transport, tmp_path):
             "dose_per_frame": motioncorr_test_message["dose_per_frame"],
             "ispyb_command": "buffer",
             "buffer_command": {"ispyb_command": "insert_motion_correction"},
-        },
-    )
-    offline_transport.send.assert_any_call(
-        "murfey_feedback",
-        {
-            "register": "motion_corrected",
-            "movie": str(movie),
-            "mrc_out": motioncorr_test_message["mrc_out"],
         },
     )
     offline_transport.send.assert_any_call(
@@ -760,7 +754,6 @@ def test_motioncor2_service_tomo(mock_subprocess, offline_transport, tmp_path):
     )
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.motioncorr.subprocess.run")
 def test_motioncor_relion_service_tomo(mock_subprocess, offline_transport, tmp_path):
     """
@@ -895,10 +888,12 @@ def test_motioncor_relion_service_tomo(mock_subprocess, offline_transport, tmp_p
     )
 
     # Check that the correct messages were sent
+    assert offline_transport.send.call_count == 5
     offline_transport.send.assert_any_call(
         "ctffind",
         {
             "ctf": "ctf",
+            "movie": motioncorr_test_message["movie"],
             "input_image": motioncorr_test_message["mrc_out"],
             "output_image": f"{tmp_path}/CtfFind/job003/Movies/sample_motion_corrected.ctf",
             "mc_uuid": motioncorr_test_message["mc_uuid"],
@@ -925,14 +920,6 @@ def test_motioncor_relion_service_tomo(mock_subprocess, offline_transport, tmp_p
             "dose_per_frame": motioncorr_test_message["dose_per_frame"],
             "ispyb_command": "buffer",
             "buffer_command": {"ispyb_command": "insert_motion_correction"},
-        },
-    )
-    offline_transport.send.assert_any_call(
-        "murfey_feedback",
-        {
-            "register": "motion_corrected",
-            "movie": str(movie),
-            "mrc_out": motioncorr_test_message["mrc_out"],
         },
     )
     offline_transport.send.assert_any_call(
@@ -975,7 +962,6 @@ def test_motioncor_relion_service_tomo(mock_subprocess, offline_transport, tmp_p
     )
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.util.slurm_submission.requests")
 def test_motioncor2_slurm_service_spa(mock_requests, offline_transport, tmp_path):
     """
@@ -1110,6 +1096,7 @@ def test_motioncor2_slurm_service_spa(mock_requests, offline_transport, tmp_path
     )
 
     # Just check the node creator send to make sure all ran correctly
+    assert offline_transport.send.call_count == 7
     offline_transport.send.assert_any_call(
         "node_creator",
         {
@@ -1130,7 +1117,6 @@ def test_motioncor2_slurm_service_spa(mock_requests, offline_transport, tmp_path
     )
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.util.slurm_submission.requests")
 def test_motioncor_superres_does_slurm(mock_requests, offline_transport, tmp_path):
     """
@@ -1255,6 +1241,7 @@ def test_motioncor_superres_does_slurm(mock_requests, offline_transport, tmp_pat
     )
 
     # Just check the node creator send to make sure all ran correctly
+    assert offline_transport.send.call_count == 1
     offline_transport.send.assert_any_call(
         "node_creator",
         {
@@ -1271,7 +1258,6 @@ def test_motioncor_superres_does_slurm(mock_requests, offline_transport, tmp_pat
     )
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.motioncorr.slurm_submission_for_services")
 def test_motioncor2_slurm_parameters(mock_slurm, offline_transport, tmp_path):
     """
@@ -1368,8 +1354,9 @@ def test_motioncor2_slurm_parameters(mock_slurm, offline_transport, tmp_path):
         extra_singularity_directories=["/lib64"],
     )
 
+    assert offline_transport.send.call_count == 7
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+
 @mock.patch("cryoemservices.services.motioncorr.slurm_submission_for_services")
 def test_motioncor_relion_slurm_parameters(mock_slurm, offline_transport, tmp_path):
     """
@@ -1469,6 +1456,8 @@ def test_motioncor_relion_slurm_parameters(mock_slurm, offline_transport, tmp_pa
         use_singularity=False,
         script_extras="module load EM/relion/motioncorr",
     )
+
+    assert offline_transport.send.call_count == 7
 
 
 def test_parse_motioncor2_output(offline_transport):

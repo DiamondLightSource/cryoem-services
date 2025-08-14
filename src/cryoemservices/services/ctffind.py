@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 import subprocess
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from pydantic import BaseModel, Field, ValidationError, field_validator
 from workflows.recipe import wrap_subscribe
@@ -42,6 +42,7 @@ class CTFParameters(BaseModel):
     node_rounded_square: str = "no"
     node_downweight: str = "no"
     # IDs
+    movie: Optional[str] = None
     ctffind_version: int = 4
     mc_uuid: int
     picker_uuid: int
@@ -317,6 +318,18 @@ class CTFFind(CommonService):
             ctf_params.autopick["picker_uuid"] = ctf_params.picker_uuid
             ctf_params.autopick["pixel_size"] = ctf_params.pixel_size
             rw.send_to("cryolo", ctf_params.autopick)
+
+        # Register completion with Murfey if this is tomography
+        if ctf_params.experiment_type == "tomography":
+            self.log.info("Sending to Murfey")
+            rw.send_to(
+                "murfey_feedback",
+                {
+                    "register": "motion_corrected",
+                    "movie": ctf_params.movie,
+                    "mrc_out": ctf_params.input_image,
+                },
+            )
 
         rw.send_to("ispyb_connector", ispyb_parameters)
 

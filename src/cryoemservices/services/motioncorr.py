@@ -568,6 +568,7 @@ class MotionCorr(CommonService):
         # Forward results to ctffind (in both SPA and tomography)
         self.log.info(f"Sending to ctf: {mc_params.mrc_out}")
         mc_params.ctf["experiment_type"] = mc_params.experiment_type
+        mc_params.ctf["movie"] = mc_params.movie
         mc_params.ctf["input_image"] = mc_params.mrc_out
         mc_params.ctf["mc_uuid"] = mc_params.mc_uuid
         mc_params.ctf["picker_uuid"] = mc_params.picker_uuid
@@ -657,18 +658,6 @@ class MotionCorr(CommonService):
                 },
             }
             rw.send_to("node_creator", node_creator_parameters)
-
-        # Register completion with Murfey if this is tomography
-        if mc_params.experiment_type == "tomography":
-            self.log.info("Sending to Murfey")
-            rw.send_to(
-                "murfey_feedback",
-                {
-                    "register": "motion_corrected",
-                    "movie": mc_params.movie,
-                    "mrc_out": mc_params.mrc_out,
-                },
-            )
 
         # Forward results to ISPyB
         ispyb_parameters = {
