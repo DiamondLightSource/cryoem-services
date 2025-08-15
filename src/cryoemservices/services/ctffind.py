@@ -147,14 +147,15 @@ class CTFFind(CommonService):
         command = ["ctffind5"] if ctf_params.ctffind_version == 5 else ["ctffind"]
 
         # Check if this file has been run before
-        if Path(ctf_params.output_image).is_file():
+        if (
+            Path(ctf_params.output_image).is_file()
+            and not Path(ctf_params.output_image).with_suffix(".tmp").is_file()
+        ):
             job_is_rerun = True
         else:
             job_is_rerun = False
-
-        # Make sure the output directory exists
-        if not Path(ctf_params.output_image).parent.exists():
-            Path(ctf_params.output_image).parent.mkdir(parents=True)
+            Path(ctf_params.output_image).parent.mkdir(parents=True, exist_ok=True)
+            Path(ctf_params.output_image).with_suffix(".tmp").touch(exist_ok=True)
 
         parameters_list = [
             ctf_params.input_image,
@@ -229,6 +230,8 @@ class CTFFind(CommonService):
             else:
                 node_creator_parameters["success"] = True
             rw.send_to("node_creator", node_creator_parameters)
+            # Remove tmp file after requesting node creation
+            Path(ctf_params.output_image).with_suffix(".tmp").unlink(missing_ok=True)
 
         # End here if the command failed
         if result.returncode:

@@ -253,3 +253,74 @@ def test_topaz_with_diameter_rerun(
             "extraction_parameters": extraction_params,
         },
     )
+
+
+reruns_matrix = (
+    # Output exists? | Job crashed? | Do node creator?
+    (False, False, True),
+    (False, True, True),
+    (True, False, False),
+    (True, True, True),
+)
+
+
+@pytest.mark.parametrize("test_params", reruns_matrix)
+@mock.patch("cryoemservices.services.topaz_pick.normalize_images")
+@mock.patch("cryoemservices.services.topaz_pick.score_images")
+@mock.patch("cryoemservices.services.topaz_pick.non_maximum_suppression")
+def test_job_reruns(
+    mock_topaz_nms,
+    mock_topaz_score,
+    mock_topaz_normalise,
+    test_params,
+    offline_transport,
+    tmp_path,
+):
+    """
+    Send a test message to topaz for job reruns to check node creator sends
+    """
+    make_output, make_tmp_file, expect_node_creator = test_params
+
+    mock_topaz_score.return_value = [["name1", 1], ["name2", 2]]
+    mock_topaz_nms.return_value = (
+        [1, 2, 3],
+        np.array([[1.1, 1.2], [2.1, 2.2], [3.1, 3.2]]),
+    )
+
+    output_path = tmp_path / "AutoPick/job007/STAR/sample.star"
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+    topaz_test_message = {
+        "pixel_size": 0.1,
+        "input_path": "MotionCorr/job002/sample.mrc",
+        "output_path": str(output_path),
+        "scale": 8,
+        "max_particle_radius": 40,
+        "particle_diameter": 1.1,
+        "mc_uuid": 0,
+        "picker_uuid": 0,
+        "relion_options": {"batch_size": 20000, "downscale": True},
+    }
+
+    # Set up the mock service
+    service = topaz_pick.TopazPick(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
+
+    if make_output:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.touch()
+    if make_tmp_file:
+        output_path.with_suffix(".tmp").parent.mkdir(parents=True, exist_ok=True)
+        output_path.with_suffix(".tmp").touch()
+
+    service.topaz(None, header=header, message=topaz_test_message)
+
+    # Check that the correct messages were sent (no need to recheck ones tested above)
+    if expect_node_creator:
+        assert offline_transport.send.call_count == 4
+    else:
+        assert offline_transport.send.call_count == 3
