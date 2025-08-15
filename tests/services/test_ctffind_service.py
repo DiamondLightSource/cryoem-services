@@ -415,9 +415,9 @@ def test_job_reruns(mock_subprocess, test_params, offline_transport, tmp_path):
 
     # Check that the correct messages were sent (no need to recheck ones tested above)
     if expect_node_creator:
-        assert offline_transport.send.call_count == 3
+        assert offline_transport.send.call_count == 4
     else:
-        assert offline_transport.send.call_count == 2
+        assert offline_transport.send.call_count == 3
 
 
 def test_parse_ctffind_output(offline_transport):
