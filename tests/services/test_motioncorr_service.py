@@ -1471,6 +1471,80 @@ def test_motioncor_relion_slurm_parameters(mock_slurm, offline_transport, tmp_pa
     )
 
 
+reruns_matrix = (
+    # Output exists? | Job crashed? | Do node creator?
+    (False, False, True),
+    (False, True, True),
+    (True, False, False),
+    (True, True, True),
+)
+
+
+@pytest.mark.parametrize("test_params", reruns_matrix)
+@mock.patch("cryoemservices.services.motioncorr.subprocess.run")
+def test_job_reruns(mock_subprocess, test_params, offline_transport, tmp_path):
+    """
+    Send a test message to motioncorr for job reruns to check node creator sends
+    """
+    make_output, make_tmp_file, expect_node_creator = test_params
+
+    mock_subprocess().returncode = 0
+    mock_subprocess().stdout = "stdout".encode("ascii")
+    mock_subprocess().stderr = "stderr".encode("ascii")
+
+    (tmp_path / "gain.mrc").touch()
+    movie = Path(f"{tmp_path}/Movies/sample.tiff")
+    movie.parent.mkdir(parents=True)
+    movie.touch()
+
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+    motioncorr_test_message = {
+        "experiment_type": "spa",
+        "pixel_size": 0.1,
+        "movie": str(movie),
+        "mrc_out": f"{tmp_path}/MotionCorr/job002/Movies/sample.mrc",
+        "use_motioncor2": True,
+        "do_icebreaker_jobs": True,
+        "dose_per_frame": 1,
+        "mc_uuid": 0,
+        "picker_uuid": 0,
+        "relion_options": {},
+    }
+
+    # Set up the mock service
+    service = motioncorr.MotionCorr(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
+
+    if make_output:
+        (tmp_path / "MotionCorr/job002/Movies/sample.mrc").parent.mkdir(
+            parents=True, exist_ok=True
+        )
+        (tmp_path / "MotionCorr/job002/Movies/sample.mrc").touch()
+    if make_tmp_file:
+        (tmp_path / "MotionCorr/job002/Movies/sample.tmp").parent.mkdir(
+            parents=True, exist_ok=True
+        )
+        (tmp_path / "MotionCorr/job002/Movies/sample.tmp").touch()
+
+    # Work out the expected shifts
+    service.x_shift_list = [-3.0, 3.0]
+    service.y_shift_list = [4.0, -4.0]
+    service.each_total_motion = [5.0, 5.0]
+    # Send a message to the service
+    service.motion_correction(None, header=header, message=motioncorr_test_message)
+
+    # Check that the correct messages were sent
+    if expect_node_creator:
+        assert offline_transport.send.call_count == 7
+    else:
+        assert offline_transport.send.call_count == 5
+
+
 def test_parse_motioncor2_output(offline_transport):
     """
     Send test lines to the output parser for MotionCor2
