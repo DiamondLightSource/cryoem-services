@@ -1,7 +1,7 @@
 # This Dockerfile is used for the services that can run on CPU
 FROM docker.io/library/python:3.11-slim-bookworm as base
 
-# Install Vim and PostgreSQL dependencies in base image
+# Install Vim in base image
 RUN apt-get update && \
     apt-get upgrade -y && \
     apt-get install -y --no-install-recommends \
@@ -36,7 +36,7 @@ RUN apt-get update && \
     mkdir imod && \
     ./imod_5.1.0_RHEL8-64_CUDA12.0.sh -dir imod -skip -y
 
-# Transfer copmleted build to base image
+# Transfer completed build to base image
 FROM base
 
 ARG groupid
