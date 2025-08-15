@@ -12,6 +12,14 @@ from cryoemservices.services.common_service import CommonService
 from cryoemservices.util.models import MockRW
 from cryoemservices.util.relion_service_options import RelionServiceOptions
 
+try:
+    import torch
+    from topaz.denoise import Denoise3D, denoise_tomogram_stream
+
+    run_subprocess = False
+except ImportError:
+    run_subprocess = True
+
 
 class DenoiseParameters(BaseModel):
     volume: str = Field(..., min_length=1)
@@ -90,10 +98,38 @@ class Denoise(CommonService):
         self,
         topaz_command: List[str],
         alignment_output_dir: Path,
-        tomogram_volume: Path,
+        denoise_parameters: DenoiseParameters,
         denoised_full_path: Path,
     ):
-        return subprocess.run(topaz_command, capture_output=True)
+        if run_subprocess:
+            self.log.info("Running topaz through subprocess")
+            return subprocess.run(topaz_command, capture_output=True)
+
+        torch.set_num_threads(1)
+        torch.cuda.set_device(0)
+
+        denoiser = Denoise3D(denoise_parameters.model, True)
+        denoised_volumes = denoise_tomogram_stream(
+            volumes=[denoise_parameters.volume],
+            model=denoiser,
+            output_path=str(alignment_output_dir),
+            suffix=denoise_parameters.suffix,
+            gaus=denoise_parameters.gaussian,
+            patch_size=denoise_parameters.patch_size,
+            padding=denoise_parameters.patch_padding,
+            verbose=True,
+            use_cuda=True,
+        )
+        if denoised_volumes == [denoise_parameters.volume]:
+            rtc = 0
+        else:
+            rtc = 1
+        return subprocess.CompletedProcess(
+            args="",
+            returncode=rtc,
+            stdout="".encode("utf8"),
+            stderr="".encode("utf8"),
+        )
 
     def denoise(self, rw, header: dict, message: dict):
         """Main function which interprets and processes received messages"""
@@ -180,7 +216,7 @@ class Denoise(CommonService):
         result = self.run_topaz(
             topaz_command=command,
             alignment_output_dir=alignment_output_dir,
-            tomogram_volume=Path(denoise_params.volume),
+            denoise_parameters=denoise_params,
             denoised_full_path=denoised_full_path,
         )
 
