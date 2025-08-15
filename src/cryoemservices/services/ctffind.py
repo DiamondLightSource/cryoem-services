@@ -154,11 +154,8 @@ class CTFFind(CommonService):
             job_is_rerun = True
         else:
             job_is_rerun = False
+            Path(ctf_params.output_image).parent.mkdir(parents=True, exist_ok=True)
             Path(ctf_params.output_image).with_suffix(".tmp").touch(exist_ok=True)
-
-        # Make sure the output directory exists
-        if not Path(ctf_params.output_image).parent.exists():
-            Path(ctf_params.output_image).parent.mkdir(parents=True)
 
         parameters_list = [
             ctf_params.input_image,

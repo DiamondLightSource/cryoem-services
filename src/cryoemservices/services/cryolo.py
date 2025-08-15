@@ -147,6 +147,7 @@ class CrYOLO(CommonService):
             job_is_rerun = True
         else:
             job_is_rerun = False
+            Path(cryolo_params.output_path).parent.mkdir(parents=True, exist_ok=True)
             Path(cryolo_params.output_path).with_suffix(".tmp").touch(exist_ok=True)
 
         # CrYOLO requires running in the project directory or job directory
@@ -159,7 +160,6 @@ class CrYOLO(CommonService):
             self.log.warning(f"Invalid job directory in {cryolo_params.output_path}")
             rw.transport.nack(header)
             return
-        job_dir.mkdir(parents=True, exist_ok=True)
 
         Path(cryolo_params.output_path).unlink(missing_ok=True)
         (

@@ -97,6 +97,7 @@ class TopazPick(CommonService):
             Path(topaz_params.output_path).unlink()
         else:
             job_is_rerun = False
+            Path(topaz_params.output_path).parent.mkdir(parents=True, exist_ok=True)
             Path(topaz_params.output_path).with_suffix(".tmp").touch(exist_ok=True)
 
         # Determine the project directory or job directory
@@ -107,7 +108,6 @@ class TopazPick(CommonService):
             self.log.warning(f"Invalid job directory in {topaz_params.output_path}")
             rw.transport.nack(header)
             return
-        Path(topaz_params.output_path).parent.mkdir(parents=True, exist_ok=True)
 
         # Construct a command to run topaz with the given parameters
         self.log.info(

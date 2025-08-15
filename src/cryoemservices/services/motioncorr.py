@@ -295,6 +295,7 @@ class MotionCorr(CommonService):
             job_is_rerun = True
         else:
             job_is_rerun = False
+            Path(mc_params.mrc_out).parent.mkdir(parents=True, exist_ok=True)
             Path(mc_params.mrc_out).with_suffix(".tmp").touch(exist_ok=True)
 
         # Get the eer grouping out of the fractionation file
@@ -324,8 +325,6 @@ class MotionCorr(CommonService):
 
         # Determine the input and output files
         self.log.info(f"Input: {mc_params.movie} Output: {mc_params.mrc_out}")
-        if not Path(mc_params.mrc_out).parent.exists():
-            Path(mc_params.mrc_out).parent.mkdir(parents=True)
         if mc_params.movie.endswith(".mrc"):
             input_flag = "-InMrc"
         elif mc_params.movie.endswith((".tif", ".tiff")):
