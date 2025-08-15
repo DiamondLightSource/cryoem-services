@@ -4,20 +4,19 @@ FROM rockylinux:8 AS conda-build
 # Set up conda environment
 RUN curl -L -O "https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-$(uname)-$(uname -m).sh"
 RUN bash Miniforge3-$(uname)-$(uname -m).sh -b -p "conda"
+ENV PATH=/conda/bin:${PATH}
 
-RUN source "/conda/etc/profile.d/conda.sh" && conda install -c conda-forge conda-pack
-RUN source "/conda/etc/profile.d/conda.sh" && source "/conda/etc/profile.d/mamba.sh" && \
-    mamba create -c conda-forge -p /install/pythonenv python=3.11 pip libtiff=4.4.0 numpy=1.26.4 --override-channels -y
+RUN conda install -c conda-forge conda-pack
+RUN mamba create -c conda-forge -p /install/pythonenv python=3.11 pip libtiff=4.4.0 numpy=1.26.4 --override-channels -y
 
 # Install cryoem-services
-RUN source "/conda/etc/profile.d/conda.sh" && conda activate /install/pythonenv && \
-    pip install --cache-dir /tmp cryoemservices
+RUN eval "$('conda' 'shell.bash' 'hook')" && conda activate /install/pythonenv && pip install cryoemservices
 
 # Pack the environment
 RUN /conda/bin/conda-pack -p /install/pythonenv -o /tmp/env.tar.gz
 RUN mkdir /install/venv
 RUN tar -xzf /tmp/env.tar.gz -C /install/venv
-RUN source "/conda/etc/profile.d/conda.sh" && conda activate /install/venv && /install/venv/bin/conda-unpack
+RUN eval "$('conda' 'shell.bash' 'hook')" && conda activate /install/venv && /install/venv/bin/conda-unpack
 
 
 # Second stage extracts the conda environment
