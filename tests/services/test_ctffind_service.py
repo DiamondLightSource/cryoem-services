@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import sys
 from unittest import mock
 
 import pytest
@@ -17,7 +16,6 @@ def offline_transport(mocker):
     return transport
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.ctffind.subprocess.run")
 def test_ctffind4_service_spa(mock_subprocess, offline_transport, tmp_path):
     """
@@ -166,7 +164,6 @@ def test_ctffind4_service_spa(mock_subprocess, offline_transport, tmp_path):
     )
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.ctffind.subprocess.run")
 def test_ctffind5_service_tomo(mock_subprocess, offline_transport, tmp_path):
     """
@@ -182,6 +179,7 @@ def test_ctffind5_service_tomo(mock_subprocess, offline_transport, tmp_path):
     }
     ctffind_test_message = {
         "experiment_type": "tomography",
+        "movie": f"{tmp_path}/Movie.tiff",
         "pixel_size": 0.1,
         "determine_tilt": "yes",
         "determine_thickness": "yes",
@@ -250,7 +248,7 @@ def test_ctffind5_service_tomo(mock_subprocess, offline_transport, tmp_path):
     )
 
     # Check that the correct messages were sent (no need to recheck ones tested above)
-    assert offline_transport.send.call_count == 3
+    assert offline_transport.send.call_count == 4
     offline_transport.send.assert_any_call(
         "node_creator",
         {
@@ -265,9 +263,16 @@ def test_ctffind5_service_tomo(mock_subprocess, offline_transport, tmp_path):
             "success": True,
         },
     )
+    offline_transport.send.assert_any_call(
+        "murfey_feedback",
+        {
+            "register": "motion_corrected",
+            "movie": f"{tmp_path}/Movie.tiff",
+            "mrc_out": f"{tmp_path}/MotionCorr/job002/sample.mrc",
+        },
+    )
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.ctffind.subprocess.run")
 def test_ctffind5_service_nothickness(mock_subprocess, offline_transport, tmp_path):
     """
@@ -286,6 +291,7 @@ def test_ctffind5_service_nothickness(mock_subprocess, offline_transport, tmp_pa
         "pixel_size": 0.2,
         "determine_tilt": "yes",
         "ctffind_version": 5,
+        "movie": f"{tmp_path}/sample.tiff",
         "input_image": f"{tmp_path}/MotionCorr/job002/sample.mrc",
         "output_image": f"{tmp_path}/CtfFind/job006/sample.ctf",
         "mc_uuid": 0,
@@ -338,7 +344,15 @@ def test_ctffind5_service_nothickness(mock_subprocess, offline_transport, tmp_pa
     )
 
     # Check that the correct messages were sent (no need to recheck ones tested above)
-    assert offline_transport.send.call_count == 3
+    assert offline_transport.send.call_count == 4
+    offline_transport.send.assert_any_call(
+        "murfey_feedback",
+        {
+            "register": "motion_corrected",
+            "movie": f"{tmp_path}/sample.tiff",
+            "mrc_out": f"{tmp_path}/MotionCorr/job002/sample.mrc",
+        },
+    )
 
 
 reruns_matrix = (
