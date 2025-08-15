@@ -139,13 +139,6 @@ class CrYOLO(CommonService):
             rw.transport.nack(header)
             return
 
-        # Check if this file has been run before
-        if Path(cryolo_params.output_path).is_file():
-            job_is_rerun = True
-            Path(cryolo_params.output_path).unlink()
-        else:
-            job_is_rerun = False
-
         # CrYOLO requires running in the project directory or job directory
         job_dir_search = re.search(".+/job[0-9]+/", cryolo_params.output_path)
         job_num_search = re.search("/job[0-9]+/", cryolo_params.output_path)
@@ -157,6 +150,20 @@ class CrYOLO(CommonService):
             rw.transport.nack(header)
             return
         job_dir.mkdir(parents=True, exist_ok=True)
+
+        # Check if this file has been run before
+        if (
+            Path(cryolo_params.output_path).is_file()
+            and not Path(cryolo_params.output_path).with_suffix(".tmp").is_file()
+        ):
+            job_is_rerun = True
+            Path(cryolo_params.output_path).unlink()
+            (
+                job_dir / f"CBOX/{Path(cryolo_params.output_path).with_suffix('.cbox')}"
+            ).unlink()
+        else:
+            job_is_rerun = False
+            Path(cryolo_params.output_path).with_suffix(".tmp").touch(exist_ok=True)
 
         # Try and scale out any dark areas, for example gold grids
         if cryolo_params.experiment_type == "spa":
@@ -272,6 +279,8 @@ class CrYOLO(CommonService):
         if not job_is_rerun:
             # Only do the node creator inserts for new files
             rw.send_to("node_creator", node_creator_parameters)
+            # Remove tmp file after requesting node creation
+            Path(cryolo_params.output_path).with_suffix(".tmp").unlink(missing_ok=True)
 
         # End here if the command failed
         if result.returncode:

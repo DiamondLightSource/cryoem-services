@@ -288,10 +288,14 @@ class MotionCorr(CommonService):
         plot_path = Path(mc_params.mrc_out).parent / drift_plot_name
 
         # Check if this file has been run before
-        if Path(mc_params.mrc_out).is_file():
+        if (
+            Path(mc_params.mrc_out).is_file()
+            and not Path(mc_params.mrc_out).with_suffix(".tmp").is_file()
+        ):
             job_is_rerun = True
         else:
             job_is_rerun = False
+            Path(mc_params.mrc_out).with_suffix(".tmp").touch(exist_ok=True)
 
         # Get the eer grouping out of the fractionation file
         eer_grouping = 0
@@ -657,6 +661,8 @@ class MotionCorr(CommonService):
                 },
             }
             rw.send_to("node_creator", node_creator_parameters)
+            # Remove tmp file after requesting node creation
+            Path(mc_params.mrc_out).with_suffix(".tmp").unlink(missing_ok=True)
 
         # Register completion with Murfey if this is tomography
         if mc_params.experiment_type == "tomography":

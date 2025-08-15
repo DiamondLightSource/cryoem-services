@@ -89,11 +89,15 @@ class TopazPick(CommonService):
             return
 
         # Check if this file has been run before
-        if Path(topaz_params.output_path).is_file():
+        if (
+            Path(topaz_params.output_path).is_file()
+            and not Path(topaz_params.output_path).with_suffix(".tmp").is_file()
+        ):
             job_is_rerun = True
             Path(topaz_params.output_path).unlink()
         else:
             job_is_rerun = False
+            Path(topaz_params.output_path).with_suffix(".tmp").touch(exist_ok=True)
 
         # Determine the project directory or job directory
         job_num_search = re.search("/job[0-9]+/", topaz_params.output_path)
@@ -190,6 +194,8 @@ class TopazPick(CommonService):
         if not job_is_rerun:
             # Only do the node creator inserts for new files
             rw.send_to("node_creator", node_creator_parameters)
+            # Remove tmp file after requesting node creation
+            Path(topaz_params.output_path).with_suffix(".tmp").unlink(missing_ok=True)
 
         # Read picks for images service
         try:
