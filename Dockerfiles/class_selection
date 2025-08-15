@@ -9,23 +9,23 @@ ENV PATH=/conda/bin:${PATH}
 
 RUN conda install -c conda-forge conda-pack
 RUN mamba create -c conda-forge -p /install/pythonenv python=3.11 pip libtiff=4.4.0 --override-channels -y
-RUN eval "$('conda' 'shell.bash' 'hook')" && conda activate /install/pythonenv && \
+RUN eval "$(conda shell.bash hook)" && conda activate /install/pythonenv && \
     pip install torch==2.0.1 torchvision==0.15.2 --index-url https://download.pytorch.org/whl/cpu
 
 # Install cryoem-services and pipeliner
-RUN eval "$('conda' 'shell.bash' 'hook')" && conda activate /install/pythonenv && \
+RUN eval "$(conda shell.bash hook)" && conda activate /install/pythonenv && \
     pip install cryoemservices && \
     pip install http://gitlab.com/stephen-riggs/ccpem-pipeliner/-/archive/diamond_tomo/ccpem-pipeliner-diamond_tomo.zip
 
 # Install relion classranker
-RUN eval "$('conda' 'shell.bash' 'hook')" && conda activate /install/pythonenv && \
+RUN eval "$(conda shell.bash hook)" && conda activate /install/pythonenv && \
     pip install https://github.com/3dem/relion-classranker/archive/main.zip
 
 # Pack the environment
 RUN /conda/bin/conda-pack -p /install/pythonenv -o /tmp/env.tar.gz
 RUN mkdir /install/venv
 RUN tar -xzf /tmp/env.tar.gz -C /install/venv
-RUN eval "$('conda' 'shell.bash' 'hook')" && conda activate /install/venv && /install/venv/bin/conda-unpack
+RUN eval "$(conda shell.bash hook)" && conda activate /install/venv && /install/venv/bin/conda-unpack
 
 
 # Second stage builds relion

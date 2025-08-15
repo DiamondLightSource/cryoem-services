@@ -12,19 +12,19 @@ RUN mamba create -p /install/services_env -c conda-forge python=3.11 --override-
     mamba create -p /install/cryolo_env -c conda-forge pyqt=5 python=3.7 cudatoolkit=10.0.130 cudnn=7.6.5 numpy==1.18.5 libtiff wxPython=4.1.1 --override-channels -y
 
 # Install cryoem-services and Cryolo in their own environments
-RUN eval "$('conda' 'shell.bash' 'hook')" && conda activate /install/services_env && pip install cryoemservices
-RUN eval "$('conda' 'shell.bash' 'hook')" && conda activate /install/cryolo_env && pip install cryolo[cpu]
+RUN eval "$(conda shell.bash hook)" && conda activate /install/services_env && pip install cryoemservices
+RUN eval "$(conda shell.bash hook)" && conda activate /install/cryolo_env && pip install cryolo[cpu]
 
 # Pack the environments
 RUN /conda/bin/conda-pack -p /install/services_env -o /tmp/services_env.tar.gz
 RUN mkdir /install/venv_services
 RUN tar -xzf /tmp/services_env.tar.gz -C /install/venv_services
-RUN eval "$('conda' 'shell.bash' 'hook')" && conda activate /install/venv_services && /install/venv_services/bin/conda-unpack
+RUN eval "$(conda shell.bash hook)" && conda activate /install/venv_services && /install/venv_services/bin/conda-unpack
 
 RUN /conda/bin/conda-pack -p /install/cryolo_env -o /tmp/cryolo_env.tar.gz
 RUN mkdir /install/venv_cryolo
 RUN tar -xzf /tmp/cryolo_env.tar.gz -C /install/venv_cryolo
-RUN eval "$('conda' 'shell.bash' 'hook')" && conda activate /install/venv_cryolo && /install/venv_cryolo/bin/conda-unpack
+RUN eval "$(conda shell.bash hook)" && conda activate /install/venv_cryolo && /install/venv_cryolo/bin/conda-unpack
 
 
 # Second stage extracts the conda environments
