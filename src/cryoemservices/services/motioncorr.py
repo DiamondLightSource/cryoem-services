@@ -674,7 +674,7 @@ class MotionCorr(CommonService):
                     "average_motion": average_motion_per_frame,
                     "app_id": mc_params.app_id,
                     "mc_uuid": mc_params.mc_uuid,
-                    "movie_path": mc_params.movie,
+                    "mc_path": mc_params.mrc_out,
                 },
             )
 
