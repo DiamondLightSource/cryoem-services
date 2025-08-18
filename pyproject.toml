@@ -60,7 +60,7 @@ dev = [
 ]
 torch = [
     "membrain-seg",
-    "topaz-em",
+    "topaz-em==0.2.5",
 ]
 [project.urls]
     Bug-Tracker = "https://github.com/DiamondLightSource/cryoem-services/issues"
