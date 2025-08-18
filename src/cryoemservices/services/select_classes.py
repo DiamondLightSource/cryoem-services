@@ -251,7 +251,7 @@ class SelectClasses(CommonService):
                                 "number_of_particles_selected": num_selected,
                                 "number_of_particles_rejected": count - num_selected,
                                 "app_id": autoselect_params.app_id,
-                                "mc_name": mic,
+                                "mc_path": str(project_dir / mic),
                             },
                         )
 
