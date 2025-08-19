@@ -175,7 +175,7 @@ class MembrainSeg(CommonService):
                 store_probabilities=membrain_seg_params.store_probabilities,
                 sw_roi_size=membrain_seg_params.window_size,
                 store_connected_components=membrain_seg_params.store_connected_components,
-                connnected_component_thres=membrain_seg_params.connected_component_threshold,
+                connected_component_thres=membrain_seg_params.connected_component_threshold,
                 test_time_augmentation=membrain_seg_params.augmentation,
                 segmentation_threshold=membrain_seg_params.segmentation_threshold,
             )
