@@ -89,7 +89,7 @@ def test_membrain_seg_service_local_memseg(
         store_probabilities=True,
         sw_roi_size=100,
         store_connected_components=True,
-        connnected_component_thres=2,
+        connected_component_thres=2,
         test_time_augmentation=True,
         segmentation_threshold=4.0,
     )

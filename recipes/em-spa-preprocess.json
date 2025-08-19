@@ -79,7 +79,7 @@
   },
   "8": {
     "output": {
-      "cryolo": 10,
+      "cryolo": 9,
       "images": 5,
       "ispyb_connector": 4,
       "node_creator": 3
