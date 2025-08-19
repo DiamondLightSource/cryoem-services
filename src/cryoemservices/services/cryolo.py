@@ -476,6 +476,7 @@ class CrYOLO(CommonService):
                     "pick_distribution": {},
                     "mc_uuid": cryolo_params.mc_uuid,
                     "app_id": cryolo_params.app_id,
+                    "mc_path": cryolo_params.input_path,
                 },
             )
 

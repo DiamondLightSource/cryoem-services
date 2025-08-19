@@ -330,6 +330,7 @@ class CTFFind(CommonService):
                         "ctf_max_resolution_estimate": self.estimated_resolution,
                         "app_id": ctf_params.app_id,
                         "mc_uuid": ctf_params.mc_uuid,
+                        "mc_path": ctf_params.input_image,
                     },
                 )
 
