@@ -33,7 +33,7 @@ class MembrainSegParameters(BaseModel):
     store_connected_components: bool = False
     window_size: int = 160
     connected_component_threshold: Optional[int] = None
-    segmentation_threshold: Optional[float] = None
+    segmentation_threshold: float = 0.0
     cleanup_output: bool = True
     submit_to_slurm: bool = False
     relion_options: RelionServiceOptions
