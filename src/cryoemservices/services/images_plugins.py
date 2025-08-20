@@ -57,7 +57,7 @@ def mrc_to_jpeg(plugin_params: Callable):
         data = data - data.min()
         data = data * 255 / data.max()
         data = data.astype("uint8")
-        im = PIL.Image.fromarray(data, mode="L")
+        im = PIL.Image.fromarray(data)
 
         if plugin_params("pixel_spacing"):
             scalebar_nm = float(plugin_params("pixel_spacing")) / 10 * data.shape[0] / 3
@@ -85,7 +85,7 @@ def mrc_to_jpeg(plugin_params: Callable):
                 frame = frame - frame.min()
                 frame = frame * 255 / frame.max()
                 frame = frame.astype("uint8")
-                im = PIL.Image.fromarray(frame, mode="L")
+                im = PIL.Image.fromarray(frame)
                 frame_outfile = outfile.parent / f"{outfile.stem}_{i+1}.jpeg"
                 im.save(frame_outfile)
                 outfiles.append(frame_outfile)
@@ -93,7 +93,7 @@ def mrc_to_jpeg(plugin_params: Callable):
             data = data - data[0].min()
             data = data * 255 / data[0].max()
             data = data.astype("uint8")
-            im = PIL.Image.fromarray(data[0], mode="L")
+            im = PIL.Image.fromarray(data[0])
             im.save(outfile)
     timing = time.perf_counter() - start
 
@@ -152,7 +152,7 @@ def picked_particles(plugin_params: Callable):
     data = data - data.min()
     data = data * 255 / data.max()
     data = data.astype("uint8")
-    with PIL.Image.fromarray(data).convert(mode="RGB") as bim:
+    with PIL.Image.fromarray(data).convert("RGB") as bim:
         enhancer = ImageEnhance.Contrast(bim)
         enhanced = enhancer.enhance(contrast_factor)
         fim = enhanced.filter(ImageFilter.BLUR)
@@ -239,7 +239,7 @@ def mrc_central_slice(plugin_params: Callable):
     central_slice_data = central_slice_data - central_slice_data.min()
     central_slice_data = central_slice_data * 255 / central_slice_data.max()
     central_slice_data = central_slice_data.astype("uint8")
-    im = PIL.Image.fromarray(central_slice_data, mode="L")
+    im = PIL.Image.fromarray(central_slice_data)
     im.thumbnail((512, 512))
     im.save(outfile)
     timing = time.perf_counter() - start
@@ -288,7 +288,7 @@ def mrc_to_apng(plugin_params: Callable):
                 frame = clipped_frame.astype("uint8")
             else:
                 frame = frame.astype("uint8")
-            im = PIL.Image.fromarray(frame, mode="L")
+            im = PIL.Image.fromarray(frame)
             im.thumbnail((512, 512))
             images_to_append.append(im)
         try:
@@ -326,8 +326,7 @@ def particles_3d_in_frame(
     frame = frame * 255 / frame.max()
     frame = frame.astype("uint8")
 
-    im = PIL.Image.fromarray(frame, mode="L")
-    colour_im = im.convert("RGB")
+    colour_im = PIL.Image.fromarray(frame).convert("RGB")
     dim = ImageDraw.Draw(colour_im)
 
     # Find the coordinates of the picks
