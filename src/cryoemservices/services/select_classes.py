@@ -243,7 +243,7 @@ class SelectClasses(CommonService):
                 )
                 if autoselect_params.app_id is not None:
                     self.log.info("Sending to smartem if configured")
-                    for mic, count in micrograph_particle_counts_before.values():
+                    for mic, count in micrograph_particle_counts_before.items():
                         num_selected = micrograph_particle_counts_after.get(mic, 0)
                         rw.send_to(
                             "smartem",
