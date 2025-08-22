@@ -7,7 +7,9 @@ processing workflow.
 from __future__ import annotations
 
 import logging
+import re
 from ast import literal_eval
+from multiprocessing import Pool
 from pathlib import Path
 from typing import Any, Optional
 from xml.etree import ElementTree as ET
@@ -23,10 +25,126 @@ from cryoemservices.util.clem_array_functions import (
     preprocess_img_stk,
     write_stack_to_tiff,
 )
-from cryoemservices.util.clem_metadata import find_image_elements, get_axis_resolution
+from cryoemservices.util.clem_metadata import (
+    find_image_elements,
+    get_channel_info,
+    get_dimension_info,
+    get_tile_scan_info,
+)
 
 # Create logger object to output messages with
 logger = logging.getLogger("cryoemservices.services.clem_process_raw_tiffs")
+
+
+def get_percentiles(file: Path, percentiles: tuple[float, float] = (1, 99)):
+    """
+    Helper function run as part of a multiprocessing pool to extract the min and max
+    intensity values from an image.
+    """
+    try:
+        with Image.open(file) as img:
+            arr = np.array(img)
+    except Exception:
+        return (None, None)
+    p_lo, p_hi = np.percentile(arr, percentiles)
+    return p_lo, p_hi
+
+
+def stitch_image_frames(
+    image_list: list[Path],
+    tile_scan_info: dict[int, dict],
+    image_width: float,
+    image_height: float,
+    extent: tuple[float, float, float, float],
+    dpi: int | float = 300,
+    color_limits: tuple[Optional[float], Optional[float]] = (None, None),
+) -> np.ndarray:
+    """
+    Helper function to dynamically stitch together image tiles to create a montage.
+
+    This function makes use of Matplotlib's 'imshow' to define the position and size
+    of the image tiles and render them on a blank canvas spatially relative to one
+    another. The plot is then converted into a NumPy array, which is returned and
+    used to build up the final image stack.
+    """
+
+    # Sort by "Stage"
+    image_list.sort(
+        key=lambda f: (
+            (int(m.group(1)) if (m := re.search(r"--Stage(\d+)", f.stem)) else -1),
+        )
+    )
+
+    # Create the figure to stitch the tiles in
+    fig, ax = plt.subplots(facecolor="black")
+    fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
+    fig.set_dpi(dpi)
+    ax.set_xlim(extent[0], extent[1])
+    ax.set_ylim(extent[2], extent[3])
+    ax.invert_yaxis()  # Set origin to top left of figure
+    ax.set_aspect("equal")  # Ensure same scales on x- and y-axis
+    ax.axis("off")  # Switch off axis ticks and labels
+    ax.set_facecolor("black")
+
+    # Unpack colour limits
+    vmin, vmax = color_limits
+
+    for file in image_list:
+        # Extract tile number to cross-reference metadata with
+        tile_num = (
+            int(m.group(1)) if (m := re.search(r"--Stage(\d+)", file.stem)) else None
+        )
+        logger.info(f"Loading file {str(file)!r}")
+        if tile_num is None:
+            logger.warning(f"Unable to extract tile number from {str(file)!r}")
+            continue
+        tile_info = tile_scan_info[tile_num]
+        try:
+            # Get extent of current tile
+            x = float(tile_info["pos_x"])
+            y = float(tile_info["pos_y"])
+            tile_extent = [
+                x,
+                x + image_width,
+                y,
+                y + image_height,
+            ]
+
+            # Add tile to the montage
+            with Image.open(image_list[tile_num]) as img:
+                arr = np.array(img)
+            img = ax.imshow(
+                arr,
+                extent=tile_extent,
+                origin="lower",
+                cmap="gray",
+                vmin=vmin,
+                vmax=vmax,
+            )
+        except Exception:
+            logger.warning(
+                f"Unable to add file {str(file)!r} to the montage",
+                exc_info=True,
+            )
+            continue
+
+    # Extract the stitched image as an array
+    fig.canvas.draw()  # Render the figure using Matplotlib engine
+    canvas = np.frombuffer(fig.canvas.buffer_rgba(), dtype=np.uint8)
+    canvas_width, canvas_height = fig.canvas.get_width_height()
+    canvas = canvas.reshape(canvas_height, canvas_width, 4)
+    logger.debug(f"Rendered canvas has shape {canvas.shape}")
+
+    # Find the extent of the stitched image on the rendered canvas
+    bbox = ax.get_window_extent().transformed(fig.dpi_scale_trans.inverted())
+    x0, y0, x1, y1 = [int(coord * fig.dpi) for coord in bbox.extents]
+    logger.debug(f"Image extents on canvas are {[x0, x1, y0, y1]}")
+
+    # Extract and return the stitched image as an array
+    frame = np.array(canvas[y0:y1, x0:x1, :3].mean(axis=-1), dtype=np.uint8)
+    plt.close()
+    logger.debug(f"Image frame has shape {frame.shape}")
+    return frame
 
 
 def process_tiff_files(
@@ -64,6 +182,9 @@ def process_tiff_files(
 
     # Set variables for use within function
     new_root_folder = "processed"
+
+    # Omit fragmented TIFF files ('--' followed by digits only) from consideration
+    tiff_list = [file for file in tiff_list if not re.search(r"--(\d+)", file.stem)]
 
     # Use the names of the TIFF files to get the unique path to it
     #   Remove the "--Z##--C##.tiff" end of the file path strings
@@ -109,6 +230,13 @@ def process_tiff_files(
             logger.error(f"No metadata file found at {metadata_file}")
             return {}
 
+    # Create save directory for images and  metadata
+    save_dir = Path("/".join(path_parts))  # Folder where this series will be saved
+    save_dir.mkdir(parents=True, exist_ok=True)
+    metadata_dir = save_dir / "metadata"
+    metadata_dir.mkdir(parents=True, exist_ok=True)
+    logger.info(f"Created save directory for images and metadata for {series_name}")
+
     # Load relevant metadata
     metadata_dict = find_image_elements(parse(metadata_file).getroot())
     if len(metadata_dict) < 1:
@@ -121,13 +249,6 @@ def process_tiff_files(
         return {}
     metadata = list(metadata_dict.values())[0]
 
-    # Create save directory for images and  metadata
-    save_dir = Path("/".join(path_parts))  # Folder where this series will be saved
-    save_dir.mkdir(parents=True, exist_ok=True)
-    metadata_dir = save_dir / "metadata"
-    metadata_dir.mkdir(parents=True, exist_ok=True)
-    logger.info(f"Created save directory for images and metadata for {series_name}")
-
     # Save image metadata
     img_xml_file = metadata_dir / (series_identifier.replace(" ", "_") + ".xml")
     metadata_tree = ET.ElementTree(metadata)
@@ -135,269 +256,236 @@ def process_tiff_files(
     metadata_tree.write(img_xml_file, encoding="utf-8")
     logger.info(f"Metadata for image stack saved to {img_xml_file}")
 
-    # Load channels
-    channels = metadata.findall(".//ChannelDescription")
-    colors = [channels[c].attrib["LUTName"].lower() for c in range(len(channels))]
+    # Extract metadata info
+    try:
+        channels = get_channel_info(metadata)
+        dims = get_dimension_info(metadata)
+        tile_scan_info = get_tile_scan_info(metadata)
+    except Exception:
+        logger.error(
+            f"Failed to parse metadata file for {series_name!r}", exc_info=True
+        )
+        return {}
 
     # Get x, y, and z resolution (pixels per um)
-    dims = metadata.findall(".//DimensionDescription")
-    try:
-        x_dim = [dim for dim in dims if dim.get("DimID", "") == "1"][0]
-        y_dim = [dim for dim in dims if dim.get("DimID", "") == "2"][0]
-        x_res = get_axis_resolution(x_dim)
-        y_res = get_axis_resolution(y_dim)
+    w = float(dims["x"]["length"])
+    h = float(dims["y"]["length"])
 
-        # Get the end-to-end width and height of image
-        x_len = float(x_dim.get("Length", ""))
-        x_pix = int(x_dim.get("NumberOfElements", ""))
-        y_len = float(y_dim.get("Length", ""))
-        y_pix = int(y_dim.get("NumberOfElements", ""))
+    # Get number of frames
+    num_frames = int(dims["z"].get("num_frames", 1))
+    num_tiles = int(dims["m"].get("num_tiles", 1))
 
-        # Assumption 1: 'Length' is midpoint-to-midpoint length
-        w = x_len * x_pix / (x_pix - 1)
-        h = y_len * y_pix / (y_pix - 1)
+    # Calculate the full extent of the image
+    # Initial arbitrary limits of the atlas in real space
+    x_min = 10e10
+    x_max = float(0)  # Comparing an int against a float will cause MyPy warning
+    y_min = 10e10
+    y_max = float(0)
 
-    except (IndexError, ValueError):
-        logger.error(f"Unable to extract dimensional information for {series_name}")
+    for tile in tile_scan_info.values():
+        x = float(tile["pos_x"])
+        y = float(tile["pos_y"])
+
+        # Update the atlas limits
+        x_min = x if x < x_min else x_min
+        y_min = y if y < y_min else y_min
+        x_max = x + w if x + w > x_max else x_max
+        y_max = y + h if y + h > y_max else y_max
+    extent = [x_min, x_max, y_min, y_max]
 
     # Construct results template for use in h
     result: dict[str, Any] = {
         "series_name": series_name,
         "number_of_members": len(channels),
-        "data_type": "",
-        "channel_data": {},  # Dictionary for different color channels
+        "is_stack": num_frames > 1,
+        "is_montage": num_tiles > 1,
+        "output_files": {},
         "metadata": str(img_xml_file.resolve()),
+        "parent_tiffs": {},
+        "pixels_x": None,
+        "pixels_y": None,
+        "units": "",
+        "pixel_size": None,
+        "resolution": None,
         "extent": [],  # [x_min, x_max, y_min, y_max] in real space
     }
 
-    # if-block to construct atlas from images
-    if "10" in (dim.get("DimID", "") for dim in dims):
-        result["data_type"] = "atlas"
-        logger.info(f"Processing {series_name} as a montage")
-
-        tile_scan_info = next(
-            (
-                node
-                for node in metadata.findall(".//Attachment")
-                if node.get("Name") == "TileScanInfo"
-            ),
-            None,
-        )
-        if tile_scan_info is None:
-            logger.error(f"No tile scan information found for series {series_name!r}")
-            return {}
-        tile_scans = list(tile_scan_info)
-
-        for c, color in enumerate(colors):
-            logger.info(f"Processing {color} channel")
-
-            # Select only the desired colour if multiple channels are present
-            tiff_sublist = (
-                [
-                    file
-                    for file in tiff_list
-                    if f"--C{str(c).zfill(2)}" in file.stem.split("--", maxsplit=1)[-1]
-                ]
-                if len(colors) > 1
-                else tiff_list
-            )
-            tiff_sublist.sort(
-                key=lambda f: (int(f.stem.split("--")[1].replace("Stage", "")),)
-            )  # Sort by 'Stage' value
-            print(f"Found the following files for {color} channel:", tiff_sublist)
-            if not tiff_sublist:
-                logger.error(
-                    f"Error processing {color!r} channel for {series_name!r}: "
-                    "No TIFF files found"
-                )
-                continue
-
-            # Initial arbitrary limits of the atlas in real space
-            x_min = 10e10
-            x_max = float(0)
-            y_min = 10e10
-            y_max = float(0)
-
-            # Create the figure to save the image onto
-            fig, ax = plt.subplots()
-
-            # Load the coordinates
-            for t, tile in enumerate(tile_scans):
-                try:
-                    logger.info(f"Processing tile {t}")
-                    # Convert tile coordinates into floats
-                    x = float(tile.get("PosX", ""))
-                    y = float(tile.get("PosY", ""))
-                    # Find the coordinates of the image's 4 corners in real space
-                    tile_extent = [x, x + w, y, y + h]
-
-                    # Load image and add it to the plot
-                    img = Image.open(tiff_sublist[t])
-                    ax.imshow(
-                        img,
-                        extent=tile_extent,
-                        origin="lower",
-                        cmap="gray",
-                    )
-
-                    # Update atlas limits
-                    x_min = x if x < x_min else x_min
-                    y_min = y if y < y_min else y_min
-                    x_max = x + w if x + w > x_max else x_max
-                    y_max = y + h if y + h > y_max else y_max
-
-                except (TypeError, ValueError):
-                    logger.warning(
-                        f"Unable to extract coordinate information for tile {t}"
-                    )
-                    continue
-
-            # Crop plotted image to just the populated space
-            logger.info("Adjusting plotting settings...")
-            ax.set_xlim(x_min, x_max)
-            ax.set_ylim(y_min, y_max)
-            ax.invert_yaxis()  # Set origin to top left
-            ax.set_aspect("equal")  # Ensure x- and y-axis have the same scale
-            ax.axis("off")  # Turn off axis ticks and labels
-
-            # Save just the contents of the Axes object
-            logger.info("Rendering image...")
-            fig.canvas.draw()  # Render the figure
-            renderer = fig.canvas.get_renderer()
-            bbox = ax.get_tightbbox(renderer).transformed(
-                fig.dpi_scale_trans.inverted()
-            )
-            fig_name = save_dir / f"{color}.png"
-            fig.savefig(
-                fig_name, bbox_inches=bbox, pad_inches=0, dpi=400, facecolor="black"
-            )
-            plt.close()
-            logger.info(f"Atlas image saved as {fig_name}")
-
-            result["channel_data"][color] = {
-                "atlas": str(fig_name),
-                "parent_tiffs": str([str(f) for f in tiff_sublist]),
-            }
-
-    # if-block to construct image stacks from images
-    else:
-        result["data_type"] = "image"
-        logger.info(f"Processing {series_name} as an image stack")
-
-        # Process z-axis if it exists
-        z_res = get_axis_resolution(dims[2]) if len(dims) > 2 else float(0)
-
-        # Load timestamps (might be useful in the future)
-        # timestamps = elem.find("Data/Image/TimeStampList")
-
-        # Generate slice labels for later
-        num_frames = [
-            int(dim.get("NumberOfElements", "")) if dim else 1
-            for dim in dims
-            if dim.get("DimID", "") == "3"
-        ][0]
-        image_labels = [f"{f}" for f in range(num_frames)]
-
-        # Process channels as individual TIFFs
-        for c, color in enumerate(colors):
-            logger.info(f"Processing {color} channel")
-
-            # Find TIFFs from relevant channel and series
-            #   Replace " " with "_" when comparing file name against series name as
-            #   found in metadata
-            tiff_sublist = [
-                f
-                for f in tiff_list
-                if (f"C{str(c).zfill(2)}" in f.stem or f"C{str(c).zfill(3)}" in f.stem)
-                and (
-                    series_identifier.replace(" ", "_")
-                    == f.stem.split("--")[0].replace(" ", "_")
-                )
+    # Iterate by color, then z-frame, then tile
+    for c, color in enumerate(channels.keys()):
+        logger.info(f"Processing {color} channel for {series_name!r}")
+        # Get the subset of files to work with
+        # Retain only the files associated with the current colour
+        # Remove TIFF file fragments
+        tiff_color_subset = (
+            [
+                file
+                for file in tiff_list
+                if f"C{str(c).zfill(2)}" in file.stem.split("--")
             ]
-            tiff_sublist.sort(
-                key=lambda f: (int(f.stem.split("--")[1].replace("Z", "")),)
-            )  # Sort by Z as an int, not str
+            if len(channels) > 1
+            else tiff_list
+        )
 
-            # Return error message if the list of TIFFs is empty for some reason
-            if not tiff_sublist:
-                logger.error(
-                    f"Error processing {color!r} channel for {series_name!r}; "
-                    "no TIFF files found"
+        # If it's a montage, stitch the tiles together in Matplotlib
+        if num_tiles > 1:
+
+            # Calculate global values for vmin and vmax
+            logger.info("Estimating global intensity range")
+            with Pool(processes=20) as pool:
+                min_max_list = pool.starmap(
+                    get_percentiles,
+                    [
+                        (
+                            file,
+                            (0.5, 99.5),
+                        )
+                        for file in tiff_color_subset
+                    ],
                 )
-                continue
+            # global_vmin, global_vmax = None, None
+            global_vmin = int(np.percentile([m for m, _ in min_max_list if m], [5])[0])
+            global_vmax = int(np.percentile([m for _, m in min_max_list if m], [95])[0])
 
-            # Load image stack
-            logger.info("Loading image stack")
-            for t in range(len(tiff_sublist)):
-                img = Image.open(tiff_sublist[t])
-                if t == 0:
-                    arr = np.array([img])  # Store as 3D array
+            # Stitch frames together
+            with Pool(processes=20) as pool:
+                frame_list = pool.starmap(
+                    stitch_image_frames,
+                    # Construct pool args in-line
+                    [
+                        (
+                            (
+                                [
+                                    file
+                                    for file in tiff_color_subset
+                                    if f"Z{str(z).zfill(2)}" in file.stem.split("--")
+                                ]
+                                if num_frames > 1
+                                else tiff_color_subset
+                            ),
+                            tile_scan_info,
+                            w,
+                            h,
+                            extent,
+                            500,
+                            (global_vmin, global_vmax),
+                        )
+                        for z in range(num_frames)
+                    ],
+                )
+            arr = np.array(frame_list, dtype=np.uint8)
+
+            # Update resolution and pixel size in dimensions dictionary
+            h_new, w_new = arr.shape[-2:]
+            dims["x"]["num_pixels"] = w_new
+            dims["x"]["resolution"] = w_new / (x_max - x_min)
+            dims["x"]["pixel_size"] = (x_max - x_min) / w_new
+            dims["y"]["num_pixels"] = h_new
+            dims["y"]["resolution"] = h_new / (y_max - y_min)
+            dims["y"]["pixel_size"] = (y_max - y_min) / h_new
+
+        # Otherwise, load the image as an array directly
+        else:
+            for z in range(num_frames):
+                if z == 0:
+                    # Sort list before iterating
+                    tiff_color_subset.sort(
+                        key=lambda f: (
+                            int(m.group(1))
+                            if (m := re.search(r"--Z(\d+)", f.stem))
+                            else -1
+                        )
+                    )
+                # Load the relevant frame (they will have been sorted in order now)
+                frame = Image.open(tiff_color_subset[z])
+                logger.info(f"Loaded image {tiff_color_subset[z]}")
+
+                if z == 0:
+                    arr = np.array([frame])
                 else:
-                    arr = np.append(arr, [img], axis=0)
-            logger.debug(
-                f"{series_name} {color} array properties: \n"
-                f"Shape: {arr.shape} \n"
-                f"dtype: {arr.dtype} \n"
-                f"Min value: {arr.min()} \n"
-                f"Max value: {arr.max()} \n"
-            )
+                    arr = np.append(arr, [frame], axis=0)
 
-            # Estimate initial NumPy dtype
-            bit_depth = int(channels[c].attrib["Resolution"])
-            dtype_init = estimate_int_dtype(arr, bit_depth=bit_depth)
+        # Update results dictionary once per dataset
+        if c == 0:
+            # Update results dictionary
+            result["pixels_x"] = dims["x"]["num_pixels"]
+            result["pixels_y"] = dims["y"]["num_pixels"]
+            result["units"] = dims["x"]["units"]
+            result["pixel_size"] = dims["x"]["pixel_size"]
+            result["resolution"] = dims["x"]["resolution"]
+            extent = [x_min, x_max, y_min, y_max]
+            result["extent"] = extent
 
-            # Rescale intensity values for fluorescent channels
-            adjust_contrast = (
-                "stretch"
-                if color
-                in (
-                    "blue",
-                    "cyan",
-                    "green",
-                    "magenta",
-                    "red",
-                    "yellow",
-                )
-                else None
-            )
+        # Estimate initial NumPy dtype
+        dtype_init = estimate_int_dtype(
+            arr,
+            bit_depth=8 if num_tiles > 1 else channels[color]["bit_depth"],
+        )
 
-            # Process the image stack
-            logger.info("Processing image stack")
-            arr = preprocess_img_stk(
-                array=arr,
-                initial_dtype=dtype_init,
-                target_dtype="uint8",
-                adjust_contrast=adjust_contrast,
+        # Rescale intensity values for fluorescent channels
+        adjust_contrast = (
+            "stretch"
+            if color
+            in (
+                "blue",
+                "cyan",
+                "green",
+                "magenta",
+                "red",
+                "yellow",
             )
-            logger.debug(
-                f"{series_name} {color} array properties: \n"
-                f"Shape: {arr.shape} \n"
-                f"dtype: {arr.dtype} \n"
-                f"Min value: {arr.min()} \n"
-                f"Max value: {arr.max()} \n"
-            )
+            and num_tiles == 1  # Contrast adjustment already applied during stitching
+            else None
+        )
+        logger.info(f"Contrast adjustment set to {adjust_contrast}")
 
-            # Save as a greyscale TIFF
-            logger.info("Processing image stack")
-            img_stk_file = write_stack_to_tiff(
-                array=arr,
-                save_dir=save_dir,
-                file_name=color,
-                x_res=x_res,
-                y_res=y_res,
-                z_res=z_res,
-                units="micron",
-                axes="ZYX",
-                image_labels=image_labels,
-                photometric="minisblack",
-            )
-            # Create dictionary for the image stack created
-            result["channel_data"][color] = {
-                "image_stack": str(img_stk_file.resolve()),
-                "parent_tiffs": str([str(f) for f in tiff_sublist]),
-            }
+        # Process the subimage
+        logger.info("Applying image processing routine to subimage")
+        arr = preprocess_img_stk(
+            array=arr,
+            initial_dtype=dtype_init,
+            target_dtype="uint8",
+            adjust_contrast=adjust_contrast,
+        )
+        logger.debug(
+            f"{series_name} {color} array properties: \n"
+            f"Shape: {arr.shape} \n"
+            f"dtype: {arr.dtype} \n"
+            f"Min value: {arr.min()} \n"
+            f"Max value: {arr.max()} \n"
+        )
 
-    # Collect and return files that have been generated
+        # Extract metadata needed for saving the image
+        image_labels = [str(z) for z in range(dims["z"].get("num_frames", 1))]
+        x_res = float(dims["x"]["resolution"])
+        y_res = float(dims["y"]["resolution"])
+        z_res = float(dims["z"]["resolution"]) if dims.get("z", {}) else float(0)
+        units = dims["x"]["units"]
+
+        # Convert units to microns just for the image
+        if units == "m":
+            units = "micron"
+            x_res /= 10**6
+            y_res /= 10**6
+            z_res /= 10**6
+
+        # Save as a greyscale TIFF
+        img_stk_file = write_stack_to_tiff(
+            array=arr,
+            save_dir=save_dir,
+            file_name=color,
+            x_res=x_res,
+            y_res=y_res,
+            z_res=z_res,
+            units=units,
+            axes="ZYX",
+            image_labels=image_labels,
+            photometric="minisblack",
+        )
+        # Collect the images created
+        result["output_files"][color] = str(img_stk_file.resolve())
+        result["parent_tiffs"][color] = [str(file) for file in tiff_color_subset]
+
+    logger.debug(f"Processing results are as follows: {result}")
     return result
 
 
