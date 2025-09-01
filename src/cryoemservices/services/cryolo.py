@@ -11,6 +11,7 @@ import mrcfile
 import numpy as np
 from gemmi import cif
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
+from scipy.ndimage import gaussian_filter
 from workflows.recipe import wrap_subscribe
 
 from cryoemservices.services.common_service import CommonService
@@ -532,7 +533,9 @@ class CrYOLO(CommonService):
         rw.transport.ack(header)
 
 
-def grid_bar_histogram(full_image: np.ndarray) -> Optional[np.narray]:
+def grid_bar_histogram(
+    full_image: np.ndarray, peak_width: Optional[float] = None, smoothing: int = 5
+) -> Optional[np.ndarray]:
     # Bin the image
     full_shape = np.shape(full_image)
     small_image = (
@@ -574,9 +577,17 @@ def grid_bar_histogram(full_image: np.ndarray) -> Optional[np.narray]:
 
         maxima_loc = turning_points[2] + 5
         maxima_val = hist[1][maxima_loc]
-
-        new_image = np.copy(full_image)
-        new_image[new_image < minima_val] = maxima_val
+        if peak_width:
+            new_image = gaussian_filter(full_image, sigma=(smoothing, smoothing))
+            clipped_small_image = small_image[small_image > minima_val]
+            upper_cut = np.mean(clipped_small_image) + peak_width * np.std(
+                clipped_small_image
+            )
+            new_image[new_image < minima_val] = minima_val
+            new_image[new_image > upper_cut] = minima_val
+        else:
+            new_image = np.copy(full_image)
+            new_image[new_image < minima_val] = maxima_val
         return new_image
     return None
 
@@ -585,7 +596,7 @@ def flatten_grid_bars(micrograph_mrc: Path) -> Path:
     with mrcfile.open(micrograph_mrc) as mrc:
         full_image = mrc.data
 
-    new_image_data = grid_bar_histogram(full_image)
+    new_image_data = grid_bar_histogram(full_image, peak_width=1, smoothing=2)
     if new_image_data is not None:
         flat_micrograph = micrograph_mrc.parent / (micrograph_mrc.stem + "_flat.mrc")
         with mrcfile.new(flat_micrograph, overwrite=True) as mrc:
