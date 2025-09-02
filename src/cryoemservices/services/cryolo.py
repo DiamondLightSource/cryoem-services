@@ -534,7 +534,9 @@ class CrYOLO(CommonService):
 
 
 def grid_bar_histogram(
-    full_image: np.ndarray, peak_width: Optional[float] = None, smoothing: int = 5
+    full_image: np.ndarray,
+    peak_width: Optional[float] = None,
+    smoothing: Optional[int] = None,
 ) -> Optional[np.ndarray]:
     # Bin the image
     full_shape = np.shape(full_image)
@@ -577,8 +579,11 @@ def grid_bar_histogram(
 
         maxima_loc = turning_points[2] + 5
         maxima_val = hist[1][maxima_loc]
-        if peak_width:
+        if smoothing:
             new_image = gaussian_filter(full_image, sigma=(smoothing, smoothing))
+        else:
+            new_image = np.copy(full_image)
+        if peak_width:
             clipped_small_image = small_image[small_image > minima_val]
             upper_cut = np.mean(clipped_small_image) + peak_width * np.std(
                 clipped_small_image
@@ -586,7 +591,6 @@ def grid_bar_histogram(
             new_image[new_image < minima_val] = minima_val
             new_image[new_image > upper_cut] = minima_val
         else:
-            new_image = np.copy(full_image)
             new_image[new_image < minima_val] = maxima_val
         return new_image
     return None
