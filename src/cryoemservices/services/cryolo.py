@@ -596,11 +596,13 @@ def grid_bar_histogram(
     return None
 
 
-def flatten_grid_bars(micrograph_mrc: Path) -> Path:
+def flatten_grid_bars(micrograph_mrc: Path, peak_width=1, smoothing=2) -> Path:
     with mrcfile.open(micrograph_mrc) as mrc:
         full_image = mrc.data
 
-    new_image_data = grid_bar_histogram(full_image, peak_width=1, smoothing=2)
+    new_image_data = grid_bar_histogram(
+        full_image, peak_width=peak_width, smoothing=smoothing
+    )
     if new_image_data is not None:
         flat_micrograph = micrograph_mrc.parent / (micrograph_mrc.stem + "_flat.mrc")
         with mrcfile.new(flat_micrograph, overwrite=True) as mrc:

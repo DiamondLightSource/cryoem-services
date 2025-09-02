@@ -503,7 +503,9 @@ def test_flatten_grid_bars_two_peaks(mock_hist, tmp_path):
     with mrcfile.new(tmp_path / "two_normals.mrc") as mrc:
         mrc.set_data(data.astype(np.float32))
 
-    returned_file = cryolo.flatten_grid_bars(tmp_path / "two_normals.mrc")
+    returned_file = cryolo.flatten_grid_bars(
+        tmp_path / "two_normals.mrc", peak_width=None, smoothing=None
+    )
     assert returned_file == tmp_path / "two_normals_flat.mrc"
 
     with mrcfile.open(tmp_path / "two_normals_flat.mrc") as mrc:
