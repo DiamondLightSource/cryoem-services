@@ -513,3 +513,24 @@ def test_flatten_grid_bars_two_peaks(mock_hist, tmp_path):
 
     assert min(output_data.flatten()) == 54
     assert output_data[0][0] == 79
+
+
+@mock.patch("cryoemservices.services.cryolo.plt.hist")
+def test_flatten_grid_bars_two_peaks_with_clipping(mock_hist, tmp_path):
+    """Test the flattener moves the lower peak of a double distribution"""
+    mock_hist.return_value = np.concatenate(
+        (np.arange(26), np.arange(24, 0, -1), np.arange(26), np.arange(24, 0, -1))
+    ), np.arange(100)
+
+    data = np.arange(256).reshape(16, 16)
+    with mrcfile.new(tmp_path / "two_normals.mrc") as mrc:
+        mrc.set_data(data.astype(np.float32))
+
+    returned_file = cryolo.flatten_grid_bars(tmp_path / "two_normals.mrc")
+    assert returned_file == tmp_path / "two_normals_flat.mrc"
+
+    with mrcfile.open(tmp_path / "two_normals_flat.mrc") as mrc:
+        output_data = mrc.data
+
+    assert min(output_data.flatten()) == 54
+    assert output_data[0][0] == 54.0
