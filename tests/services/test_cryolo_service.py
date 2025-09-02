@@ -513,6 +513,7 @@ def test_flatten_grid_bars_two_peaks(mock_hist, tmp_path):
 
     assert min(output_data.flatten()) == 54
     assert output_data[0][0] == 79
+    assert max(output_data.flatten()) == 255
 
 
 @mock.patch("cryoemservices.services.cryolo.plt.hist")
@@ -534,3 +535,4 @@ def test_flatten_grid_bars_two_peaks_with_clipping(mock_hist, tmp_path):
 
     assert min(output_data.flatten()) == 54
     assert output_data[0][0] == 54.0
+    assert int(max(output_data.flatten())) == 211
