@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import sys
 from unittest import mock
 
 import pytest
@@ -19,15 +18,134 @@ def offline_transport(mocker):
     return transport
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-@mock.patch("cryoemservices.util.slurm_submission.subprocess.run")
-def test_membrain_seg_service_local(
-    mock_subprocess,
+@mock.patch("cryoemservices.services.membrain_seg.segment")
+def test_membrain_seg_service_local_memseg(
+    mock_segment,
     offline_transport,
     tmp_path,
 ):
     """
-    Send a test message to membrain-seg for the slurm submission version
+    Send a test message to membrain-seg for the version running without a subprocess
+    This should call the mock subprocess then send messages to the images service.
+    """
+
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+    segmentation_test_message = {
+        "tomogram": f"{tmp_path}/Denoise/job007/tomograms/test_stack_aretomo.denoised.mrc",
+        "output_dir": f"{tmp_path}/Segmentation/job008/tomograms",
+        "pretrained_checkpoint": "checkpoint.ckpt",
+        "pixel_size": "1.0",
+        "rescale_patches": True,
+        "augmentation": True,
+        "store_probabilities": True,
+        "store_connected_components": True,
+        "window_size": 100,
+        "connected_component_threshold": 2,
+        "segmentation_threshold": 4,
+        "relion_options": {},
+    }
+    output_relion_options = dict(RelionServiceOptions())
+
+    # Set up the mock service and send a message to it
+    service = membrain_seg.MembrainSeg(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
+    service.membrain_seg(None, header=header, message=segmentation_test_message)
+
+    # Check the membrain command was run
+    membrain_command = [
+        "membrain",
+        "segment",
+        "--out-folder",
+        f"{tmp_path}/Segmentation/job008/tomograms",
+        "--tomogram-path",
+        f"{tmp_path}/Denoise/job007/tomograms/test_stack_aretomo.denoised.mrc",
+        "--ckpt-path",
+        "checkpoint.ckpt",
+        "--in-pixel-size",
+        "1.0",
+        "--sliding-window-size",
+        "100",
+        "--connected-component-thres",
+        "2",
+        "--segmentation-threshold",
+        "4.0",
+        "--rescale-patches",
+        "--test-time-augmentation",
+        "--store-probabilities",
+        "--store-connected-components",
+    ]
+    mock_segment.assert_called_once_with(
+        tomogram_path=f"{tmp_path}/Denoise/job007/tomograms/test_stack_aretomo.denoised.mrc",
+        ckpt_path="checkpoint.ckpt",
+        out_folder=f"{tmp_path}/Segmentation/job008/tomograms",
+        rescale_patches=True,
+        in_pixel_size=1.0,
+        out_pixel_size=10.0,
+        store_probabilities=True,
+        sw_roi_size=100,
+        store_connected_components=True,
+        connected_component_thres=2,
+        test_time_augmentation=True,
+        segmentation_threshold=4.0,
+    )
+
+    # Check the images service request
+    assert offline_transport.send.call_count == 4
+    offline_transport.send.assert_any_call(
+        "node_creator",
+        {
+            "experiment_type": "tomography",
+            "job_type": "membrain.segment",
+            "input_file": f"{tmp_path}/Denoise/job007/tomograms/test_stack_aretomo.denoised.mrc",
+            "output_file": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented.mrc",
+            "relion_options": output_relion_options,
+            "command": " ".join(membrain_command),
+            "stdout": "",
+            "stderr": "",
+            "success": True,
+        },
+    )
+    offline_transport.send.assert_any_call(
+        "images",
+        {
+            "image_command": "mrc_central_slice",
+            "file": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented.mrc",
+            "skip_rescaling": True,
+        },
+    )
+    offline_transport.send.assert_any_call(
+        "movie",
+        {
+            "image_command": "mrc_to_apng",
+            "file": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented.mrc",
+            "skip_rescaling": True,
+        },
+    )
+    offline_transport.send.assert_any_call(
+        "ispyb_connector",
+        {
+            "ispyb_command": "insert_processed_tomogram",
+            "file_path": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented.mrc",
+            "processing_type": "Segmented",
+        },
+    )
+
+
+@mock.patch("cryoemservices.services.membrain_seg.run_subprocess")
+@mock.patch("cryoemservices.services.membrain_seg.subprocess.run")
+def test_membrain_seg_service_local_subprocess(
+    mock_subprocess,
+    mock_skip_imports,
+    offline_transport,
+    tmp_path,
+):
+    """
+    Send a test message to membrain-seg for the local version
     This should call the mock subprocess then send messages to the images service.
     """
     mock_subprocess().returncode = 0
@@ -129,7 +247,6 @@ def test_membrain_seg_service_local(
     )
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.util.slurm_submission.requests")
 def test_membrain_seg_service_slurm(
     mock_requests,

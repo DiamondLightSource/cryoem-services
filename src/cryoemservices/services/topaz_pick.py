@@ -89,11 +89,16 @@ class TopazPick(CommonService):
             return
 
         # Check if this file has been run before
-        if Path(topaz_params.output_path).is_file():
+        if (
+            Path(topaz_params.output_path).is_file()
+            and not Path(topaz_params.output_path).with_suffix(".tmp").is_file()
+        ):
             job_is_rerun = True
             Path(topaz_params.output_path).unlink()
         else:
             job_is_rerun = False
+            Path(topaz_params.output_path).parent.mkdir(parents=True, exist_ok=True)
+            Path(topaz_params.output_path).with_suffix(".tmp").touch(exist_ok=True)
 
         # Determine the project directory or job directory
         job_num_search = re.search("/job[0-9]+/", topaz_params.output_path)
@@ -103,7 +108,6 @@ class TopazPick(CommonService):
             self.log.warning(f"Invalid job directory in {topaz_params.output_path}")
             rw.transport.nack(header)
             return
-        Path(topaz_params.output_path).parent.mkdir(parents=True, exist_ok=True)
 
         # Construct a command to run topaz with the given parameters
         self.log.info(
@@ -190,22 +194,8 @@ class TopazPick(CommonService):
         if not job_is_rerun:
             # Only do the node creator inserts for new files
             rw.send_to("node_creator", node_creator_parameters)
-
-        # Forward results to ISPyB
-        ispyb_parameters_spa: dict = {
-            "ispyb_command": "buffer",
-            "buffer_lookup": {"motion_correction_id": topaz_params.mc_uuid},
-            "buffer_command": {"ispyb_command": "insert_particle_picker"},
-            "buffer_store": topaz_params.picker_uuid,
-            "particle_picking_template": topaz_params.topaz_model,
-            "number_of_particles": n_particles,
-            "summary_image_full_path": str(
-                Path(topaz_params.output_path).with_suffix(".jpeg")
-            ),
-            "particle_diameter": topaz_params.particle_diameter,
-        }
-        self.log.info(f"Sending to ispyb {ispyb_parameters_spa}")
-        rw.send_to("ispyb_connector", ispyb_parameters_spa)
+            # Remove tmp file after requesting node creation
+            Path(topaz_params.output_path).with_suffix(".tmp").unlink(missing_ok=True)
 
         # Read picks for images service
         try:
@@ -255,6 +245,22 @@ class TopazPick(CommonService):
                 "extraction_parameters": extraction_params,
             },
         )
+
+        # Forward results to ISPyB
+        ispyb_parameters_spa: dict = {
+            "ispyb_command": "buffer",
+            "buffer_lookup": {"motion_correction_id": topaz_params.mc_uuid},
+            "buffer_command": {"ispyb_command": "insert_particle_picker"},
+            "buffer_store": topaz_params.picker_uuid,
+            "particle_picking_template": topaz_params.topaz_model,
+            "number_of_particles": n_particles,
+            "summary_image_full_path": str(
+                Path(topaz_params.output_path).with_suffix(".jpeg")
+            ),
+            "particle_diameter": topaz_params.particle_diameter,
+        }
+        self.log.info(f"Sending to ispyb {ispyb_parameters_spa}")
+        rw.send_to("ispyb_connector", ispyb_parameters_spa)
 
         self.log.info(f"Done {self.job_type} for {topaz_params.input_path}.")
         rw.transport.ack(header)

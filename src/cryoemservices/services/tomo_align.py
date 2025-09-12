@@ -523,9 +523,17 @@ class TomoAlign(CommonService):
         (project_dir / f"ExcludeTiltImages/job{job_number - 2:03}").mkdir(
             parents=True, exist_ok=True
         )
+        if not (
+            project_dir / f"ExcludeTiltImages/job{job_number - 2:03}/tilts"
+        ).exists():
+            (
+                project_dir / f"ExcludeTiltImages/job{job_number - 2:03}/tilts"
+            ).symlink_to(project_dir / "MotionCorr/job002/Movies")
         (project_dir / f"AlignTiltSeries/job{job_number - 1:03}").mkdir(
             parents=True, exist_ok=True
         )
+        if self.rot:
+            tomo_params.relion_options.tilt_axis_angle = self.rot
         for im, movie in enumerate(self.input_file_list_of_lists):
             if im + 1 in missing_indices:
                 im_diff += 1
@@ -549,7 +557,9 @@ class TomoAlign(CommonService):
                         {
                             "job_type": "relion.excludetilts",
                             "experiment_type": "tomography",
-                            "input_file": str(movie[0]),
+                            "input_file": movie[0].replace(
+                                "MotionCorr/job002", "CtfFind/job003"
+                            ),
                             "output_file": str(
                                 project_dir
                                 / f"ExcludeTiltImages/job{job_number - 2:03}/tilts"
@@ -599,13 +609,6 @@ class TomoAlign(CommonService):
 
         for tilt_params in node_creator_params_list:
             rw.send_to("node_creator", tilt_params)
-
-        ispyb_parameters = {
-            "ispyb_command": "multipart_message",
-            "ispyb_command_list": ispyb_command_list,
-        }
-        self.log.info(f"Sending to ispyb {ispyb_parameters}")
-        rw.send_to("ispyb_connector", ispyb_parameters)
 
         # Forward results to images service
         self.log.info(f"Sending to images service {tomo_params.stack_file}")
@@ -664,6 +667,14 @@ class TomoAlign(CommonService):
                 "relion_options": dict(tomo_params.relion_options),
             },
         )
+
+        # Insert tomogram into ispyb
+        ispyb_parameters = {
+            "ispyb_command": "multipart_message",
+            "ispyb_command_list": ispyb_command_list,
+        }
+        self.log.info(f"Sending to ispyb {ispyb_parameters}")
+        rw.send_to("ispyb_connector", ispyb_parameters)
 
         # Update success processing status
         rw.send_to("success", {})
