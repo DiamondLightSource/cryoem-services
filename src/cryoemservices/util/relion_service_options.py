@@ -218,6 +218,11 @@ def generate_service_options(
         "gpus": "0 1 2 3",
     }
 
+    job_options["relion.autopick.topaz.pick"] = {
+        "topaz_particle_diameter": relion_options.particle_diameter,
+        "fn_topaz_exec": "topaz",
+    }
+
     job_options["relion.extract"] = {
         "bg_diameter": -1,
         "extract_size": relion_options.boxsize,

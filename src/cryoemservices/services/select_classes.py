@@ -7,7 +7,7 @@ import shutil
 import subprocess
 from contextlib import redirect_stdout
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import mrcfile
 import numpy as np
@@ -39,6 +39,7 @@ class SelectClassesParameters(BaseModel):
     class3d_max_size: int = 200000
     class_uuids: str
     relion_options: RelionServiceOptions
+    app_id: Optional[int] = None
 
 
 class SelectClasses(CommonService):
@@ -220,16 +221,40 @@ class SelectClasses(CommonService):
                     * class_scores[r["rlnClassNumber"] - 1],
                     axis=1,
                 )
+                micrograph_particle_counts_before = (
+                    input_particle_data["particles"]["rlnMicrographName"]
+                    .value_counts()
+                    .to_dict()
+                )
                 input_particle_data["particles"] = (
                     input_particle_data["particles"]
                     .sort_values("rlnParticleScore", ascending=False)
                     .head(len(input_particle_data["particles"]) // 2)
+                )
+                micrograph_particle_counts_after = (
+                    input_particle_data["particles"]["rlnMicrographName"]
+                    .value_counts()
+                    .to_dict()
                 )
                 starfile.write(
                     input_particle_data,
                     select_dir / autoselect_params.particles_file,
                     overwrite=True,
                 )
+                if autoselect_params.app_id is not None:
+                    self.log.info("Sending to smartem if configured")
+                    for mic, count in micrograph_particle_counts_before.items():
+                        num_selected = micrograph_particle_counts_after.get(mic, 0)
+                        rw.send_to(
+                            "smartem",
+                            {
+                                "number_of_particles_selected": num_selected,
+                                "number_of_particles_rejected": count - num_selected,
+                                "app_id": autoselect_params.app_id,
+                                "mc_path": str(project_dir / mic),
+                            },
+                        )
+
             elif not autoselect_params.autoselect_min_score:
                 # Re-run the class selection if a score was not given
                 self.log.info(

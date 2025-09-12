@@ -564,6 +564,31 @@ def stretch_image_contrast(
     return arr_new
 
 
+def is_image_stack(
+    array: np.ndarray,
+) -> bool:
+    """
+    Helper function to check if an incoming array can be treated as an image stack
+    """
+    # Check for 2 dimensions or less
+    if len(array.shape) == 2:
+        return False
+    # Check if it's a 2D RGB/RGBA image
+    if len(array.shape) == 3 and array.shape[-1] in (3, 4):
+        return False
+
+    # Check for valid 3D image stacks
+    # Grayscale image stack
+    if len(array.shape) == 3 and array.shape[-1] not in (3, 4):
+        return True
+    # RGB/RGBA image stack
+    if len(array.shape) == 4 and array.shape[-1] in (3, 4):
+        return True
+
+    # Raise exception for everything else
+    raise ValueError(f"Unexpected image shape: {array.shape}")
+
+
 def align_image_to_self(
     array: np.ndarray,
     start_from: Literal["beginning", "middle", "end"] = "beginning",
@@ -764,6 +789,26 @@ def align_image_to_reference(
     aligned = aligned.astype(dtype) if str(aligned.dtype) != dtype else aligned
 
     return aligned
+
+
+def is_grayscale_image(array: np.ndarray):
+    """
+    Helper function to check if an incoming array can be treated as a grayscale image
+    or image stack
+    """
+    # Rule out RGB/RGBA images first
+    if len(array.shape) in (3, 4) and array.shape[-1] in (3, 4):
+        return False
+
+    # Check for 2D grayscale
+    if len(array.shape) == 2:
+        return True
+    # Check for grayscale image stacks
+    if len(array.shape) == 3:
+        return True
+
+    # Raise error otherwise
+    raise ValueError(f"Unexpected image shape: {array.shape}")
 
 
 class LUT(Enum):

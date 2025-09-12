@@ -12,6 +12,13 @@ from cryoemservices.util.models import MockRW
 from cryoemservices.util.relion_service_options import RelionServiceOptions
 from cryoemservices.util.slurm_submission import slurm_submission_for_services
 
+try:
+    from membrain_seg.segmentation.segment import segment
+
+    run_subprocess = False
+except ImportError:
+    run_subprocess = True
+
 
 class MembrainSegParameters(BaseModel):
     tomogram: str = Field(..., min_length=1)
@@ -26,7 +33,7 @@ class MembrainSegParameters(BaseModel):
     store_connected_components: bool = False
     window_size: int = 160
     connected_component_threshold: Optional[int] = None
-    segmentation_threshold: Optional[float] = None
+    segmentation_threshold: float = 0.0
     cleanup_output: bool = True
     submit_to_slurm: bool = False
     relion_options: RelionServiceOptions
@@ -155,8 +162,29 @@ class MembrainSeg(CommonService):
                 memory_request=25000,
                 script_extras="module load EM/membrain-seg",
             )
-        else:
+        elif run_subprocess:
             result = subprocess.run(command, capture_output=True)
+        else:
+            segment(
+                tomogram_path=membrain_seg_params.tomogram,
+                ckpt_path=membrain_seg_params.pretrained_checkpoint,
+                out_folder=membrain_seg_params.output_dir,
+                rescale_patches=membrain_seg_params.rescale_patches,
+                in_pixel_size=membrain_seg_params.pixel_size,
+                out_pixel_size=10.0,
+                store_probabilities=membrain_seg_params.store_probabilities,
+                sw_roi_size=membrain_seg_params.window_size,
+                store_connected_components=membrain_seg_params.store_connected_components,
+                connected_component_thres=membrain_seg_params.connected_component_threshold,
+                test_time_augmentation=membrain_seg_params.augmentation,
+                segmentation_threshold=membrain_seg_params.segmentation_threshold,
+            )
+            result = subprocess.CompletedProcess(
+                args="",
+                returncode=0,
+                stdout="".encode("utf8"),
+                stderr="".encode("utf8"),
+            )
 
         # Send to node creator
         self.log.info("Sending segmentation to node creator")

@@ -7,7 +7,7 @@ requires = [
 
 [project]
 name = "cryoemservices"
-version = "1.2.4"
+version = "1.2.7"
 description = "Services for CryoEM processing"
 readme = "README.md"
 keywords = [
@@ -34,7 +34,7 @@ dependencies = [
     "graypy",
     "healpy",
     "icebreaker-em",
-    "ispyb>=11.0.3",
+    "ispyb>=11.0.5",
     "mrcfile",
     "numpy<2",
     "pillow",
@@ -57,6 +57,10 @@ dev = [
     "pytest",
     "pytest-datafiles",
     "pytest-mock",
+]
+torch = [
+    "membrain-seg",
+    "topaz-em",
 ]
 [project.urls]
     Bug-Tracker = "https://github.com/DiamondLightSource/cryoem-services/issues"
@@ -83,6 +87,8 @@ dev = [
     CLEMLIFToStack = "cryoemservices.services.clem_process_raw_lifs:LIFToStackService"
     CLEMTIFFToStack = "cryoemservices.services.clem_process_raw_tiffs:TIFFToStackService"
     CTFFind = "cryoemservices.services.ctffind:CTFFind"
+    Class2D = "cryoemservices.services.class2d:Class2D"
+    Class3D = "cryoemservices.services.class3d:Class3D"
     ClusterSubmission = "cryoemservices.services.cluster_submission:ClusterSubmission"
     CrYOLO = "cryoemservices.services.cryolo:CrYOLO"
     Denoise = "cryoemservices.services.denoise:Denoise"
@@ -98,10 +104,12 @@ dev = [
     NodeCreator = "cryoemservices.services.node_creator:NodeCreator"
     PostProcess = "cryoemservices.services.postprocess:PostProcess"
     ProcessRecipe = "cryoemservices.services.process_recipe:ProcessRecipe"
+    Refine3D = "cryoemservices.services.refine3d:Refine3D"
     SelectClasses = "cryoemservices.services.select_classes:SelectClasses"
     SelectParticles = "cryoemservices.services.select_particles:SelectParticles"
     TomoAlign = "cryoemservices.services.tomo_align:TomoAlign"
     TomoAlignSlurm = "cryoemservices.services.tomo_align_slurm:TomoAlignSlurm"
+    TopazPick = "cryoemservices.services.topaz_pick:TopazPick"
 [project.entry-points."cryoemservices.services.images.plugins"]
     "mrc_central_slice" = "cryoemservices.services.images_plugins:mrc_central_slice"
     "mrc_to_apng" = "cryoemservices.services.images_plugins:mrc_to_apng"

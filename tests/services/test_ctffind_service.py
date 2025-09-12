@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import sys
 from unittest import mock
 
 import pytest
@@ -17,7 +16,6 @@ def offline_transport(mocker):
     return transport
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.ctffind.subprocess.run")
 def test_ctffind4_service_spa(mock_subprocess, offline_transport, tmp_path):
     """
@@ -166,7 +164,6 @@ def test_ctffind4_service_spa(mock_subprocess, offline_transport, tmp_path):
     )
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.ctffind.subprocess.run")
 def test_ctffind5_service_tomo(mock_subprocess, offline_transport, tmp_path):
     """
@@ -182,6 +179,7 @@ def test_ctffind5_service_tomo(mock_subprocess, offline_transport, tmp_path):
     }
     ctffind_test_message = {
         "experiment_type": "tomography",
+        "movie": f"{tmp_path}/Movie.tiff",
         "pixel_size": 0.1,
         "determine_tilt": "yes",
         "determine_thickness": "yes",
@@ -250,7 +248,7 @@ def test_ctffind5_service_tomo(mock_subprocess, offline_transport, tmp_path):
     )
 
     # Check that the correct messages were sent (no need to recheck ones tested above)
-    assert offline_transport.send.call_count == 3
+    assert offline_transport.send.call_count == 4
     offline_transport.send.assert_any_call(
         "node_creator",
         {
@@ -265,9 +263,16 @@ def test_ctffind5_service_tomo(mock_subprocess, offline_transport, tmp_path):
             "success": True,
         },
     )
+    offline_transport.send.assert_any_call(
+        "murfey_feedback",
+        {
+            "register": "motion_corrected",
+            "movie": f"{tmp_path}/Movie.tiff",
+            "mrc_out": f"{tmp_path}/MotionCorr/job002/sample.mrc",
+        },
+    )
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.ctffind.subprocess.run")
 def test_ctffind5_service_nothickness(mock_subprocess, offline_transport, tmp_path):
     """
@@ -286,6 +291,7 @@ def test_ctffind5_service_nothickness(mock_subprocess, offline_transport, tmp_pa
         "pixel_size": 0.2,
         "determine_tilt": "yes",
         "ctffind_version": 5,
+        "movie": f"{tmp_path}/sample.tiff",
         "input_image": f"{tmp_path}/MotionCorr/job002/sample.mrc",
         "output_image": f"{tmp_path}/CtfFind/job006/sample.ctf",
         "mc_uuid": 0,
@@ -338,7 +344,80 @@ def test_ctffind5_service_nothickness(mock_subprocess, offline_transport, tmp_pa
     )
 
     # Check that the correct messages were sent (no need to recheck ones tested above)
-    assert offline_transport.send.call_count == 3
+    assert offline_transport.send.call_count == 4
+    offline_transport.send.assert_any_call(
+        "murfey_feedback",
+        {
+            "register": "motion_corrected",
+            "movie": f"{tmp_path}/sample.tiff",
+            "mrc_out": f"{tmp_path}/MotionCorr/job002/sample.mrc",
+        },
+    )
+
+
+reruns_matrix = (
+    # Output exists? | Job crashed? | Do node creator?
+    (False, False, True),
+    (False, True, True),
+    (True, False, False),
+    (True, True, True),
+)
+
+
+@pytest.mark.parametrize("test_params", reruns_matrix)
+@mock.patch("cryoemservices.services.ctffind.subprocess.run")
+def test_job_reruns(mock_subprocess, test_params, offline_transport, tmp_path):
+    """
+    Send a test message to CTFFind for job reruns to check node creator sends
+    """
+    make_output, make_tmp_file, expect_node_creator = test_params
+
+    mock_subprocess().returncode = 0
+    mock_subprocess().stdout = "stdout".encode("utf8")
+    mock_subprocess().stderr = "stderr".encode("utf8")
+
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+    ctffind_test_message = {
+        "experiment_type": "tomography",
+        "pixel_size": 0.2,
+        "input_image": f"{tmp_path}/MotionCorr/job002/sample.mrc",
+        "output_image": f"{tmp_path}/CtfFind/job006/sample.ctf",
+        "mc_uuid": 0,
+        "picker_uuid": 0,
+        "relion_options": {},
+    }
+
+    # Set up the mock service
+    service = ctffind.CTFFind(environment={"queue": ""}, transport=offline_transport)
+    service.initializing()
+
+    if make_output:
+        (tmp_path / "CtfFind/job006/sample.ctf").parent.mkdir(
+            parents=True, exist_ok=True
+        )
+        (tmp_path / "CtfFind/job006/sample.ctf").touch()
+    if make_tmp_file:
+        (tmp_path / "CtfFind/job006/sample.tmp").parent.mkdir(
+            parents=True, exist_ok=True
+        )
+        (tmp_path / "CtfFind/job006/sample.tmp").touch()
+
+    # Set some parameters then send a message to the service
+    service.defocus1 = 1
+    service.defocus2 = 2
+    service.astigmatism_angle = 3
+    service.cc_value = 4
+    service.estimated_resolution = 5
+    service.ctf_find(None, header=header, message=ctffind_test_message)
+
+    # Check that the correct messages were sent (no need to recheck ones tested above)
+    if expect_node_creator:
+        assert offline_transport.send.call_count == 4
+    else:
+        assert offline_transport.send.call_count == 3
 
 
 def test_parse_ctffind_output(offline_transport):

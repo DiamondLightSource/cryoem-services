@@ -37,6 +37,7 @@ class CryoloParameters(BaseModel):
     tomo_tracing_search_range: int = -1
     on_the_fly: bool = True
     mc_uuid: Optional[int] = None
+    app_id: Optional[int] = None
     picker_uuid: Optional[int] = None
     relion_options: RelionServiceOptions
     ctf_values: dict = {}
@@ -140,11 +141,15 @@ class CrYOLO(CommonService):
             return
 
         # Check if this file has been run before
-        if Path(cryolo_params.output_path).is_file():
+        if (
+            Path(cryolo_params.output_path).is_file()
+            and not Path(cryolo_params.output_path).with_suffix(".tmp").is_file()
+        ):
             job_is_rerun = True
-            Path(cryolo_params.output_path).unlink()
         else:
             job_is_rerun = False
+            Path(cryolo_params.output_path).parent.mkdir(parents=True, exist_ok=True)
+            Path(cryolo_params.output_path).with_suffix(".tmp").touch(exist_ok=True)
 
         # CrYOLO requires running in the project directory or job directory
         job_dir_search = re.search(".+/job[0-9]+/", cryolo_params.output_path)
@@ -156,7 +161,11 @@ class CrYOLO(CommonService):
             self.log.warning(f"Invalid job directory in {cryolo_params.output_path}")
             rw.transport.nack(header)
             return
-        job_dir.mkdir(parents=True, exist_ok=True)
+
+        Path(cryolo_params.output_path).unlink(missing_ok=True)
+        (
+            job_dir / f"CBOX/{Path(cryolo_params.output_path).with_suffix('.cbox')}"
+        ).unlink(missing_ok=True)
 
         # Try and scale out any dark areas, for example gold grids
         if cryolo_params.experiment_type == "spa":
@@ -272,6 +281,8 @@ class CrYOLO(CommonService):
         if not job_is_rerun:
             # Only do the node creator inserts for new files
             rw.send_to("node_creator", node_creator_parameters)
+            # Remove tmp file after requesting node creation
+            Path(cryolo_params.output_path).with_suffix(".tmp").unlink(missing_ok=True)
 
         # End here if the command failed
         if result.returncode:
@@ -284,14 +295,6 @@ class CrYOLO(CommonService):
 
         # If this is tomo then make an image and stop here
         if cryolo_params.experiment_type == "tomography":
-            # Insert the picked tomogram into ISPyB
-            ispyb_parameters_tomo = {
-                "ispyb_command": "insert_processed_tomogram",
-                "file_path": cryolo_params.output_path,
-                "processing_type": "Picked",
-            }
-            rw.send_to("ispyb_connector", ispyb_parameters_tomo)
-
             # Forward results to images service
             self.log.info("Sending to images service")
             movie_parameters = {
@@ -315,6 +318,14 @@ class CrYOLO(CommonService):
                 / f"EMAN_3D/{Path(cryolo_params.output_path).with_suffix('.box').name}"
             )
             eman_file.unlink(missing_ok=True)
+
+            # Insert the picked tomogram into ISPyB
+            ispyb_parameters_tomo = {
+                "ispyb_command": "insert_processed_tomogram",
+                "file_path": cryolo_params.output_path,
+                "processing_type": "Picked",
+            }
+            rw.send_to("ispyb_connector", ispyb_parameters_tomo)
 
             self.log.info(
                 f"Done {self.job_type} {cryolo_params.experiment_type} "
@@ -410,23 +421,6 @@ class CrYOLO(CommonService):
             self.number_of_particles = 0
             cryolo_particle_sizes = []
 
-        # Forward results to ISPyB
-        ispyb_parameters_spa: dict = {
-            "ispyb_command": "buffer",
-            "buffer_lookup": {"motion_correction_id": cryolo_params.mc_uuid},
-            "buffer_command": {"ispyb_command": "insert_particle_picker"},
-            "buffer_store": cryolo_params.picker_uuid,
-            "particle_picking_template": cryolo_params.cryolo_model_weights,
-            "number_of_particles": self.number_of_particles,
-            "summary_image_full_path": str(
-                Path(cryolo_params.output_path).with_suffix(".jpeg")
-            ),
-        }
-        if cryolo_params.particle_diameter:
-            ispyb_parameters_spa["particle_diameter"] = cryolo_params.particle_diameter
-        self.log.info(f"Sending to ispyb {ispyb_parameters_spa}")
-        rw.send_to("ispyb_connector", ispyb_parameters_spa)
-
         # Extract results for images service
         try:
             with open(cryolo_params.output_path, "r") as coords_file:
@@ -461,17 +455,30 @@ class CrYOLO(CommonService):
             "ctf_values": cryolo_params.ctf_values,
             "micrographs_file": cryolo_params.input_path,
             "coord_list_file": cryolo_params.output_path,
-        }
-        extraction_params["extract_file"] = str(
-            Path(
-                re.sub(
-                    "MotionCorr/job002/.+",
-                    f"Extract/job{job_number + 1:03}/Movies/",
-                    cryolo_params.input_path,
+            "extract_file": str(
+                Path(
+                    re.sub(
+                        "MotionCorr/job002/.+",
+                        f"Extract/job{job_number + 1:03}/Movies/",
+                        cryolo_params.input_path,
+                    )
                 )
+                / (Path(cryolo_params.input_path).stem + "_extract.star")
+            ),
+        }
+
+        if cryolo_params.app_id is not None:
+            self.log.info("Sending to smartem if configured")
+            rw.send_to(
+                "smartem",
+                {
+                    "number_of_picked_particles": len(cryolo_particle_sizes),
+                    "pick_distribution": {},
+                    "mc_uuid": cryolo_params.mc_uuid,
+                    "app_id": cryolo_params.app_id,
+                    "mc_path": cryolo_params.input_path,
+                },
             )
-            / (Path(cryolo_params.input_path).stem + "_extract.star")
-        )
 
         # Forward results to murfey
         self.log.info("Sending to Murfey for particle extraction")
@@ -500,6 +507,23 @@ class CrYOLO(CommonService):
             job_dir / f"EMAN/{Path(cryolo_params.output_path).with_suffix('.box').name}"
         )
         eman_file.unlink(missing_ok=True)
+
+        # Forward results to ISPyB
+        ispyb_parameters_spa: dict = {
+            "ispyb_command": "buffer",
+            "buffer_lookup": {"motion_correction_id": cryolo_params.mc_uuid},
+            "buffer_command": {"ispyb_command": "insert_particle_picker"},
+            "buffer_store": cryolo_params.picker_uuid,
+            "particle_picking_template": cryolo_params.cryolo_model_weights,
+            "number_of_particles": self.number_of_particles,
+            "summary_image_full_path": str(
+                Path(cryolo_params.output_path).with_suffix(".jpeg")
+            ),
+        }
+        if cryolo_params.particle_diameter:
+            ispyb_parameters_spa["particle_diameter"] = cryolo_params.particle_diameter
+        self.log.info(f"Sending to ispyb {ispyb_parameters_spa}")
+        rw.send_to("ispyb_connector", ispyb_parameters_spa)
 
         self.log.info(
             f"Done {self.job_type} {cryolo_params.experiment_type} "

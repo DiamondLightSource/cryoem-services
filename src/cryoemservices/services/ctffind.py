@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 import subprocess
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from pydantic import BaseModel, Field, ValidationError, field_validator
 from workflows.recipe import wrap_subscribe
@@ -42,8 +42,10 @@ class CTFParameters(BaseModel):
     node_rounded_square: str = "no"
     node_downweight: str = "no"
     # IDs
+    movie: Optional[str] = None
     ctffind_version: int = 4
     mc_uuid: int
+    app_id: Optional[int] = None
     picker_uuid: int
     relion_options: RelionServiceOptions
     autopick: dict = {}
@@ -147,14 +149,15 @@ class CTFFind(CommonService):
         command = ["ctffind5"] if ctf_params.ctffind_version == 5 else ["ctffind"]
 
         # Check if this file has been run before
-        if Path(ctf_params.output_image).is_file():
+        if (
+            Path(ctf_params.output_image).is_file()
+            and not Path(ctf_params.output_image).with_suffix(".tmp").is_file()
+        ):
             job_is_rerun = True
         else:
             job_is_rerun = False
-
-        # Make sure the output directory exists
-        if not Path(ctf_params.output_image).parent.exists():
-            Path(ctf_params.output_image).parent.mkdir(parents=True)
+            Path(ctf_params.output_image).parent.mkdir(parents=True, exist_ok=True)
+            Path(ctf_params.output_image).with_suffix(".tmp").touch(exist_ok=True)
 
         parameters_list = [
             ctf_params.input_image,
@@ -229,6 +232,8 @@ class CTFFind(CommonService):
             else:
                 node_creator_parameters["success"] = True
             rw.send_to("node_creator", node_creator_parameters)
+            # Remove tmp file after requesting node creation
+            Path(ctf_params.output_image).with_suffix(".tmp").unlink(missing_ok=True)
 
         # End here if the command failed
         if result.returncode:
@@ -248,6 +253,16 @@ class CTFFind(CommonService):
         # Extract results for ispyb
         astigmatism = self.defocus1 - self.defocus2
         estimated_defocus = (self.defocus1 + self.defocus2) / 2
+
+        # Forward results to images service
+        self.log.info(f"Sending to images service {ctf_params.output_image}")
+        rw.send_to(
+            "images",
+            {
+                "image_command": "mrc_to_jpeg",
+                "file": ctf_params.output_image,
+            },
+        )
 
         # Forward results to ispyb
         ispyb_parameters = {
@@ -272,17 +287,6 @@ class CTFFind(CommonService):
             ),  # path to output mrc (would be jpeg if we could convert in SW)
         }
         self.log.info(f"Sending to ispyb {ispyb_parameters}")
-        rw.send_to("ispyb_connector", ispyb_parameters)
-
-        # Forward results to images service
-        self.log.info(f"Sending to images service {ctf_params.output_image}")
-        rw.send_to(
-            "images",
-            {
-                "image_command": "mrc_to_jpeg",
-                "file": ctf_params.output_image,
-            },
-        )
 
         # If this is SPA, also set up a cryolo job
         if ctf_params.experiment_type == "spa":
@@ -317,7 +321,34 @@ class CTFFind(CommonService):
             ctf_params.autopick["mc_uuid"] = ctf_params.mc_uuid
             ctf_params.autopick["picker_uuid"] = ctf_params.picker_uuid
             ctf_params.autopick["pixel_size"] = ctf_params.pixel_size
+
+            if ctf_params.app_id is not None:
+                self.log.info("Sending to smartem if configured")
+                rw.send_to(
+                    "smartem",
+                    {
+                        "ctf_max_resolution_estimate": self.estimated_resolution,
+                        "app_id": ctf_params.app_id,
+                        "mc_uuid": ctf_params.mc_uuid,
+                        "mc_path": ctf_params.input_image,
+                    },
+                )
+
             rw.send_to("cryolo", ctf_params.autopick)
+
+        # Register completion with Murfey if this is tomography
+        if ctf_params.experiment_type == "tomography":
+            self.log.info("Sending to Murfey")
+            rw.send_to(
+                "murfey_feedback",
+                {
+                    "register": "motion_corrected",
+                    "movie": ctf_params.movie,
+                    "mrc_out": ctf_params.input_image,
+                },
+            )
+
+        rw.send_to("ispyb_connector", ispyb_parameters)
 
         self.log.info(f"Done {self.job_type} for {ctf_params.input_image}.")
         rw.transport.ack(header)

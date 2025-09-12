@@ -63,6 +63,7 @@ class MotionCorrParameters(BaseModel):
     dose_motionstats_cutoff: float = 4.0
     do_icebreaker_jobs: bool = True
     mc_uuid: int
+    app_id: Optional[int] = None
     picker_uuid: int
     relion_options: RelionServiceOptions
     ctf: dict = {}
@@ -288,10 +289,15 @@ class MotionCorr(CommonService):
         plot_path = Path(mc_params.mrc_out).parent / drift_plot_name
 
         # Check if this file has been run before
-        if Path(mc_params.mrc_out).is_file():
+        if (
+            Path(mc_params.mrc_out).is_file()
+            and not Path(mc_params.mrc_out).with_suffix(".tmp").is_file()
+        ):
             job_is_rerun = True
         else:
             job_is_rerun = False
+            Path(mc_params.mrc_out).parent.mkdir(parents=True, exist_ok=True)
+            Path(mc_params.mrc_out).with_suffix(".tmp").touch(exist_ok=True)
 
         # Get the eer grouping out of the fractionation file
         eer_grouping = 0
@@ -320,8 +326,6 @@ class MotionCorr(CommonService):
 
         # Determine the input and output files
         self.log.info(f"Input: {mc_params.movie} Output: {mc_params.mrc_out}")
-        if not Path(mc_params.mrc_out).parent.exists():
-            Path(mc_params.mrc_out).parent.mkdir(parents=True)
         if mc_params.movie.endswith(".mrc"):
             input_flag = "-InMrc"
         elif mc_params.movie.endswith((".tif", ".tiff")):
@@ -503,25 +507,6 @@ class MotionCorr(CommonService):
             json.dump(fig_as_json, plot_json)
         snapshot_path = Path(mc_params.mrc_out).with_suffix(".jpeg")
 
-        # Forward results to ISPyB
-        ispyb_parameters = {
-            "ispyb_command": "buffer",
-            "buffer_command": {"ispyb_command": "insert_motion_correction"},
-            "buffer_store": mc_params.mc_uuid,
-            "first_frame": 1,
-            "last_frame": len(self.x_shift_list),
-            "total_motion": total_motion,
-            "average_motion_per_frame": average_motion_per_frame,
-            "drift_plot_full_path": str(plot_path),
-            "micrograph_snapshot_full_path": str(snapshot_path),
-            "micrograph_full_path": str(mc_params.mrc_out),
-            "patches_used_x": mc_params.patch_sizes["x"],
-            "patches_used_y": mc_params.patch_sizes["y"],
-            "dose_per_frame": mc_params.dose_per_frame,
-        }
-        self.log.info(f"Sending to ispyb {ispyb_parameters}")
-        rw.send_to("ispyb_connector", ispyb_parameters)
-
         # Determine and set up the next jobs
         if mc_params.experiment_type == "spa":
             # Set up icebreaker if requested, then ctffind
@@ -587,6 +572,7 @@ class MotionCorr(CommonService):
         # Forward results to ctffind (in both SPA and tomography)
         self.log.info(f"Sending to ctf: {mc_params.mrc_out}")
         mc_params.ctf["experiment_type"] = mc_params.experiment_type
+        mc_params.ctf["movie"] = mc_params.movie
         mc_params.ctf["input_image"] = mc_params.mrc_out
         mc_params.ctf["mc_uuid"] = mc_params.mc_uuid
         mc_params.ctf["picker_uuid"] = mc_params.picker_uuid
@@ -600,7 +586,6 @@ class MotionCorr(CommonService):
                 )
             ).with_suffix(".ctf")
         )
-        rw.send_to("ctffind", mc_params.ctf)
 
         # Forward results to images service
         self.log.info(f"Sending to images service {mc_params.mrc_out}")
@@ -677,18 +662,43 @@ class MotionCorr(CommonService):
                 },
             }
             rw.send_to("node_creator", node_creator_parameters)
+            # Remove tmp file after requesting node creation
+            Path(mc_params.mrc_out).with_suffix(".tmp").unlink(missing_ok=True)
 
-        # Register completion with Murfey if this is tomography
-        if mc_params.experiment_type == "tomography":
-            self.log.info("Sending to Murfey")
+        if mc_params.experiment_type == "spa" and mc_params.app_id is not None:
+            self.log.info("Sending to smartem if configured")
             rw.send_to(
-                "murfey_feedback",
+                "smartem",
                 {
-                    "register": "motion_corrected",
-                    "movie": mc_params.movie,
-                    "mrc_out": mc_params.mrc_out,
+                    "total_motion": total_motion,
+                    "average_motion": average_motion_per_frame,
+                    "app_id": mc_params.app_id,
+                    "mc_uuid": mc_params.mc_uuid,
+                    "mc_path": mc_params.mrc_out,
                 },
             )
+
+        # Forward results to ISPyB
+        ispyb_parameters = {
+            "ispyb_command": "buffer",
+            "buffer_command": {"ispyb_command": "insert_motion_correction"},
+            "buffer_store": mc_params.mc_uuid,
+            "first_frame": 1,
+            "last_frame": len(self.x_shift_list),
+            "total_motion": total_motion,
+            "average_motion_per_frame": average_motion_per_frame,
+            "drift_plot_full_path": str(plot_path),
+            "micrograph_snapshot_full_path": str(snapshot_path),
+            "micrograph_full_path": str(mc_params.mrc_out),
+            "patches_used_x": mc_params.patch_sizes["x"],
+            "patches_used_y": mc_params.patch_sizes["y"],
+            "dose_per_frame": mc_params.dose_per_frame,
+        }
+        self.log.info(f"Sending to ispyb {ispyb_parameters}")
+
+        # Do these sends together at the end to minimise the chance of double-insertion
+        rw.send_to("ctffind", mc_params.ctf)
+        rw.send_to("ispyb_connector", ispyb_parameters)
 
         self.log.info(f"Done {self.job_type} for {mc_params.movie}.")
         rw.transport.ack(header)

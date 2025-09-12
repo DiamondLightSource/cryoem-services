@@ -12,28 +12,6 @@
     "queue": "ispyb_connector",
     "service": "EMISPyB"
   },
-  "10": {
-    "output": {
-      "images": 5,
-      "ispyb_connector": 9,
-      "murfey_feedback": 11,
-      "node_creator": 3
-    },
-    "parameters": {
-      "particle_diameter": "{particle_diameter}",
-      "retained_fraction": "0.7"
-    },
-    "queue": "cryolo",
-    "service": "CrYOLO"
-  },
-  "11": {
-    "parameters": {
-      "program_id": "{autoproc_program_id}",
-      "session_id": "{session_id}"
-    },
-    "queue": "{feedback_queue}",
-    "service": "Murfey"
-  },
   "2": {
     "output": {
       "ctffind": 8,
@@ -93,7 +71,7 @@
   },
   "7": {
     "output": {
-      "ispyb_connector": 9,
+      "ispyb_connector": 4,
       "node_creator": 3
     },
     "queue": "icebreaker",
@@ -101,22 +79,35 @@
   },
   "8": {
     "output": {
-      "cryolo": 10,
+      "cryolo": 9,
       "images": 5,
-      "ispyb_connector": 9,
+      "ispyb_connector": 4,
       "node_creator": 3
     },
     "queue": "ctffind",
     "service": "CTFFind"
   },
   "9": {
-    "parameters": {
-      "dcid": "{dcid}",
-      "ispyb_command": "buffer",
-      "program_id": "{autoproc_program_id}"
+    "output": {
+      "images": 5,
+      "ispyb_connector": 4,
+      "murfey_feedback": 10,
+      "node_creator": 3
     },
-    "queue": "ispyb_connector",
-    "service": "EMISPyB"
+    "parameters": {
+      "particle_diameter": "{particle_diameter}",
+      "retained_fraction": "0.7"
+    },
+    "queue": "cryolo",
+    "service": "CrYOLO"
+  },
+  "10": {
+    "parameters": {
+      "program_id": "{autoproc_program_id}",
+      "session_id": "{session_id}"
+    },
+    "queue": "{feedback_queue}",
+    "service": "Murfey"
   },
   "start": [[1, []]]
 }

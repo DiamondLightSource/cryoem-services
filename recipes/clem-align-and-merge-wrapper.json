@@ -1,0 +1,50 @@
+{
+  "1": {
+    "job_parameters": {
+      "series_name": "{series_name}",
+      "images": "{images}",
+      "metadata": "{metadata}",
+      "crop_to_n_frames": "{crop_to_n_frames}",
+      "align_self": "{align_self}",
+      "flatten": "{flatten}",
+      "align_across": "{align_across}"
+    },
+    "output": {
+      "murfey_feedback": 2
+    },
+    "parameters": {
+      "cluster": {
+        "commands": [
+          "source /etc/profile.d/modules.sh",
+          "module load EM/cryoem-services",
+          "cryoemservices.wrap -w CLEMAlignAndMerge -r \"$RECIPEWRAP\" -c {config_file} >runinfo 2>&1"
+        ],
+        "cpus_per_task": 1,
+        "environment": {
+          "PATH": "/bin/:/usr/bin/:/usr/local/bin/",
+          "USER": "{user}"
+        },
+        "job_name": "align-and-merge",
+        "memory_per_node": 65536,
+        "nodes": 1,
+        "partition": "{partition}",
+        "tasks": 8,
+        "time_limit": "3:00:00"
+      },
+      "standard_error": "{session_dir}/tmp/run.err",
+      "standard_output": "{session_dir}/tmp/run.out",
+      "wrapper": "{session_dir}/tmp/.recipewrap--clem_align_and_merge--{job_name}",
+      "workingdir": "{session_dir}/processed/"
+    },
+    "queue": "cluster.submission",
+    "service": "ALIGN-AND-MERGE"
+  },
+  "2": {
+    "parameters": {
+      "session_id": "{session_id}"
+    },
+    "queue": "{feedback_queue}",
+    "service": "Murfey"
+  },
+  "start": [[1, []]]
+}

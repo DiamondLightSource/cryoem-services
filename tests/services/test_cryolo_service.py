@@ -396,6 +396,73 @@ def test_cryolo_spa_needs_uuids_and_pixel_size(
     assert offline_transport.nack.call_count == 3
 
 
+reruns_matrix = (
+    # Output exists? | Job crashed? | Do node creator?
+    (False, False, True),
+    (False, True, True),
+    (True, False, False),
+    (True, True, True),
+)
+
+
+@pytest.mark.parametrize("test_params", reruns_matrix)
+@mock.patch("cryoemservices.services.cryolo.subprocess.run")
+@mock.patch("cryoemservices.services.cryolo.flatten_grid_bars")
+def test_job_reruns(
+    mock_flatten, mock_subprocess, test_params, offline_transport, tmp_path
+):
+    """
+    Send a test message to cryolo for job reruns to check node creator sends
+    """
+    make_output, make_tmp_file, expect_node_creator = test_params
+
+    mock_subprocess().returncode = 0
+    mock_subprocess().stdout = "stdout".encode("utf8")
+    mock_subprocess().stderr = "stderr".encode("utf8")
+
+    output_path = tmp_path / "AutoPick/job007/STAR/sample.star"
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+    ctf_test_values = {
+        "CtfMaxResolution": 0.00001,
+        "DefocusU": 0.05,
+        "DefocusV": 0.08,
+    }
+    cryolo_test_message = {
+        "pixel_size": 0.1,
+        "input_path": "MotionCorr/job002/sample.mrc",
+        "output_path": str(output_path),
+        "experiment_type": "spa",
+        "cryolo_config_file": str(tmp_path) + "/config.json",
+        "mc_uuid": 0,
+        "picker_uuid": 0,
+        "particle_diameter": 1.1,
+        "ctf_values": ctf_test_values,
+        "relion_options": {"batch_size": 20000, "downscale": True},
+    }
+
+    # Set up the mock service
+    service = cryolo.CrYOLO(environment={"queue": ""}, transport=offline_transport)
+    service.initializing()
+
+    if make_output:
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.touch()
+    if make_tmp_file:
+        output_path.with_suffix(".tmp").parent.mkdir(parents=True, exist_ok=True)
+        output_path.with_suffix(".tmp").touch()
+
+    service.cryolo(None, header=header, message=cryolo_test_message)
+
+    # Check that the correct messages were sent (no need to recheck ones tested above)
+    if expect_node_creator:
+        assert offline_transport.send.call_count == 4
+    else:
+        assert offline_transport.send.call_count == 3
+
+
 def test_parse_cryolo_output(offline_transport):
     """
     Send test lines to the output parser

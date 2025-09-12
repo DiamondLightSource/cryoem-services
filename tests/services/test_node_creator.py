@@ -569,6 +569,44 @@ def test_node_creator_cryolo(offline_transport, tmp_path):
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+def test_node_creator_topaz_pick(offline_transport, tmp_path):
+    """
+    Send a test message to the node creator for
+    relion.autopick.topaz.pick
+    """
+    job_dir = "AutoPick/job007"
+    input_file = f"{tmp_path}/MotionCorr/job002/Movies/sample.mrc"
+    output_file = tmp_path / job_dir / "STAR/sample.star"
+    relion_options = RelionServiceOptions()
+    relion_options.particle_diameter = 100
+
+    (tmp_path / "MotionCorr/job002/").mkdir(parents=True)
+    (tmp_path / "MotionCorr/job002/corrected_micrographs.star").touch()
+
+    setup_and_run_node_creation(
+        relion_options,
+        offline_transport,
+        tmp_path,
+        job_dir,
+        "relion.autopick.topaz.pick",
+        input_file,
+        output_file,
+    )
+
+    # Check the output file structure
+    assert (tmp_path / job_dir / "autopick.star").exists()
+    micrographs_file = cif.read_file(str(tmp_path / job_dir / "autopick.star"))
+
+    micrographs_data = micrographs_file.find_block("coordinate_files")
+    assert list(micrographs_data.find_loop("_rlnMicrographName")) == [
+        "MotionCorr/job002/Movies/sample.mrc"
+    ]
+    assert list(micrographs_data.find_loop("_rlnMicrographCoordinates")) == [
+        "AutoPick/job007/STAR/sample.star"
+    ]
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 def test_node_creator_extract(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
@@ -1202,7 +1240,7 @@ def test_node_creator_ctffind_tomo(offline_transport, tmp_path):
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-def test_node_creator_excludetilts(offline_transport, tmp_path):
+def test_node_creator_excludetilts_mc_input(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
     relion.excludetilts
@@ -1213,6 +1251,14 @@ def test_node_creator_excludetilts(offline_transport, tmp_path):
     )
     output_file = tmp_path / job_dir / "tilts/Position_1_2_001_1.50_fractions.mrc"
     relion_options = RelionServiceOptions()
+
+    # Make ctf output file
+    ctf_output_file = (
+        tmp_path / "CtfFind/job003/Movies/Position_1_2_001_1.50_fractions.ctf"
+    )
+    ctf_output_file.parent.mkdir(parents=True)
+    with open(ctf_output_file.with_suffix(".txt"), "w") as f:
+        f.write("0.0 1.0 2.0 3.0 4.0 5.0 6.0")
 
     # .Nodes directory doesn't get made by this job
     (tmp_path / ".Nodes").mkdir()
@@ -1260,10 +1306,78 @@ def test_node_creator_excludetilts(offline_transport, tmp_path):
     assert list(tilts_block.find_loop("_rlnMicrographName")) == [
         "MotionCorr/job002/Movies/Position_1_2_001_1.50_fractions.mrc"
     ]
+    assert list(tilts_block.find_loop("_rlnDefocusU")) == ["1.0"]
+    assert list(tilts_block.find_loop("_rlnDefocusV")) == ["2.0"]
+    assert list(tilts_block.find_loop("_rlnDefocusAngle")) == ["3.0"]
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-def test_node_creator_aligntiltseries(offline_transport, tmp_path):
+def test_node_creator_excludetilts_ctf_input(offline_transport, tmp_path):
+    """
+    Send a test message to the node creator for
+    relion.excludetilts
+    """
+    job_dir = "ExcludeTiltImages/job004"
+    output_file = tmp_path / job_dir / "tilts/Position_1_2_001_1.50_fractions.mrc"
+    relion_options = RelionServiceOptions()
+
+    # Make ctf output file
+    input_file = f"{tmp_path}/CtfFind/job003/Movies/Position_1_2_001_1.50_fractions.ctf"
+    Path(input_file).parent.mkdir(parents=True)
+    with open(Path(input_file).with_suffix(".txt"), "w") as f:
+        f.write("0.0 1.0 2.0 3.0 4.0 5.0 6.0")
+
+    # .Nodes directory doesn't get made by this job
+    (tmp_path / ".Nodes").mkdir()
+
+    setup_and_run_node_creation(
+        relion_options,
+        offline_transport,
+        tmp_path,
+        job_dir,
+        "relion.excludetilts",
+        input_file,
+        output_file,
+        experiment_type="tomography",
+    )
+
+    # Check the output file structure
+    assert (tmp_path / job_dir / "selected_tilt_series.star").exists()
+    tilt_series_file = cif.read_file(
+        str(tmp_path / job_dir / "selected_tilt_series.star")
+    )
+
+    global_block = tilt_series_file.find_block("global")
+    assert list(global_block.find_loop("_rlnTomoName")) == ["Position_1_2"]
+    assert list(global_block.find_loop("_rlnTomoTiltSeriesStarFile")) == [
+        f"{job_dir}/tilt_series/Position_1_2.star"
+    ]
+
+    assert (tmp_path / job_dir / "tilt_series/Position_1_2.star").exists()
+    tilts_file = cif.read_file(
+        str(tmp_path / job_dir / "tilt_series/Position_1_2.star")
+    )
+
+    tilts_block = tilts_file.sole_block()
+    assert list(tilts_block.find_loop("_rlnTomoTiltMovieFrameCount")) == [
+        str(relion_options.frame_count)
+    ]
+    assert list(tilts_block.find_loop("_rlnTomoNominalStageTiltAngle")) == ["1.50"]
+    assert list(tilts_block.find_loop("_rlnTomoNominalTiltAxisAngle")) == [
+        str(relion_options.tilt_axis_angle)
+    ]
+    assert list(tilts_block.find_loop("_rlnMicrographPreExposure")) == ["12.77"]
+    assert list(tilts_block.find_loop("_rlnTomoNominalDefocus")) == [
+        str(relion_options.defocus)
+    ]
+    assert list(tilts_block.find_loop("_rlnMicrographName")) == [
+        "MotionCorr/job002/Movies/Position_1_2_001_1.50_fractions.mrc"
+    ]
+    assert list(tilts_block.find_loop("_rlnDefocusU")) == ["1.0"]
+    assert list(tilts_block.find_loop("_rlnDefocusV")) == ["2.0"]
+    assert list(tilts_block.find_loop("_rlnDefocusAngle")) == ["3.0"]
+
+
+def test_node_creator_aligntiltseries_mc_input(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
     relion.aligntiltseries
@@ -1278,7 +1392,6 @@ def test_node_creator_aligntiltseries(offline_transport, tmp_path):
     ctf_output_file = (
         tmp_path / "CtfFind/job003/Movies/Position_1_2_001_1.50_fractions.ctf"
     )
-
     ctf_output_file.parent.mkdir(parents=True)
     with open(ctf_output_file.with_suffix(".txt"), "w") as f:
         f.write("0.0 1.0 2.0 3.0 4.0 5.0 6.0")
@@ -1342,6 +1455,174 @@ def test_node_creator_aligntiltseries(offline_transport, tmp_path):
     ]
     assert list(tilts_block.find_loop("_rlnDefocusU")) == ["1.0"]
     assert list(tilts_block.find_loop("_rlnDefocusV")) == ["2.0"]
+    assert list(tilts_block.find_loop("_rlnDefocusAngle")) == ["3.0"]
+    assert list(tilts_block.find_loop("_rlnTomoXTilt")) == ["0.00"]
+    assert list(tilts_block.find_loop("_rlnTomoYTilt")) == ["4.00"]
+    assert list(tilts_block.find_loop("_rlnTomoZRot")) == ["83.5"]
+    assert list(tilts_block.find_loop("_rlnTomoXShiftAngst")) == ["1.5"]
+    assert list(tilts_block.find_loop("_rlnTomoYShiftAngst")) == ["4.2"]
+
+
+def test_node_creator_aligntiltseries_ctf_input(offline_transport, tmp_path):
+    """
+    Send a test message to the node creator for
+    relion.aligntiltseries
+    """
+    job_dir = "AlignTiltSeries/job005"
+    output_file = tmp_path / job_dir / "tilts/Position_1_2_001_1.50_fractions.mrc"
+    relion_options = RelionServiceOptions()
+
+    input_file = tmp_path / "CtfFind/job003/Movies/Position_1_2_001_1.50_fractions.ctf"
+    input_file.parent.mkdir(parents=True)
+    with open(input_file.with_suffix(".txt"), "w") as f:
+        f.write("0.0 1.0 2.0 3.0 4.0 5.0 6.0")
+    with open(f"{input_file.with_suffix('')}_avrot.txt", "w") as f:
+        f.write(
+            "header\nheader\nheader\nheader\nheader\n0.24 0.26 0.27 0.29\n1 2 3 4\n"
+        )
+
+    # .Nodes directory doesn't get made by this job
+    (tmp_path / ".Nodes").mkdir()
+
+    setup_and_run_node_creation(
+        relion_options,
+        offline_transport,
+        tmp_path,
+        job_dir,
+        "relion.aligntiltseries.aretomo",
+        str(input_file),
+        output_file,
+        experiment_type="tomography",
+        results={
+            "TomoXTilt": "0.00",
+            "TomoYTilt": "4.00",
+            "TomoZRot": "83.5",
+            "TomoXShiftAngst": "1.5",
+            "TomoYShiftAngst": "4.2",
+        },
+    )
+
+    # Check the output file structure
+    assert (tmp_path / job_dir / "aligned_tilt_series.star").exists()
+    tilt_series_file = cif.read_file(
+        str(tmp_path / job_dir / "aligned_tilt_series.star")
+    )
+
+    global_block = tilt_series_file.find_block("global")
+    assert list(global_block.find_loop("_rlnTomoName")) == ["Position_1_2"]
+    assert list(global_block.find_loop("_rlnTomoTiltSeriesStarFile")) == [
+        f"{job_dir}/tilt_series/Position_1_2.star"
+    ]
+
+    assert (tmp_path / job_dir / "tilt_series/Position_1_2.star").exists()
+    tilts_file = cif.read_file(
+        str(tmp_path / job_dir / "tilt_series/Position_1_2.star")
+    )
+
+    tilts_block = tilts_file.sole_block()
+    assert list(tilts_block.find_loop("_rlnTomoTiltMovieFrameCount")) == [
+        str(relion_options.frame_count)
+    ]
+    assert list(tilts_block.find_loop("_rlnTomoNominalStageTiltAngle")) == ["1.50"]
+    assert list(tilts_block.find_loop("_rlnTomoNominalTiltAxisAngle")) == [
+        str(relion_options.tilt_axis_angle)
+    ]
+    assert list(tilts_block.find_loop("_rlnMicrographPreExposure")) == ["12.77"]
+    assert list(tilts_block.find_loop("_rlnTomoNominalDefocus")) == [
+        str(relion_options.defocus)
+    ]
+    assert list(tilts_block.find_loop("_rlnMicrographName")) == [
+        "MotionCorr/job002/Movies/Position_1_2_001_1.50_fractions.mrc"
+    ]
+    assert list(tilts_block.find_loop("_rlnDefocusU")) == ["1.0"]
+    assert list(tilts_block.find_loop("_rlnDefocusV")) == ["2.0"]
+    assert list(tilts_block.find_loop("_rlnDefocusAngle")) == ["3.0"]
+    assert list(tilts_block.find_loop("_rlnTomoXTilt")) == ["0.00"]
+    assert list(tilts_block.find_loop("_rlnTomoYTilt")) == ["4.00"]
+    assert list(tilts_block.find_loop("_rlnTomoZRot")) == ["83.5"]
+    assert list(tilts_block.find_loop("_rlnTomoXShiftAngst")) == ["1.5"]
+    assert list(tilts_block.find_loop("_rlnTomoYShiftAngst")) == ["4.2"]
+
+
+def test_node_creator_aligntiltseries_excludetilt_input(offline_transport, tmp_path):
+    """
+    Send a test message to the node creator for
+    relion.aligntiltseries
+    """
+    job_dir = "AlignTiltSeries/job005"
+    input_file = (
+        f"{tmp_path}/ExcludeTiltImages/job004/tilts/Position_1_2_001_1.50_fractions.mrc"
+    )
+    output_file = tmp_path / job_dir / "tilts/Position_1_2_001_1.50_fractions.mrc"
+    relion_options = RelionServiceOptions()
+
+    ctf_output_file = (
+        tmp_path / "CtfFind/job003/Movies/Position_1_2_001_1.50_fractions.ctf"
+    )
+    ctf_output_file.parent.mkdir(parents=True)
+    with open(ctf_output_file.with_suffix(".txt"), "w") as f:
+        f.write("0.0 1.0 2.0 3.0 4.0 5.0 6.0")
+    with open(f"{ctf_output_file.with_suffix('')}_avrot.txt", "w") as f:
+        f.write(
+            "header\nheader\nheader\nheader\nheader\n0.24 0.26 0.27 0.29\n1 2 3 4\n"
+        )
+
+    # .Nodes directory doesn't get made by this job
+    (tmp_path / ".Nodes").mkdir()
+
+    setup_and_run_node_creation(
+        relion_options,
+        offline_transport,
+        tmp_path,
+        job_dir,
+        "relion.aligntiltseries.aretomo",
+        input_file,
+        output_file,
+        experiment_type="tomography",
+        results={
+            "TomoXTilt": "0.00",
+            "TomoYTilt": "4.00",
+            "TomoZRot": "83.5",
+            "TomoXShiftAngst": "1.5",
+            "TomoYShiftAngst": "4.2",
+        },
+    )
+
+    # Check the output file structure
+    assert (tmp_path / job_dir / "aligned_tilt_series.star").exists()
+    tilt_series_file = cif.read_file(
+        str(tmp_path / job_dir / "aligned_tilt_series.star")
+    )
+
+    global_block = tilt_series_file.find_block("global")
+    assert list(global_block.find_loop("_rlnTomoName")) == ["Position_1_2"]
+    assert list(global_block.find_loop("_rlnTomoTiltSeriesStarFile")) == [
+        f"{job_dir}/tilt_series/Position_1_2.star"
+    ]
+
+    assert (tmp_path / job_dir / "tilt_series/Position_1_2.star").exists()
+    tilts_file = cif.read_file(
+        str(tmp_path / job_dir / "tilt_series/Position_1_2.star")
+    )
+
+    tilts_block = tilts_file.sole_block()
+    assert list(tilts_block.find_loop("_rlnTomoTiltMovieFrameCount")) == [
+        str(relion_options.frame_count)
+    ]
+    assert list(tilts_block.find_loop("_rlnTomoNominalStageTiltAngle")) == ["1.50"]
+    assert list(tilts_block.find_loop("_rlnTomoNominalTiltAxisAngle")) == [
+        str(relion_options.tilt_axis_angle)
+    ]
+    assert list(tilts_block.find_loop("_rlnMicrographPreExposure")) == ["12.77"]
+    assert list(tilts_block.find_loop("_rlnTomoNominalDefocus")) == [
+        str(relion_options.defocus)
+    ]
+    assert list(tilts_block.find_loop("_rlnMicrographName")) == [
+        "ExcludeTiltImages/job004/tilts/Position_1_2_001_1.50_fractions.mrc"
+    ]
+    assert list(tilts_block.find_loop("_rlnDefocusU")) == ["1.0"]
+    assert list(tilts_block.find_loop("_rlnDefocusV")) == ["2.0"]
+    assert list(tilts_block.find_loop("_rlnDefocusAngle")) == ["3.0"]
     assert list(tilts_block.find_loop("_rlnTomoXTilt")) == ["0.00"]
     assert list(tilts_block.find_loop("_rlnTomoYTilt")) == ["4.00"]
     assert list(tilts_block.find_loop("_rlnTomoZRot")) == ["83.5"]
