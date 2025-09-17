@@ -56,12 +56,124 @@ def get_lif_xml_metadata(
     return xml_root
 
 
+def get_percentiles(
+    file: Path,
+    scene_num: int,
+    channel_num: int,
+    frame_num: int,
+    tile_num: int,
+    percentiles: tuple[float, float] = (1, 99),
+):
+    # Load the subimage
+    image = LifFile(str(file)).get_image(scene_num)
+    try:
+        arr = image.get_frame(
+            z=frame_num,
+            c=channel_num,
+            m=tile_num,
+        )
+    except Exception:
+        logger.warning(f"Unable to load frame {frame_num}-{tile_num}")
+        return (None, None)
+    p_lo, p_hi = np.percentile(arr, percentiles)
+    return p_lo, p_hi
+
+
+def stitch_image_frames(
+    file: Path,
+    scene_num: int,
+    channel_num: int,
+    frame_num: int,
+    tile_scan_info: dict[int, dict],
+    image_width: float,
+    image_height: float,
+    extent: tuple[float, float, float, float],
+    dpi: int | float = 300,
+    color_limits: tuple[Optional[float], Optional[float]] = (None, None),
+) -> np.ndarray:
+    """
+    Helper function to dynamically stitch together image tiles to create a montage.
+
+    This function makes use of Matplotlib's 'imshow' to define the position and size
+    of the image tiles and render them on a blank canvas spatially relative to one
+    another. The plot is then converted into a NumPy array, which is returned and
+    used to build up the final image stack.
+    """
+
+    # Create the figure to stitch the tiles in
+    fig, ax = plt.subplots(facecolor="black")
+    fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
+    fig.set_dpi(dpi)
+    ax.set_xlim(extent[0], extent[1])
+    ax.set_ylim(extent[2], extent[3])
+    ax.invert_yaxis()  # Set origin to top left of figure
+    ax.set_aspect("equal")  # Ensure same scales on x- and y-axis
+    ax.axis("off")
+    ax.set_facecolor("black")
+
+    # Unpack colour limits
+    vmin, vmax = color_limits
+
+    for tile_num, tile_info in tile_scan_info.items():
+        logger.info(f"Loading tile {tile_num}")
+        try:
+            # Get extent of current tile
+            x = float(tile_info["pos_x"])
+            y = float(tile_info["pos_y"])
+            tile_extent = [
+                x,
+                x + image_width,
+                y,
+                y + image_height,
+            ]
+
+            # Add tile to the montage
+            arr = (
+                LifFile(file)
+                .get_image(scene_num)
+                .get_frame(z=frame_num, c=channel_num, m=tile_num)
+            )
+            ax.imshow(
+                arr,
+                extent=tile_extent,
+                origin="lower",
+                cmap="gray",
+                vmin=vmin,
+                vmax=vmax,
+            )
+        except Exception:
+            logger.warning(
+                f"Unable to add file {str(file)!r} to the montage",
+                exc_info=True,
+            )
+            continue
+
+    # Extract the stitched image as an array
+    fig.canvas.draw()  # Render the figure using Matplotlib's engine
+    canvas = np.frombuffer(fig.canvas.buffer_rgba(), dtype=np.uint8)
+    canvas_width, canvas_height = fig.canvas.get_width_height()
+    canvas = canvas.reshape(canvas_height, canvas_width, 4)
+    logger.debug(f"Rendered canvas has shape {canvas.shape}")
+
+    # Find the extent of the stitched image on the rendered canvas
+    bbox = ax.get_window_extent().transformed(fig.dpi_scale_trans.inverted())
+    x0, y0, x1, y1 = [int(coord * fig.dpi) for coord in bbox.extents]
+    logger.debug(f"Image extents on canvas are {[x0, x1, y0, y1]}")
+
+    # Extract and return the stitched image as an array
+    frame = np.array(canvas[y0:y1, x0:x1, :3].mean(axis=-1), dtype=np.uint8)
+    plt.close()
+    logger.debug(f"Image frame has shape {frame.shape}")
+    return frame
+
+
 def process_lif_subimage(
     file: Path,
     scene_num: int,
     metadata: ET.Element,
     root_save_dir: Path,
     save_path: str = "",
+    num_procs: int = 1,
 ) -> dict:
     """
     Takes the LIF file and its corresponding metadata and loads the relevant subimage.
@@ -126,11 +238,23 @@ def process_lif_subimage(
     num_frames = int(dims["z"].get("num_frames", 1))
     num_tiles = int(dims["m"].get("num_tiles", 1))
 
+    # Calculate the full extent of the image
     # Initial arbitrary limits of the atlas in real space
     x_min = 10e10
     x_max = float(0)
     y_min = 10e10
     y_max = float(0)
+
+    for tile in tile_scan_info.values():
+        x = float(tile["pos_x"])
+        y = float(tile["pos_y"])
+
+        # Update the atlas limits
+        x_min = x if x < x_min else x_min
+        y_min = y if y < y_min else y_min
+        x_max = x + w if x + w > x_max else x_max
+        y_max = y + h if y + h > y_max else y_max
+    extent = [x_min, x_max, y_min, y_max]
 
     # Template of results dictionary
     result: dict = {
@@ -152,116 +276,88 @@ def process_lif_subimage(
     # Iterate by color, then z-frame, then tile
     for c, color in enumerate(channels.keys()):
         logger.info(f"Processing {color} channel for {series_name!r}")
-        logger.info(f"Loading images for {series_name!r}")
-        for z in range(num_frames):
-            # Stitch montages together for a given frame
-            if num_tiles > 1:
-                fig, ax = plt.subplots(facecolor="black")
-                fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
-                fig.set_dpi(400)
-                for t, tile in tile_scan_info.items():
-                    try:
-                        x = float(tile["pos_x"])
-                        y = float(tile["pos_y"])
-                        tile_extent = [x, x + w, y, y + h]
 
-                        # Add image frame to the plot
-                        ax.imshow(
-                            image.get_frame(m=t),
-                            extent=tile_extent,
-                            origin="lower",
-                            cmap="gray",
+        # If it's a montage, stitch the tiles together in Matplotlib
+        if num_tiles > 1:
+            logger.info("Estimating global intensity range")
+            with mp.Pool(processes=num_procs) as pool:
+                min_max_list = pool.starmap(
+                    get_percentiles,
+                    # Construct pool arguments in-line
+                    [
+                        (
+                            file,
+                            scene_num,
+                            c,
+                            z,
+                            t,
+                            (0.5, 99.5),
                         )
-
-                        # Update new limits for the atlas
-                        x_min = x if x < x_min else x_min
-                        y_min = y if y < y_min else y_min
-                        x_max = x + w if x + w > x_max else x_max
-                        y_max = y + h if y + h > y_max else y_max
-                    except Exception:
-                        logger.warning(
-                            f"Unable to process tile {t} for frame {z} "
-                            f"for color channel {color!r} "
-                            f"for series {series_name!r}",
-                            exc_info=True,
-                        )
-                        continue
-
-                # Crop plotted area to just the populated space
-                ax.set_xlim(x_min, x_max)
-                ax.set_ylim(y_min, y_max)
-                ax.invert_yaxis()  # Set origin (0,0) to top left
-                ax.set_aspect("equal")  # Ensure x- and y-axis have the same scale
-                ax.axis("off")  # Switch off axis ticks and labels
-                ax.set_facecolor("black")  # Set background to black
-
-                # Save just the contents of the plot
-                logger.info(f"Rendering frame {z}")
-                fig.canvas.draw()  # Render the figure
-                canvas = np.frombuffer(fig.canvas.buffer_rgba(), dtype=np.uint8)
-                canvas = canvas.reshape(
-                    fig.canvas.get_width_height()[1],  # Height
-                    fig.canvas.get_width_height()[0],  # Width
-                    4,  # RGBA channels
+                        for z in range(num_frames)
+                        for t in range(num_tiles)
+                    ],
                 )
-                logger.debug(f"Rendered canvas has shape {canvas.shape}")
+            global_vmin = int(np.percentile([m for m, _ in min_max_list if m], [5])[0])
+            global_vmax = int(np.percentile([m for _, m in min_max_list if m], [95])[0])
 
-                # Do once per dataset
-                if z == 0 and c == 0:
-                    # Find the extent of the stitched image on the rendered canvas
-                    bbox = ax.get_window_extent().transformed(
-                        fig.dpi_scale_trans.inverted()
-                    )
-                    x0, y0, x1, y1 = [int(coord * fig.dpi) for coord in bbox.extents]
-                    logger.debug(f"Image extents on canvas are {[x0, x1, y0, y1]}")
+            # Stitch frames together
+            with mp.Pool(processes=num_procs) as pool:
+                frame_list = pool.starmap(
+                    stitch_image_frames,
+                    # Construct pool arguments in-line
+                    [
+                        (
+                            file,
+                            scene_num,
+                            c,
+                            z,
+                            tile_scan_info,
+                            w,
+                            h,
+                            extent,
+                            500,
+                            (global_vmin, global_vmax),
+                        )
+                        for z in range(num_frames)
+                    ],
+                )
+            arr = np.array(frame_list, dtype=np.uint8)
 
-                    # Update the resolution and pixel size to reflect new scale
-                    dims["x"]["num_pixels"] = x1 - x0
-                    dims["x"]["resolution"] = (x1 - x0) / (x_max - x_min)
-                    dims["x"]["pixel_size"] = (x_max - x_min) / (x1 - x0)
-                    dims["y"]["num_pixels"] = y1 - y0
-                    dims["y"]["resolution"] = (y1 - y0) / (y_max - y_min)
-                    dims["y"]["pixel_size"] = (y_max - y_min) / (y1 - y0)
+            # Update resolution and pixel size in dimensions dictionary
+            h_new, w_new = arr.shape[-2:]
+            dims["x"]["num_pixels"] = w_new
+            dims["x"]["resolution"] = w_new / (x_max - x_min)
+            dims["x"]["pixel_size"] = (x_max - x_min) / w_new
+            dims["y"]["num_pixels"] = h_new
+            dims["y"]["resolution"] = h_new / (y_max - y_min)
+            dims["y"]["pixel_size"] = (y_max / y_min) / h_new
 
-                # Remove alpha channel and convert to grayscale
-                frame = np.array(canvas[y0:y1, x0:x1, :3].mean(axis=-1), dtype=np.uint8)
-                logger.debug(f"Image frame has shape {frame.shape}")
+        else:
+            for z in range(num_frames):
+                frame = image.get_frame(z=z, c=c)
+                logger.info(f"Loaded frame {z}")
 
-            # Otherwise, just load the frame and calculate
-            else:
-                frame = image.get_frame(z=z, t=0, c=c)
-                # Do once per dataset
-                if z == 0 and c == 0:
-                    x = float(tile_scan_info[0]["pos_x"])
-                    y = float(tile_scan_info[0]["pos_y"])
+                if z == 0:
+                    arr = np.array([frame])
+                else:
+                    arr = np.append(arr, [frame], axis=0)
 
-                    # Update new limits for the atlas
-                    x_min = x if x < x_min else x_min
-                    y_min = y if y < y_min else y_min
-                    x_max = x + w if x + w > x_max else x_max
-                    y_max = y + h if y + h > y_max else y_max
-
-            # Do once per dataset
-            if z == 0 and c == 0:
-                # Update results dictionary
-                result["pixels_x"] = dims["x"]["num_pixels"]
-                result["pixels_y"] = dims["y"]["num_pixels"]
-                result["units"] = dims["x"]["units"]
-                result["pixel_size"] = dims["x"]["pixel_size"]
-                result["resolution"] = dims["x"]["resolution"]
-                extent = [x_min, x_max, y_min, y_max]
-                result["extent"] = extent
-
-                logger.debug(f"Current extent is {extent}")
-
-            if z == 0:
-                arr = np.array([frame])
-            else:
-                arr = np.append(arr, [frame], axis=0)
+        # Update results dictionary once per dataset
+        if c == 0:
+            # Update results dictionary
+            result["pixels_x"] = dims["x"]["num_pixels"]
+            result["pixels_y"] = dims["y"]["num_pixels"]
+            result["units"] = dims["x"]["units"]
+            result["pixel_size"] = dims["x"]["pixel_size"]
+            result["resolution"] = dims["x"]["resolution"]
+            extent = [x_min, x_max, y_min, y_max]
+            result["extent"] = extent
 
         # Estimate initial NumPy dtype
-        bit_depth = 8 if dims["m"] else image.bit_depth[c]
-        dtype_init = estimate_int_dtype(arr, bit_depth=bit_depth)
+        dtype_init = estimate_int_dtype(
+            arr,
+            bit_depth=8 if num_tiles > 1 else channels[color]["bit_depth"],
+        )
 
         # Rescale intensity values for fluorescent channels
         adjust_contrast = (
@@ -275,8 +371,10 @@ def process_lif_subimage(
                 "red",
                 "yellow",
             )
+            and num_tiles == 1  # Contrast adjustment already applied during stitching
             else None
         )
+        logger.info(f"Contrast adjustment set to {adjust_contrast}")
 
         # Process the subimage
         logger.info("Applying image processing routine to subimage")
@@ -307,7 +405,6 @@ def process_lif_subimage(
             x_res /= 10**6
             y_res /= 10**6
             z_res /= 10**6
-        logger.info("Saving subimage as a TIFF file")
 
         # Save as a greyscale TIFF
         img_stk_file = write_stack_to_tiff(
@@ -413,26 +510,19 @@ def process_lif_file(
     # Iterate through scenes
     logger.info(f"Examining subimages in {file.name!r}")
 
-    # Set up multiprocessing arguments
-    pool_args = []
-    for i, (elem_path, metadata) in enumerate(metadata_dict.items()):
-        pool_args.append(
-            # Arguments need to be pickle-able; no complex objects allowed
-            #   Follow order of args in the function
-            [
-                file,
-                i,
-                metadata,
-                processed_dir,
-                elem_path,
-            ]
+    # Iterate across the series in the pool
+    results = [
+        process_lif_subimage(
+            file,
+            i,
+            metadata,
+            processed_dir,
+            series_path,
+            num_procs,
         )
+        for i, (series_path, metadata) in enumerate(metadata_dict.items())
+    ]
 
-    # Parallel process subimages and return results
-    with mp.Pool(processes=num_procs) as pool:
-        logger.info(f"Starting processing of LIF subimages in {file.name!r}")
-        # Each thread will return a list of dicts
-        results = pool.starmap(process_lif_subimage, pool_args)
     return results
 
 
