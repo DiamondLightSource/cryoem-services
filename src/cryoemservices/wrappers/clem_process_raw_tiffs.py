@@ -113,7 +113,7 @@ def stitch_image_frames(
             # Add tile to the montage
             with Image.open(image_list[tile_num]) as img:
                 arr = np.array(img)
-            img = ax.imshow(
+            ax.imshow(
                 arr,
                 extent=tile_extent,
                 origin="lower",
