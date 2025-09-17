@@ -57,7 +57,7 @@ def stitch_image_frames(
     image_height: float,
     extent: tuple[float, float, float, float],
     dpi: int | float = 300,
-    color_limits: tuple[Optional[float], Optional[float]] = (None, None),
+    contrast_limits: tuple[Optional[float], Optional[float]] = (None, None),
 ) -> np.ndarray:
     """
     Helper function to dynamically stitch together image tiles to create a montage.
@@ -86,8 +86,8 @@ def stitch_image_frames(
     ax.axis("off")  # Switch off axis ticks and labels
     ax.set_facecolor("black")
 
-    # Unpack colour limits
-    vmin, vmax = color_limits
+    # Unpack min and max values
+    vmin, vmax = contrast_limits
 
     for file in image_list:
         # Extract tile number to cross-reference metadata with
