@@ -350,8 +350,8 @@ def process_tiff_files(
                     ],
                 )
             # global_vmin, global_vmax = None, None
-            global_vmin = int(np.percentile([m for m, _ in min_max_list if m], [5])[0])
-            global_vmax = int(np.percentile([m for _, m in min_max_list if m], [95])[0])
+            global_vmin = int(np.percentile([m for m, _ in min_max_list if m], 0.5))
+            global_vmax = int(np.percentile([m for _, m in min_max_list if m], 85))
 
             # Stitch frames together
             with Pool(processes=num_procs) as pool:
