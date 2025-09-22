@@ -6,12 +6,12 @@ from workflows.recipe import wrap_subscribe
 from cryoemservices.services.common_service import CommonService
 from cryoemservices.util.models import MockRW
 from cryoemservices.wrappers.clem_process_raw_lifs import (
-    LIFToStackParameters,
+    ProcessRawLIFsParameters,
     process_lif_file,
 )
 
 
-class LIFToStackService(CommonService):
+class ProcessRawLIFsService(CommonService):
     """
     A service version of the LIF file-processing wrapper in the CLEM workflow
     """
@@ -48,16 +48,16 @@ class LIFToStackService(CommonService):
 
         try:
             if isinstance(message, dict):
-                params = LIFToStackParameters(
+                params = ProcessRawLIFsParameters(
                     **{**rw.recipe_step.get("parameters", {}), **message}
                 )
             else:
-                params = LIFToStackParameters(
+                params = ProcessRawLIFsParameters(
                     **{**rw.recipe_step.get("parameters", {})}
                 )
         except (ValidationError, TypeError) as e:
             self.log.warning(
-                f"LIFToStackParameters validation failed for message: {message} "
+                f"ProcessRawLIFsParameters validation failed for message: {message} "
                 f"and recipe parameters: {rw.recipe_step.get('parameters', {})} "
                 f"with exception: {e}"
             )

@@ -84,8 +84,8 @@ torch = [
 [project.entry-points."cryoemservices.services"]
     BFactor = "cryoemservices.services.bfactor_setup:BFactor"
     CLEMAlignAndMerge = "cryoemservices.services.clem_align_and_merge:AlignAndMergeService"
-    CLEMLIFToStack = "cryoemservices.services.clem_process_raw_lifs:LIFToStackService"
-    CLEMTIFFToStack = "cryoemservices.services.clem_process_raw_tiffs:TIFFToStackService"
+    CLEMProcessRawLIFs = "cryoemservices.services.clem_process_raw_lifs:ProcessRawLIFsService"
+    CLEMProcessRawTIFFs = "cryoemservices.services.clem_process_raw_tiffs:ProcessRawTIFFsService"
     CTFFind = "cryoemservices.services.ctffind:CTFFind"
     Class2D = "cryoemservices.services.class2d:Class2D"
     Class3D = "cryoemservices.services.class3d:Class3D"

@@ -6,12 +6,12 @@ from workflows.recipe import wrap_subscribe
 from cryoemservices.services.common_service import CommonService
 from cryoemservices.util.models import MockRW
 from cryoemservices.wrappers.clem_process_raw_tiffs import (
-    TIFFToStackParameters,
+    ProcessRawTIFFsParameters,
     process_tiff_files,
 )
 
 
-class TIFFToStackService(CommonService):
+class ProcessRawTIFFsService(CommonService):
     """
     A service version of the TIFF file-processing wrapper in the CLEM workflow
     """
@@ -48,16 +48,16 @@ class TIFFToStackService(CommonService):
 
         try:
             if isinstance(message, dict):
-                params = TIFFToStackParameters(
+                params = ProcessRawTIFFsParameters(
                     **{**rw.recipe_step.get("parameters", {}), **message}
                 )
             else:
-                params = TIFFToStackParameters(
+                params = ProcessRawTIFFsParameters(
                     **{**rw.recipe_step.get("parameters", {})}
                 )
         except (ValidationError, TypeError) as e:
             self.log.warning(
-                f"TIFFToStackParameters validation failed for message: {message} "
+                f"ProcessRawTIFFsParameters validation failed for message: {message} "
                 f"and recipe parameters: {rw.recipe_step.get('parameters', {})} "
                 f"with exception: {e}"
             )

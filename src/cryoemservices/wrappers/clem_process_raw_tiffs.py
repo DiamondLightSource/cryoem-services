@@ -489,7 +489,7 @@ def process_tiff_files(
     return result
 
 
-class TIFFToStackParameters(BaseModel):
+class ProcessRawTIFFsParameters(BaseModel):
     """
     Pydantic model for validating the received message for the TIFF file conversion
     workflow.
@@ -535,7 +535,7 @@ class TIFFToStackParameters(BaseModel):
         return value
 
     @model_validator(mode="after")
-    def construct_tiff_list(cls, model: TIFFToStackParameters):
+    def construct_tiff_list(cls, model: ProcessRawTIFFsParameters):
         if model.tiff_list and model.tiff_file:
             raise ValueError(
                 "Only one of 'tiff_list' or 'tiff_file' should be provided, not both"
@@ -554,7 +554,7 @@ class TIFFToStackParameters(BaseModel):
         return model
 
 
-class TIFFToStackWrapper:
+class ProcessRawTIFFsWrapper:
     def __init__(self, recwrap):
         self.log = logging.LoggerAdapter(logger)
         self.recwrap = recwrap
@@ -567,10 +567,10 @@ class TIFFToStackWrapper:
         """
         params_dict = self.recwrap.recipe_step["job_parameters"]
         try:
-            params = TIFFToStackParameters(**params_dict)
+            params = ProcessRawTIFFsParameters(**params_dict)
         except (ValidationError, TypeError) as e:
             logger.error(
-                "TIFFToStackParameters validation failed for parameters: "
+                "ProcessRawTIFFsParameters validation failed for parameters: "
                 f"{params_dict} with exception: {e}"
             )
             return False

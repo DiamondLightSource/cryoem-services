@@ -526,7 +526,7 @@ def process_lif_file(
     return results
 
 
-class LIFToStackParameters(BaseModel):
+class ProcessRawLIFsParameters(BaseModel):
     """
     Pydantic model for validating the received message for the LIF file conversion
     workflow.
@@ -541,7 +541,7 @@ class LIFToStackParameters(BaseModel):
     num_procs: int = 20  # Number of processing threads to run
 
 
-class LIFToStackWrapper:
+class ProcessRawLIFsWrapper:
     def __init__(self, recwrap):
         self.log = logging.LoggerAdapter(logger)
         self.recwrap = recwrap
@@ -555,10 +555,10 @@ class LIFToStackWrapper:
 
         params_dict = self.recwrap.recipe_step["job_parameters"]
         try:
-            params = LIFToStackParameters(**params_dict)
+            params = ProcessRawLIFsParameters(**params_dict)
         except (ValidationError, TypeError) as error:
             logger.error(
-                "LIFToStackParameters validation failed for parameters: "
+                "ProcessRawLIFsParameters validation failed for parameters: "
                 f"{params_dict} with exception: {error}"
             )
             return False
