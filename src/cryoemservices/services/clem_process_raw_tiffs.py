@@ -87,6 +87,7 @@ class ProcessRawTIFFsService(CommonService):
             tiff_list=params.tiff_list,
             root_folder=params.root_folder,
             metadata_file=params.metadata,
+            number_of_processes=params.num_procs,
         )
 
         # Nack message and log error if the command fails to execute

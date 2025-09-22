@@ -32,6 +32,14 @@ def run():
         type=str,
         help="Path to the XLIF file associated with this dataset. If not provided, the script will use relative file paths to find what it thinks is the appropriate file",
     )
+    # Number of processes to multiprocess with
+    parser.add_argument(
+        "-n",
+        "--num-procs",
+        type=int,
+        default=1,
+        help=("Number of processes to run. \n" "DEFAULT:   1"),
+    )
     # Add debug option
     parser.add_argument(
         "--debug",
@@ -65,6 +73,7 @@ def run():
         tiff_list=tiff_list,
         root_folder=args.root_folder,
         metadata_file=metadata,
+        number_of_processes=args.num_procs,
     )
 
     # Print result to output log

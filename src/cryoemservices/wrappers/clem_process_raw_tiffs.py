@@ -151,6 +151,7 @@ def process_tiff_files(
     tiff_list: list[Path],  # List of files associated with this series
     root_folder: str,  # Name of the folder to treat as the root folder
     metadata_file: Optional[Path] = None,  # Option to manually provide metadata file
+    number_of_processes: int = 1,  # Number of processing threads to run
 ) -> dict:
     """
     Takes a list of TIFF files for a distinct image series and uses them to construct
@@ -179,6 +180,12 @@ def process_tiff_files(
         |   |__ red.tiff
         |   |   ... Mimics "images" folder structure
     """
+
+    # Validate processor count input
+    num_procs = number_of_processes  # Use shorter phrase in script
+    if num_procs < 1:
+        logger.warning("Processor count set to zero or less; resetting to 1")
+        num_procs = 1
 
     # Set variables for use within function
     new_root_folder = "processed"
@@ -331,7 +338,7 @@ def process_tiff_files(
 
             # Calculate global values for vmin and vmax
             logger.info("Estimating global intensity range")
-            with Pool(processes=20) as pool:
+            with Pool(processes=num_procs) as pool:
                 min_max_list = pool.starmap(
                     get_percentiles,
                     [
@@ -347,7 +354,7 @@ def process_tiff_files(
             global_vmax = int(np.percentile([m for _, m in min_max_list if m], [95])[0])
 
             # Stitch frames together
-            with Pool(processes=20) as pool:
+            with Pool(processes=num_procs) as pool:
                 frame_list = pool.starmap(
                     stitch_image_frames,
                     # Construct pool args in-line
@@ -366,7 +373,7 @@ def process_tiff_files(
                             w,
                             h,
                             extent,
-                            500,
+                            400,
                             (global_vmin, global_vmax),
                         )
                         for z in range(num_frames)
@@ -505,6 +512,7 @@ class ProcessRawTIFFsParameters(BaseModel):
     tiff_file: Optional[Path]
     root_folder: str
     metadata: Path
+    num_procs: int = 20
 
     @field_validator("tiff_list", mode="before")
     def parse_tiff_list(cls, value):
@@ -602,6 +610,7 @@ class ProcessRawTIFFsWrapper:
             tiff_list=params.tiff_list,
             root_folder=params.root_folder,
             metadata_file=params.metadata,
+            number_of_processes=params.num_procs,
         )
 
         # Log errors and warnings
