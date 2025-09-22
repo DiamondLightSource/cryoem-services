@@ -78,8 +78,6 @@ def run():
 
     # Print result to output log
     if results:
-        if args.debug:
-            print(results)
         print()
         print("TIFF processing workflow successfully completed")
     else:
