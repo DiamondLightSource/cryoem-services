@@ -46,9 +46,9 @@ clem_align_and_merge:
 clem_process_raw_lifs:
   replicas: 0
   image: gcr.io/image/path
-  command: cryoemservices.service -s CLEMLIFToStack -c /cryoemservices/config/cryoemservices_config.yaml
-  cpuRequest: "5"
-  cpuLimit: "20"
+  command: cryoemservices.service -s CLEMProcessRawLIFs -c /cryoemservices/config/cryoemservices_config.yaml
+  cpuRequest: "8"
+  cpuLimit: "8"
   memoryLimit: 64Gi
   scaleOnQueueLength: true
   queueLengthTrigger: "4"
@@ -58,9 +58,9 @@ clem_process_raw_lifs:
 clem_process_raw_tiffs:
   replicas: 0
   image: gcr.io/image/path
-  command: cryoemservices.service -s CLEMTIFFToStack -c /cryoemservices/config/cryoemservices_config.yaml
-  cpuRequest: "1"
-  cpuLimit: "1"
+  command: cryoemservices.service -s CLEMProcessRawTIFFs -c /cryoemservices/config/cryoemservices_config.yaml
+  cpuRequest: "8"
+  cpuLimit: "8"
   memoryLimit: 64Gi
   scaleOnQueueLength: true
   queueLengthTrigger: "4"
