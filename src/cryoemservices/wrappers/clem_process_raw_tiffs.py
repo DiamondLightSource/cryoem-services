@@ -36,7 +36,9 @@ from cryoemservices.util.clem_metadata import (
 logger = logging.getLogger("cryoemservices.services.clem_process_raw_tiffs")
 
 
-def get_percentiles(file: Path, percentiles: tuple[float, float] = (1, 99)):
+def get_percentiles(
+    file: Path, percentiles: tuple[float, float] = (1, 99)
+) -> tuple[float | None, float | None]:
     """
     Helper function run as part of a multiprocessing pool to extract the min and max
     intensity values from an image.
@@ -335,8 +337,7 @@ def process_tiff_files(
 
         # If it's a montage, stitch the tiles together in Matplotlib
         if num_tiles > 1:
-
-            # Calculate global values for vmin and vmax
+            # Estimate suitable contrast limits for the dataset
             logger.info("Estimating global intensity range")
             with Pool(processes=num_procs) as pool:
                 min_max_list = pool.starmap(
@@ -349,9 +350,12 @@ def process_tiff_files(
                         for file in tiff_color_subset
                     ],
                 )
-            # global_vmin, global_vmax = None, None
-            global_vmin = int(np.percentile([m for m, _ in min_max_list if m], 0.5))
-            global_vmax = int(np.percentile([m for _, m in min_max_list if m], 85))
+            global_vmin = int(
+                np.percentile([m for m, _ in min_max_list if m is not None], 0.5)
+            )
+            global_vmax = int(
+                np.percentile([m for _, m in min_max_list if m is not None], 85)
+            )
 
             # Stitch frames together
             with Pool(processes=num_procs) as pool:

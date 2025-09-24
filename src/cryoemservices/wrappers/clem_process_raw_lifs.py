@@ -63,7 +63,7 @@ def get_percentiles(
     frame_num: int,
     tile_num: int,
     percentiles: tuple[float, float] = (1, 99),
-):
+) -> tuple[float | None, float | None]:
     # Load the subimage
     image = LifFile(str(file)).get_image(scene_num)
     try:
@@ -279,6 +279,7 @@ def process_lif_subimage(
 
         # If it's a montage, stitch the tiles together in Matplotlib
         if num_tiles > 1:
+            # Estimate suitable contrast limits for the dataset
             logger.info("Estimating global intensity range")
             with mp.Pool(processes=num_procs) as pool:
                 min_max_list = pool.starmap(
@@ -297,8 +298,12 @@ def process_lif_subimage(
                         for t in range(num_tiles)
                     ],
                 )
-            global_vmin = int(np.percentile([m for m, _ in min_max_list if m], 0.5))
-            global_vmax = int(np.percentile([m for _, m in min_max_list if m], 85))
+            global_vmin = int(
+                np.percentile([m for m, _ in min_max_list if m is not None], 0.5)
+            )
+            global_vmax = int(
+                np.percentile([m for _, m in min_max_list if m is not None], 85)
+            )
 
             # Stitch frames together
             with mp.Pool(processes=num_procs) as pool:
