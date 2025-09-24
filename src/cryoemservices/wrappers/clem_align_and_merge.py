@@ -208,11 +208,10 @@ def align_and_merge_stacks(
     colors = colors_to_process
 
     # Add file name component to describe type of composite image being generated
-    img_type = (
-        "BF_FL"  # Bright field + fluorescent
-        if any(color in colors for color in ("gray", "grey"))
-        else "FL"  # Fluorescent only
-    )
+    if any(color in colors for color in ("gray", "grey")):
+        img_type = "BF" if len(colors) == 1 else "BF_FL"
+    else:
+        img_type = "FL"
 
     # Check that images have the same pixel calibration
     if len(set(resolution_list)) > 1:
