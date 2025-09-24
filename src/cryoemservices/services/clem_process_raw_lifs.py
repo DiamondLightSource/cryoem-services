@@ -65,13 +65,20 @@ class ProcessRawLIFsService(CommonService):
             return
 
         # Process files and collect output
-        results = process_lif_file(
-            file=params.lif_file,
-            root_folder=params.root_folder,
-            number_of_processes=params.num_procs,
-        )
-
-        # Log error if the command fails to execute
+        try:
+            results = process_lif_file(
+                file=params.lif_file,
+                root_folder=params.root_folder,
+                number_of_processes=params.num_procs,
+            )
+        # Log error and nack message if the command fails to execute
+        except Exception:
+            self.log.error(
+                f"Exception encontered while processing LIF file {str(params.lif_file)!r}: \n",
+                exc_info=True,
+            )
+            rw.transport.nack(header)
+            return
         if not results:
             self.log.error(
                 f"Failed to extract image stacks from {str(params.lif_file)!r}"

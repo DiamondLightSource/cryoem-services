@@ -65,15 +65,23 @@ class AlignAndMergeService(CommonService):
             return
 
         # Process files and collect output
-        results = align_and_merge_stacks(
-            images=params.images,
-            metadata=params.metadata,
-            crop_to_n_frames=params.crop_to_n_frames,
-            align_self=params.align_self,
-            flatten=params.flatten,
-            align_across=params.align_across,
-        )
-
+        try:
+            results = align_and_merge_stacks(
+                images=params.images,
+                metadata=params.metadata,
+                crop_to_n_frames=params.crop_to_n_frames,
+                align_self=params.align_self,
+                flatten=params.flatten,
+                align_across=params.align_across,
+            )
+        # Log error and nack message if the command fails to execute
+        except Exception:
+            self.log.error(
+                f"Exception encountered while aligning and merging images for {params.series_name!r}: \n",
+                exc_info=True,
+            )
+            rw.transport.nack(header)
+            return
         if not results:
             self.log.error(
                 "Failed to complete the aligning and merging process for "

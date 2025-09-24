@@ -485,17 +485,25 @@ class AlignAndMergeWrapper:
             return False
 
         # Process files and collect output
-        result = align_and_merge_stacks(
-            images=params.images,
-            metadata=params.metadata,
-            crop_to_n_frames=params.crop_to_n_frames,
-            align_self=params.align_self,
-            flatten=params.flatten,
-            align_across=params.align_across,
-        )
+        try:
+            result = align_and_merge_stacks(
+                images=params.images,
+                metadata=params.metadata,
+                crop_to_n_frames=params.crop_to_n_frames,
+                align_self=params.align_self,
+                flatten=params.flatten,
+                align_across=params.align_across,
+            )
+        # Log error and return False if the command fails to execute
+        except Exception:
+            logger.error(
+                f"Exception encountered while aligning and merging images for series {params.series_name!r}: \n",
+                exc_info=True,
+            )
+            return False
         if not result:
             logger.error(
-                "Failed to complete the aligning and merging process for "
+                "No image alignment and merging results were returned for series "
                 f"{params.series_name!r}"
             )
             return False

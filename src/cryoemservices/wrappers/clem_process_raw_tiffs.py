@@ -610,17 +610,26 @@ class ProcessRawTIFFsWrapper:
         )
 
         # Process files and collect output
-        result = process_tiff_files(
-            tiff_list=params.tiff_list,
-            root_folder=params.root_folder,
-            metadata_file=params.metadata,
-            number_of_processes=params.num_procs,
-        )
-
-        # Log errors and warnings
-        if not result:
-            logger.error(f"Process failed for TIFF series {series_name!r}")
+        try:
+            result = process_tiff_files(
+                tiff_list=params.tiff_list,
+                root_folder=params.root_folder,
+                metadata_file=params.metadata,
+                number_of_processes=params.num_procs,
+            )
+        # Log error and return False if the command fails to execute
+        except Exception:
+            logger.error(
+                f"Exception encountered while processing TIFF files for series {series_name!r}: \n",
+                exc_info=True,
+            )
             return False
+        if not result:
+            logger.error(
+                f"No processing results were returned for TIFF series {series_name!r}"
+            )
+            return False
+
         # Send results to Murfey's "feedback_callback" function
         murfey_params = {
             "register": "clem.register_tiff_preprocessing_result",

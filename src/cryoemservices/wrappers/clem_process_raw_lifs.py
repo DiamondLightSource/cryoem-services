@@ -569,16 +569,23 @@ class ProcessRawLIFsWrapper:
             return False
 
         # Process files and collect output
-        results = process_lif_file(
-            file=params.lif_file,
-            root_folder=params.root_folder,
-            number_of_processes=params.num_procs,
-        )
-
-        # Return False and log error if the command fails to execute
+        try:
+            results = process_lif_file(
+                file=params.lif_file,
+                root_folder=params.root_folder,
+                number_of_processes=params.num_procs,
+            )
+        # Log error and return False if the command fails to execute
+        except Exception:
+            logger.error(
+                f"Exception encontered while processing LIF file {str(params.lif_file)!r}: \n",
+                exc_info=True,
+            )
+            return False
         if not results:
             logger.error(f"Failed to extract subimages from {str(params.lif_file)!r}")
             return False
+
         # Send each subset of output files to Murfey for registration
         for result in results:
             # Create dictionary and send it to Murfey's "feedback_callback" function

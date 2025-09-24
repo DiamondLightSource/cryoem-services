@@ -83,16 +83,25 @@ class ProcessRawTIFFsService(CommonService):
         )
 
         # Process files and collect output
-        result = process_tiff_files(
-            tiff_list=params.tiff_list,
-            root_folder=params.root_folder,
-            metadata_file=params.metadata,
-            number_of_processes=params.num_procs,
-        )
-
-        # Nack message and log error if the command fails to execute
+        try:
+            result = process_tiff_files(
+                tiff_list=params.tiff_list,
+                root_folder=params.root_folder,
+                metadata_file=params.metadata,
+                number_of_processes=params.num_procs,
+            )
+        # Log error and nack message if the command fails to execute
+        except Exception:
+            self.log.error(
+                f"Exception encountered while processing TIFF files for series {series_name}: \n",
+                exc_info=True,
+            )
+            rw.transport.nack(header)
+            return
         if not result:
-            self.log.error(f"Process failed for TIFF series {series_name!r}")
+            self.log.error(
+                f"No processing results were returned for TIFF series {series_name!r}"
+            )
             rw.transport.nack(header)
             return
 
