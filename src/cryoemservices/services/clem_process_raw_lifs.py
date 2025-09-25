@@ -90,7 +90,7 @@ class ProcessRawLIFsService(CommonService):
         for result in results:
             # Create dictionary and send it to Murfey's "feedback_callback" function
             murfey_params = {
-                "register": "clem.register_lif_preprocessing_result",
+                "register": "clem.register_preprocessing_result",
                 "result": result,
             }
             rw.send_to("murfey_feedback", murfey_params)
