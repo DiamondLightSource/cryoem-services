@@ -494,7 +494,7 @@ def process_tiff_files(
         )
         # Collect the images created
         result["output_files"][color] = str(img_stk_file.resolve())
-        result["parent_tiffs"][color] = [str(file) for file in tiff_color_subset]
+        result["parent_tiffs"][color] = [str(file) for file in tiff_color_subset][0:1]
 
     logger.debug(f"Processing results are as follows: {result}")
     return result
