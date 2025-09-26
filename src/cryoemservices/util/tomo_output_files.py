@@ -743,8 +743,8 @@ def _cryolo_output_files(
     loop_x = cryolo_block.find_loop("_CoordinateX")
     loop_y = cryolo_block.find_loop("_CoordinateY")
     loop_z = cryolo_block.find_loop("_CoordinateZ")
-    loop_width = cryolo_block.find_loop("_EstWidth")
-    loop_height = cryolo_block.find_loop("_EstHeight")
+    loop_width = cryolo_block.find_loop("_Width")
+    loop_height = cryolo_block.find_loop("_Height")
 
     # Scale coordinates back to original tilt size
     scaling_factor = relion_options.pixel_size_downscaled / relion_options.pixel_size
