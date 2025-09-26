@@ -22,10 +22,10 @@ def parameters_with_replacement(param: str, message: dict, all_parameters: Calla
     If the value is defined in the command list item then this takes
     precedence.
     """
-    if message.get(param) and "$" not in str(message[param]):
+    if message.get(param) is not None and "$" not in str(message[param]):
         # Precedence for command list items
         value_to_return = message[param]
-    elif message.get(param):
+    elif message.get(param) is not None:
         # Run lookup on dollar parameters
         value_to_return = all_parameters(message[param])
     else:
