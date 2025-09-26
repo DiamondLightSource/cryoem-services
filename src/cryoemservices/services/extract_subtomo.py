@@ -35,7 +35,7 @@ inptus = {
     "relion_options": {},
 }
 in2 = {
-    "cbox_3d_file": "/scratch/yxd92326/data/tomo-extract/2_1_ApoF_Pos_13_9_stack_aretomo.denoised.cbox",
+    "cbox_3d_file": "/scratch/yxd92326/data/tomo-extract/2_1_ApoF_Pos_13_9_test.cbox",
     "tilt_alignment_file": "/scratch/yxd92326/data/tomo-extract/2_1_ApoF_Pos_13_9_stack_aretomo.aln",
     "newstack_file": "/scratch/yxd92326/data/tomo-extract/2_1_ApoF_Pos_13_9_stack_newstack.txt",
     "output_star": "/scratch/yxd92326/data/tomo-extract/extracted_apof/extract.star",
@@ -44,6 +44,7 @@ in2 = {
     "tilt_offset": 0,
     "scaled_tomogram_shape": [1440, 1023, 400],
     "relion_options": {},
+    "particle_diameter": 500,
 }
 
 
@@ -164,7 +165,6 @@ class ExtractSubTomo(CommonService):
 
         # Get the shifts between tilts
         shift_data = np.genfromtxt(extract_subtomo_params.tilt_alignment_file)
-        # tilt_ids = shift_data[:, 0].astype(int)
         refined_tilt_axis = float(shift_data[0, 1])
         x_shifts = shift_data[:, 3].astype(float)
         y_shifts = shift_data[:, 4].astype(float)
@@ -215,32 +215,39 @@ class ExtractSubTomo(CommonService):
                     with mrcfile.open(tilt_name) as mrc:
                         tilt_images.append(mrc.data)
 
+        for tilt in range(tilt_count):
+            if extract_subtomo_params.maximum_dose > 0 and (
+                extract_subtomo_params.dose_per_tilt * tilt_numbers[tilt]
+                > extract_subtomo_params.maximum_dose
+            ):
+                self.log.info(f"Skipping tilt {tilt} due to dose limit")
+
         frames = np.zeros((len(particles_x), tilt_count), dtype=int)
         tilt_coords: list = [[] for tilt in range(tilt_count)]
-        for particle in tqdm(range(len(particles_x))):  # [385]:#
-            # print(particles_x[particle], particles_y[particle], particles_z[particle])
+        for particle in tqdm(range(len(particles_x))):
             output_mrc_stack = np.array([])
             for tilt in range(tilt_count):
                 if extract_subtomo_params.maximum_dose > 0 and (
                     extract_subtomo_params.dose_per_tilt * tilt_numbers[tilt]
                     > extract_subtomo_params.maximum_dose
                 ):
-                    self.log.info(f"Skipping {tilt} due to dose limit")
                     continue
 
                 x_in_tilt, y_in_tilt = get_coord_in_tilt(
                     x=particles_x[particle],
                     y=particles_y[particle],
+                    z=particles_z[particle],
                     cen_x=centre_x,
                     cen_y=centre_y,
+                    cen_z=centre_z,
                     theta_y=tilt_angles[tilt],
                     theta_z=tilt_axis_radians,
                     delta_x=x_shifts[tilt],
                     delta_y=y_shifts[tilt],
                     binning=extract_subtomo_params.tomogram_binning,
                 )
-                # print(tilt, tilt_angles_radians[tilt], tilt_axis_radians, x_in_tilt, y_in_tilt)
                 tilt_coords[tilt].append([x_in_tilt, y_in_tilt])
+                # print(x_in_tilt, y_in_tilt, tilt_angles[tilt])
 
                 particle_subimage, failure_reason = extract_single_particle(
                     input_image=tilt_images[tilt],
@@ -289,7 +296,6 @@ class ExtractSubTomo(CommonService):
                 Path(extract_subtomo_params.output_star).parent
                 / f"{particle}_stack2d.mrcs"
             )
-            # self.log.info(f"Extracted particle {particle+1} of {len(particles_x)}")
             with mrcfile.new(str(output_mrc_file), overwrite=True) as mrc:
                 mrc.set_data(output_mrc_stack.astype(np.float32))
                 mrc.header.mx = extract_subtomo_params.relion_options.small_boxsize
@@ -383,8 +389,10 @@ class ExtractSubTomo(CommonService):
 def get_coord_in_tilt(
     x: float,
     y: float,
+    z: float,
     cen_x: float,
     cen_y: float,
+    cen_z: float,
     theta_y: float,
     theta_z: float,
     delta_x: float,
@@ -393,15 +401,73 @@ def get_coord_in_tilt(
 ):
     # Translation raw to aligned tilt is subtract shift then rotate around centre
     # In binned coordinates here
-    x_centred = x - cen_x  # - delta_x / binning
-    y_centred = (
-        y - cen_y
-    )  # - delta_y / binning#+ cen_x * np.tan(theta_z)  # TODO: last factor depends on rot
+    x_centred = x - cen_x
+    y_centred = y - cen_y  # + cen_x * np.tan(theta_z) TODO: last factor depends on rot
     x_2d = x_centred * np.cos(theta_z) - y_centred * np.sin(theta_z)
     y_2d = x_centred * np.sin(theta_z) + y_centred * np.cos(theta_z)
     # Un-bin and apply shifts
     x_tilt = (cen_x + x_2d) * binning + delta_x
     y_flat = (cen_y + y_2d) * binning + delta_y
     y_tilt = (y_flat - cen_y * binning) * np.cos(theta_y) + cen_y * binning
-    # print(x_centred, y_centred, cen_x, x_2d, delta_x, cen_y, y_2d, delta_y)
+    # print(cen_x, x, x_2d, delta_x, cen_y, y, y_2d, delta_y)
+
+    z_centred = z - cen_z
+    y_tilt += z_centred * np.sin(theta_y) * binning
+    # print(z_centred * np.sin(theta_y), x_tilt, y_tilt)
     return x_tilt, y_tilt
+
+
+"""
+with open("Extract_maxdose/particles.star", "a") as partstar:
+    for tomo in Path("Extract_maxdose").glob("2_1*"):
+        with open(tomo / "extract.star") as tomostar:
+            while True:
+                line=tomostar.readline()
+                if not line:
+                    break
+                if line.startswith("2_1"):
+                    partstar.write(line)
+"""
+
+
+def cbox_to_star(name, max_subsample):
+    import pandas as pd
+    import starfile
+
+    # make data_particles
+    cbox = starfile.read(f"AutoPick/job009/CBOX_3D/{name}_stack_aretomo.denoised.cbox")
+    all_particles = cbox["cryolo"]
+    new_particles = pd.DataFrame()
+    new_particles["rlnTomoName"] = [f"{name}" for i in range(len(all_particles))]
+    new_particles["rlnCenteredCoordinateXAngst"] = (
+        all_particles["CoordinateY"] * 4 + 80 - 4092 / 2
+    ) * 1.34
+    new_particles["rlnCenteredCoordinateYAngst"] = (
+        5760 - all_particles["CoordinateX"] * 4 - 80 - 5760 / 2
+    ) * 1.34
+    new_particles["rlnCenteredCoordinateZAngst"] = (
+        all_particles["CoordinateZ"] * 4 - 1600 / 2
+    ) * 1.34
+    for subsamp in range(2, max_subsample + 1):
+        if Path(
+            f"AutoPick/job009/CBOX_3D/{name}_{subsamp}_stack_aretomo.denoised.cbox"
+        ).is_file():
+            cbox = starfile.read(
+                f"AutoPick/job009/CBOX_3D/{name}_{subsamp}_stack_aretomo.denoised.cbox"
+            )
+            particles = cbox["cryolo"]
+            add_particles = pd.DataFrame()
+            add_particles["rlnTomoName"] = [
+                f"{name}_{subsamp}" for i in range(len(particles))
+            ]
+            add_particles["rlnCenteredCoordinateXAngst"] = (
+                particles["CoordinateY"] * 4 + 80 - 4092 / 2
+            ) * 1.34
+            add_particles["rlnCenteredCoordinateYAngst"] = (
+                5760 - particles["CoordinateX"] * 4 - 80 - 5760 / 2
+            ) * 1.34
+            add_particles["rlnCenteredCoordinateZAngst"] = (
+                particles["CoordinateZ"] * 4 - 1600 / 2
+            ) * 1.34
+            new_particles = pd.concat((new_particles, add_particles))
+    starfile.write(new_particles, f"AutoPick/job009/{name}_all_particles_centered.star")
