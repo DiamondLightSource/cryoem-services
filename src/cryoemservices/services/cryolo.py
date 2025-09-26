@@ -164,7 +164,8 @@ class CrYOLO(CommonService):
 
         Path(cryolo_params.output_path).unlink(missing_ok=True)
         (
-            job_dir / f"CBOX/{Path(cryolo_params.output_path).with_suffix('.cbox')}"
+            job_dir
+            / f"CBOX/{Path(cryolo_params.output_path).with_suffix('.cbox').name}"
         ).unlink(missing_ok=True)
 
         # Try and scale out any dark areas, for example gold grids
