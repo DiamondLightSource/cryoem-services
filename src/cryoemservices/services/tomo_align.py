@@ -483,7 +483,9 @@ class TomoAlign(CommonService):
                 "size_y": scaled_y_size,
                 "size_z": scaled_z_size,
                 "pixel_spacing": pixel_spacing,
-                "tilt_angle_offset": str(self.tilt_offset),
+                "tilt_angle_offset": str(
+                    self.tilt_offset or tomo_params.manual_tilt_offset
+                ),
                 "z_shift": rot_centre_z,
                 "file_directory": str(alignment_output_dir),
                 "central_slice_image": central_slice_file,
