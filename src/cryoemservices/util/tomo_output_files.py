@@ -358,6 +358,8 @@ def _exclude_tilt_output_files(
         )
 
     # Later extraction jobs require some ctf parameters for the tilts
+    if not ctf_txt_file.is_file():
+        ctf_txt_file = ctf_txt_file.parent / (ctf_txt_file.stem + "_DW.txt")
     with open(ctf_txt_file, "r") as f:
         ctf_results = f.readlines()[-1].split()
 
@@ -459,6 +461,8 @@ def _align_tilt_output_files(
         )
 
     # Later extraction jobs require some ctf parameters for the tilts
+    if not ctf_txt_file.is_file():
+        ctf_txt_file = ctf_txt_file.parent / (ctf_txt_file.stem + "_DW.txt")
     with open(ctf_txt_file, "r") as f:
         ctf_results = f.readlines()[-1].split()
 
