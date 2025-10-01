@@ -1958,6 +1958,14 @@ def test_node_creator_cryolo_tomo_0axis(offline_transport, tmp_path):
     (tmp_path / job_dir / "DISTR").mkdir(parents=True)
     (tmp_path / job_dir / "DISTR/confidence_distribution_summary_1.txt").touch()
 
+    # Have pre-made particles file for this one
+    with open(tmp_path / job_dir / "particles.star", "w") as pf:
+        pf.write(
+            "data_particles\n\nloop_\n"
+            "_rlnTomoName\n_rlnCenteredCoordinateXAngst\n"
+            "_rlnCenteredCoordinateYAngst\n_rlnCenteredCoordinateZAngst\n"
+        )
+
     setup_and_run_node_creation(
         relion_options,
         offline_transport,
