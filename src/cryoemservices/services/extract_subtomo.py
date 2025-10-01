@@ -471,3 +471,32 @@ def cbox_to_star(name, max_subsample):
             ) * 1.34
             new_particles = pd.concat((new_particles, add_particles))
     starfile.write(new_particles, f"AutoPick/job009/{name}_all_particles_centered.star")
+
+
+def cbox_to_star_whole_dir():
+    import pandas as pd
+    import starfile
+
+    # make data_particles
+    new_particles = None
+
+    for cbox in Path("AutoPick/job009/CBOX_3D").glob("*.cbox"):
+        all_particles = starfile.read(cbox)["cryolo"]
+        add_particles = pd.DataFrame()
+        add_particles["rlnTomoName"] = [
+            cbox.name.split("_stack_")[0] for i in range(len(all_particles))
+        ]
+        add_particles["rlnCenteredCoordinateXAngst"] = (
+            all_particles["CoordinateY"] * 4 + 80 - 4092 / 2
+        ) * 1.63
+        add_particles["rlnCenteredCoordinateYAngst"] = (
+            5760 / 2 - all_particles["CoordinateX"] * 4 - 80
+        ) * 1.63
+        add_particles["rlnCenteredCoordinateZAngst"] = (
+            all_particles["CoordinateZ"] * 4 - 1600 / 2
+        ) * 1.63
+        if new_particles is None:
+            new_particles = add_particles
+        else:
+            new_particles = pd.concat((new_particles, add_particles))
+    starfile.write(new_particles, "AutoPick/job009/all_particles_centered.star")
