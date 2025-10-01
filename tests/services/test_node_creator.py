@@ -1842,8 +1842,7 @@ def test_node_creator_membrain(offline_transport, tmp_path):
     ]
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
-def test_node_creator_cryolo_tomo(offline_transport, tmp_path):
+def test_node_creator_cryolo_tomo_90axis(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
     cryolo.autopick running on a tomogram
@@ -1860,6 +1859,10 @@ def test_node_creator_cryolo_tomo(offline_transport, tmp_path):
     relion_options.cryolo_config_file = str(tmp_path / job_dir / "cryolo_config.json")
     relion_options.pixel_size = 1.2
     relion_options.pixel_size_downscaled = 4.8
+    relion_options.tilt_axis_angle = 86
+    relion_options.tomo_size_x = 6000
+    relion_options.tomo_size_y = 4000
+    relion_options.vol_z = 1600
     (tmp_path / job_dir / "cryolo_config.json").touch()
 
     with open(
@@ -1868,7 +1871,7 @@ def test_node_creator_cryolo_tomo(offline_transport, tmp_path):
         particles_file.write(
             "data_global\n\n_cbox_format_version   1.0\n"
             "data_cryolo\n\nloop_\n"
-            "_CoordinateX\n_CoordinateY\n_CoordinateZ\n_EstWidth\n_EstHeight\n"
+            "_CoordinateX\n_CoordinateY\n_CoordinateZ\n_Width\n_Height\n"
             "60 70 80 5 6\n90 100 110 8 10\n"
         )
 
@@ -1904,15 +1907,95 @@ def test_node_creator_cryolo_tomo(offline_transport, tmp_path):
         "Position_1_2",
         "Position_1_2",
     ]
-    x_coords = list(particles_block.find_loop("_rlnCoordinateX"))
-    y_coords = list(particles_block.find_loop("_rlnCoordinateY"))
-    z_coords = list(particles_block.find_loop("_rlnCoordinateZ"))
+    x_coords = list(particles_block.find_loop("_rlnCenteredCoordinateXAngst"))
+    y_coords = list(particles_block.find_loop("_rlnCenteredCoordinateYAngst"))
+    z_coords = list(particles_block.find_loop("_rlnCenteredCoordinateZAngst"))
     assert len(x_coords) == 2
-    assert float(x_coords[0]) == 62.5 * 4
-    assert float(x_coords[1]) == 94.0 * 4
+    assert float(x_coords[0]) == (73 * 4 - 2000) * 1.2
+    assert float(x_coords[1]) == (105 * 4 - 2000) * 1.2
     assert len(y_coords) == 2
-    assert float(y_coords[0]) == 73 * 4
-    assert float(y_coords[1]) == 105 * 4
+    assert float(y_coords[0]) == (3000 - 62.5 * 4) * 1.2
+    assert float(y_coords[1]) == (3000 - 94.0 * 4) * 1.2
     assert len(z_coords) == 2
-    assert float(z_coords[0]) == 80 * 4
-    assert float(z_coords[1]) == 110 * 4
+    assert float(z_coords[0]) == (80 * 4 - 800) * 1.2
+    assert float(z_coords[1]) == (110 * 4 - 800) * 1.2
+
+
+def test_node_creator_cryolo_tomo_0axis(offline_transport, tmp_path):
+    """
+    Send a test message to the node creator for
+    cryolo.autopick running on a tomogram
+    x and y flipped relative to above
+    """
+    job_dir = "AutoPick/job009"
+    (tmp_path / job_dir / "CBOX_3D").mkdir(parents=True)
+
+    input_file = f"{tmp_path}/Denoise/job007/Movies/tomograms/Position_1_2_stack_aretomo.denoised.mrc"
+    output_file = (
+        tmp_path / job_dir / "CBOX_3D/Position_1_2_stack_aretomo.denoised.cbox"
+    )
+    relion_options = RelionServiceOptions()
+
+    relion_options.cryolo_config_file = str(tmp_path / job_dir / "cryolo_config.json")
+    relion_options.pixel_size = 1.2
+    relion_options.pixel_size_downscaled = 4.8
+    relion_options.tilt_axis_angle = 4
+    relion_options.tomo_size_x = 6000
+    relion_options.tomo_size_y = 4000
+    relion_options.vol_z = 1600
+    (tmp_path / job_dir / "cryolo_config.json").touch()
+
+    with open(
+        tmp_path / job_dir / "CBOX_3D/Position_1_2_stack_aretomo.denoised.cbox", "w"
+    ) as particles_file:
+        particles_file.write(
+            "data_global\n\n_cbox_format_version   1.0\n"
+            "data_cryolo\n\nloop_\n"
+            "_CoordinateX\n_CoordinateY\n_CoordinateZ\n_Width\n_Height\n"
+            "60 70 80 5 6\n90 100 110 8 10\n"
+        )
+
+    (tmp_path / job_dir / "DISTR").mkdir(parents=True)
+    (tmp_path / job_dir / "DISTR/confidence_distribution_summary_1.txt").touch()
+
+    setup_and_run_node_creation(
+        relion_options,
+        offline_transport,
+        tmp_path,
+        job_dir,
+        "cryolo.autopick.tomo",
+        input_file,
+        output_file,
+        experiment_type="tomography",
+    )
+
+    # Check the output file structure
+    assert (tmp_path / job_dir / "optimisation_set.star").exists()
+    optimiser_file = cif.read_file(str(tmp_path / job_dir / "optimisation_set.star"))
+    optimiser_block = optimiser_file.find_block("optimisation_set")
+    assert list(optimiser_block.find_loop("_rlnTomoParticlesFile")) == [
+        "AutoPick/job009/particles.star"
+    ]
+    assert list(optimiser_block.find_loop("_rlnTomoTomogramsFile")) == [
+        "Denoise/job007/tomograms.star"
+    ]
+
+    assert (tmp_path / job_dir / "particles.star").exists()
+    particles_file = cif.read_file(str(tmp_path / job_dir / "particles.star"))
+    particles_block = particles_file.find_block("particles")
+    assert list(particles_block.find_loop("_rlnTomoName")) == [
+        "Position_1_2",
+        "Position_1_2",
+    ]
+    x_coords = list(particles_block.find_loop("_rlnCenteredCoordinateXAngst"))
+    y_coords = list(particles_block.find_loop("_rlnCenteredCoordinateYAngst"))
+    z_coords = list(particles_block.find_loop("_rlnCenteredCoordinateZAngst"))
+    assert len(x_coords) == 2
+    assert float(x_coords[0]) == (62.5 * 4 - 3000) * 1.2
+    assert float(x_coords[1]) == (94.0 * 4 - 3000) * 1.2
+    assert len(y_coords) == 2
+    assert float(y_coords[0]) == (73 * 4 - 2000) * 1.2
+    assert float(y_coords[1]) == (105 * 4 - 2000) * 1.2
+    assert len(z_coords) == 2
+    assert float(z_coords[0]) == (80 * 4 - 800) * 1.2
+    assert float(z_coords[1]) == (110 * 4 - 800) * 1.2

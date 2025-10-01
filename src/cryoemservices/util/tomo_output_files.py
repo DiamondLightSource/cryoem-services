@@ -767,7 +767,7 @@ def _cryolo_output_files(
             else:
                 # Otherwise we need to flip x and y
                 x_tomo_centered = y_particle_center - relion_options.tomo_size_y / 2
-                y_tomo_centered = relion_options.tomo_size_x / 2 - y_particle_center
+                y_tomo_centered = relion_options.tomo_size_x / 2 - x_particle_center
 
             # z coordinate is the mid-point so just needs scaling and centering
             z_particle_center = float(loop_z[particle]) * scaling_factor
