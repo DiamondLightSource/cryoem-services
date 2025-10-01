@@ -735,7 +735,8 @@ def _cryolo_output_files(
         with open(particles_file, "w") as pf:
             pf.write(
                 "data_particles\n\nloop_\n"
-                "_rlnTomoName\n_rlnCoordinateX\n_rlnCoordinateY\n_rlnCoordinateZ\n"
+                "_rlnTomoName\n_rlnCenteredCoordinateXAngst\n"
+                "_rlnCenteredCoordinateYAngst\n_rlnCenteredCoordinateZAngst\n"
             )
 
     # Read in the output particles
@@ -747,8 +748,8 @@ def _cryolo_output_files(
     loop_x = cryolo_block.find_loop("_CoordinateX")
     loop_y = cryolo_block.find_loop("_CoordinateY")
     loop_z = cryolo_block.find_loop("_CoordinateZ")
-    loop_width = cryolo_block.find_loop("_EstWidth")
-    loop_height = cryolo_block.find_loop("_EstHeight")
+    loop_width = cryolo_block.find_loop("_Width")
+    loop_height = cryolo_block.find_loop("_Height")
 
     # Scale coordinates back to original tilt size
     scaling_factor = relion_options.pixel_size_downscaled / relion_options.pixel_size
@@ -756,17 +757,31 @@ def _cryolo_output_files(
     # Append all the particles to the particles file
     with open(particles_file, "a") as output_cif:
         for particle in range(len(loop_x)):
+            # x and y coordinates are a corner, so need shifting by half the box size
+            x_particle_center = (
+                float(loop_x[particle]) + float(loop_width[particle]) / 2
+            ) * scaling_factor
+            y_particle_center = (
+                float(loop_y[particle]) + float(loop_height[particle]) / 2
+            ) * scaling_factor
+            if -45 < relion_options.tilt_axis_angle < 45:
+                # If given tilt axis of around 0, x and y are unchanged
+                x_tomo_centered = x_particle_center - relion_options.tomo_size_x / 2
+                y_tomo_centered = y_particle_center - relion_options.tomo_size_y / 2
+            else:
+                # Otherwise we need to flip x and y
+                x_tomo_centered = y_particle_center - relion_options.tomo_size_y / 2
+                y_tomo_centered = relion_options.tomo_size_x / 2 - x_particle_center
+
+            # z coordinate is the mid-point so just needs scaling and centering
+            z_particle_center = float(loop_z[particle]) * scaling_factor
+            z_tomo_centered = z_particle_center - relion_options.vol_z / 2
+
             added_line = [
                 tilt_series_name,
-                str(
-                    (float(loop_x[particle]) + float(loop_width[particle]) / 2)
-                    * scaling_factor
-                ),
-                str(
-                    (float(loop_y[particle]) + float(loop_height[particle]) / 2)
-                    * scaling_factor
-                ),
-                str(float(loop_z[particle]) * scaling_factor),
+                str(x_tomo_centered * relion_options.pixel_size),
+                str(y_tomo_centered * relion_options.pixel_size),
+                str(z_tomo_centered * relion_options.pixel_size),
             ]
             output_cif.write(" ".join(added_line) + "\n")
 
