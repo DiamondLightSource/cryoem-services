@@ -207,25 +207,3 @@ def get_tile_scan_info(node: ET.Element):
             "pos_y": float(camera_settings.get("StagePosY", "")),
         }
     return tile_scan_info
-
-
-def get_axis_resolution(node: ET.Element) -> float:
-    """
-    Calculates the resolution (pixels per unit length) for the x-, y-, and z-axes.
-    Follows "readlif" convention of subtracting 1 from the number of frames/pixels
-    to maintain consistency with its output.
-    """
-    # Verify
-    if node.tag != "DimensionDescription" and node.attrib.get("Unit", "") != "m":
-        message = "This node does not have dimensional information"
-        logger.error(message)
-        raise ValueError(message)
-
-    # Calculate
-    length = (
-        float(node.get("Length", "")) - float(node.get("Origin", ""))
-    ) * 10**6  # Convert to um
-    pixels = int(node.get("NumberOfElements", ""))
-    resolution = (pixels - 1) / length  # Pixels per um
-
-    return resolution
