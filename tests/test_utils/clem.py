@@ -124,7 +124,7 @@ def add_tile_scan_info(
             Decimal(value).quantize(Decimal("1.0000000000"), rounding=ROUND_HALF_UP)
         )
 
-    # Don't add tile scan info if only one tile present
+    # Don't add tile scan info if num_tiles is 0
     if num_tiles >= 1:
         # TileScanInfo stored as Attachement under Image
         tile_scan_info = ET.SubElement(
