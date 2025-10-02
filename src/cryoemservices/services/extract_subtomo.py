@@ -482,10 +482,18 @@ def cbox_to_star_whole_dir():
 
     for cbox in Path("AutoPick/job009/CBOX_3D").glob("*.cbox"):
         all_particles = starfile.read(cbox)["cryolo"]
+
+        particles_to_drop = []
+        for pindex, particle in all_particles.iterrows():
+            if (
+                particle["CoordinateZ"] < particle["Depth"] / 2
+                or 400 - particle["CoordinateZ"] < particle["Depth"] / 2
+            ):
+                particles_to_drop.append(pindex)
+        print(cbox, particles_to_drop)
+        all_particles.drop(labels=particles_to_drop, axis=0, inplace=True)
+
         add_particles = pd.DataFrame()
-        add_particles["rlnTomoName"] = [
-            cbox.name.split("_stack_")[0] for i in range(len(all_particles))
-        ]
         add_particles["rlnCenteredCoordinateXAngst"] = (
             all_particles["CoordinateY"] * 4 + 80 - 4092 / 2
         ) * 1.63
@@ -495,8 +503,40 @@ def cbox_to_star_whole_dir():
         add_particles["rlnCenteredCoordinateZAngst"] = (
             all_particles["CoordinateZ"] * 4 - 1600 / 2
         ) * 1.63
+        add_particles["rlnTomoName"] = [
+            cbox.name.split("_stack_")[0] for i in range(len(all_particles))
+        ]
         if new_particles is None:
             new_particles = add_particles
         else:
             new_particles = pd.concat((new_particles, add_particles))
     starfile.write(new_particles, "AutoPick/job009/all_particles_centered.star")
+
+
+def cbox_to_star_whole_dir_noflip():
+    import pandas as pd
+    import starfile
+
+    # make data_particles
+    new_particles = None
+
+    for cbox in Path("AutoPick/job009/CBOX_3D").glob("*.cbox"):
+        all_particles = starfile.read(cbox)["cryolo"]
+        add_particles = pd.DataFrame()
+        add_particles["rlnCenteredCoordinateXAngst"] = (
+            all_particles["CoordinateX"] * 4 + 80 - 5760 / 2
+        ) * 1.63
+        add_particles["rlnCenteredCoordinateYAngst"] = (
+            all_particles["CoordinateY"] * 4 + 80 - 4092 / 2
+        ) * 1.63
+        add_particles["rlnCenteredCoordinateZAngst"] = (
+            all_particles["CoordinateZ"] * 4 - 1600 / 2
+        ) * 1.63
+        add_particles["rlnTomoName"] = [
+            cbox.name.split("_stack_")[0] for i in range(len(all_particles))
+        ]
+        if new_particles is None:
+            new_particles = add_particles
+        else:
+            new_particles = pd.concat((new_particles, add_particles))
+    starfile.write(new_particles, "AutoPick/job009/all_particles_centered_noflip.star")
