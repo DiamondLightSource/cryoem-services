@@ -338,7 +338,6 @@ def add_dataset_element(
 
 # Create a mock LIF file metadata
 def create_lif_xml_metadata(
-    save_path: Path,
     lif_file_path: Path,
     datasets: list[dict],
 ):
@@ -422,17 +421,11 @@ def create_lif_xml_metadata(
             for data in data_list:
                 lif_file_children = add_dataset_element(lif_file_children, **data)
 
-    save_name = save_path / f"{lif_file_path.stem.replace(' ', '_')}.xml"
-    metadata_tree = ET.ElementTree(root)
-    ET.indent(metadata_tree, "  ")
-    metadata_tree.write(save_name, encoding="utf-8")
-
-    return save_name
+    return root
 
 
 # Create a mock TIFF file metadata
 def create_tiff_xml_metadata(
-    save_path: Path,
     series_name: str,
     colors: list[str],
     bit_depth: int,
@@ -496,10 +489,4 @@ def create_tiff_xml_metadata(
         tile_offset=tile_offset,
         collection_mode=collection_mode,
     )
-
-    save_name = save_path / f"{series_name.replace(' ', '_')}.xml"
-    metadata_tree = ET.ElementTree(root)
-    ET.indent(metadata_tree, "  ")
-    metadata_tree.write(save_name, encoding="utf-8")
-
-    return save_name
+    return root

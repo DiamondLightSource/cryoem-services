@@ -21,7 +21,7 @@ lif_file_name = "test_lif.lif"
 
 
 @pytest.fixture
-def lif_xml_metadata(tmp_path: Path):
+def lif_xml_file(tmp_path: Path):
     # Construct file path and create necessary directories
     lif_metadata_dir = tmp_path / visit_id / root_folder / "metadata"
     lif_metadata_dir.mkdir(parents=True, exist_ok=True)
@@ -117,18 +117,24 @@ def lif_xml_metadata(tmp_path: Path):
     ]
 
     # Run function to create LIF metadata file
-    file = create_lif_xml_metadata(
-        save_path=lif_metadata_dir,
+    xml_metadata = create_lif_xml_metadata(
         lif_file_path=lif_metadata_dir.parent / lif_file_name,
         datasets=datasets,
     )
-    return file
+
+    # Save it as an XML file
+    save_name = lif_metadata_dir / f"{Path(lif_file_name).stem.replace(' ', '_')}.xml"
+    metadata_tree = ET.ElementTree(xml_metadata)
+    ET.indent(metadata_tree, "  ")
+    metadata_tree.write(save_name, encoding="utf-8")
+
+    return save_name
 
 
 def test_find_image_elements(
-    lif_xml_metadata: Path,
+    lif_xml_file: Path,
 ):
-    xml_metadata = ET.parse(lif_xml_metadata).getroot()
+    xml_metadata = ET.parse(lif_xml_file).getroot()
     metadata_dict = find_image_elements(xml_metadata)
 
     # Check that a dict has been returned
