@@ -473,7 +473,7 @@ def cbox_to_star(name, max_subsample):
     starfile.write(new_particles, f"AutoPick/job009/{name}_all_particles_centered.star")
 
 
-def cbox_to_star_whole_dir():
+def cbox_to_star_whole_dir(pixel_size=1.63, xdim=5760, ydim=4092, zdim=1600):
     import pandas as pd
     import starfile
 
@@ -487,7 +487,7 @@ def cbox_to_star_whole_dir():
         for pindex, particle in all_particles.iterrows():
             if (
                 particle["CoordinateZ"] < particle["Depth"] / 2
-                or 400 - particle["CoordinateZ"] < particle["Depth"] / 2
+                or zdim / 4 - particle["CoordinateZ"] < particle["Depth"] / 2
             ):
                 particles_to_drop.append(pindex)
         print(cbox, particles_to_drop)
@@ -495,14 +495,14 @@ def cbox_to_star_whole_dir():
 
         add_particles = pd.DataFrame()
         add_particles["rlnCenteredCoordinateXAngst"] = (
-            all_particles["CoordinateY"] * 4 + 80 - 4092 / 2
-        ) * 1.63
+            all_particles["CoordinateY"] * 4 + 80 - ydim / 2
+        ) * pixel_size
         add_particles["rlnCenteredCoordinateYAngst"] = (
-            5760 / 2 - all_particles["CoordinateX"] * 4 - 80
-        ) * 1.63
+            xdim / 2 - all_particles["CoordinateX"] * 4 - 80
+        ) * pixel_size
         add_particles["rlnCenteredCoordinateZAngst"] = (
-            all_particles["CoordinateZ"] * 4 - 1600 / 2
-        ) * 1.63
+            all_particles["CoordinateZ"] * 4 - zdim / 2
+        ) * pixel_size
         add_particles["rlnTomoName"] = [
             cbox.name.split("_stack_")[0] for i in range(len(all_particles))
         ]
