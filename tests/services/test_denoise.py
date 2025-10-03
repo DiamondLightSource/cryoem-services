@@ -395,7 +395,14 @@ def test_denoise_slurm_service(
     mock_requests.Session().post.return_value = response_object
     mock_requests.Session().get.return_value = response_object
 
+    def write_denoised_files(**kwargs):
+        # Touch the expected output files
+        (tmp_path / "Denoise/job007/denoised/test_stack_aretomo.denoised.mrc").touch()
+        (tmp_path / "Denoise/job007/denoised/test_stack_aretomo.denoised.out").touch()
+        (tmp_path / "Denoise/job007/denoised/test_stack_aretomo.denoised.err").touch()
+
     mock_transfer.return_value = ["test_stack_aretomo.mrc"]
+    mock_retrieve.side_effect = write_denoised_files
 
     header = {
         "message-id": mock.sentinel,
@@ -424,12 +431,6 @@ def test_denoise_slurm_service(
         transport=offline_transport,
     )
     service.initializing()
-
-    # Touch the expected output files
-    (tmp_path / "Denoise/job007/denoised").mkdir(parents=True)
-    (tmp_path / "Denoise/job007/denoised/test_stack_aretomo.denoised.mrc").touch()
-    (tmp_path / "Denoise/job007/denoised/test_stack_aretomo.denoised.out").touch()
-    (tmp_path / "Denoise/job007/denoised/test_stack_aretomo.denoised.err").touch()
 
     # Send a message to the service
     service.denoise(None, header=header, message=denoise_test_message)
@@ -525,6 +526,92 @@ def test_denoise_slurm_service(
             "success": True,
         },
     )
+    offline_transport.send.assert_any_call(
+        "images",
+        {
+            "image_command": "mrc_central_slice",
+            "file": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
+        },
+    )
+    offline_transport.send.assert_any_call(
+        "movie",
+        {
+            "image_command": "mrc_to_apng",
+            "file": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
+        },
+    )
+    offline_transport.send.assert_any_call(
+        "ispyb_connector",
+        {
+            "ispyb_command": "insert_processed_tomogram",
+            "file_path": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
+            "processing_type": "Denoised",
+        },
+    )
+    offline_transport.send.assert_any_call(
+        "segmentation",
+        {
+            "tomogram": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
+            "output_dir": f"{tmp_path}/Segmentation/job008/tomograms",
+            "pixel_size": "1.0",
+            "relion_options": output_relion_options,
+        },
+    )
+    offline_transport.send.assert_any_call(
+        "cryolo",
+        {
+            "input_path": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
+            "output_path": f"{tmp_path}/AutoPick/job009/CBOX_3D/test_stack_aretomo.denoised.cbox",
+            "experiment_type": "tomography",
+            "cryolo_box_size": 40,
+            "relion_options": output_relion_options,
+        },
+    )
+
+
+@mock.patch("cryoemservices.services.denoise.torch")
+@mock.patch("cryoemservices.services.denoise.Denoise3D")
+@mock.patch("cryoemservices.services.denoise.denoise_tomogram_stream")
+def test_denoise_local_topaz_service_rerun(
+    mock_denoise_tomogram_stream,
+    mock_denoise3d,
+    mock_torch,
+    offline_transport,
+    tmp_path,
+):
+    """
+    Send a test message to Denoising for the locally-running version
+    This should call the topaz commands then send messages on to
+    the membrain-seg and images services.
+    This is a rerun so should skip node creation
+    """
+    mock_denoise_tomogram_stream.return_value = [
+        f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc"
+    ]
+
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+    denoise_test_message = {
+        "volume": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
+        "output_dir": f"{tmp_path}/Denoise/job007/denoised",
+        "relion_options": {"pixel_size_downscaled": 1},
+    }
+    output_relion_options = dict(RelionServiceOptions())
+    output_relion_options["pixel_size_downscaled"] = 1
+
+    # Make output so this is a rerun
+    (tmp_path / "Denoise/job007/denoised").mkdir(parents=True)
+    (tmp_path / "Denoise/job007/denoised/test_stack_aretomo.denoised.mrc").touch()
+
+    # Set up the mock service and send a message to the service
+    service = denoise.Denoise(environment={"queue": ""}, transport=offline_transport)
+    service.initializing()
+    service.denoise(None, header=header, message=denoise_test_message)
+
+    # Check the transport requests, with no node creator
+    assert offline_transport.send.call_count == 5
     offline_transport.send.assert_any_call(
         "images",
         {
