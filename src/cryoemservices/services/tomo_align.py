@@ -371,7 +371,7 @@ class TomoAlign(CommonService):
         )
 
         if not job_is_rerun:
-            # Send to node creator
+            # Send to node creator if this is the first time this tomogram is made
             self.log.info("Sending tomo align to node creator")
             node_creator_parameters = {
                 "experiment_type": "tomography",
