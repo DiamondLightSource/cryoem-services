@@ -44,8 +44,7 @@ def get_percentiles(
     intensity values from an image.
     """
     try:
-        with Image.open(file) as img:
-            arr = np.array(img)
+        arr = np.array(Image.open(file))
     except Exception:
         return (None, None)
     p_lo, p_hi = np.percentile(arr, percentiles)
@@ -78,7 +77,7 @@ def stitch_image_frames(
     )
 
     # Create the figure to stitch the tiles in
-    fig, ax = plt.subplots(facecolor="black")
+    fig, ax = plt.subplots(facecolor="black", figsize=(6, 6))
     fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
     fig.set_dpi(dpi)
     ax.set_xlim(extent[0], extent[1])

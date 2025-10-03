@@ -101,7 +101,7 @@ def stitch_image_frames(
     """
 
     # Create the figure to stitch the tiles in
-    fig, ax = plt.subplots(facecolor="black")
+    fig, ax = plt.subplots(facecolor="black", figsize=(6, 6))
     fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
     fig.set_dpi(dpi)
     ax.set_xlim(extent[0], extent[1])
@@ -320,7 +320,7 @@ def process_lif_subimage(
                             w,
                             h,
                             extent,
-                            500,
+                            400,
                             (global_vmin, global_vmax),
                         )
                         for z in range(num_frames)
