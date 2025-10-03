@@ -4,6 +4,7 @@ import re
 from pathlib import Path
 from typing import Callable, Dict, List
 
+import numpy as np
 from gemmi import cif
 
 from cryoemservices.util.relion_service_options import RelionServiceOptions
@@ -762,6 +763,19 @@ def _cryolo_output_files(
                 "_rlnTomoName\n_rlnCenteredCoordinateXAngst\n"
                 "_rlnCenteredCoordinateYAngst\n_rlnCenteredCoordinateZAngst\n"
             )
+    else:
+        # Clean out any existing particles from this tomogram
+        particles_doc = cif.read_file(str(particles_file))
+        particles_block = particles_doc.sole_block()
+        if tilt_series_name in particles_block.find_loop("_rlnTomoName"):
+            indices_to_remove = np.where(
+                np.array(particles_block.find_loop("_rlnTomoName")) == tilt_series_name
+            )[0]
+            particles_table = particles_block.item_as_table(particles_block[0])
+            for i in range(len(indices_to_remove) - 1, -1, -1):
+                particles_table.remove_row(indices_to_remove[i])
+            particles_file.unlink()
+            particles_doc.write_file(str(particles_file))
 
     # Read in the output particles
     particles_data = cif.read_file(str(output_file))
