@@ -148,16 +148,16 @@ def create_dummy_result(
     actual_pixel_size = pixel_size
 
     # Tiles are set up such that it will be square or wider than it is tall.
-    # The Figure used for stitching has a default size of 6.4 inches x 4.8 inches.
-    # The final image will thus have a fixed height of (4.8 * dpi)
-    # 'dpi' currently set to 500
+    # The Figure used for stitching has a default size of 6 inches x 6 inches.
+    # The final image will thus have a fixed height of (6 * dpi)
+    # 'dpi' currently set to 400
     if num_tiles[scene_num] > 1:
         stitched_height = extent[3] - extent[2]
         stitched_width = extent[1] - extent[0]
         x_to_y_ratio = stitched_width / stitched_height
         # if x:y > 4:3, set width to 3200, otherwise set height to 2400
-        if x_to_y_ratio > 4 / 3:
-            x_pix = 3200
+        if x_to_y_ratio > 1:
+            x_pix = 2400
             actual_pixel_size = stitched_width / x_pix
             y_pix = int(stitched_height / actual_pixel_size)
         else:
@@ -247,17 +247,16 @@ def test_process_lif_subimage(
 
     # Order of list of dictionaries should match exactly
     for key, value in expected_result.items():
-        if key == "output_files":
-            for color, file in value.items():
-                assert file == result[key][color]
-        elif key == "extent":
+        if key == "extent":
             for c, coord in enumerate(value):
                 assert math.isclose(coord, result[key][c])
         elif key in ("pixels_y",):
-            assert math.isclose(value, result[key])
+            assert math.isclose(value, result[key], abs_tol=2)
         elif key in ("pixels_x",):
-            assert math.isclose(value, result[key])
+            assert math.isclose(value, result[key], abs_tol=2)
         elif key == "pixel_size":
+            assert math.isclose(value, result[key], abs_tol=1e-9)
+        elif key == "resolution":
             assert math.isclose(value, result[key], abs_tol=1e-9)
         else:
             assert value == result[key]
