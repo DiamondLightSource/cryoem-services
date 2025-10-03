@@ -397,8 +397,20 @@ def _exclude_tilt_output_files(
         movies_loop.add_row(added_line)
         output_cif.write_file(str(movies_file), style=cif.Style.Simple)
     else:
-        with open(movies_file, "a") as output_cif:
-            output_cif.write(" ".join(added_line) + "\n")
+        tilt_cif_doc = cif.read_file(str(movies_file))
+        tilt_loop = list(tilt_cif_doc.sole_block().find_loop("_rlnMicrographName"))
+
+        if micrograph_name not in tilt_loop:
+            with open(movies_file, "a") as output_cif:
+                output_cif.write(" ".join(added_line) + "\n")
+        else:
+            index_to_replace = tilt_loop.index(micrograph_name)
+            tilt_cif_item = tilt_cif_doc.sole_block()[0]
+            tilt_cif_table = tilt_cif_doc.sole_block().item_as_table(tilt_cif_item)
+            tilt_cif_table.remove_row(index_to_replace)
+            tilt_cif_table.append_row(added_line)
+            movies_file.unlink()
+            tilt_cif_doc.write_file(str(movies_file))
 
     return {
         f"{job_dir}/selected_tilt_series.star": ["TomogramGroupMetadata", ["relion"]]
@@ -510,8 +522,20 @@ def _align_tilt_output_files(
         movies_loop.add_row(added_line)
         output_cif.write_file(str(movies_file), style=cif.Style.Simple)
     else:
-        with open(movies_file, "a") as output_cif:
-            output_cif.write(" ".join(added_line) + "\n")
+        tilt_cif_doc = cif.read_file(str(movies_file))
+        tilt_loop = list(tilt_cif_doc.sole_block().find_loop("_rlnMicrographName"))
+
+        if micrograph_name not in tilt_loop:
+            with open(movies_file, "a") as output_cif:
+                output_cif.write(" ".join(added_line) + "\n")
+        else:
+            index_to_replace = tilt_loop.index(micrograph_name)
+            tilt_cif_item = tilt_cif_doc.sole_block()[0]
+            tilt_cif_table = tilt_cif_doc.sole_block().item_as_table(tilt_cif_item)
+            tilt_cif_table.remove_row(index_to_replace)
+            tilt_cif_table.append_row(added_line)
+            movies_file.unlink()
+            tilt_cif_doc.write_file(str(movies_file))
 
     return {
         f"{job_dir}/aligned_tilt_series.star": ["TomogramGroupMetadata", ["relion"]]
