@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+import math
 from pathlib import Path
 from unittest.mock import patch
-from xml.etree.ElementTree import Element
 
 import numpy as np
 import pytest
@@ -11,28 +11,33 @@ from workflows.recipe.wrapper import RecipeWrapper
 from workflows.transport.offline_transport import OfflineTransport
 
 from cryoemservices.wrappers.clem_process_raw_tiffs import (
-    TIFFToStackParameters,
-    TIFFToStackWrapper,
-    convert_tiff_to_stack,
+    ProcessRawTIFFsParameters,
+    ProcessRawTIFFsWrapper,
     process_tiff_files,
 )
-from tests.test_utils.clem import create_xml_metadata
+from tests.test_utils.clem import create_tiff_xml_metadata
 
 # Common settings
 visit_name = "test_visit"
 raw_folder = "images"
 processed_folder = "processed"
 area_name = "test_area"
-series_name = "Test Series"
 
 # TIFF file settings
+num_datasets = 2  # For iterating metadata values with
+series_names = [f"Position {n}" for n in range(num_datasets)]
 colors = [
     "gray",
     "green",
     "red",
 ]
 num_channels = len(colors)
-num_z = 5
+num_pixels = 512
+pixel_size = 0.0000005
+num_frames = 5
+z_size = 0.0000004
+num_tiles = [6 if i % 2 else 1 for i in range(num_datasets)]
+tile_offset = 0.00025
 
 
 # Create fixtures for use in subsequent tests
@@ -44,41 +49,44 @@ def raw_dir(tmp_path):
 
 
 @pytest.fixture
-def tiff_list(raw_dir: Path):
+def tiff_lists(raw_dir: Path):
     # Generate list of file names
     tiff_folder = raw_dir / area_name
     tiff_folder.mkdir(parents=True, exist_ok=True)
-    tiff_list = [
-        tiff_folder / f"{series_name}--Z{str(z).zfill(2)}--C{str(c).zfill(2)}.tif"
-        for z in range(num_z)
-        for c in range(num_channels)
-    ]
-    # Create files
-    for tiff_file in tiff_list:
-        tiff_file.touch(exist_ok=True)
 
-    return tiff_list
+    tiff_lists: list[list[Path]] = []
+    for n in range(num_datasets):
+        series_name = series_names[n]
+        tiff_list: list[Path] = []
+        for t in range(num_tiles[n]):
+            for z in range(num_frames):
+                for c in range(num_channels):
+                    file_stem = series_name
+                    if num_tiles[n] > 1:
+                        file_stem += f"--Stage{str(t).zfill(2)}"
+                    if num_frames > 1:
+                        file_stem += f"--Z{str(z).zfill(2)}"
+                    if num_channels > 1:
+                        file_stem += f"--C{str(c).zfill(2)}"
+                    tiff_file = tiff_folder / f"{file_stem}.tif"
+                    tiff_file.touch(exist_ok=True)
+                    tiff_list.append(tiff_file)
+        tiff_lists.append(tiff_list)
+    return tiff_lists
 
 
 @pytest.fixture
-def metadata(raw_dir: Path):
-    # Create parent directory for metadata file
-    metadata_folder = raw_dir / area_name / "Metadata"
-    metadata_folder.mkdir(parents=True, exist_ok=True)
-    # Create metadata file
-    metadata = metadata_folder / f"{series_name}.xlif"
-    metadata.touch(exist_ok=True)
-    return metadata
-
-
-@pytest.fixture
-def raw_xml_metadata():
-    xml_metadata = create_xml_metadata(
-        series_names=series_name,
-        colors=colors,
-        num_z=num_z,
-    )
-    return xml_metadata
+def raw_metadata_files(raw_dir: Path):
+    metadata_list: list[Path] = []
+    for n in range(num_datasets):
+        # Create parent directory for metadata file
+        metadata_folder = raw_dir / area_name / "Metadata"
+        metadata_folder.mkdir(parents=True, exist_ok=True)
+        # Create metadata file
+        metadata = metadata_folder / f"{series_names[n]}.xlif"
+        metadata.touch(exist_ok=True)
+        metadata_list.append(metadata)
+    return metadata_list
 
 
 @pytest.fixture
@@ -88,131 +96,167 @@ def processed_dir(raw_dir: Path):
     return processed_dir
 
 
-def dummy_result(
-    save_dir: Path,
-    series_name_short: str,
-    series_name_long: str,
-    parent_tiffs: list[Path],
-    color: str,
-    num_channels: int,
+def create_dummy_result(
+    tiff_list: list[Path],
+    series_name: str,
+    processed_dir: Path,
+    test_num: int,
 ):
     """
     Helper function to generate the expected results for the TIFF file
     processing workflow
     """
+
+    series_name = series_name.replace(" ", "_")
+
+    # Calculate the image's extent
+    num_cols = math.ceil(math.sqrt(num_tiles[test_num]))
+    num_rows = math.ceil(num_tiles[test_num] / num_cols)
+    extent = [
+        # [x_min, x_max, y_min, y_max] in real space
+        tile_offset,
+        (tile_offset * num_cols) + (num_pixels * pixel_size),
+        tile_offset,
+        (tile_offset * num_rows) + (num_pixels * pixel_size),
+    ]
+
+    # After calculating the extent, update num_pixels, pixel_size, and resolution
+    x_pix = num_pixels
+    y_pix = num_pixels
+    actual_pixel_size = pixel_size
+
+    # Tiles are set up such that it will be square or wider than it is tall.
+    # The Figure used for stitching has a default size of 6 inches x 6 inches.
+    # The final image will thus have a fixed height of (6 * dpi)
+    # 'dpi' currently set to 400
+    if num_tiles[test_num] > 1:
+        stitched_height = extent[3] - extent[2]
+        stitched_width = extent[1] - extent[0]
+        x_to_y_ratio = stitched_width / stitched_height
+        # if x:y > 4:3, set width to 3200, otherwise set height to 2400
+        if x_to_y_ratio > 1:
+            x_pix = 2400
+            actual_pixel_size = stitched_width / x_pix
+            y_pix = int(stitched_height / actual_pixel_size)
+        else:
+            y_pix = 2400
+            actual_pixel_size = stitched_height / y_pix
+            x_pix = int(stitched_width / actual_pixel_size)
+
     return {
-        "image_stack": str(save_dir / f"{color}.tiff"),
-        "metadata": str(save_dir / "metadata" / f"{series_name_short}.xml"),
-        "series_name": series_name_long,
-        "channel": color,
+        "series_name": f"{area_name}--{series_name}",
         "number_of_members": num_channels,
-        "parent_tiffs": str([str(f) for f in parent_tiffs]),
+        "is_stack": num_frames > 1,
+        "is_montage": num_tiles[test_num] > 1,
+        "output_files": {
+            color: str(processed_dir / area_name / series_name / f"{color}.tiff")
+            for color in colors
+        },
+        "parent_tiffs": (
+            {
+                color: sorted(
+                    [
+                        str(file)
+                        for file in tiff_list
+                        if f"--C{str(c).zfill(2)}" in file.stem
+                    ]
+                )[0:1]
+                for c, color in enumerate(colors)
+            }
+            if num_channels > 1
+            else {
+                color: sorted([str(file) for file in tiff_list])[0:1]
+                for color in colors
+            }
+        ),
+        "metadata": str(
+            processed_dir / area_name / series_name / "metadata" / f"{series_name}.xml"
+        ),
+        "pixels_x": x_pix,
+        "pixels_y": y_pix,
+        "units": "m",
+        "pixel_size": actual_pixel_size,
+        "resolution": 1 / actual_pixel_size,
+        "extent": extent,
     }
 
 
+tiff_dataset_to_test = [(n,) for n in range(num_datasets)]
+
+
+@pytest.mark.parametrize("test_params", tiff_dataset_to_test)
 @patch("cryoemservices.wrappers.clem_process_raw_tiffs.Image")
 @patch("cryoemservices.wrappers.clem_process_raw_tiffs.parse")
 def test_process_tiff_files(
     mock_parse,
     mock_image,
-    tiff_list: list[Path],
-    metadata: Path,
+    raw_dir: Path,
     processed_dir: Path,
-    raw_xml_metadata: Element,
+    tiff_lists,
+    raw_metadata_files,
+    test_params: tuple[int],
 ):
-
-    # Build short and long series names
-    series_name_short = series_name
-    series_name_long = f"{area_name}--{series_name.replace(' ', '_')}"
-
-    # Construct save directory
-    series_dir = processed_dir / area_name / series_name
+    # Unpack test params
+    (test_num,) = test_params
+    series_name = series_names[test_num]
+    tiff_list = tiff_lists[test_num]
+    raw_metadata = raw_metadata_files[test_num]
 
     # Mock results of the 'parse()' function
-    mock_parse.return_value.getroot.return_value = raw_xml_metadata
+    xml_metadata = create_tiff_xml_metadata(
+        series_name=series_name,
+        colors=colors,
+        bit_depth=16,
+        x_pix=num_pixels,
+        y_pix=num_pixels,
+        pixel_size=pixel_size,
+        num_frames=num_frames,
+        z_size=z_size,
+        num_tiles=num_tiles[test_num],
+        tile_offset=tile_offset,
+        collection_mode="linear",
+    )
+    mock_parse.return_value.getroot.return_value = xml_metadata
 
     # Mock the result of 'Image.open()'
-    mock_image.open.return_value = np.random.randint(0, 255, (2048, 2048)).astype(
-        "uint16"
+    mock_image.open.return_value = np.random.randint(
+        0, 255, (num_pixels, num_pixels), dtype="uint16"
     )
 
     # Run the function
-    results = process_tiff_files(
+    result = process_tiff_files(
         tiff_list=tiff_list,
-        metadata_file=metadata,
-        series_name_short=series_name_short,
-        series_name_long=series_name_long,
-        save_dir=series_dir,
+        root_folder=raw_folder,
+        metadata_file=raw_metadata,
+        number_of_processes=5,
     )
 
     # Construct the expected results
-    dummy_results = [
-        dummy_result(
-            save_dir=series_dir,
-            series_name_short=series_name_short.replace(" ", "_"),
-            series_name_long=series_name_long,
-            parent_tiffs=[
-                f for f in tiff_list if f"--C{str(c).zfill(2)}.tif" in str(f)
-            ],
-            color=color,
-            num_channels=len(colors),
-        )
-        for c, color in enumerate(colors)
-    ]
-
-    # Assert that the results match
-    for r, result in enumerate(results):
-        assert result == dummy_results[r]
-
-
-@patch("cryoemservices.wrappers.clem_process_raw_tiffs.process_tiff_files")
-def test_convert_tiff_to_stack(
-    mock_process_tiffs,
-    tiff_list: list[Path],
-    metadata: Path,
-    processed_dir: Path,
-):
-    # Build short and long series names
-    series_name_short = series_name
-    series_name_long = f"{area_name}--{series_name.replace(' ', '_')}"
-
-    # Construct save directory
-    series_dir = processed_dir / area_name / series_name.replace(" ", "_")
-
-    # Mock out the result of the TIFF processing function
-    mock_process_tiffs.return_value = [
-        dummy_result(
-            save_dir=series_dir,
-            series_name_short=series_name_short.replace(" ", "_"),
-            series_name_long=series_name_long,
-            parent_tiffs=[
-                f for f in tiff_list if f"--C{str(c).zfill(2)}.tif" in str(f)
-            ],
-            color=color,
-            num_channels=len(colors),
-        )
-        for c, color in enumerate(colors)
-    ]
-
-    # Run the functino with the mocked objects
-    results = convert_tiff_to_stack(
+    expected_result = create_dummy_result(
         tiff_list=tiff_list,
-        root_folder=raw_folder,
-        metadata_file=metadata,
+        series_name=series_name,
+        processed_dir=processed_dir,
+        test_num=test_num,
     )
 
-    # Check that it was called with the correct parameters
-    mock_process_tiffs.assert_called_once_with(
-        tiff_list=tiff_list,
-        metadata_file=metadata,
-        series_name_short=series_name_short,
-        series_name_long=series_name_long,
-        save_dir=series_dir,
-    )
-    assert results
+    # Order of list of dictionaries should match exactly
+    for key, value in expected_result.items():
+        if key == "extent":
+            for c, coord in enumerate(value):
+                assert math.isclose(coord, result[key][c])
+        elif key in ("pixels_y",):
+            assert math.isclose(value, result[key], abs_tol=2)
+        elif key in ("pixels_x",):
+            assert math.isclose(value, result[key], abs_tol=2)
+        elif key == "pixel_size":
+            assert math.isclose(value, result[key], abs_tol=1e-9)
+        elif key == "resolution":
+            assert math.isclose(value, result[key], abs_tol=1e-9)
+        else:
+            assert value == result[key]
 
 
-tiff_to_stack_params_matrix = (
+process_raw_tiffs_params_matrix = (
     # Use 'tiff_list'? Build from 'tiff_file' if False | Stringify file path?
     (True, False),
     # Check that list of strings is converted correctly
@@ -221,19 +265,20 @@ tiff_to_stack_params_matrix = (
 )
 
 
-@pytest.mark.parametrize("test_params", tiff_to_stack_params_matrix)
-def test_tiff_to_stack_parameters(
+@pytest.mark.parametrize("test_params", process_raw_tiffs_params_matrix)
+def test_process_raw_tiffs_parameters(
     test_params: tuple[bool, bool],
-    tiff_list: list[Path | str],
-    metadata: Path,
+    tiff_lists: list[list[Path]],
+    raw_metadata_files: list[Path],
     raw_folder=raw_folder,
 ):
 
     # Unpack test params
     use_tiff_list, stringify = test_params
+    metadata = raw_metadata_files[0]
 
     # Modify 'tiff_list' and 'tiff_file' for the test
-    tiff_list = [str(file) if stringify else file for file in tiff_list]
+    tiff_list = [str(file) if stringify else file for file in tiff_lists[0]]
     tiff_file = "null" if use_tiff_list else tiff_list[0]
 
     # Construct dictionary and validate it with the Pydantic model
@@ -243,7 +288,7 @@ def test_tiff_to_stack_parameters(
         "root_folder": raw_folder,
         "metadata": (str(metadata) if stringify else metadata),
     }
-    validated_params = TIFFToStackParameters(**params)
+    validated_params = ProcessRawTIFFsParameters(**params)
 
     # Check that parameters were validated correctly
     for file in validated_params.tiff_list:
@@ -252,7 +297,7 @@ def test_tiff_to_stack_parameters(
     assert isinstance(validated_params.metadata, Path)
 
 
-tiff_to_stack_params_failure_matrix = (
+process_raw_tiffs_params_failure_matrix = (
     # Use 'tiff_list' | Use 'tiff_file' | Garbled string
     # tiff_list and tiff_file cannot both be populated or absent
     (True, True, ""),
@@ -263,20 +308,20 @@ tiff_to_stack_params_failure_matrix = (
 )
 
 
-@pytest.mark.parametrize("test_params", tiff_to_stack_params_failure_matrix)
-def test_tiff_to_stack_parameters_fail(
+@pytest.mark.parametrize("test_params", process_raw_tiffs_params_failure_matrix)
+def test_process_raw_tiffs_parameters_fail(
     test_params: tuple[bool, bool, str],
-    tiff_list: str | list[Path],
-    metadata: Path,
+    tiff_lists: list[list[Path]],
+    raw_metadata_files: list[Path],
     raw_folder=raw_folder,
 ):
 
     # Unpack test params
     use_tiff_list, use_tiff_file, garbled_string = test_params
-
+    metadata = raw_metadata_files[0]
     # Modify 'tiff_file' and 'tiff_list' accordingly
-    tiff_file = tiff_list[0] if use_tiff_file else "null"
-    tiff_list = tiff_list if use_tiff_list else "null"
+    tiff_file = tiff_lists[0][0] if use_tiff_file else "null"
+    tiff_list = tiff_lists[0] if use_tiff_list else "null"
 
     # Construct the dictionary and validate it with the Pydantic model
     params = {
@@ -286,7 +331,7 @@ def test_tiff_to_stack_parameters_fail(
         "metadata": metadata,
     }
     with pytest.raises(ValidationError):
-        TIFFToStackParameters(**params)
+        ProcessRawTIFFsParameters(**params)
 
 
 # Set up a mock transport object
@@ -298,16 +343,24 @@ def offline_transport(mocker):
 
 
 # Patches are matched to input parameters on a last in, first out basis
+@pytest.mark.parametrize("test_params", tiff_dataset_to_test)
 @patch("workflows.recipe.wrapper.RecipeWrapper.send_to")
-@patch("cryoemservices.wrappers.clem_process_raw_tiffs.convert_tiff_to_stack")
-def test_tiff_to_stack_wrapper(
-    mock_tiff_to_stack,
+@patch("cryoemservices.wrappers.clem_process_raw_tiffs.process_tiff_files")
+def test_process_raw_tiffs_wrapper(
+    mock_process_raw_tiffs,
     mock_send_to,
+    test_params: tuple[int],
     offline_transport,  # 'offline_transport' fixture defined above
-    tiff_list: list[Path],
-    metadata: Path,
+    tiff_lists: list[list[Path]],
+    raw_metadata_files: list[Path],
     processed_dir: Path,
 ):
+    # Unpack test params and load relevant test datasets
+    (dataset_num,) = test_params
+    tiff_list = tiff_lists[dataset_num]
+    metadata = raw_metadata_files[dataset_num]
+    series_name = series_names[dataset_num]
+
     # Construct a dictionary to pass to the wrapper
     message = {
         "recipe": {
@@ -327,44 +380,34 @@ def test_tiff_to_stack_wrapper(
     }
 
     # Generate the expected output result of the TIFF processing function
-    series_dir = processed_dir / area_name / series_name
-    processed_metadata = series_dir / "metadata" / f"{series_name}.xml"
-    outputs = [
-        {
-            "image_stack": str(series_dir / f"{color}.tiff"),
-            "metadata": str(processed_metadata),
-            "series_name": series_name,
-            "channel": color,
-            "number_of_members": len(colors),
-            "parents_tiffs": str([str(file) for file in tiff_list]),
-        }
-        for c, color in enumerate(colors)
-    ]
-    mock_tiff_to_stack.return_value = outputs
+    # series_dir = processed_dir / area_name / series_name.replace(" ", "_")
+    # processed_metadata = series_dir / "metadata" / f"{series_name.replace(" ", "_")}.xml"
+    output = {"series_name": series_name, "dummy": "dummy"}
+    mock_process_raw_tiffs.return_value = output
 
     # Set up a recipe wrapper with the defined message
     recipe_wrapper = RecipeWrapper(message=message, transport=offline_transport)
 
     # Manually start up the function wrapper
-    tiff_to_stack_wrapper = TIFFToStackWrapper(recipe_wrapper)
-    return_code = tiff_to_stack_wrapper.run()
+    process_raw_tiffs_wrapper = ProcessRawTIFFsWrapper(recipe_wrapper)
+    return_code = process_raw_tiffs_wrapper.run()
 
     # Start checking the calls that take place when running the function
-    mock_tiff_to_stack.assert_called_once_with(
+    mock_process_raw_tiffs.assert_called_once_with(
         tiff_list=tiff_list,
         root_folder=raw_folder,
         metadata_file=metadata,
+        number_of_processes=20,
     )
 
     # Check that all the results set up are sent out at the end of the function
-    for output in outputs:
-        # Generate the dictionary to be sent out
-        murfey_params = {
-            "register": "clem.register_tiff_preprocessing_result",
-            "result": output,
-        }
-        # Check that the messag is sent out correctly
-        mock_send_to.assert_any_call("murfey_feedback", murfey_params)
+    # Generate the dictionary to be sent out
+    murfey_params = {
+        "register": "clem.register_preprocessing_result",
+        "result": output,
+    }
+    # Check that the messag is sent out correctly
+    mock_send_to.assert_called_once_with("murfey_feedback", murfey_params)
 
     # Check that the wrapper ran through to completion
     assert return_code
