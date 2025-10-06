@@ -9,7 +9,7 @@ from pytest_mock import MockerFixture
 from cryoemservices.cli import clem_process_raw_tiffs
 
 
-def test_tiff_to_stack_with_optional_args(mocker: MockerFixture, tmp_path: Path):
+def test_process_raw_tiffs_with_optional_args(mocker: MockerFixture, tmp_path: Path):
     """Test that the cli runs with all args provided"""
     tiff_files: list[Path] = sorted(
         [
@@ -20,25 +20,30 @@ def test_tiff_to_stack_with_optional_args(mocker: MockerFixture, tmp_path: Path)
     for file in tiff_files:
         file.touch()
     metadata_file = Path("file.xlif")
+    num_procs = 20
 
     # Set up mock objects and results
-    mock_setup = mocker.patch("cryoemservices.cli.clem_tiff_to_stack.set_up_logging")
-    mock_convert = mocker.patch(
-        "cryoemservices.wrappers.clem_process_raw_tiffs.convert_tiff_to_stack"
+    mock_setup = mocker.patch(
+        "cryoemservices.cli.clem_process_raw_tiffs.set_up_logging"
     )
-    mock_print = mocker.patch("cryoemservices.cli.clem_tiff_to_stack.print")
+    mock_convert = mocker.patch(
+        "cryoemservices.wrappers.clem_process_raw_tiffs.process_tiff_files"
+    )
+    mock_print = mocker.patch("cryoemservices.cli.clem_process_raw_tiffs.print")
 
     dummy_result = [{"dummy": i} for i in range(3)]
     mock_convert.return_value = dummy_result
 
     # Run the cli
     sys.argv = [
-        "clem_tiff_to_stack",
+        "clem_process_raw_tiffs",
         str(tiff_files[0]),
         "--root-folder",
         "root",
         "--metadata",
         str(metadata_file),
+        "-n",
+        str(num_procs),
         "--debug",
     ]
     clem_process_raw_tiffs.run()
@@ -49,24 +54,26 @@ def test_tiff_to_stack_with_optional_args(mocker: MockerFixture, tmp_path: Path)
     assert sorted(kwargs["tiff_list"]) == tiff_files
     assert kwargs["root_folder"] == "root"
     assert kwargs["metadata_file"] == metadata_file
+    assert kwargs["number_of_processes"] == num_procs
 
-    for result in dummy_result:
-        mock_print.assert_any_call(result)
+    mock_print.assert_called_with("TIFF processing workflow successfully completed")
 
 
-def test_tiff_to_stack_with_default_args(mocker: MockerFixture, tmp_path: Path):
+def test_process_raw_tiffs_with_default_args(mocker: MockerFixture, tmp_path: Path):
     """Test that the cli runs the expected default args"""
     tiff_file = tmp_path / "file--1.tiff"
     tiff_file.touch()
 
     mock_convert = mocker.patch(
-        "cryoemservices.wrappers.clem_process_raw_tiffs.convert_tiff_to_stack"
+        "cryoemservices.wrappers.clem_process_raw_tiffs.process_tiff_files"
     )
-    mock_setup = mocker.patch("cryoemservices.cli.clem_tiff_to_stack.set_up_logging")
+    mock_setup = mocker.patch(
+        "cryoemservices.cli.clem_process_raw_tiffs.set_up_logging"
+    )
 
     # Run the cli
     sys.argv = [
-        "clem_tiff_to_stack",
+        "clem_process_raw_tiffs",
         str(tiff_file),
     ]
     clem_process_raw_tiffs.run()
@@ -77,14 +84,15 @@ def test_tiff_to_stack_with_default_args(mocker: MockerFixture, tmp_path: Path):
         tiff_list=[tiff_file],
         root_folder="images",
         metadata_file=None,
+        number_of_processes=1,
     )
 
 
-def test_tiff_to_stack_exists():
-    """Test the clem.tiff_to_stack CLI is made"""
+def test_process_raw_tiffs_exists():
+    """Test that clem.process_raw_tiffs CLI is made"""
     result = subprocess.run(
         [
-            "clem.tiff_to_stack",
+            "clem.process_raw_tiffs",
             "--help",
         ],
         capture_output=True,
@@ -97,5 +105,5 @@ def test_tiff_to_stack_exists():
         stdout_as_string.split("\n\n")[0].replace("\n", "").replace(" ", "")
     )
     assert cleaned_help_line == (
-        "usage:clem.tiff_to_stack[-h][--root-folderROOT_FOLDER][--metadataMETADATA][--debug]tiff_file"
+        "usage:clem.process_raw_tiffs[-h][--root-folderROOT_FOLDER][--metadataMETADATA][-nNUM_PROCS][--debug]tiff_file"
     )

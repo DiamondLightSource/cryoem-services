@@ -9,14 +9,14 @@ from pytest_mock import MockerFixture
 from cryoemservices.cli import clem_process_raw_lifs
 
 
-def test_lif_to_stack_with_optional_args(mocker: MockerFixture):
+def test_process_raw_lifs_with_optional_args(mocker: MockerFixture):
     """Test that the cli runs with all args provided"""
     # Set up necessary mock objects
     mock_convert = mocker.patch(
         "cryoemservices.wrappers.clem_process_raw_lifs.process_lif_file"
     )
-    mock_print = mocker.patch("cryoemservices.cli.clem_lif_to_stack.print")
-    mock_setup = mocker.patch("cryoemservices.cli.clem_lif_to_stack.set_up_logging")
+    mock_print = mocker.patch("cryoemservices.cli.clem_process_raw_lifs.print")
+    mock_setup = mocker.patch("cryoemservices.cli.clem_process_raw_lifs.set_up_logging")
 
     # Create some dummy results
     dummy_results = [{"result": i} for i in range(3)]
@@ -24,7 +24,7 @@ def test_lif_to_stack_with_optional_args(mocker: MockerFixture):
 
     # Run the cli
     sys.argv = [
-        "clem.lif_to_stack",
+        "clem.process_raw_lifs",
         "file.lif",
         "--root-folder",
         "root",
@@ -43,17 +43,16 @@ def test_lif_to_stack_with_optional_args(mocker: MockerFixture):
     )
 
     # Check that the dummy results are printed at the end
-    for result in dummy_results:
-        mock_print.assert_any_call(result)
+    mock_print.assert_called_with("LIF processing workflow successfully completed")
 
 
-def test_lif_to_stack_with_default_args(mocker: MockerFixture):
+def test_process_raw_lifs_with_default_args(mocker: MockerFixture):
     """Test that the cli runs with all args provided"""
     # Set up necessary mock objects
     mock_convert = mocker.patch(
         "cryoemservices.wrappers.clem_process_raw_lifs.process_lif_file"
     )
-    mock_setup = mocker.patch("cryoemservices.cli.clem_lif_to_stack.set_up_logging")
+    mock_setup = mocker.patch("cryoemservices.cli.clem_process_raw_lifs.set_up_logging")
 
     # Create some dummy results
     dummy_results = [{"result": i} for i in range(3)]
@@ -61,7 +60,7 @@ def test_lif_to_stack_with_default_args(mocker: MockerFixture):
 
     # Run the cli
     sys.argv = [
-        "clem.lif_to_stack",
+        "clem.process_raw_lifs",
         "file.lif",
     ]
     clem_process_raw_lifs.run()
@@ -75,11 +74,11 @@ def test_lif_to_stack_with_default_args(mocker: MockerFixture):
     )
 
 
-def test_lif_to_stack_exists():
-    """Test the clem.lif_to_stack CLI is made"""
+def test_process_raw_lifs_exists():
+    """Test that clem.process_raw_lifs CLI is made"""
     result = subprocess.run(
         [
-            "clem.lif_to_stack",
+            "clem.process_raw_lifs",
             "--help",
         ],
         capture_output=True,
@@ -92,5 +91,5 @@ def test_lif_to_stack_exists():
         stdout_as_string.split("\n\n")[0].replace("\n", "").replace(" ", "")
     )
     assert cleaned_help_line == (
-        "usage:clem.lif_to_stack[-h][--root-folderROOT_FOLDER][-nNUM_PROCS][--debug]lif_file"
+        "usage:clem.process_raw_lifs[-h][--root-folderROOT_FOLDER][-nNUM_PROCS][--debug]lif_file"
     )
