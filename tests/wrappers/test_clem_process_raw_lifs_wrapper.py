@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 import xml.etree.ElementTree as ET
 from pathlib import Path
+from typing import Any
 from unittest import mock
 from unittest.mock import MagicMock
 
@@ -13,7 +14,11 @@ from readlif.reader import LifFile, LifImage
 from workflows.recipe.wrapper import RecipeWrapper
 from workflows.transport.offline_transport import OfflineTransport
 
-from cryoemservices.util.clem_metadata import find_image_elements, get_tile_scan_info
+from cryoemservices.util.clem_metadata import (
+    find_image_elements,
+    get_dimension_info,
+    get_tile_scan_info,
+)
 from cryoemservices.wrappers.clem_process_raw_lifs import (
     ProcessRawLIFsWrapper,
     get_lif_xml_metadata,
@@ -331,6 +336,12 @@ def test_process_lif_subimage(
     # Pick a single scene from the LIF file to analyse
     (scene_num,) = test_params
     metadata = list(find_image_elements(raw_xml_metadata).values())[scene_num]
+    tile_scan_info = get_tile_scan_info(metadata)
+    dims = get_dimension_info(metadata)
+
+    # Get width and height for a single frame
+    w = float(dims["x"]["length"])
+    h = float(dims["y"]["length"])
 
     # Mock the LifFile object and assign the necessary return values
     mock_lif_file = mocker.patch(
@@ -375,17 +386,57 @@ def test_process_lif_subimage(
             x_pix = int(stitched_width / actual_pixel_size)
 
         # Mock the subprocess calls used for contrast measurment and image stitching
-        starmap_results = []
+        starmap_results: list[Any] = []
+        starmap_args: list[Any] = []
         for c in range(num_channels):
+            # Add results and args for percentile measurment
             starmap_results.append(
                 [
                     (0, 255)
-                    for f in range(num_frames)
+                    for z in range(num_frames)
                     for t in range(num_tiles[scene_num])
                 ]
             )
+            starmap_args.append(
+                [
+                    get_percentiles,
+                    [
+                        (
+                            lif_file,
+                            scene_num,
+                            c,
+                            z,
+                            t,
+                            (0.5, 99.5),
+                        )
+                        for z in range(num_frames)
+                        for t in range(num_tiles[scene_num])
+                    ],
+                ]
+            )
+            # Add results and args for image stitching
             starmap_results.append(
                 [np.ones((y_pix, x_pix), dtype="uint8") for f in range(num_frames)]
+            )
+            starmap_args.append(
+                [
+                    stitch_image_frames,
+                    [
+                        (
+                            lif_file,
+                            scene_num,
+                            c,
+                            z,
+                            tile_scan_info,
+                            w,
+                            h,
+                            extent,
+                            400,
+                            (0, 255),
+                        )
+                        for z in range(num_frames)
+                    ],
+                ]
             )
         pool_mocks = []
         for result in starmap_results:
@@ -407,8 +458,8 @@ def test_process_lif_subimage(
         num_procs=1,
     )
     if num_tiles[scene_num] > 1:
-        for pool in pool_mocks:
-            pool.starmap.assert_called_once()
+        for p, pool in enumerate(pool_mocks):
+            pool.starmap.assert_called_once_with(*starmap_args[p])
     assert result  # Verify that function completed successfully
 
     # Verify against expected results
