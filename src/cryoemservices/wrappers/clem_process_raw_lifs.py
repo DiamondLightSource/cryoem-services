@@ -64,9 +64,9 @@ def get_percentiles(
     tile_num: int,
     percentiles: tuple[float, float] = (1, 99),
 ) -> tuple[float | None, float | None]:
-    # Load the subimage
-    image = LifFile(str(file)).get_image(scene_num)
     try:
+        # Load the subimage
+        image = LifFile(str(file)).get_image(scene_num)
         arr = image.get_frame(
             z=frame_num,
             c=channel_num,
