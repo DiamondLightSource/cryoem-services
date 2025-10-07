@@ -427,6 +427,7 @@ class AlignAndMergeParameters(BaseModel):
     align_across: Literal["enabled", ""] = Field(default="")
 
     @field_validator("images", mode="before")
+    @classmethod
     def parse_images(cls, value):
         if isinstance(value, str):
             # Check for stringified list
@@ -442,6 +443,7 @@ class AlignAndMergeParameters(BaseModel):
         return value
 
     @model_validator(mode="after")
+    @classmethod
     def wrap_images(cls, model: AlignAndMergeParameters):
         """
         Wrap single images in a list to standardise what's passed on to the align-and-
@@ -452,6 +454,7 @@ class AlignAndMergeParameters(BaseModel):
         return model
 
     @field_validator("crop_to_n_frames", mode="before")
+    @classmethod
     def parse_for_None(cls, value):
         """
         Convert incoming "None" into None.

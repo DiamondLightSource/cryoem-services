@@ -517,6 +517,7 @@ class ProcessRawTIFFsParameters(BaseModel):
     num_procs: int = 20
 
     @field_validator("tiff_list", mode="before")
+    @classmethod
     def parse_tiff_list(cls, value):
         if isinstance(value, str):
             # Check for "null" keyword
@@ -535,6 +536,7 @@ class ProcessRawTIFFsParameters(BaseModel):
         return value
 
     @field_validator("tiff_file", mode="before")
+    @classmethod
     def parse_tiff_file(cls, value):
         # Check for "null" keyword
         if value == "null":
@@ -545,6 +547,7 @@ class ProcessRawTIFFsParameters(BaseModel):
         return value
 
     @model_validator(mode="after")
+    @classmethod
     def construct_tiff_list(cls, model: ProcessRawTIFFsParameters):
         if model.tiff_list and model.tiff_file:
             raise ValueError(
