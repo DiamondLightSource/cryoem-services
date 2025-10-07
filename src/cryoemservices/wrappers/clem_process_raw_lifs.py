@@ -229,6 +229,7 @@ def process_lif_subimage(
         logger.error(
             f"Failed to parse metadata file for {series_name!r}", exc_info=True
         )
+        return {}
 
     # Get width and height for a single frame
     w = float(dims["x"]["length"])
