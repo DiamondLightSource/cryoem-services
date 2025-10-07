@@ -2,18 +2,23 @@ from __future__ import annotations
 
 import math
 from pathlib import Path
-from unittest.mock import patch
+from typing import Any
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
 from pydantic_core import ValidationError
+from pytest_mock import MockerFixture
 from workflows.recipe.wrapper import RecipeWrapper
 from workflows.transport.offline_transport import OfflineTransport
 
+from cryoemservices.util.clem_metadata import get_dimension_info, get_tile_scan_info
 from cryoemservices.wrappers.clem_process_raw_tiffs import (
     ProcessRawTIFFsParameters,
     ProcessRawTIFFsWrapper,
+    get_percentiles,
     process_tiff_files,
+    stitch_image_frames,
 )
 from tests.test_utils.clem import create_tiff_xml_metadata
 
@@ -94,6 +99,117 @@ def processed_dir(raw_dir: Path):
     processed_dir = raw_dir.parent / processed_folder
     processed_dir.mkdir(parents=True, exist_ok=True)
     return processed_dir
+
+
+percentiles_test_matrix = (
+    (0, 100),
+    (1, 99),
+    (5, 95),
+    (10, 90),
+)
+
+
+@pytest.mark.parametrize("test_params", percentiles_test_matrix)
+def test_get_percentiles(
+    mocker: MockerFixture,
+    test_params: tuple[float, float],
+    tiff_lists: list[list[Path]],
+):
+    # Unpack test params
+    p_lo, p_hi = test_params
+
+    # Construct return values for the mocked PIL Image
+    mock_image = mocker.patch(
+        "cryoemservices.wrappers.clem_process_raw_tiffs.Image", autospec=True
+    )
+    arr = np.arange(256).reshape(16, 16).astype("uint8")
+    mock_image.open.return_value = arr
+
+    v_min, v_max = get_percentiles(
+        file=tiff_lists[0][0],
+        percentiles=(p_lo, p_hi),
+    )
+    expected_min, expected_max = np.percentile(arr, (p_lo, p_hi))
+    assert math.isclose(v_min, expected_min)
+    assert math.isclose(v_max, expected_max)
+
+
+def test_get_percentiles_fails(
+    tiff_lists: list[list[Path]],
+):
+    # It should return (None, None) if the TIFF file cannot be read
+    assert get_percentiles(file=tiff_lists[0][0]) == (None, None)
+
+
+def test_stitch_image_frames(
+    mocker: MockerFixture,
+    tiff_lists: list[list[Path]],
+):
+    dataset_num = 1  # Dataset with tiles
+    series_name = series_names[dataset_num]
+    tiff_list = tiff_lists[dataset_num]
+    metadata = create_tiff_xml_metadata(
+        series_name=series_name,
+        colors=colors,
+        bit_depth=16,
+        x_pix=num_pixels,
+        y_pix=num_pixels,
+        pixel_size=pixel_size,
+        num_frames=num_frames,
+        z_size=z_size,
+        num_tiles=num_tiles[dataset_num],
+        tile_offset=tile_offset,
+        collection_mode="grid",
+    )
+
+    # Verify that we've loaded the metadata with multiple tiles
+    assert len(metadata.findall(".//Tile")) > 1
+    tile_scan_info = get_tile_scan_info(metadata)
+    assert len(tile_scan_info) > 1
+
+    # Calculate the extent that will be covered by the test metadata
+    x_min, x_max, y_min, y_max = 1e10, 0.0, 1e10, 0.0
+    for tile_scan in tile_scan_info.values():
+        x0 = tile_scan["pos_x"]
+        x1 = x0 + tile_offset
+        y0 = tile_scan["pos_y"]
+        y1 = y0 + tile_offset
+        x_min = x0 if x0 < x_min else x_min
+        x_max = x1 if x1 > x_max else x_max
+        y_min = y0 if y0 < y_min else y_min
+        y_max = y1 if y1 > y_max else y_max
+
+    # Calculate the expected shape of the final image
+    width = x_max - x_min
+    height = y_max - y_min
+    if width / height > 1:
+        x_pixels = 2400
+        y_pixels = int(x_pixels / width * height)
+    else:
+        y_pixels = 2400
+        x_pixels = int(y_pixels * width / height)
+
+    # Patch the PIL Image object to return an array of ones
+    mock_image = mocker.patch(
+        "cryoemservices.wrappers.clem_process_raw_tiffs.Image", autospec=True
+    )
+    arr = np.ones((num_pixels, num_pixels), dtype="uint8")
+    mock_image.open.return_value = arr
+
+    # Run the function
+    frame = stitch_image_frames(
+        image_list=tiff_list,
+        tile_scan_info=tile_scan_info,
+        image_width=num_pixels,
+        image_height=num_pixels,
+        extent=[x_min, x_max, y_min, y_max],
+        dpi=400,
+        contrast_limits=(0, 255),
+    )
+
+    # Check that size and contents are as expected
+    assert (frame == 1).all()
+    np.testing.assert_allclose(frame.shape, (y_pixels, x_pixels), atol=2)
 
 
 def create_dummy_result(
@@ -185,12 +301,8 @@ tiff_dataset_to_test = [(n,) for n in range(num_datasets)]
 
 
 @pytest.mark.parametrize("test_params", tiff_dataset_to_test)
-@patch("cryoemservices.wrappers.clem_process_raw_tiffs.Image")
-@patch("cryoemservices.wrappers.clem_process_raw_tiffs.parse")
 def test_process_tiff_files(
-    mock_parse,
-    mock_image,
-    raw_dir: Path,
+    mocker: MockerFixture,
     processed_dir: Path,
     tiff_lists,
     raw_metadata_files,
@@ -202,7 +314,7 @@ def test_process_tiff_files(
     tiff_list = tiff_lists[test_num]
     raw_metadata = raw_metadata_files[test_num]
 
-    # Mock results of the 'parse()' function
+    # Create XML metadata for test dataset
     xml_metadata = create_tiff_xml_metadata(
         series_name=series_name,
         colors=colors,
@@ -216,12 +328,120 @@ def test_process_tiff_files(
         tile_offset=tile_offset,
         collection_mode="linear",
     )
+    mock_parse = mocker.patch("cryoemservices.wrappers.clem_process_raw_tiffs.parse")
     mock_parse.return_value.getroot.return_value = xml_metadata
 
+    # Extract metadata dictionaries
+    dims = get_dimension_info(xml_metadata)
+    tile_scan_info = get_tile_scan_info(xml_metadata)
+
+    # Get width and height for a single frame
+    w = float(dims["x"]["length"])
+    h = float(dims["y"]["length"])
+
     # Mock the result of 'Image.open()'
+    mock_image = mocker.patch("cryoemservices.wrappers.clem_process_raw_tiffs.Image")
     mock_image.open.return_value = np.random.randint(
         0, 255, (num_pixels, num_pixels), dtype="uint16"
     )
+
+    # Calculate the image's extent
+    num_cols = math.ceil(math.sqrt(num_tiles[test_num]))
+    num_rows = math.ceil(num_tiles[test_num] / num_cols)
+    extent = [
+        # [x_min, x_max, y_min, y_max] in real space
+        tile_offset,
+        (tile_offset * num_cols) + (num_pixels * pixel_size),
+        tile_offset,
+        (tile_offset * num_rows) + (num_pixels * pixel_size),
+    ]
+
+    # After calculating the extent, update num_pixels, pixel_size, and resolution
+    x_pix = num_pixels
+    y_pix = num_pixels
+    actual_pixel_size = pixel_size
+
+    # Calculate the shape of the final image for use when mocking the subprocess call
+    if num_tiles[test_num] > 1:
+        stitched_height = extent[3] - extent[2]
+        stitched_width = extent[1] - extent[0]
+        x_to_y_ratio = stitched_width / stitched_height
+        # if x:y > 4:3, set width to 3200, otherwise set height to 2400
+        if x_to_y_ratio > 1:
+            x_pix = 2400
+            actual_pixel_size = stitched_width / x_pix
+            y_pix = int(stitched_height / actual_pixel_size)
+        else:
+            y_pix = 2400
+            actual_pixel_size = stitched_height / y_pix
+            x_pix = int(stitched_width / actual_pixel_size)
+
+        # Mock the subprocess calls used for contrast measurment and image stitching
+        starmap_results: list[Any] = []
+        starmap_args: list[Any] = []
+        for c in range(num_channels):
+
+            tiff_color_subset = [
+                file
+                for file in tiff_list
+                if f"C{str(c).zfill(2)}" in file.stem.split("--")
+            ]
+
+            # Add results and args for percentile measurment
+            starmap_results.append(
+                [
+                    (0, 255)
+                    for z in range(num_frames)
+                    for t in range(num_tiles[test_num])
+                ]
+            )
+            starmap_args.append(
+                [
+                    get_percentiles,
+                    [
+                        (
+                            file,
+                            (0.5, 99.5),
+                        )
+                        for file in tiff_color_subset
+                    ],
+                ]
+            )
+            # Add results and args for image stitching
+            starmap_results.append(
+                [np.ones((y_pix, x_pix), dtype="uint8") for f in range(num_frames)]
+            )
+            starmap_args.append(
+                [
+                    stitch_image_frames,
+                    [
+                        (
+                            [
+                                file
+                                for file in tiff_color_subset
+                                if f"Z{str(z).zfill(2)}" in file.stem.split("--")
+                            ],
+                            tile_scan_info,
+                            w,
+                            h,
+                            extent,
+                            400,
+                            (0, 255),
+                        )
+                        for z in range(num_frames)
+                    ],
+                ]
+            )
+        pool_mocks = []
+        for result in starmap_results:
+            mock_pool = MagicMock()
+            mock_pool.__enter__.return_value = mock_pool
+            mock_pool.starmap.return_value = result
+            pool_mocks.append(mock_pool)
+        mock_pool_constructor = mocker.patch(
+            "cryoemservices.wrappers.clem_process_raw_tiffs.Pool", autospec=True
+        )
+        mock_pool_constructor.side_effect = pool_mocks
 
     # Run the function
     result = process_tiff_files(
@@ -230,6 +450,10 @@ def test_process_tiff_files(
         metadata_file=raw_metadata,
         number_of_processes=5,
     )
+    if num_tiles[test_num] > 1:
+        for p, pool in enumerate(pool_mocks):
+            pool.starmap.assert_called_once_with(*starmap_args[p])
+    assert result  # Verify that function completed successfully
 
     # Construct the expected results
     expected_result = create_dummy_result(
@@ -344,22 +568,24 @@ def offline_transport(mocker):
 
 # Patches are matched to input parameters on a last in, first out basis
 @pytest.mark.parametrize("test_params", tiff_dataset_to_test)
-@patch("workflows.recipe.wrapper.RecipeWrapper.send_to")
-@patch("cryoemservices.wrappers.clem_process_raw_tiffs.process_tiff_files")
 def test_process_raw_tiffs_wrapper(
-    mock_process_raw_tiffs,
-    mock_send_to,
+    mocker: MockerFixture,
     test_params: tuple[int],
     offline_transport,  # 'offline_transport' fixture defined above
     tiff_lists: list[list[Path]],
     raw_metadata_files: list[Path],
-    processed_dir: Path,
 ):
     # Unpack test params and load relevant test datasets
     (dataset_num,) = test_params
     tiff_list = tiff_lists[dataset_num]
     metadata = raw_metadata_files[dataset_num]
     series_name = series_names[dataset_num]
+
+    # Construct mock objects for use in this test
+    mock_send_to = mocker.patch("workflows.recipe.wrapper.RecipeWrapper.send_to")
+    mock_process_raw_tiffs = mocker.patch(
+        "cryoemservices.wrappers.clem_process_raw_tiffs.process_tiff_files"
+    )
 
     # Construct a dictionary to pass to the wrapper
     message = {
