@@ -292,10 +292,12 @@ class Denoise(CommonService):
             "relion_options": dict(denoise_params.relion_options),
         }
         cryolo_parameters = {
+            "raw_tomogram": denoise_params.volume,
             "input_path": str(denoised_full_path),
             "output_path": str(cryolo_dir / f"CBOX_3D/{denoised_full_path.stem}.cbox"),
             "experiment_type": "tomography",
             "cryolo_box_size": 40,
+            "pixel_size": str(denoise_params.relion_options.pixel_size_downscaled),
             "relion_options": dict(denoise_params.relion_options),
         }
         rw.send_to("segmentation", segmentation_parameters)
