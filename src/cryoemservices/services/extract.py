@@ -232,12 +232,23 @@ class Extract(CommonService):
             pixel_location_y = round(float(particles_y[particle]))
             extract_width = round(extract_params.relion_options.boxsize / 2)
 
-            particle_subimage, failure_reason = extract_single_particle(
+            full_particle_subimage, failure_reason = extract_single_particle(
                 input_image=input_micrograph_image,
                 x_coord=pixel_location_x,
                 y_coord=pixel_location_y,
                 extract_width=extract_width,
                 shape=[image_size[1], image_size[0]],
+            )
+            if failure_reason:
+                self.log.warning(
+                    f"Extraction failed for {particle} "
+                    f"in {extract_params.micrographs_file}. "
+                    f"Reason was {failure_reason}."
+                )
+                continue
+            particle_subimage, failure_reason = enhance_single_particle(
+                particle_subimage=full_particle_subimage,
+                extract_width=extract_width,
                 small_boxsize=extract_params.relion_options.small_boxsize,
                 bg_radius=extract_params.bg_radius,
                 invert_contrast=extract_params.invert_contrast,
@@ -317,16 +328,9 @@ def extract_single_particle(
     y_coord: float,
     extract_width: float,
     shape: list[int],
-    small_boxsize: int,
-    bg_radius: float,
-    invert_contrast: bool = True,
-    downscale: bool = True,
-    norm: bool = True,
-    plane_fit: bool = True,
 ) -> tuple[np.ndarray, str]:
     """
     A function which can extract a single particle in a micrograph
-    or a single particle from a tomogram tilt
     """
     # Extract the particle image and pad the edges if it is not square
     x_left_pad = 0
@@ -360,7 +364,23 @@ def extract_single_particle(
             ((y_bot_pad, y_top_pad), (x_left_pad, x_right_pad)),
             mode="edge",
         )
+    return particle_subimage, ""
 
+
+def enhance_single_particle(
+    particle_subimage: np.ndarray,
+    extract_width: float,
+    small_boxsize: int,
+    bg_radius: float,
+    invert_contrast: bool = True,
+    downscale: bool = True,
+    norm: bool = True,
+    plane_fit: bool = True,
+):
+    """
+    A function which runs enhancement on an extracted particle in a micrograph
+    or a flattened particle from a tomogram volume
+    """
     # Flip all the values on inversion
     if invert_contrast:
         particle_subimage = -1 * particle_subimage
