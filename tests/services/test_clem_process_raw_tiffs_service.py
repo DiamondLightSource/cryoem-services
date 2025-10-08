@@ -6,7 +6,7 @@ from unittest import mock
 import pytest
 from workflows.transport.offline_transport import OfflineTransport
 
-from cryoemservices.services.clem_process_raw_tiffs import TIFFToStackService
+from cryoemservices.services.clem_process_raw_tiffs import ProcessRawTIFFsService
 from cryoemservices.util.models import MockRW
 
 project = "project_1"
@@ -68,35 +68,6 @@ def processed_dir(visit_dir: Path):
 
 
 @pytest.fixture
-def processing_results(processed_dir: Path, tiff_files: list[Path]):
-    series_name = f"{project}--{grid}--{position.replace(' ', '_')}"
-
-    results_dir = processed_dir / project / grid / position.replace(" ", "_")
-    results_dir.mkdir(parents=True, exist_ok=True)
-
-    metadata_dir = results_dir / "metadata"
-    metadata_dir.mkdir(exist_ok=True)
-    metadata = metadata_dir / f"{position.replace(' ', '_')}.xlif"
-
-    results: list[dict] = []
-    for c, channel in enumerate(channels):
-        tiff_sublist = [str(f) for f in tiff_files if f"--C{str(c).zfill(2)}" in f.stem]
-        image = results_dir / f"{channel}.tiff"
-        image.touch(exist_ok=True)
-        results.append(
-            {
-                "image_stack": str(image),
-                "metadata": str(metadata),
-                "series_name": series_name,
-                "channel": channel,
-                "number_of_members": len(channels),
-                "parent_tiffs": str(tiff_sublist),
-            }
-        )
-    return results
-
-
-@pytest.fixture
 def offline_transport(mocker):
     transport = OfflineTransport()
     mocker.spy(transport, "send")
@@ -104,19 +75,18 @@ def offline_transport(mocker):
     return transport
 
 
-tiff_to_stack_params_matrix = (
+process_raw_tiffs_params_matrix = (
     # Use Recipe Wrapper?
     (True,),
     (False,),
 )
 
 
-@pytest.mark.parametrize("test_params", tiff_to_stack_params_matrix)
-@mock.patch("cryoemservices.services.clem_process_raw_tiffs.convert_tiff_to_stack")
-def test_tiff_to_stack_service(
+@pytest.mark.parametrize("test_params", process_raw_tiffs_params_matrix)
+@mock.patch("cryoemservices.services.clem_process_raw_tiffs.process_tiff_files")
+def test_process_raw_tiffs_service(
     mock_convert,
     test_params: tuple[bool],
-    processing_results: list[dict],
     tiff_files: list[Path],
     metadata: Path,
     raw_dir: Path,
@@ -136,7 +106,7 @@ def test_tiff_to_stack_service(
         "message-id": mock.sentinel,
         "subscription": mock.sentinel,
     }
-    tiff_to_stack_test_message = {
+    process_raw_tiffs_test_message = {
         "tiff_list": None,
         "tiff_file": str(tiff_files[0]),
         "root_folder": raw_dir.stem,
@@ -144,14 +114,20 @@ def test_tiff_to_stack_service(
     }
 
     # Set up expected mock values
-    mock_convert.return_value = processing_results
+    result = {
+        "series_name": "dummy",
+        "dummy": "dummy",
+    }
+    mock_convert.return_value = result
 
     # Set up and run the service
-    service = TIFFToStackService(environment={"queue": ""}, transport=offline_transport)
+    service = ProcessRawTIFFsService(
+        environment={"queue": ""}, transport=offline_transport
+    )
     service.initializing()
     if use_recwrap:
         recwrap = MockRW(offline_transport)
-        recwrap.recipe_step = {"parameters": tiff_to_stack_test_message}
+        recwrap.recipe_step = {"parameters": process_raw_tiffs_test_message}
         service.call_process_raw_tiffs(
             recwrap,
             header=header,
@@ -161,7 +137,7 @@ def test_tiff_to_stack_service(
         service.call_process_raw_tiffs(
             None,
             header=header,
-            message=tiff_to_stack_test_message,
+            message=process_raw_tiffs_test_message,
         )
 
     # Check that the expected calls are made
@@ -170,17 +146,16 @@ def test_tiff_to_stack_service(
     assert kwargs["root_folder"] == raw_dir.stem
     assert kwargs["metadata_file"] == metadata
 
-    for result in processing_results:
-        offline_transport.send.assert_any_call(
-            "murfey_feedback",
-            {
-                "register": "clem.register_tiff_preprocessing_result",
-                "result": result,
-            },
-        )
+    offline_transport.send.assert_any_call(
+        "murfey_feedback",
+        {
+            "register": "clem.register_preprocessing_result",
+            "result": result,
+        },
+    )
 
 
-def test_tiff_to_stack_bad_messsage(
+def test_process_raw_tiffs_bad_messsage(
     offline_transport: OfflineTransport,
 ):
     # Set up the parameters
@@ -191,7 +166,7 @@ def test_tiff_to_stack_bad_messsage(
     bad_message = "This is a bad message"
 
     # Set up and run the service
-    service = TIFFToStackService(
+    service = ProcessRawTIFFsService(
         environment={"queue": ""},
         transport=offline_transport,
     )
@@ -210,7 +185,7 @@ def test_tiff_to_stack_bad_messsage(
 
 
 # Introduce invalid parameters field-by-field
-tiff_to_stack_params_bad_validation_matrix = (
+process_raw_tiffs_params_bad_validation_matrix = (
     # TIFF list | Tiff file | Root folder | Metadata
     (False, True, True, True),
     (True, False, True, True),
@@ -219,8 +194,8 @@ tiff_to_stack_params_bad_validation_matrix = (
 )
 
 
-@pytest.mark.parametrize("test_params", tiff_to_stack_params_bad_validation_matrix)
-def test_tiff_to_stack_service_validation_failed(
+@pytest.mark.parametrize("test_params", process_raw_tiffs_params_bad_validation_matrix)
+def test_process_raw_tiffs_service_validation_failed(
     test_params: tuple[bool, bool, bool, bool],
     tiff_files: list[Path],
     metadata: Path,
@@ -246,7 +221,7 @@ def test_tiff_to_stack_service_validation_failed(
     tiff_file_value = str(tiff_files[0]) if valid_tiff_file else 123456789
     root_folder_value = raw_dir.stem if valid_root_folder else 123456789
     metadata_value = str(metadata) if valid_metadata else 123456789
-    tiff_to_stack_test_message = {
+    process_raw_tiffs_test_message = {
         "tiff_list": tiff_list_value,
         "tiff_file": tiff_file_value,
         "root_folder": root_folder_value,
@@ -254,12 +229,14 @@ def test_tiff_to_stack_service_validation_failed(
     }
 
     # Set up and run the service
-    service = TIFFToStackService(environment={"queue": ""}, transport=offline_transport)
+    service = ProcessRawTIFFsService(
+        environment={"queue": ""}, transport=offline_transport
+    )
     service.initializing()
     service.call_process_raw_tiffs(
         None,
         header=header,
-        message=tiff_to_stack_test_message,
+        message=process_raw_tiffs_test_message,
     )
 
     # Check that the message was nacked with the expected parameters
@@ -269,8 +246,8 @@ def test_tiff_to_stack_service_validation_failed(
     offline_transport.send.assert_not_called()
 
 
-@mock.patch("cryoemservices.services.clem_process_raw_tiffs.convert_tiff_to_stack")
-def test_tiff_to_stack_service_processing_failed(
+@mock.patch("cryoemservices.services.clem_process_raw_tiffs.process_tiff_files")
+def test_process_raw_tiffs_service_processing_failed(
     mock_convert,
     tiff_files: list[Path],
     metadata: Path,
@@ -288,7 +265,7 @@ def test_tiff_to_stack_service_processing_failed(
         "message-id": mock.sentinel,
         "subscription": mock.sentinel,
     }
-    tiff_to_stack_test_message = {
+    process_raw_tiffs_test_message = {
         "tiff_list": None,
         "tiff_file": str(tiff_files[0]),
         "root_folder": raw_dir.stem,
@@ -299,12 +276,14 @@ def test_tiff_to_stack_service_processing_failed(
     mock_convert.return_value = None
 
     # Set up and run the service
-    service = TIFFToStackService(environment={"queue": ""}, transport=offline_transport)
+    service = ProcessRawTIFFsService(
+        environment={"queue": ""}, transport=offline_transport
+    )
     service.initializing()
     service.call_process_raw_tiffs(
         None,
         header=header,
-        message=tiff_to_stack_test_message,
+        message=process_raw_tiffs_test_message,
     )
 
     # Check that the message was nacked with the expected parameters

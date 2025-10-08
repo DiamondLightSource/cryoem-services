@@ -67,8 +67,8 @@ torch = [
     GitHub = "https://github.com/DiamondLightSource/cryoem-services"
 [project.scripts]
     "clem.align_and_merge" = "cryoemservices.cli.clem_align_and_merge:run"
-    "clem.lif_to_stack" = "cryoemservices.cli.clem_lif_to_stack:run"
-    "clem.tiff_to_stack" = "cryoemservices.cli.clem_tiff_to_stack:run"
+    "clem.process_raw_lifs" = "cryoemservices.cli.clem_process_raw_lifs:run"
+    "clem.process_raw_tiffs" = "cryoemservices.cli.clem_process_raw_tiffs:run"
     "combine_star_files" = "cryoemservices.pipeliner_plugins.combine_star_files:main"
     "cryoemservices.angular_distribution_plot" = "cryoemservices.pipeliner_plugins.angular_distribution_plot:run"
     "cryoemservices.angular_efficiency" = "cryoemservices.pipeliner_plugins.angular_efficiency:run"
@@ -84,8 +84,8 @@ torch = [
 [project.entry-points."cryoemservices.services"]
     BFactor = "cryoemservices.services.bfactor_setup:BFactor"
     CLEMAlignAndMerge = "cryoemservices.services.clem_align_and_merge:AlignAndMergeService"
-    CLEMLIFToStack = "cryoemservices.services.clem_process_raw_lifs:LIFToStackService"
-    CLEMTIFFToStack = "cryoemservices.services.clem_process_raw_tiffs:TIFFToStackService"
+    CLEMProcessRawLIFs = "cryoemservices.services.clem_process_raw_lifs:ProcessRawLIFsService"
+    CLEMProcessRawTIFFs = "cryoemservices.services.clem_process_raw_tiffs:ProcessRawTIFFsService"
     CTFFind = "cryoemservices.services.ctffind:CTFFind"
     Class2D = "cryoemservices.services.class2d:Class2D"
     Class3D = "cryoemservices.services.class3d:Class3D"
@@ -120,8 +120,8 @@ torch = [
     ispyb = "cryoemservices.util.process_recipe_tools:ispyb_filter"
 [project.entry-points."cryoemservices.wrappers"]
     CLEMAlignAndMerge = "cryoemservices.wrappers.clem_align_and_merge:AlignAndMergeWrapper"
-    CLEMLIFToStack = "cryoemservices.wrappers.clem_process_raw_lifs:LIFToStackWrapper"
-    CLEMTIFFToStack = "cryoemservices.wrappers.clem_process_raw_tiffs:TIFFToStackWrapper"
+    CLEMProcessRawLIFs = "cryoemservices.wrappers.clem_process_raw_lifs:ProcessRawLIFsWrapper"
+    CLEMProcessRawTIFFs = "cryoemservices.wrappers.clem_process_raw_tiffs:ProcessRawTIFFsWrapper"
     Class2D = "cryoemservices.wrappers.class2d_wrapper:Class2DWrapper"
     Class3D = "cryoemservices.wrappers.class3d_wrapper:Class3DWrapper"
     Refine3D = "cryoemservices.wrappers.refine3d_wrapper:Refine3DWrapper"

@@ -208,11 +208,10 @@ def align_and_merge_stacks(
     colors = colors_to_process
 
     # Add file name component to describe type of composite image being generated
-    img_type = (
-        "BF_FL"  # Bright field + fluorescent
-        if any(color in colors for color in ("gray", "grey"))
-        else "FL"  # Fluorescent only
-    )
+    if any(color in colors for color in ("gray", "grey")):
+        img_type = "BF" if len(colors) == 1 else "BF_FL"
+    else:
+        img_type = "FL"
 
     # Check that images have the same pixel calibration
     if len(set(resolution_list)) > 1:
@@ -428,6 +427,7 @@ class AlignAndMergeParameters(BaseModel):
     align_across: Literal["enabled", ""] = Field(default="")
 
     @field_validator("images", mode="before")
+    @classmethod
     def parse_images(cls, value):
         if isinstance(value, str):
             # Check for stringified list
@@ -443,6 +443,7 @@ class AlignAndMergeParameters(BaseModel):
         return value
 
     @model_validator(mode="after")
+    @classmethod
     def wrap_images(cls, model: AlignAndMergeParameters):
         """
         Wrap single images in a list to standardise what's passed on to the align-and-
@@ -453,6 +454,7 @@ class AlignAndMergeParameters(BaseModel):
         return model
 
     @field_validator("crop_to_n_frames", mode="before")
+    @classmethod
     def parse_for_None(cls, value):
         """
         Convert incoming "None" into None.
@@ -485,17 +487,25 @@ class AlignAndMergeWrapper:
             return False
 
         # Process files and collect output
-        result = align_and_merge_stacks(
-            images=params.images,
-            metadata=params.metadata,
-            crop_to_n_frames=params.crop_to_n_frames,
-            align_self=params.align_self,
-            flatten=params.flatten,
-            align_across=params.align_across,
-        )
+        try:
+            result = align_and_merge_stacks(
+                images=params.images,
+                metadata=params.metadata,
+                crop_to_n_frames=params.crop_to_n_frames,
+                align_self=params.align_self,
+                flatten=params.flatten,
+                align_across=params.align_across,
+            )
+        # Log error and return False if the command fails to execute
+        except Exception:
+            logger.error(
+                f"Exception encountered while aligning and merging images for series {params.series_name!r}: \n",
+                exc_info=True,
+            )
+            return False
         if not result:
             logger.error(
-                "Failed to complete the aligning and merging process for "
+                "No image alignment and merging results were returned for series "
                 f"{params.series_name!r}"
             )
             return False
