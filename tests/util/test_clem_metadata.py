@@ -146,6 +146,55 @@ def test_find_image_elements(
         assert value.find("./Data/Image")
 
 
+def test_find_image_elements_recursivity(tmp_path: Path):
+    """
+    Tests that that 'find_image_elements' correctly searches the XML metadata
+    recursively
+    """
+
+    nested_datasets = [
+        ["Series 1" if n == 0 else f"Layer {n}" for n in range(10)],
+        ["Series 2" if n == 0 else f"Layer {n}" for n in range(10)],
+    ]
+
+    # Create the root element
+    root = ET.Element("LMSDataContainerHeader")
+
+    # Recursively add Element nodes
+    for dataset in nested_datasets:
+        node = root
+        for layer in dataset:
+            # Attach first layer to root and nest subsequent ones
+            child = ET.SubElement(node, "Children")
+            node = ET.SubElement(child, "Element", {"Name": layer})
+        # 'node' now points to the innermost layer
+        # Attach Data element, followed by Image, then some content
+        data = ET.SubElement(node, "Data")
+        image = ET.SubElement(data, "Image")
+        _ = ET.SubElement(image, "Attachment", {"Name": ""})
+
+    # Save the root as a file
+    tree = ET.ElementTree(root)
+    ET.indent(tree, "  ")
+    metadata_file = tmp_path / "recursive_test.xml"
+    tree.write(metadata_file, encoding="utf-8")
+
+    # Load the file and run the function
+    xml_metadata = ET.parse(metadata_file).getroot()
+    metadata_dict = find_image_elements(xml_metadata)
+
+    # There should be the same number of items as there are datasets
+    assert len(metadata_dict) == len(nested_datasets)
+    for dataset in nested_datasets:
+        # Verify that the element is assigned the expected key value
+        expected_key = "/".join([text.replace(" ", "_") for text in dataset])
+        assert metadata_dict.get(expected_key, None) is not None
+
+        value = metadata_dict[expected_key]
+        assert isinstance(value, ET.Element)
+        assert value.find("./Data/Image") is not None
+
+
 # Construct reusable test elements for subsequent tests
 test_element_labels = (
     "series_name",
