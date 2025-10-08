@@ -1377,6 +1377,90 @@ def test_node_creator_excludetilts_ctf_input(offline_transport, tmp_path):
     assert list(tilts_block.find_loop("_rlnDefocusAngle")) == ["3.0"]
 
 
+def test_node_creator_excludetilts_linereplacement(offline_transport, tmp_path):
+    """
+    Send a test message to the node creator for
+    relion.excludetilts with a line to replace in the output
+    """
+    job_dir = "ExcludeTiltImages/job004"
+    output_file = tmp_path / job_dir / "tilts/Position_1_2_001_1.50_fractions.mrc"
+    relion_options = RelionServiceOptions()
+
+    # Make ctf output file
+    input_file = f"{tmp_path}/CtfFind/job003/Movies/Position_1_2_001_1.50_fractions.ctf"
+    Path(input_file).parent.mkdir(parents=True)
+    with open(Path(input_file).with_suffix(".txt"), "w") as f:
+        f.write("0.0 1.0 2.0 3.0 4.0 5.0 6.0")
+
+    # Make the initial output with a dummy line to replace
+    loop_names = [
+        "TomoTiltMovieFrameCount",
+        "TomoNominalStageTiltAngle",
+        "TomoNominalTiltAxisAngle",
+        "MicrographPreExposure",
+        "TomoNominalDefocus",
+        "MicrographName",
+        "DefocusU",
+        "DefocusV",
+        "DefocusAngle",
+    ]
+    (tmp_path / job_dir / "tilt_series").mkdir(parents=True)
+    with open(tmp_path / job_dir / "tilt_series/Position_1_2.star", "w") as init_star:
+        init_star.write(
+            "data_Position_1_2\n\nloop_\n_rln"
+            + "\n_rln".join(loop_names)
+            + "\n1 1 1 1 1 "
+            + "MotionCorr/job002/Movies/Position_1_2_001_1.50_fractions.mrc "
+            + "1 1 1"
+            + "\n1 1 1 1 1 "
+            + "MotionCorr/job002/Movies/Position_1_2_002_3.00_fractions.mrc "
+            + "1 1 1\n"
+        )
+
+    # .Nodes directory doesn't get made by this job
+    (tmp_path / ".Nodes").mkdir()
+
+    setup_and_run_node_creation(
+        relion_options,
+        offline_transport,
+        tmp_path,
+        job_dir,
+        "relion.excludetilts",
+        input_file,
+        output_file,
+        experiment_type="tomography",
+    )
+
+    # Check the output file structure
+    assert (tmp_path / job_dir / "tilt_series/Position_1_2.star").exists()
+    tilts_file = cif.read_file(
+        str(tmp_path / job_dir / "tilt_series/Position_1_2.star")
+    )
+
+    tilts_block = tilts_file.sole_block()
+    assert list(tilts_block.find_loop("_rlnTomoTiltMovieFrameCount")) == [
+        "1",
+        str(relion_options.frame_count),
+    ]
+    assert list(tilts_block.find_loop("_rlnTomoNominalStageTiltAngle")) == ["1", "1.50"]
+    assert list(tilts_block.find_loop("_rlnTomoNominalTiltAxisAngle")) == [
+        "1",
+        str(relion_options.tilt_axis_angle),
+    ]
+    assert list(tilts_block.find_loop("_rlnMicrographPreExposure")) == ["1", "12.77"]
+    assert list(tilts_block.find_loop("_rlnTomoNominalDefocus")) == [
+        "1",
+        str(relion_options.defocus),
+    ]
+    assert list(tilts_block.find_loop("_rlnMicrographName")) == [
+        "MotionCorr/job002/Movies/Position_1_2_002_3.00_fractions.mrc",
+        "MotionCorr/job002/Movies/Position_1_2_001_1.50_fractions.mrc",
+    ]
+    assert list(tilts_block.find_loop("_rlnDefocusU")) == ["1", "1.0"]
+    assert list(tilts_block.find_loop("_rlnDefocusV")) == ["1", "2.0"]
+    assert list(tilts_block.find_loop("_rlnDefocusAngle")) == ["1", "3.0"]
+
+
 def test_node_creator_aligntiltseries_mc_input(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
@@ -1628,6 +1712,116 @@ def test_node_creator_aligntiltseries_excludetilt_input(offline_transport, tmp_p
     assert list(tilts_block.find_loop("_rlnTomoZRot")) == ["83.5"]
     assert list(tilts_block.find_loop("_rlnTomoXShiftAngst")) == ["1.5"]
     assert list(tilts_block.find_loop("_rlnTomoYShiftAngst")) == ["4.2"]
+
+
+def test_node_creator_aligntiltseries_linereplacement(offline_transport, tmp_path):
+    """
+    Send a test message to the node creator for
+    relion.aligntiltseries with a line to replace in the output
+    """
+    job_dir = "AlignTiltSeries/job005"
+    input_file = (
+        f"{tmp_path}/ExcludeTiltImages/job004/tilts/Position_1_2_001_1.50_fractions.mrc"
+    )
+    output_file = tmp_path / job_dir / "tilts/Position_1_2_001_1.50_fractions.mrc"
+    relion_options = RelionServiceOptions()
+
+    ctf_output_file = (
+        tmp_path / "CtfFind/job003/Movies/Position_1_2_001_1.50_fractions.ctf"
+    )
+    ctf_output_file.parent.mkdir(parents=True)
+    with open(ctf_output_file.with_suffix(".txt"), "w") as f:
+        f.write("0.0 1.0 2.0 3.0 4.0 5.0 6.0")
+    with open(f"{ctf_output_file.with_suffix('')}_avrot.txt", "w") as f:
+        f.write(
+            "header\nheader\nheader\nheader\nheader\n0.24 0.26 0.27 0.29\n1 2 3 4\n"
+        )
+
+    # Make the initial output with a dummy line to replace
+    loop_names = [
+        "TomoTiltMovieFrameCount",
+        "TomoNominalStageTiltAngle",
+        "TomoNominalTiltAxisAngle",
+        "MicrographPreExposure",
+        "TomoNominalDefocus",
+        "MicrographName",
+        "DefocusU",
+        "DefocusV",
+        "DefocusAngle",
+        "TomoXTilt",
+        "TomoYTilt",
+        "TomoZRot",
+        "TomoXShiftAngst",
+        "TomoYShiftAngst",
+    ]
+    (tmp_path / job_dir / "tilt_series").mkdir(parents=True)
+    with open(tmp_path / job_dir / "tilt_series/Position_1_2.star", "w") as init_star:
+        init_star.write(
+            "data_Position_1_2\n\nloop_\n_rln"
+            + "\n_rln".join(loop_names)
+            + "\n1 1 1 1 1 "
+            + "ExcludeTiltImages/job004/tilts/Position_1_2_001_1.50_fractions.mrc "
+            + "1 1 1 1 1 1 1 1"
+            + "\n1 1 1 1 1 "
+            + "ExcludeTiltImages/job004/tilts/Position_1_2_002_3.00_fractions.mrc "
+            + "1 1 1 1 1 1 1 1\n"
+        )
+
+    # .Nodes directory doesn't get made by this job
+    (tmp_path / ".Nodes").mkdir()
+
+    setup_and_run_node_creation(
+        relion_options,
+        offline_transport,
+        tmp_path,
+        job_dir,
+        "relion.aligntiltseries.aretomo",
+        input_file,
+        output_file,
+        experiment_type="tomography",
+        results={
+            "TomoXTilt": "0.00",
+            "TomoYTilt": "4.00",
+            "TomoZRot": "83.5",
+            "TomoXShiftAngst": "1.5",
+            "TomoYShiftAngst": "4.2",
+        },
+    )
+
+    # Check the output file structure
+    # First line gets removed, and new line appended at the end
+    assert (tmp_path / job_dir / "tilt_series/Position_1_2.star").exists()
+    tilts_file = cif.read_file(
+        str(tmp_path / job_dir / "tilt_series/Position_1_2.star")
+    )
+
+    tilts_block = tilts_file.sole_block()
+    assert list(tilts_block.find_loop("_rlnTomoTiltMovieFrameCount")) == [
+        "1",
+        str(relion_options.frame_count),
+    ]
+    assert list(tilts_block.find_loop("_rlnTomoNominalStageTiltAngle")) == ["1", "1.50"]
+    assert list(tilts_block.find_loop("_rlnTomoNominalTiltAxisAngle")) == [
+        "1",
+        str(relion_options.tilt_axis_angle),
+    ]
+    assert list(tilts_block.find_loop("_rlnMicrographPreExposure")) == ["1", "12.77"]
+    assert list(tilts_block.find_loop("_rlnTomoNominalDefocus")) == [
+        "1",
+        str(relion_options.defocus),
+    ]
+    assert list(tilts_block.find_loop("_rlnMicrographName")) == [
+        "ExcludeTiltImages/job004/tilts/Position_1_2_002_3.00_fractions.mrc",
+        "ExcludeTiltImages/job004/tilts/Position_1_2_001_1.50_fractions.mrc",
+    ]
+    assert list(tilts_block.find_loop("_rlnDefocusU")) == ["1", "1.0"]
+    assert list(tilts_block.find_loop("_rlnDefocusV")) == ["1", "2.0"]
+    assert list(tilts_block.find_loop("_rlnDefocusAngle")) == ["1", "3.0"]
+    assert list(tilts_block.find_loop("_rlnTomoXTilt")) == ["1", "0.00"]
+    assert list(tilts_block.find_loop("_rlnTomoYTilt")) == ["1", "4.00"]
+    assert list(tilts_block.find_loop("_rlnTomoZRot")) == ["1", "83.5"]
+    assert list(tilts_block.find_loop("_rlnTomoXShiftAngst")) == ["1", "1.5"]
+    assert list(tilts_block.find_loop("_rlnTomoYShiftAngst")) == ["1", "4.2"]
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
@@ -2007,3 +2201,92 @@ def test_node_creator_cryolo_tomo_0axis(offline_transport, tmp_path):
     assert len(z_coords) == 2
     assert float(z_coords[0]) == (80 * 4 - 800) * 1.2
     assert float(z_coords[1]) == (110 * 4 - 800) * 1.2
+
+
+def test_node_creator_cryolo_tomo_existing_particles(offline_transport, tmp_path):
+    """
+    Send a test message to the node creator for
+    cryolo.autopick running on a tomogram
+    but with existing particles in the file to remove
+    """
+    job_dir = "AutoPick/job009"
+    (tmp_path / job_dir / "CBOX_3D").mkdir(parents=True)
+
+    input_file = f"{tmp_path}/Denoise/job007/Movies/tomograms/Position_1_2_stack_aretomo.denoised.mrc"
+    output_file = (
+        tmp_path / job_dir / "CBOX_3D/Position_1_2_stack_aretomo.denoised.cbox"
+    )
+    relion_options = RelionServiceOptions()
+
+    relion_options.cryolo_config_file = str(tmp_path / job_dir / "cryolo_config.json")
+    relion_options.pixel_size = 1.2
+    relion_options.pixel_size_downscaled = 4.8
+    relion_options.tilt_axis_angle = 86
+    relion_options.tomo_size_x = 6000
+    relion_options.tomo_size_y = 4000
+    relion_options.vol_z = 1600
+    (tmp_path / job_dir / "cryolo_config.json").touch()
+
+    with open(
+        tmp_path / job_dir / "CBOX_3D/Position_1_2_stack_aretomo.denoised.cbox", "w"
+    ) as particles_file:
+        particles_file.write(
+            "data_global\n\n_cbox_format_version   1.0\n"
+            "data_cryolo\n\nloop_\n"
+            "_CoordinateX\n_CoordinateY\n_CoordinateZ\n_Width\n_Height\n"
+            "60 70 80 5 6\n90 100 110 8 10\n"
+        )
+
+    (tmp_path / job_dir / "DISTR").mkdir(parents=True)
+    (tmp_path / job_dir / "DISTR/confidence_distribution_summary_1.txt").touch()
+
+    # Make existing particles file
+    # include some particles from this tomogram and some from other tomograms
+    with open(tmp_path / job_dir / "particles.star", "w") as existing_particles:
+        existing_particles.write(
+            "data_particles\n\nloop_\n"
+            "_rlnTomoName\n_rlnCenteredCoordinateXAngst\n"
+            "_rlnCenteredCoordinateYAngst\n_rlnCenteredCoordinateZAngst\n"
+            "Position_1_2 1 2 3\nPosition_1 4 5 6\nPosition_1_2 7 8 9\n"
+            "Position_1_3 10 11 12\nPosition_1_2 13 14 15\n"
+        )
+
+    setup_and_run_node_creation(
+        relion_options,
+        offline_transport,
+        tmp_path,
+        job_dir,
+        "cryolo.autopick.tomo",
+        input_file,
+        output_file,
+        experiment_type="tomography",
+    )
+
+    # Check the output file structure
+    assert (tmp_path / job_dir / "particles.star").exists()
+    particles_file = cif.read_file(str(tmp_path / job_dir / "particles.star"))
+    particles_block = particles_file.find_block("particles")
+    assert list(particles_block.find_loop("_rlnTomoName")) == [
+        "Position_1",
+        "Position_1_3",
+        "Position_1_2",
+        "Position_1_2",
+    ]
+    x_coords = list(particles_block.find_loop("_rlnCenteredCoordinateXAngst"))
+    y_coords = list(particles_block.find_loop("_rlnCenteredCoordinateYAngst"))
+    z_coords = list(particles_block.find_loop("_rlnCenteredCoordinateZAngst"))
+    assert len(x_coords) == 4
+    assert float(x_coords[0]) == 4
+    assert float(x_coords[1]) == 10
+    assert float(x_coords[2]) == (73 * 4 - 2000) * 1.2
+    assert float(x_coords[3]) == (105 * 4 - 2000) * 1.2
+    assert len(y_coords) == 4
+    assert float(y_coords[0]) == 5
+    assert float(y_coords[1]) == 11
+    assert float(y_coords[2]) == (3000 - 62.5 * 4) * 1.2
+    assert float(y_coords[3]) == (3000 - 94.0 * 4) * 1.2
+    assert len(z_coords) == 4
+    assert float(z_coords[0]) == 6
+    assert float(z_coords[1]) == 12
+    assert float(z_coords[2]) == (80 * 4 - 800) * 1.2
+    assert float(z_coords[3]) == (110 * 4 - 800) * 1.2

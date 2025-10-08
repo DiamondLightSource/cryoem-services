@@ -4,6 +4,7 @@ import re
 from pathlib import Path
 from typing import Callable, Dict, List
 
+import numpy as np
 from gemmi import cif
 
 from cryoemservices.util.relion_service_options import RelionServiceOptions
@@ -397,8 +398,20 @@ def _exclude_tilt_output_files(
         movies_loop.add_row(added_line)
         output_cif.write_file(str(movies_file), style=cif.Style.Simple)
     else:
-        with open(movies_file, "a") as output_cif:
-            output_cif.write(" ".join(added_line) + "\n")
+        tilt_cif_doc = cif.read_file(str(movies_file))
+        tilt_loop = list(tilt_cif_doc.sole_block().find_loop("_rlnMicrographName"))
+
+        if micrograph_name not in tilt_loop:
+            with open(movies_file, "a") as output_cif:
+                output_cif.write(" ".join(added_line) + "\n")
+        else:
+            index_to_replace = tilt_loop.index(micrograph_name)
+            tilt_cif_item = tilt_cif_doc.sole_block()[0]
+            tilt_cif_table = tilt_cif_doc.sole_block().item_as_table(tilt_cif_item)
+            tilt_cif_table.remove_row(index_to_replace)
+            tilt_cif_table.append_row(added_line)
+            movies_file.unlink()
+            tilt_cif_doc.write_file(str(movies_file))
 
     return {
         f"{job_dir}/selected_tilt_series.star": ["TomogramGroupMetadata", ["relion"]]
@@ -510,8 +523,20 @@ def _align_tilt_output_files(
         movies_loop.add_row(added_line)
         output_cif.write_file(str(movies_file), style=cif.Style.Simple)
     else:
-        with open(movies_file, "a") as output_cif:
-            output_cif.write(" ".join(added_line) + "\n")
+        tilt_cif_doc = cif.read_file(str(movies_file))
+        tilt_loop = list(tilt_cif_doc.sole_block().find_loop("_rlnMicrographName"))
+
+        if micrograph_name not in tilt_loop:
+            with open(movies_file, "a") as output_cif:
+                output_cif.write(" ".join(added_line) + "\n")
+        else:
+            index_to_replace = tilt_loop.index(micrograph_name)
+            tilt_cif_item = tilt_cif_doc.sole_block()[0]
+            tilt_cif_table = tilt_cif_doc.sole_block().item_as_table(tilt_cif_item)
+            tilt_cif_table.remove_row(index_to_replace)
+            tilt_cif_table.append_row(added_line)
+            movies_file.unlink()
+            tilt_cif_doc.write_file(str(movies_file))
 
     return {
         f"{job_dir}/aligned_tilt_series.star": ["TomogramGroupMetadata", ["relion"]]
@@ -738,6 +763,19 @@ def _cryolo_output_files(
                 "_rlnTomoName\n_rlnCenteredCoordinateXAngst\n"
                 "_rlnCenteredCoordinateYAngst\n_rlnCenteredCoordinateZAngst\n"
             )
+    else:
+        # Clean out any existing particles from this tomogram
+        particles_doc = cif.read_file(str(particles_file))
+        particles_block = particles_doc.sole_block()
+        if tilt_series_name in particles_block.find_loop("_rlnTomoName"):
+            indices_to_remove = np.where(
+                np.array(particles_block.find_loop("_rlnTomoName")) == tilt_series_name
+            )[0]
+            particles_table = particles_block.item_as_table(particles_block[0])
+            for i in range(len(indices_to_remove) - 1, -1, -1):
+                particles_table.remove_row(indices_to_remove[i])
+            particles_file.unlink()
+            particles_doc.write_file(str(particles_file))
 
     # Read in the output particles
     particles_data = cif.read_file(str(output_file))
