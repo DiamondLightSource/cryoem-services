@@ -59,7 +59,7 @@ def get_channel_info(node: ET.Element) -> dict[str, dict]:
     """
     Parses the XML metadata of a single dataset (this will raise an error if
     the XML metadata contains multiple datasets) to extract information about
-    the colour chnanels present in the dataset.
+    the colour channels present in the dataset.
     """
 
     # Load channels
