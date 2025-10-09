@@ -185,9 +185,7 @@ class ExtractSubTomoFor2D(CommonService):
         output_mrc_stack = np.array([])
         for particle in tqdm(range(len(particles_x))):
             if (
-                particles_z[particle] - extract_width < 0
-                or particles_z[particle] + extract_width > tomogram_data.shape[0]
-                or particles_y[particle] - extract_width < 0
+                particles_y[particle] - extract_width < 0
                 or particles_y[particle] + extract_width > tomogram_data.shape[1]
                 or particles_x[particle] - extract_width < 0
                 or particles_x[particle] + extract_width > tomogram_data.shape[2]
@@ -195,21 +193,16 @@ class ExtractSubTomoFor2D(CommonService):
                 self.log.info(
                     f"Skipping particle {particle} runs over the edge of the volume"
                 )
-                particle_subimage = np.zeros(
-                    (extract_subtomo_params.boxsize, extract_subtomo_params.boxsize)
-                )
-                # Add to output stack
-                if len(output_mrc_stack):
-                    output_mrc_stack = np.append(
-                        output_mrc_stack, [particle_subimage], axis=0
-                    )
-                else:
-                    output_mrc_stack = np.array([particle_subimage], dtype=np.float32)
                 continue
+
+            min_z = particles_z[particle] - extract_width
+            max_z = particles_z[particle] + extract_width
+            if min_z < 0:
+                min_z = 0
+            if max_z >= tomogram_data.shape[0]:
+                max_z = tomogram_data.shape[0] - 1
             extract_vol = tomogram_data[
-                round(float(particles_z[particle] - extract_width)) : round(
-                    float(particles_z[particle] + extract_width)
-                ),
+                round(float(min_z)) : round(float(max_z)),
                 round(float(particles_y[particle] - extract_width)) : round(
                     float(particles_y[particle] + extract_width)
                 ),
@@ -217,8 +210,9 @@ class ExtractSubTomoFor2D(CommonService):
                     float(particles_x[particle] + extract_width)
                 ),
             ]
-            flat_particle = extract_vol.mean(axis=0)
 
+            # Run projection along x axis
+            flat_particle = extract_vol.mean(axis=0)
             particle_subimage, failure_reason = enhance_single_particle(
                 particle_subimage=flat_particle,
                 extract_width=extract_width,
@@ -312,7 +306,7 @@ class ExtractSubTomoFor2D(CommonService):
             extracted_parts_loop = extracted_parts_block.find_loop(
                 "_rlnTomoName"
             ).get_loop()
-        for particle in range(len(particles_x)):
+        for particle in range(particle_count):
             extracted_parts_loop.add_row(
                 [
                     _get_tilt_name_v5_12(Path(extract_subtomo_params.tomogram)),
