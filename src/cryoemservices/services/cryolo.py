@@ -341,6 +341,7 @@ class CrYOLO(CommonService):
 
             # Send to murfey for extraction
             extraction_parameters = {
+                "register": "picked_tomogram",
                 "tomogram": cryolo_params.raw_tomogram or cryolo_params.input_path,
                 "cbox_3d": cryolo_params.output_path,
                 "pixel_size": cryolo_params.pixel_size,
