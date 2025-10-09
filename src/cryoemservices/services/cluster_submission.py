@@ -7,6 +7,7 @@ from workflows.recipe import wrap_subscribe
 
 from cryoemservices.services.common_service import CommonService
 from cryoemservices.util.config import config_from_file
+from cryoemservices.util.models import MockRW
 from cryoemservices.util.slurm_submission import (
     JobSubmissionParameters,
     submit_to_slurm,
@@ -30,8 +31,19 @@ class ClusterSubmission(CommonService):
             acknowledgement=True,
         )
 
-    def run_submit_job(self, rw, header, message):
+    def run_submit_job(self, rw, header: dict, message: dict):
         """Submit cluster job according to message."""
+        if not rw:
+            self.log.info("Received a simple message")
+            if not isinstance(message, dict):
+                self.log.error("Rejected invalid simple message")
+                self._transport.nack(header)
+                return
+
+            # Create a wrapper-like object that can be passed to functions
+            # as if a recipe wrapper was present.
+            rw = MockRW(self._transport)
+            rw.recipe_step = {"parameters": message}
 
         parameters = rw.recipe_step["parameters"]
         if type(parameters.get("cluster", {}).get("commands")) is list:
@@ -72,7 +84,7 @@ class ClusterSubmission(CommonService):
             self.log.error(
                 "No absolute working directory specified. Will not run cluster job"
             )
-            self._transport.nack(header)
+            rw.transport.nack(header)
             return
         working_directory = Path(parameters["workingdir"])
         try:
@@ -81,7 +93,7 @@ class ClusterSubmission(CommonService):
             self.log.error(
                 "Could not create working directory: %s", str(e), exc_info=True
             )
-            self._transport.nack(header)
+            rw.transport.nack(header)
             return
 
         if parameters.get("standard_output"):
@@ -105,17 +117,9 @@ class ClusterSubmission(CommonService):
         )
         if not jobnumber:
             self.log.error("Job was not submitted")
-            self._transport.nack(header)
+            rw.transport.nack(header)
             return
 
-        # Conditionally acknowledge receipt of the message
-        txn = self._transport.transaction_begin(subscription_id=header["subscription"])
-        self._transport.ack(header, transaction=txn)
-
-        # Send results onwards
-        rw.set_default_channel("job_submitted")
-        rw.send({"jobid": jobnumber}, transaction=txn)
-
-        # Commit transaction
-        self._transport.transaction_commit(txn)
+        # Acknowledge success
+        rw.transport.ack(header)
         self.log.info(f"Submitted job {jobnumber} to slurm")

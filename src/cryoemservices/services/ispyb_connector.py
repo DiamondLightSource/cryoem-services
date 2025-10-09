@@ -142,8 +142,7 @@ class EMISPyB(CommonService):
                 )
 
         if result and result.get("success"):
-            rw.set_default_channel("output")
-            rw.send({"result": result.get("return_value")})
+            rw.send_to("output", {"result": result.get("return_value")})
             rw.transport.ack(header)
         elif result and result.get("checkpoint"):
             rw.checkpoint(result.get("checkpoint_dict"))

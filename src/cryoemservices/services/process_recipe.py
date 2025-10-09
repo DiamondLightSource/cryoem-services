@@ -4,11 +4,9 @@ import uuid
 from importlib.metadata import entry_points
 from pathlib import Path
 
-import workflows.recipe
-from workflows import Error as WorkflowsError
-
 from cryoemservices.services.common_service import CommonService
 from cryoemservices.util.config import ServiceConfig, config_from_file
+from cryoemservices.util.recipe import Recipe, RecipeWrapper, wrap_subscribe
 
 
 def filter_load_recipes_from_files(
@@ -20,12 +18,8 @@ def filter_load_recipes_from_files(
         if not recipe_location.is_file():
             raise ValueError(f"Cannot find recipe in location {recipe_location}")
         with open(recipe_location, "r") as rcp:
-            named_recipe = workflows.recipe.Recipe(recipe=rcp.read())
-        try:
-            named_recipe.validate()
-        except WorkflowsError as e:
-            raise ValueError(f"Named recipe {recipefile} failed validation. {e}")
-        message["recipe"] = message["recipe"].merge(named_recipe)
+            named_recipe = Recipe(recipe=rcp.read())
+        message["recipe"] = named_recipe
     return message, parameters
 
 
@@ -62,12 +56,11 @@ class ProcessRecipe(CommonService):
             "apply_parameters": filter_apply_parameters,
         }
 
-        workflows.recipe.wrap_subscribe(
+        wrap_subscribe(
             self._transport,
             self._environment["queue"] or "processing_recipe",
             self.process,
             acknowledgement=True,
-            allow_non_recipe_messages=True,
         )
 
     def process(self, rw, header, message):
@@ -88,7 +81,7 @@ class ProcessRecipe(CommonService):
         parameters["guid"] = recipe_id
 
         # Add an empty recipe to the message
-        message["recipe"] = workflows.recipe.Recipe()
+        message["recipe"] = Recipe()
 
         # Apply all specified filters in order to message and parameters
         for name, f in self.message_filters.items():
@@ -106,16 +99,11 @@ class ProcessRecipe(CommonService):
         self.log.info(f"Filtered processing request: {str(message)}")
         self.log.info(f"Filtered parameters: {str(parameters)}")
 
-        # Conditionally acknowledge receipt of the message
-        txn = self._transport.transaction_begin(subscription_id=header["subscription"])
-        self._transport.ack(header, transaction=txn)
-
-        rw = workflows.recipe.RecipeWrapper(
-            recipe=message["recipe"], transport=self._transport
-        )
+        # Start the recipe wrapper
+        rw = RecipeWrapper(recipe=message["recipe"], transport=self._transport)
         rw.environment = {"ID": recipe_id}
-        rw.start(transaction=txn)
+        rw.start()
 
-        # Commit transaction
-        self._transport.transaction_commit(txn)
+        # Acknowledge success
+        self._transport.ack(header)
         self.log.info("Processed incoming message")
