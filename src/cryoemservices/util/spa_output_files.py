@@ -211,7 +211,6 @@ def _icebreaker_output_files(
     relion_options: RelionServiceOptions,
     results: dict,
 ):
-
     if results["icebreaker_type"] != "particles":
         # Micrograph icebreaker jobs need a file listing the completed micrographs
         with open(job_dir / "done_mics.txt", "a+") as f:

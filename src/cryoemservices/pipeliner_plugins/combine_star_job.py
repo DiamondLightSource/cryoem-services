@@ -117,21 +117,23 @@ class ProcessStarFiles(PipelinerJob):
             self.output_nodes.append(Node(str(split), NODE_PARTICLEGROUPMETADATA))
 
     def create_results_display(self):
-        with open(
-            Path(self.output_dir) / "class_averages.star", "r"
-        ) as all_classes, open(
-            Path(self.output_dir) / ".class_display_tmp.star", "w"
-        ) as display_classes:
+        with (
+            open(Path(self.output_dir) / "class_averages.star", "r") as all_classes,
+            open(
+                Path(self.output_dir) / ".class_display_tmp.star", "w"
+            ) as display_classes,
+        ):
             for line in range(200):
                 class_line = all_classes.readline()
                 if not class_line:
                     break
                 display_classes.write(class_line)
-        with open(
-            Path(self.output_dir) / "particles_all.star", "r"
-        ) as all_particles, open(
-            Path(self.output_dir) / ".particles_display_tmp.star", "w"
-        ) as display_particles:
+        with (
+            open(Path(self.output_dir) / "particles_all.star", "r") as all_particles,
+            open(
+                Path(self.output_dir) / ".particles_display_tmp.star", "w"
+            ) as display_particles,
+        ):
             for line in range(200):
                 particles_line = all_particles.readline()
                 if not particles_line:

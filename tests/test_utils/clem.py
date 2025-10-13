@@ -117,7 +117,6 @@ def add_tile_scan_info(
     tile_offset: float,
     collection_mode: Literal["linear", "grid", ""],
 ):
-
     def pad_decimals(value: float):
         """Pad decimals to 10 decimal places and return them as a string."""
         return str(

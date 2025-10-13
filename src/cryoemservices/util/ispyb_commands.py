@@ -790,7 +790,6 @@ def register_processing(
         logger.error(f"Invalid processing id {rpid}")
         return False
     try:
-
         values = models.AutoProcProgram(
             processingJobId=rpid,
             processingPrograms=program,
