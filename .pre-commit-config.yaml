@@ -30,32 +30,15 @@ repos:
         name: Formatting the pyproject.toml file
         additional_dependencies: ["tox>=4.9"]
 
-  # Automatic source code formatting
-  - repo: https://github.com/psf/black
-    rev: 24.8.0 # Released 2024-08-02
+  # Format and lint using Ruff
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.6.9
     hooks:
-      - id: black
-        name: Formatting Python scripts according to Black
-        args: [--safe, --quiet]
-
-  # Automatically sort imports
-  - repo: https://github.com/PyCQA/isort
-    rev: 5.13.2
-    hooks:
-      - id: isort
-        name: Tidying Python imports via Isort
-        args: [
-            "-a",
-            "from __future__ import annotations", # 3.7-3.11
-          ]
-
-  # Linting
-  - repo: https://github.com/PyCQA/flake8
-    rev: 7.1.1 # Released 2024-08-04
-    hooks:
-      - id: flake8
-        additional_dependencies:
-          ["Flake8-pyproject==1.2.3", "flake8-comprehensions==3.14.0"]
+      - id: ruff
+        name: Running Ruff linter
+        args: ["--fix"]
+      - id: ruff-format
+        name: Running Ruff formatter
 
   # Type checking
   - repo: https://github.com/pre-commit/mirrors-mypy
