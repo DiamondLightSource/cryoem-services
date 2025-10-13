@@ -178,14 +178,14 @@ def split_star_file(
             for split in range(number_of_splits):
                 # Give each new file the header information
                 write_empty_particles_file(
-                    output_dir / f".particles_split{split+1}_tmp.star",
+                    output_dir / f".particles_split{split + 1}_tmp.star",
                     star_dictionary["optics"],
                     star_dictionary["particles"],
                 )
 
                 # Write particles to the split files by reading in lines from full file
                 with open(
-                    output_dir / f".particles_split{split+1}_tmp.star", "a"
+                    output_dir / f".particles_split{split + 1}_tmp.star", "a"
                 ) as split_file:
                     for count in range(split_size):
                         particle_line = full_starfile.readline()
@@ -193,8 +193,8 @@ def split_star_file(
                             break
                         split_file.write(particle_line)
 
-                (output_dir / f".particles_split{split+1}_tmp.star").rename(
-                    output_dir / f"particles_split{split+1}.star"
+                (output_dir / f".particles_split{split + 1}_tmp.star").rename(
+                    output_dir / f"particles_split{split + 1}.star"
                 )
 
     print(

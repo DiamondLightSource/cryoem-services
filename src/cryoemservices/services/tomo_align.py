@@ -669,7 +669,7 @@ class TomoAlign(CommonService):
             {
                 "volume": str(aretomo_output_path),
                 "output_dir": str(
-                    project_dir / f"Denoise/job{job_number+1:03}/tomograms"
+                    project_dir / f"Denoise/job{job_number + 1:03}/tomograms"
                 ),
                 "relion_options": dict(tomo_params.relion_options),
             },

@@ -86,7 +86,7 @@ def mrc_to_jpeg(plugin_params: Callable):
                 frame = frame * 255 / frame.max()
                 frame = frame.astype("uint8")
                 im = PIL.Image.fromarray(frame, mode="L")
-                frame_outfile = outfile.parent / f"{outfile.stem}_{i+1}.jpeg"
+                frame_outfile = outfile.parent / f"{outfile.stem}_{i + 1}.jpeg"
                 im.save(frame_outfile)
                 outfiles.append(frame_outfile)
         else:

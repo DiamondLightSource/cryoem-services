@@ -477,7 +477,7 @@ def process_lif_file(
         path_parts[root_index] = new_root_folder  # Point to new folder
     except ValueError:
         logger.error(
-            f"Subpath {root_folder!r} was not found in image path " f"{str(file)!r}"
+            f"Subpath {root_folder!r} was not found in image path {str(file)!r}"
         )
         return []
     processed_dir = Path("/".join(path_parts[: root_index + 1]))
