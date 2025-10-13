@@ -140,12 +140,13 @@ lint.select = [
     "C4",
     "E4", "E7", "E9",
     "F",
+    "I",
     "W6",
 ]
 fix = true
 
 [tool.ruff.lint.isort]
-known-first-party = []
+known-first-party = ["cryoemservices"]
 combine-as-imports = true
 
 [tool.ruff.format]
