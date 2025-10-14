@@ -331,10 +331,10 @@ class CrYOLO(CommonService):
             try:
                 cbox_file = cif.read_file(cryolo_params.output_path)
                 cbox_block = cbox_file.find_block("cryolo")
-                cbox_sizes = np.append(
-                    np.array(cbox_block.find_loop("_EstWidth"), dtype=float),
-                    np.array(cbox_block.find_loop("_EstHeight"), dtype=float),
-                )
+                cbox_sizes = (
+                    np.array(cbox_block.find_loop("_EstWidth"), dtype=float)
+                    + np.array(cbox_block.find_loop("_EstHeight"), dtype=float)
+                ) / 2
                 cryolo_particle_sizes = cbox_sizes * cryolo_params.pixel_size
             except (FileNotFoundError, OSError, AttributeError):
                 cryolo_particle_sizes = []
@@ -366,14 +366,11 @@ class CrYOLO(CommonService):
                 )
             )
             cbox_block = cbox_file.find_block("cryolo")
-            cbox_sizes = np.append(
-                np.array(cbox_block.find_loop("_EstWidth"), dtype=float),
-                np.array(cbox_block.find_loop("_EstHeight"), dtype=float),
-            )
-            cbox_confidence = np.append(
-                np.array(cbox_block.find_loop("_Confidence"), dtype=float),
-                np.array(cbox_block.find_loop("_Confidence"), dtype=float),
-            )
+            cbox_sizes = (
+                np.array(cbox_block.find_loop("_EstWidth"), dtype=float)
+                + np.array(cbox_block.find_loop("_EstHeight"), dtype=float)
+            ) / 2
+            cbox_confidence = np.array(cbox_block.find_loop("_Confidence"), dtype=float)
 
             # Select only a fraction of particles based on confidence if requested
             if (
