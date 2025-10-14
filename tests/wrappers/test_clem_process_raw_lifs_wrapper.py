@@ -164,6 +164,7 @@ def test_get_percentiles(
     )
 
     expected_min, expected_max = np.percentile(arr, (p_lo, p_hi))
+    assert v_min is not None and v_max is not None
     assert math.isclose(v_min, expected_min)
     assert math.isclose(v_max, expected_max)
 
@@ -235,7 +236,7 @@ def test_stitch_image_frames(
         tile_scan_info=tile_scan_info,
         image_width=num_pixels,
         image_height=num_pixels,
-        extent=[x_min, x_max, y_min, y_max],
+        extent=(x_min, x_max, y_min, y_max),
         dpi=400,
         contrast_limits=(0, 255),
     )
@@ -332,7 +333,6 @@ def test_process_lif_subimage(
     processed_dir: Path,
     test_params: tuple[int],
 ):
-
     # Pick a single scene from the LIF file to analyse
     (scene_num,) = test_params
     metadata = list(find_image_elements(raw_xml_metadata).values())[scene_num]

@@ -59,7 +59,7 @@ def multipart_message(
         return False
     logger.info(
         f"Processing step {step} of multipart message ({current_command}) "
-        f"with {len(commands)-1} further steps",
+        f"with {len(commands) - 1} further steps",
     )
 
     # Create a parameter lookup function specific to this step
@@ -790,7 +790,6 @@ def register_processing(
         logger.error(f"Invalid processing id {rpid}")
         return False
     try:
-
         values = models.AutoProcProgram(
             processingJobId=rpid,
             processingPrograms=program,

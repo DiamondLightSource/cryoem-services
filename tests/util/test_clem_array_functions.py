@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 import numpy as np
 import pytest
@@ -48,7 +48,6 @@ def test_get_valid_dtypes():
 
 @pytest.mark.parametrize("dtype", known_dtypes)
 def test_get_dtype_info(dtype: str):
-
     # Load dtype info from NumPy
     dtype_ref = (
         np.iinfo(dtype) if dtype.startswith(("int", "uint")) else np.finfo(dtype)
@@ -134,7 +133,7 @@ dtype_estimation_fail_cases = (
 
 @pytest.mark.parametrize("test_params", dtype_estimation_fail_cases)
 def test_estimate_int_dtype_fails(
-    test_params: tuple[int, int, int, str, Optional[int]]
+    test_params: tuple[int, int, int, str, Optional[int]],
 ):
     with pytest.raises((ValueError, NotImplementedError)):
         # Unpack parameters
@@ -253,7 +252,6 @@ array_conversion_test_matrix = (
 
 @pytest.mark.parametrize("test_params", array_conversion_test_matrix)
 def test_convert_array_dtype(test_params: tuple[str, str, bool, tuple[int, int]]):
-
     def normalize(arr: np.ndarray) -> np.ndarray:
         if str(arr.dtype).startswith("complex"):
             arr = arr.real
@@ -390,9 +388,8 @@ contrast_stretching_test_matrix = (
 
 @pytest.mark.parametrize("test_params", contrast_stretching_test_matrix)
 def test_stretch_image_contrast(
-    test_params: tuple[str, str, Optional[str], int, tuple[int | float, int | float]]
+    test_params: tuple[str, str, Optional[str], int, tuple[int | float, int | float]],
 ):
-
     # Helper function to create arrays
     def create_test_array(shape: tuple, frames: int, dtype: str) -> np.ndarray:
         dtype_info = get_dtype_info(dtype)
@@ -539,7 +536,6 @@ is_image_stack_test_matrix = (
 
 @pytest.mark.parametrize("test_params", is_image_stack_test_matrix)
 def test_is_image_stack(test_params: tuple[tuple[int, ...], bool]):
-
     # Unpack test params
     shape, result = test_params
 
@@ -604,8 +600,9 @@ self_alignment_test_matrix = (
 
 
 @pytest.mark.parametrize("test_params", self_alignment_test_matrix)
-def test_align_image_to_self(test_params: tuple[int, int, int, str, str]):
-
+def test_align_image_to_self(
+    test_params: tuple[int, int, int, Literal["beginning", "middle", "end"], str],
+):
     # Unpack test params
     frames, x_offset, y_offset, start_point, dtype = test_params
 
@@ -649,7 +646,6 @@ cross_alignment_test_matrix = (
 
 @pytest.mark.parametrize("test_params", cross_alignment_test_matrix)
 def test_align_image_to_reference(test_params: tuple[int, int, str]):
-
     def gaussian_2d(
         shape: tuple[int, int],
         amplitude: float,
@@ -836,7 +832,6 @@ image_coloring_test_matrix = (
 
 @pytest.mark.parametrize("test_params", image_coloring_test_matrix)
 def test_convert_to_rgb(test_params: tuple[str, str, int]):
-
     def create_test_array(shape: tuple, frames: int, dtype: str):
         for f in range(frames):
             frame = np.ones(shape).astype(dtype)
@@ -913,8 +908,9 @@ image_flattening_test_matrix = (
 
 
 @pytest.mark.parametrize("test_params", image_flattening_test_matrix)
-def test_flatten_image(test_params: tuple[str, int, Optional[str], bool, int]):
-
+def test_flatten_image(
+    test_params: tuple[str, int, Literal["mean", "min", "max"] | None, bool, int],
+):
     # Helper function to create an array simulating an image stack
     def create_test_array(shape: tuple, frames: int, dtype: str) -> np.ndarray:
         for f in range(frames):
@@ -981,7 +977,6 @@ image_flattening_fail_cases: tuple[tuple, ...] = (
 
 @pytest.mark.parametrize("test_params", image_flattening_fail_cases)
 def test_flatten_image_fails(test_params: tuple[str, int, Any, bool]):
-
     # Helper function to create an array simulating an image stack
     def create_test_array(shape: tuple, frames: int, dtype: str) -> np.ndarray:
         for f in range(frames):
@@ -1028,7 +1023,6 @@ image_merging_test_matrix = (
 
 @pytest.mark.parametrize("test_params", image_merging_test_matrix)
 def test_merge_images(test_params: tuple[str, int, int, bool, int | float]):
-
     # Unpack test parameters
     img_type, num_imgs, frames, is_float, result = test_params
 
@@ -1087,7 +1081,6 @@ image_merging_fail_cases = (
 
 @pytest.mark.parametrize("test_params", image_merging_fail_cases)
 def test_merge_images_fails(test_params: tuple[str, int, bool, bool, bool]):
-
     def create_test_array(shape, frames, dtype):
         for f in range(frames):
             frame = np.ones(shape).astype(dtype)
@@ -1133,7 +1126,7 @@ preprocess_img_test_matrix = (
 
 @pytest.mark.parametrize("test_params", preprocess_img_test_matrix)
 def test_preprocess_img_stk(
-    test_params: tuple[Optional[str], Optional[str], str, int, Optional[str]]
+    test_params: tuple[Optional[str], Optional[str], str, int, Optional[str]],
 ):
     def create_test_array(shape, frames, dtype):
         arr = np.reshape(

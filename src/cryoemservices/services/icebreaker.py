@@ -285,9 +285,9 @@ class IceBreaker(CommonService):
             # Summary jobs need to send results to node creation
             node_creator_parameters["results"]["summary"] = summary_results[1:]
         if icebreaker_params.icebreaker_type == "particles":
-            node_creator_parameters[
-                "input_file"
-            ] += f":{icebreaker_params.input_particles}"
+            node_creator_parameters["input_file"] += (
+                f":{icebreaker_params.input_particles}"
+            )
         rw.send_to("node_creator", node_creator_parameters)
 
         # End here if the command failed

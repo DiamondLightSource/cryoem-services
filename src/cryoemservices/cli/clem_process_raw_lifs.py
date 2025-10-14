@@ -33,7 +33,7 @@ def run():
         "--num-procs",
         type=int,
         default=1,
-        help=("Number of processes to run. \n" "DEFAULT:   1"),
+        help=("Number of processes to run. \nDEFAULT:   1"),
     )
     parser.add_argument(
         "--debug",

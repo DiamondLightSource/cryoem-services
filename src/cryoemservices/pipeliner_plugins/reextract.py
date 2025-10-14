@@ -221,11 +221,11 @@ def run():
 
     # Modify the extraction star file to contain reextracted values
     mrcs_dict = {}
-    with open(f"{args.select_job_dir}/particles.star", "r") as selected_particles, open(
-        extract_job_dir / "particles.star", "w"
-    ) as extracted_particles, open(
-        extract_job_dir / "extractpick.star", "w"
-    ) as micrograph_list:
+    with (
+        open(f"{args.select_job_dir}/particles.star", "r") as selected_particles,
+        open(extract_job_dir / "particles.star", "w") as extracted_particles,
+        open(extract_job_dir / "extractpick.star", "w") as micrograph_list,
+    ):
         micrograph_list.write(
             "data_coordinate_files\n\nloop_ \n"
             "_rlnMicrographName #1 \n_rlnMicrographCoordinates #2 \n"

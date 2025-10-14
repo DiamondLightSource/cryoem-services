@@ -130,6 +130,7 @@ def test_get_percentiles(
         percentiles=(p_lo, p_hi),
     )
     expected_min, expected_max = np.percentile(arr, (p_lo, p_hi))
+    assert v_min is not None and v_max is not None
     assert math.isclose(v_min, expected_min)
     assert math.isclose(v_max, expected_max)
 
@@ -202,7 +203,7 @@ def test_stitch_image_frames(
         tile_scan_info=tile_scan_info,
         image_width=num_pixels,
         image_height=num_pixels,
-        extent=[x_min, x_max, y_min, y_max],
+        extent=(x_min, x_max, y_min, y_max),
         dpi=400,
         contrast_limits=(0, 255),
     )
@@ -380,7 +381,6 @@ def test_process_tiff_files(
         starmap_results: list[Any] = []
         starmap_args: list[Any] = []
         for c in range(num_channels):
-
             tiff_color_subset = [
                 file
                 for file in tiff_list
@@ -496,7 +496,6 @@ def test_process_raw_tiffs_parameters(
     raw_metadata_files: list[Path],
     raw_folder=raw_folder,
 ):
-
     # Unpack test params
     use_tiff_list, stringify = test_params
     metadata = raw_metadata_files[0]
@@ -515,6 +514,7 @@ def test_process_raw_tiffs_parameters(
     validated_params = ProcessRawTIFFsParameters(**params)
 
     # Check that parameters were validated correctly
+    assert validated_params.tiff_list is not None
     for file in validated_params.tiff_list:
         assert isinstance(file, Path)
     assert validated_params.root_folder == raw_folder
@@ -539,7 +539,6 @@ def test_process_raw_tiffs_parameters_fail(
     raw_metadata_files: list[Path],
     raw_folder=raw_folder,
 ):
-
     # Unpack test params
     use_tiff_list, use_tiff_file, garbled_string = test_params
     metadata = raw_metadata_files[0]

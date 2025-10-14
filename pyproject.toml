@@ -133,51 +133,26 @@ zip-safe = false
 [tool.setuptools.packages.find]
 where = [ "src" ]
 
-[tool.isort]
-profile = "black"
+[tool.ruff]
+line-length = 88
+lint.extend-ignore = ["E203", "E266", "E501", "E731", "E741"]
+lint.select = [
+    "C4",
+    "E4", "E7", "E9",
+    "F",
+    "I",
+    "W6",
+]
+fix = true
 
-[tool.flake8]
-select = [
-    "C4",   # flake8-comprehensions, https://github.com/adamchainz/flake8-comprehensions
-    "E401",
-    "E711",
-    "E712",
-    "E713",
-    "E714",
-    "E721",
-    "E722",
-    "E901",
-    "F401",
-    "F402",
-    "F403",
-    "F405",
-    "F541",
-    "F631",
-    "F632",
-    "F633",
-    "F811",
-    "F812",
-    "F821",
-    "F822",
-    "F841",
-    "F901",
-    "W191",
-    "W291",
-    "W292",
-    "W293",
-    "W602",
-    "W603",
-    "W604",
-    "W605",
-    "W606",
-]
-ignore = [
-    "E203",
-    "E266",
-    "E501",
-    "W503",
-]
-max-line-length = "88"
+[tool.ruff.lint.isort]
+known-first-party = ["cryoemservices"]
+combine-as-imports = true
+
+[tool.ruff.format]
+quote-style="double"
+indent-style="space"
+line-ending="auto"
 
 [tool.pyproject-fmt]
 indent = 4
