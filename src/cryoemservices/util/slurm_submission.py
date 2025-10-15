@@ -184,7 +184,7 @@ def submit_to_slurm(
     try:
         response = api.submit_job(script=script, job=jdm_params)
     except Exception as e:
-        logger.error(f"Failed Slurm job submission: {e}\n" f"{e}")
+        logger.error(f"Failed Slurm job submission: {e}\n{e}")
         return None
     if response.error:
         error_message = f"{response.error_code}: {response.error}"
@@ -231,7 +231,7 @@ def wait_for_job_completion(
         try:
             slurm_job_state = api.get_job_status(job_id)
         except Exception as e:
-            logger.error(f"Failed to get job state: {e}\n" f"{e}")
+            logger.error(f"Failed to get job state: {e}\n{e}")
             return "UNKNOWN"
 
         if loop_counter >= timeout_counter:

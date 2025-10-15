@@ -210,6 +210,10 @@ class Denoise(CommonService):
             str(Path(denoise_params.volume).stem) + denoise_params.suffix + suffix
         )
         denoised_full_path = alignment_output_dir / denoised_file
+        if denoised_full_path.is_file():
+            job_is_rerun = True
+        else:
+            job_is_rerun = False
 
         # Run topaz either locally or using Slurm
         self.log.info(f"Input: {denoise_params.volume} Output: {denoised_full_path}")
@@ -220,22 +224,23 @@ class Denoise(CommonService):
             denoised_full_path=denoised_full_path,
         )
 
-        # Send to node creator
-        self.log.info("Sending denoising to node creator")
-        node_creator_parameters = {
-            "experiment_type": "tomography",
-            "job_type": self.job_type,
-            "input_file": denoise_params.volume,
-            "output_file": str(denoised_full_path),
-            "relion_options": dict(denoise_params.relion_options),
-            "command": " ".join(command),
-            "stdout": result.stdout.decode("utf8", "replace"),
-            "stderr": result.stderr.decode("utf8", "replace"),
-            "success": True,
-        }
-        if result.returncode:
-            node_creator_parameters["success"] = False
-        rw.send_to("node_creator", node_creator_parameters)
+        if not job_is_rerun:
+            # Send to node creator if this is the first time this tomogram is made
+            self.log.info("Sending denoising to node creator")
+            node_creator_parameters = {
+                "experiment_type": "tomography",
+                "job_type": self.job_type,
+                "input_file": denoise_params.volume,
+                "output_file": str(denoised_full_path),
+                "relion_options": dict(denoise_params.relion_options),
+                "command": " ".join(command),
+                "stdout": result.stdout.decode("utf8", "replace"),
+                "stderr": result.stderr.decode("utf8", "replace"),
+                "success": True,
+            }
+            if result.returncode:
+                node_creator_parameters["success"] = False
+            rw.send_to("node_creator", node_creator_parameters)
 
         # Stop here if the job failed
         if result.returncode:

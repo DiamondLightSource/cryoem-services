@@ -6,12 +6,12 @@ from workflows.recipe import wrap_subscribe
 from cryoemservices.services.common_service import CommonService
 from cryoemservices.util.models import MockRW
 from cryoemservices.wrappers.clem_process_raw_tiffs import (
-    TIFFToStackParameters,
-    convert_tiff_to_stack,
+    ProcessRawTIFFsParameters,
+    process_tiff_files,
 )
 
 
-class TIFFToStackService(CommonService):
+class ProcessRawTIFFsService(CommonService):
     """
     A service version of the TIFF file-processing wrapper in the CLEM workflow
     """
@@ -48,16 +48,16 @@ class TIFFToStackService(CommonService):
 
         try:
             if isinstance(message, dict):
-                params = TIFFToStackParameters(
+                params = ProcessRawTIFFsParameters(
                     **{**rw.recipe_step.get("parameters", {}), **message}
                 )
             else:
-                params = TIFFToStackParameters(
+                params = ProcessRawTIFFsParameters(
                     **{**rw.recipe_step.get("parameters", {})}
                 )
         except (ValidationError, TypeError) as e:
             self.log.warning(
-                f"TIFFToStackParameters validation failed for message: {message} "
+                f"ProcessRawTIFFsParameters validation failed for message: {message} "
                 f"and recipe parameters: {rw.recipe_step.get('parameters', {})} "
                 f"with exception: {e}"
             )
@@ -83,30 +83,38 @@ class TIFFToStackService(CommonService):
         )
 
         # Process files and collect output
-        results = convert_tiff_to_stack(
-            tiff_list=params.tiff_list,
-            root_folder=params.root_folder,
-            metadata_file=params.metadata,
-        )
-
-        # Nack message and log error if the command fails to execute
-        if not results:
-            self.log.error(f"Process failed for TIFF series {series_name!r}")
+        try:
+            result = process_tiff_files(
+                tiff_list=params.tiff_list,
+                root_folder=params.root_folder,
+                metadata_file=params.metadata,
+                number_of_processes=params.num_procs,
+            )
+        # Log error and nack message if the command fails to execute
+        except Exception:
+            self.log.error(
+                f"Exception encountered while processing TIFF files for series {series_name}: \n",
+                exc_info=True,
+            )
+            rw.transport.nack(header)
+            return
+        if not result:
+            self.log.error(
+                f"No processing results were returned for TIFF series {series_name!r}"
+            )
             rw.transport.nack(header)
             return
 
-        # Send each subset of output files to Murfey for registration
-        for result in results:
-            # Create dictionary and send it to Murfey's "feedback_callback" function
-            murfey_params = {
-                "register": "clem.register_tiff_preprocessing_result",
-                "result": result,
-            }
-            rw.send_to("murfey_feedback", murfey_params)
-            self.log.info(
-                f"Submitted {result['series_name']!r} {result['channel']!r} "
-                "image stack and associated metadata to Murfey for registration"
-            )
+        # Create dictionary and send it to Murfey's "feedback_callback" function
+        murfey_params = {
+            "register": "clem.register_preprocessing_result",
+            "result": result,
+        }
+        rw.send_to("murfey_feedback", murfey_params)
+        self.log.info(
+            f"Submitted processed data for {result['series_name']!r} "
+            "and associated metadata to Murfey for registration"
+        )
 
         rw.transport.ack(header)
         return

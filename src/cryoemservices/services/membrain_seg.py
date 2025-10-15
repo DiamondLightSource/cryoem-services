@@ -136,6 +136,10 @@ class MembrainSeg(CommonService):
         # Determine the output paths
         segmented_file = f"{Path(membrain_seg_params.tomogram).stem}_segmented.mrc"
         segmented_path = segmented_output_dir / segmented_file
+        if segmented_path.is_file():
+            job_is_rerun = True
+        else:
+            job_is_rerun = False
 
         membrain_file = (
             f"{Path(membrain_seg_params.tomogram).stem}"
@@ -186,22 +190,23 @@ class MembrainSeg(CommonService):
                 stderr="".encode("utf8"),
             )
 
-        # Send to node creator
-        self.log.info("Sending segmentation to node creator")
-        node_creator_parameters = {
-            "experiment_type": "tomography",
-            "job_type": self.job_type,
-            "input_file": membrain_seg_params.tomogram,
-            "output_file": str(segmented_path),
-            "relion_options": dict(membrain_seg_params.relion_options),
-            "command": " ".join(command),
-            "stdout": result.stdout.decode("utf8", "replace"),
-            "stderr": result.stderr.decode("utf8", "replace"),
-            "success": True,
-        }
-        if result.returncode:
-            node_creator_parameters["success"] = False
-        rw.send_to("node_creator", node_creator_parameters)
+        if not job_is_rerun:
+            # Send to node creator if this is the first time this tomogram is made
+            self.log.info("Sending segmentation to node creator")
+            node_creator_parameters = {
+                "experiment_type": "tomography",
+                "job_type": self.job_type,
+                "input_file": membrain_seg_params.tomogram,
+                "output_file": str(segmented_path),
+                "relion_options": dict(membrain_seg_params.relion_options),
+                "command": " ".join(command),
+                "stdout": result.stdout.decode("utf8", "replace"),
+                "stderr": result.stderr.decode("utf8", "replace"),
+                "success": True,
+            }
+            if result.returncode:
+                node_creator_parameters["success"] = False
+            rw.send_to("node_creator", node_creator_parameters)
 
         # Stop here if the job failed
         if result.returncode:

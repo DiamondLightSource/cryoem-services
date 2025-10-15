@@ -7,7 +7,7 @@ from unittest import mock
 import pytest
 from workflows.transport.offline_transport import OfflineTransport
 
-from cryoemservices.services.clem_process_raw_lifs import LIFToStackService
+from cryoemservices.services.clem_process_raw_lifs import ProcessRawLIFsService
 from cryoemservices.util.models import MockRW
 
 
@@ -33,57 +33,6 @@ def lif_file(raw_dir: Path):
 
 
 @pytest.fixture
-def processed_dir(visit_dir: Path):
-    processed_dir = visit_dir / "processed"
-    processed_dir.mkdir(parents=True, exist_ok=True)
-    return processed_dir
-
-
-@pytest.fixture
-def processing_results(
-    processed_dir: Path,
-    lif_file: Path,
-):
-    results: list[dict] = []
-    grids = [f"grid_{n}" for n in range(4)]
-    positions = [f"position_{p}" for p in range(4)]
-    channels = ("gray", "red", "green")
-
-    # Construct results
-    for grid in grids:
-        for position in positions:
-            # Create folder for this dataset
-            data_folder = processed_dir / grid / position
-            data_folder.mkdir(parents=True, exist_ok=True)
-
-            # Create metadata folder
-            metadata = data_folder / "metadata" / f"{position}.xml"
-            metadata.parent.mkdir(exist_ok=True)
-            metadata.touch(exist_ok=True)
-
-            # Construct series name
-            series_name = f"{grid}--{position}"
-
-            # Create image files
-            for channel in channels:
-                image = data_folder / f"{channel}.tiff"
-                image.touch(exist_ok=True)
-
-                # Add to list of results
-                results.append(
-                    {
-                        "image_stack": str(image),
-                        "metadata": str(metadata),
-                        "series_name": series_name,
-                        "channel": channel,
-                        "number_of_members": len(channels),
-                        "parent_lif": str(lif_file),
-                    }
-                )
-    return results
-
-
-@pytest.fixture
 def offline_transport(mocker):
     transport = OfflineTransport()
     mocker.spy(transport, "send")
@@ -99,11 +48,10 @@ lif_to_stack_params_matrix = (
 
 
 @pytest.mark.parametrize("test_params", lif_to_stack_params_matrix)
-@mock.patch("cryoemservices.services.clem_process_raw_lifs.convert_lif_to_stack")
+@mock.patch("cryoemservices.services.clem_process_raw_lifs.process_lif_file")
 def test_lif_to_stack_service(
     mock_convert,
     test_params: tuple[bool],
-    processing_results: list[dict],
     lif_file: Path,
     raw_dir: Path,
     offline_transport: OfflineTransport,
@@ -128,10 +76,14 @@ def test_lif_to_stack_service(
     }
 
     # Set up the expected mock values
-    mock_convert.return_value = processing_results
+    # mock_convert.return_value = processing_results
+    dummy_results = [{"series_name": f"dummy_{i}"} for i in range(4)]
+    mock_convert.return_value = dummy_results
 
     # Set up and run the service
-    service = LIFToStackService(environment={"queue": ""}, transport=offline_transport)
+    service = ProcessRawLIFsService(
+        environment={"queue": ""}, transport=offline_transport
+    )
     service.initializing()
     if use_recwrap:
         recwrap = MockRW(offline_transport)
@@ -154,11 +106,11 @@ def test_lif_to_stack_service(
         root_folder=raw_dir.stem,
         number_of_processes=20,
     )
-    for result in processing_results:
+    for result in dummy_results:
         offline_transport.send.assert_any_call(
             "murfey_feedback",
             {
-                "register": "clem.register_lif_preprocessing_result",
+                "register": "clem.register_preprocessing_result",
                 "result": result,
             },
         )
@@ -175,7 +127,7 @@ def test_lif_to_stack_bad_messsage(
     bad_message = "This is a bad message"
 
     # Set up and run the service
-    service = LIFToStackService(
+    service = ProcessRawLIFsService(
         environment={"queue": ""},
         transport=offline_transport,
     )
@@ -237,7 +189,9 @@ def test_lif_to_stack_service_validation_failed(
     }
 
     # Set up and run the service
-    service = LIFToStackService(environment={"queue": ""}, transport=offline_transport)
+    service = ProcessRawLIFsService(
+        environment={"queue": ""}, transport=offline_transport
+    )
     service.initializing()
     service.call_process_raw_lifs(
         None,
@@ -252,7 +206,7 @@ def test_lif_to_stack_service_validation_failed(
     offline_transport.send.assert_not_called()
 
 
-@mock.patch("cryoemservices.services.clem_process_raw_lifs.convert_lif_to_stack")
+@mock.patch("cryoemservices.services.clem_process_raw_lifs.process_lif_file")
 def test_lif_to_stack_service_processing_failed(
     mock_convert,
     lif_file: Path,
@@ -279,7 +233,9 @@ def test_lif_to_stack_service_processing_failed(
     mock_convert.return_value = {}
 
     # Set up and run the service
-    service = LIFToStackService(environment={"queue": ""}, transport=offline_transport)
+    service = ProcessRawLIFsService(
+        environment={"queue": ""}, transport=offline_transport
+    )
     service.initializing()
     service.call_process_raw_lifs(
         None,

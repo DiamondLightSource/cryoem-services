@@ -362,27 +362,32 @@ class TomoAlign(CommonService):
 
         # Do alignment with AreTomo
         aretomo_output_path = alignment_output_dir / f"{stack_name}_aretomo.mrc"
+        if aretomo_output_path.is_file():
+            job_is_rerun = True
+        else:
+            job_is_rerun = False
         aretomo_result, aretomo_command = self.aretomo(
             tomo_params, aretomo_output_path, angle_file
         )
 
-        # Send to node creator
-        self.log.info("Sending tomo align to node creator")
-        node_creator_parameters = {
-            "experiment_type": "tomography",
-            "job_type": self.job_type,
-            "input_file": self.input_file_list_of_lists[0][0],
-            "output_file": str(aretomo_output_path),
-            "relion_options": dict(tomo_params.relion_options),
-            "command": " ".join(aretomo_command),
-            "stdout": aretomo_result.stdout.decode("utf8", "replace"),
-            "stderr": aretomo_result.stderr.decode("utf8", "replace"),
-        }
-        if aretomo_result.returncode:
-            node_creator_parameters["success"] = False
-        else:
-            node_creator_parameters["success"] = True
-        rw.send_to("node_creator", node_creator_parameters)
+        if not job_is_rerun:
+            # Send to node creator if this is the first time this tomogram is made
+            self.log.info("Sending tomo align to node creator")
+            node_creator_parameters = {
+                "experiment_type": "tomography",
+                "job_type": self.job_type,
+                "input_file": self.input_file_list_of_lists[0][0],
+                "output_file": str(aretomo_output_path),
+                "relion_options": dict(tomo_params.relion_options),
+                "command": " ".join(aretomo_command),
+                "stdout": aretomo_result.stdout.decode("utf8", "replace"),
+                "stderr": aretomo_result.stderr.decode("utf8", "replace"),
+            }
+            if aretomo_result.returncode:
+                node_creator_parameters["success"] = False
+            else:
+                node_creator_parameters["success"] = True
+            rw.send_to("node_creator", node_creator_parameters)
 
         # Stop here if the job failed
         if aretomo_result.returncode or not aretomo_output_path.is_file():
@@ -483,7 +488,9 @@ class TomoAlign(CommonService):
                 "size_y": scaled_y_size,
                 "size_z": scaled_z_size,
                 "pixel_spacing": pixel_spacing,
-                "tilt_angle_offset": str(self.tilt_offset),
+                "tilt_angle_offset": str(
+                    self.tilt_offset or tomo_params.manual_tilt_offset
+                ),
                 "z_shift": rot_centre_z,
                 "file_directory": str(alignment_output_dir),
                 "central_slice_image": central_slice_file,
@@ -662,7 +669,7 @@ class TomoAlign(CommonService):
             {
                 "volume": str(aretomo_output_path),
                 "output_dir": str(
-                    project_dir / f"Denoise/job{job_number+1:03}/tomograms"
+                    project_dir / f"Denoise/job{job_number + 1:03}/tomograms"
                 ),
                 "relion_options": dict(tomo_params.relion_options),
             },

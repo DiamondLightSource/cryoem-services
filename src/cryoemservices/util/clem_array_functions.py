@@ -113,7 +113,6 @@ def estimate_int_dtype(array: np.ndarray, bit_depth: Optional[int] = None) -> st
         dtype_group: str,
         bit_depth: int,
     ) -> Optional[str]:
-
         # Set up variables
         arr = array
         dtype_subset = [
@@ -154,7 +153,6 @@ def estimate_int_dtype(array: np.ndarray, bit_depth: Optional[int] = None) -> st
         return dtype_final
 
     def _by_array_values(array: np.ndarray, dtype_group: str) -> Optional[str]:
-
         # Set up variables
         arr = array
 
@@ -622,7 +620,6 @@ def align_image_to_self(
     # Align from the middle
     # Useful for aligning defocus series, where the plane of focus is in the middle
     elif start_from == "middle":
-
         # Align both halves independently
         idx = len(array) // 2  # Floor division
         aligned_front = np.flip(
@@ -831,7 +828,6 @@ def convert_to_rgb(
     array: np.ndarray,
     color: str,
 ) -> np.ndarray:
-
     # Set up variables
     arr: np.ndarray = array
     dtype = str(arr.dtype)
@@ -853,7 +849,6 @@ def flatten_image(
     array: np.ndarray,
     mode: Literal["mean", "min", "max"] = "mean",
 ) -> np.ndarray:
-
     # Flatten along first (outermost) axis
     axis = 0
     if mode == "min":

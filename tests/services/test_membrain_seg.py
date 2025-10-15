@@ -418,3 +418,76 @@ def test_membrain_seg_service_slurm(
             "processing_type": "Segmented",
         },
     )
+
+
+@mock.patch("cryoemservices.services.membrain_seg.segment")
+def test_membrain_seg_service_local_memseg_rerun(
+    mock_segment,
+    offline_transport,
+    tmp_path,
+):
+    """
+    Send a test message to membrain-seg for the version running without a subprocess
+    This should call the mock subprocess then send messages to the images service.
+    This does a rerun so should not request node creation
+    """
+
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+    segmentation_test_message = {
+        "tomogram": f"{tmp_path}/Denoise/job007/tomograms/test_stack_aretomo.denoised.mrc",
+        "output_dir": f"{tmp_path}/Segmentation/job008/tomograms",
+        "pretrained_checkpoint": "checkpoint.ckpt",
+        "pixel_size": "1.0",
+        "rescale_patches": True,
+        "augmentation": True,
+        "store_probabilities": True,
+        "store_connected_components": True,
+        "window_size": 100,
+        "connected_component_threshold": 2,
+        "segmentation_threshold": 4,
+        "relion_options": {},
+    }
+
+    # Pre-make the output so this is a rerun
+    (tmp_path / "Segmentation/job008/tomograms").mkdir(parents=True)
+    (
+        tmp_path
+        / "Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented.mrc"
+    ).touch()
+
+    # Set up the mock service and send a message to it
+    service = membrain_seg.MembrainSeg(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
+    service.membrain_seg(None, header=header, message=segmentation_test_message)
+
+    # Check the images service request
+    assert offline_transport.send.call_count == 3
+    offline_transport.send.assert_any_call(
+        "images",
+        {
+            "image_command": "mrc_central_slice",
+            "file": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented.mrc",
+            "skip_rescaling": True,
+        },
+    )
+    offline_transport.send.assert_any_call(
+        "movie",
+        {
+            "image_command": "mrc_to_apng",
+            "file": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented.mrc",
+            "skip_rescaling": True,
+        },
+    )
+    offline_transport.send.assert_any_call(
+        "ispyb_connector",
+        {
+            "ispyb_command": "insert_processed_tomogram",
+            "file_path": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented.mrc",
+            "processing_type": "Segmented",
+        },
+    )
