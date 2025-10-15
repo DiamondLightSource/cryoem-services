@@ -349,7 +349,7 @@ def run_class2d(class2d_params: Class2DParameters, send_to_rabbitmq: Callable):
             "class_number": class_id + 1,
             "class_image_full_path": (
                 f"{class2d_params.class2d_dir}"
-                f"/run_it{nr_iter:03}_classes_{class_id+1}.jpeg"
+                f"/run_it{nr_iter:03}_classes_{class_id + 1}.jpeg"
             ),
             "particles_per_class": (
                 float(classes_loop[class_id, 1 + vdam_offset]) * particles_in_batch

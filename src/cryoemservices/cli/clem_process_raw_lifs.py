@@ -33,7 +33,7 @@ def run():
         "--num-procs",
         type=int,
         default=1,
-        help=("Number of processes to run. \n" "DEFAULT:   1"),
+        help=("Number of processes to run. \nDEFAULT:   1"),
     )
     parser.add_argument(
         "--debug",
@@ -45,10 +45,10 @@ def run():
     # Set up the logger before importing the module functions
     set_up_logging(debug=args.debug)
 
-    from cryoemservices.wrappers.clem_process_raw_lifs import convert_lif_to_stack
+    from cryoemservices.wrappers.clem_process_raw_lifs import process_lif_file
 
     # Run function
-    results = convert_lif_to_stack(
+    results = process_lif_file(
         file=Path(args.lif_file),
         root_folder=args.root_folder,
         number_of_processes=args.num_procs,
@@ -56,9 +56,6 @@ def run():
 
     # Print results in output log
     if results:
-        if args.debug:
-            for result in results:
-                print(result)
         print()
         print("LIF processing workflow successfully completed")
     else:

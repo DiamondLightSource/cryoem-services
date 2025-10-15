@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import json
 import sys
+from subprocess import CompletedProcess
 from unittest import mock
 
 import mrcfile
@@ -31,10 +32,6 @@ def test_cryolo_service_spa(mock_flatten, mock_subprocess, offline_transport, tm
     This should call the mock subprocess then send messages on to the
     node_creator, murfey_feedback, ispyb_connector and images services
     """
-    mock_subprocess().returncode = 0
-    mock_subprocess().stdout = "stdout".encode("ascii")
-    mock_subprocess().stderr = "stderr".encode("ascii")
-
     mock_flatten.return_value = "MotionCorr/job002/sample.mrc"
 
     header = {
@@ -43,7 +40,6 @@ def test_cryolo_service_spa(mock_flatten, mock_subprocess, offline_transport, tm
     }
 
     output_path = tmp_path / "AutoPick/job007/STAR/sample.star"
-    cbox_path = tmp_path / "AutoPick/job007/CBOX/sample.cbox"
     ctf_test_values = {
         "CtfMaxResolution": 0.00001,
         "DefocusU": 0.05,
@@ -76,22 +72,30 @@ def test_cryolo_service_spa(mock_flatten, mock_subprocess, offline_transport, tm
     with open(tmp_path / "config.json", "w") as f:
         f.write('{\n"model": {\n"anchors": [160, 160]\n}\n}')
 
-    # Write star co-ordinate file in the format cryolo will output
-    output_path.parent.mkdir(parents=True)
-    cbox_path.parent.mkdir(parents=True)
-    with open(cbox_path, "w") as f:
-        f.write(
-            "data_cryolo\n\nloop_\n\n_EstWidth\n_EstHeight\n_Confidence\n"
-            "_CoordinateX\n_CoordinateY\n_Width\n_Height\n"
-            "100 200 0.6 0.1 0.2 2 4\n100 200 0.5 0.3 0.4 6 8"
+    def write_cbox_file(command, cwd, capture_output):
+        # Write star co-ordinate file in the format cryolo will output
+        (cwd / "CBOX").mkdir()
+        with open(cwd / "CBOX/sample.cbox", "w") as f:
+            f.write(
+                "data_cryolo\n\nloop_\n\n_EstWidth\n_EstHeight\n_Confidence\n"
+                "_CoordinateX\n_CoordinateY\n_Width\n_Height\n"
+                "100 200 0.6 0.1 0.2 2 4\n100 200 0.5 0.3 0.4 6 8"
+            )
+        return CompletedProcess(
+            "",
+            returncode=0,
+            stdout="stdout".encode("ascii"),
+            stderr="stderr".encode("ascii"),
         )
+
+    mock_subprocess.side_effect = write_cbox_file
 
     # Set up the mock service and send the message to it
     service = cryolo.CrYOLO(environment={"queue": ""}, transport=offline_transport)
     service.initializing()
     service.cryolo(None, header=header, message=cryolo_test_message)
 
-    assert mock_subprocess.call_count == 4
+    mock_subprocess.assert_called_once()
     mock_subprocess.assert_called_with(
         [
             "cryolo_predict.py",
@@ -480,9 +484,10 @@ def test_parse_cryolo_output(offline_transport):
 @mock.patch("cryoemservices.services.cryolo.plt.hist")
 def test_flatten_grid_bars_smooth(mock_hist, tmp_path):
     """Test the flattener does nothing to smooth data"""
-    mock_hist.return_value = np.concatenate(
-        (np.arange(51), np.arange(49, 0, -1))
-    ), np.arange(100)
+    mock_hist.return_value = (
+        np.concatenate((np.arange(51), np.arange(49, 0, -1))),
+        np.arange(100),
+    )
 
     data = np.arange(256).reshape(16, 16)
     with mrcfile.new(tmp_path / "normal.mrc") as mrc:
@@ -495,9 +500,39 @@ def test_flatten_grid_bars_smooth(mock_hist, tmp_path):
 @mock.patch("cryoemservices.services.cryolo.plt.hist")
 def test_flatten_grid_bars_two_peaks(mock_hist, tmp_path):
     """Test the flattener moves the lower peak of a double distribution"""
-    mock_hist.return_value = np.concatenate(
-        (np.arange(26), np.arange(24, 0, -1), np.arange(26), np.arange(24, 0, -1))
-    ), np.arange(100)
+    mock_hist.return_value = (
+        np.concatenate(
+            (np.arange(26), np.arange(24, 0, -1), np.arange(26), np.arange(24, 0, -1))
+        ),
+        np.arange(100),
+    )
+
+    data = np.arange(256).reshape(16, 16)
+    with mrcfile.new(tmp_path / "two_normals.mrc") as mrc:
+        mrc.set_data(data.astype(np.float32))
+
+    returned_file = cryolo.flatten_grid_bars(
+        tmp_path / "two_normals.mrc", peak_width=None, smoothing=None
+    )
+    assert returned_file == tmp_path / "two_normals_flat.mrc"
+
+    with mrcfile.open(tmp_path / "two_normals_flat.mrc") as mrc:
+        output_data = mrc.data
+
+    assert min(output_data.flatten()) == 54
+    assert output_data[0][0] == 79
+    assert max(output_data.flatten()) == 255
+
+
+@mock.patch("cryoemservices.services.cryolo.plt.hist")
+def test_flatten_grid_bars_two_peaks_with_clipping(mock_hist, tmp_path):
+    """Test the flattener moves the lower peak of a double distribution"""
+    mock_hist.return_value = (
+        np.concatenate(
+            (np.arange(26), np.arange(24, 0, -1), np.arange(26), np.arange(24, 0, -1))
+        ),
+        np.arange(100),
+    )
 
     data = np.arange(256).reshape(16, 16)
     with mrcfile.new(tmp_path / "two_normals.mrc") as mrc:
@@ -510,4 +545,5 @@ def test_flatten_grid_bars_two_peaks(mock_hist, tmp_path):
         output_data = mrc.data
 
     assert min(output_data.flatten()) == 54
-    assert output_data[0][0] == 79
+    assert output_data[0][0] == 54.0
+    assert int(max(output_data.flatten())) == 211

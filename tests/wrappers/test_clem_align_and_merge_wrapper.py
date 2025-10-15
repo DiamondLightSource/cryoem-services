@@ -41,7 +41,6 @@ def metadata_file(processed_dir: Path):
 
 @pytest.fixture
 def image_list(processed_dir: Path):
-
     # Set up test environment
     images: list[Path] = []
     if not processed_dir.exists():
@@ -137,7 +136,6 @@ def test_align_and_merge_stacks(
     metadata_file: Path,
     image_list: list[Path],
 ):
-
     # Unpack test params
     colors, crop_to_n_frames, align_self, flatten, align_across = test_params
 
@@ -199,7 +197,6 @@ def test_align_and_merge_stacks_wrong_params(
     image_list,
     tmp_path,
 ):
-
     # Unpack test params
     colors, crop_to_n_frames, align_self, flatten, align_across = test_params
 
@@ -261,7 +258,6 @@ def test_align_and_merge_parameters(
     metadata_file: Path,
     image_list: list[Path],
 ):
-
     # Unpack test parameters
     num_imgs, stringify, crop_to_n_frames, align_self, flatten, align_across = (
         test_params
@@ -322,7 +318,6 @@ def test_align_and_merge_wrapper(
     image_list: list[Path],
     offline_transport,  # Fixture defined above
 ):
-
     # Construct a dictionary to pass to the wrapper
     crop_to_n_frames = 30
     align_self = "enabled"

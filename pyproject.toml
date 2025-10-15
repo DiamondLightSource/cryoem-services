@@ -7,7 +7,7 @@ requires = [
 
 [project]
 name = "cryoemservices"
-version = "1.2.6"
+version = "1.3.0"
 description = "Services for CryoEM processing"
 readme = "README.md"
 keywords = [
@@ -67,8 +67,8 @@ torch = [
     GitHub = "https://github.com/DiamondLightSource/cryoem-services"
 [project.scripts]
     "clem.align_and_merge" = "cryoemservices.cli.clem_align_and_merge:run"
-    "clem.lif_to_stack" = "cryoemservices.cli.clem_lif_to_stack:run"
-    "clem.tiff_to_stack" = "cryoemservices.cli.clem_tiff_to_stack:run"
+    "clem.process_raw_lifs" = "cryoemservices.cli.clem_process_raw_lifs:run"
+    "clem.process_raw_tiffs" = "cryoemservices.cli.clem_process_raw_tiffs:run"
     "combine_star_files" = "cryoemservices.pipeliner_plugins.combine_star_files:main"
     "cryoemservices.angular_distribution_plot" = "cryoemservices.pipeliner_plugins.angular_distribution_plot:run"
     "cryoemservices.angular_efficiency" = "cryoemservices.pipeliner_plugins.angular_efficiency:run"
@@ -84,8 +84,8 @@ torch = [
 [project.entry-points."cryoemservices.services"]
     BFactor = "cryoemservices.services.bfactor_setup:BFactor"
     CLEMAlignAndMerge = "cryoemservices.services.clem_align_and_merge:AlignAndMergeService"
-    CLEMLIFToStack = "cryoemservices.services.clem_process_raw_lifs:LIFToStackService"
-    CLEMTIFFToStack = "cryoemservices.services.clem_process_raw_tiffs:TIFFToStackService"
+    CLEMProcessRawLIFs = "cryoemservices.services.clem_process_raw_lifs:ProcessRawLIFsService"
+    CLEMProcessRawTIFFs = "cryoemservices.services.clem_process_raw_tiffs:ProcessRawTIFFsService"
     CTFFind = "cryoemservices.services.ctffind:CTFFind"
     Class2D = "cryoemservices.services.class2d:Class2D"
     Class3D = "cryoemservices.services.class3d:Class3D"
@@ -120,8 +120,8 @@ torch = [
     ispyb = "cryoemservices.util.process_recipe_tools:ispyb_filter"
 [project.entry-points."cryoemservices.wrappers"]
     CLEMAlignAndMerge = "cryoemservices.wrappers.clem_align_and_merge:AlignAndMergeWrapper"
-    CLEMLIFToStack = "cryoemservices.wrappers.clem_process_raw_lifs:LIFToStackWrapper"
-    CLEMTIFFToStack = "cryoemservices.wrappers.clem_process_raw_tiffs:TIFFToStackWrapper"
+    CLEMProcessRawLIFs = "cryoemservices.wrappers.clem_process_raw_lifs:ProcessRawLIFsWrapper"
+    CLEMProcessRawTIFFs = "cryoemservices.wrappers.clem_process_raw_tiffs:ProcessRawTIFFsWrapper"
     Class2D = "cryoemservices.wrappers.class2d_wrapper:Class2DWrapper"
     Class3D = "cryoemservices.wrappers.class3d_wrapper:Class3DWrapper"
     Refine3D = "cryoemservices.wrappers.refine3d_wrapper:Refine3DWrapper"
@@ -133,51 +133,26 @@ zip-safe = false
 [tool.setuptools.packages.find]
 where = [ "src" ]
 
-[tool.isort]
-profile = "black"
+[tool.ruff]
+line-length = 88
+lint.extend-ignore = ["E203", "E266", "E501", "E731", "E741"]
+lint.select = [
+    "C4",
+    "E4", "E7", "E9",
+    "F",
+    "I",
+    "W6",
+]
+fix = true
 
-[tool.flake8]
-select = [
-    "C4",   # flake8-comprehensions, https://github.com/adamchainz/flake8-comprehensions
-    "E401",
-    "E711",
-    "E712",
-    "E713",
-    "E714",
-    "E721",
-    "E722",
-    "E901",
-    "F401",
-    "F402",
-    "F403",
-    "F405",
-    "F541",
-    "F631",
-    "F632",
-    "F633",
-    "F811",
-    "F812",
-    "F821",
-    "F822",
-    "F841",
-    "F901",
-    "W191",
-    "W291",
-    "W292",
-    "W293",
-    "W602",
-    "W603",
-    "W604",
-    "W605",
-    "W606",
-]
-ignore = [
-    "E203",
-    "E266",
-    "E501",
-    "W503",
-]
-max-line-length = "88"
+[tool.ruff.lint.isort]
+known-first-party = ["cryoemservices"]
+combine-as-imports = true
+
+[tool.ruff.format]
+quote-style="double"
+indent-style="space"
+line-ending="auto"
 
 [tool.pyproject-fmt]
 indent = 4

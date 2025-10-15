@@ -84,7 +84,7 @@ class EMISPyB(CommonService):
                 return replace_with_environment(parameter)
 
             # Otherwise look up the parameter value
-            if message.get(parameter):
+            if message.get(parameter) is not None:
                 base_value = message[parameter]
             else:
                 base_value = rw.recipe_step["parameters"].get(parameter)

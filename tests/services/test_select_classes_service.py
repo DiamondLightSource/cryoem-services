@@ -44,7 +44,7 @@ def select_classes_common_setup(
             f.write("data_particles\n\nloop_\n_x\n_y\n_particle\n_movie\n")
             for i in range(initial_particle_count):
                 f.write(
-                    f"{i/100} {i/100} {i}@Extract/job008/classes.mrcs "
+                    f"{i / 100} {i / 100} {i}@Extract/job008/classes.mrcs "
                     f"MotionCorr/job002/Movies/movie.mrc\n"
                 )
 

@@ -32,6 +32,14 @@ def run():
         type=str,
         help="Path to the XLIF file associated with this dataset. If not provided, the script will use relative file paths to find what it thinks is the appropriate file",
     )
+    # Number of processes to multiprocess with
+    parser.add_argument(
+        "-n",
+        "--num-procs",
+        type=int,
+        default=1,
+        help=("Number of processes to run. \nDEFAULT:   1"),
+    )
     # Add debug option
     parser.add_argument(
         "--debug",
@@ -45,7 +53,7 @@ def run():
     set_up_logging(debug=args.debug)
 
     # Import module only after logger has been set up
-    from cryoemservices.wrappers.clem_process_raw_tiffs import convert_tiff_to_stack
+    from cryoemservices.wrappers.clem_process_raw_tiffs import process_tiff_files
 
     # Generate list from the single file provided
     tiff_file = Path(args.tiff_file)
@@ -61,17 +69,15 @@ def run():
     # Parse metadata argument
     metadata = None if not args.metadata else Path(args.metadata)
 
-    results = convert_tiff_to_stack(
+    results = process_tiff_files(
         tiff_list=tiff_list,
         root_folder=args.root_folder,
         metadata_file=metadata,
+        number_of_processes=args.num_procs,
     )
 
     # Print result to output log
     if results:
-        if args.debug:
-            for result in results:
-                print(result)
         print()
         print("TIFF processing workflow successfully completed")
     else:

@@ -214,12 +214,12 @@ class SelectClasses(CommonService):
             ):
                 model_score_data = starfile.read(select_dir / "rank_model.star")
                 class_scores = list(model_score_data["rlnClassScore"])
-                input_particle_data["particles"][
-                    "rlnParticleScore"
-                ] = input_particle_data["particles"].apply(
-                    lambda r: r["rlnCryodannScore"]
-                    * class_scores[r["rlnClassNumber"] - 1],
-                    axis=1,
+                input_particle_data["particles"]["rlnParticleScore"] = (
+                    input_particle_data["particles"].apply(
+                        lambda r: r["rlnCryodannScore"]
+                        * class_scores[r["rlnClassNumber"] - 1],
+                        axis=1,
+                    )
                 )
                 micrograph_particle_counts_before = (
                     input_particle_data["particles"]["rlnMicrographName"]
@@ -243,7 +243,7 @@ class SelectClasses(CommonService):
                 )
                 if autoselect_params.app_id is not None:
                     self.log.info("Sending to smartem if configured")
-                    for mic, count in micrograph_particle_counts_before.values():
+                    for mic, count in micrograph_particle_counts_before.items():
                         num_selected = micrograph_particle_counts_after.get(mic, 0)
                         rw.send_to(
                             "smartem",
