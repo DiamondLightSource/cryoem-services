@@ -134,6 +134,13 @@ class Extract(CommonService):
                 )
             )
 
+        if extract_params.downscale:
+            extract_params.relion_options.pixel_size_downscaled = (
+                extract_params.pixel_size
+                * extract_params.relion_options.boxsize
+                / extract_params.relion_options.small_boxsize
+            )
+
         # Find the locations of the particles
         cbox_name = Path(
             extract_params.coord_list_file.replace("STAR", "CBOX")
@@ -223,139 +230,39 @@ class Extract(CommonService):
             # Pixel locations are from bottom left, need to flip the image later
             pixel_location_x = round(float(particles_x[particle]))
             pixel_location_y = round(float(particles_y[particle]))
-
-            # Extract the particle image and pad the edges if it is not square
-            x_left_pad = 0
-            x_right_pad = 0
-            y_top_pad = 0
-            y_bot_pad = 0
-
             extract_width = round(extract_params.relion_options.boxsize / 2)
 
-            x_left = pixel_location_x - extract_width
-            if x_left < 0:
-                x_left_pad = -x_left
-                x_left = 0
-            x_right = pixel_location_x + extract_width
-            if x_right >= image_size[1]:
-                x_right_pad = x_right - image_size[1]
-                x_right = image_size[1]
-            y_top = pixel_location_y - extract_width
-            if y_top < 0:
-                y_top_pad = -y_top
-                y_top = 0
-            y_bot = pixel_location_y + extract_width
-            if y_bot >= image_size[0]:
-                y_bot_pad = y_bot - image_size[0]
-                y_bot = image_size[0]
-
-            particle_subimage = input_micrograph_image[y_top:y_bot, x_left:x_right]
-            particle_subimage = np.pad(
-                particle_subimage,
-                ((y_bot_pad, y_top_pad), (x_left_pad, x_right_pad)),
-                mode="edge",
+            full_particle_subimage, failure_reason = extract_single_particle(
+                input_image=input_micrograph_image,
+                x_coord=pixel_location_x,
+                y_coord=pixel_location_y,
+                extract_width=extract_width,
+                shape=[image_size[1], image_size[0]],
             )
-
-            # Flip all the values on inversion
-            if extract_params.invert_contrast:
-                particle_subimage = -1 * particle_subimage
-
-            # Downscale the image size
-            if extract_params.downscale:
-                extract_params.relion_options.pixel_size_downscaled = (
-                    extract_params.pixel_size
-                    * extract_params.relion_options.boxsize
-                    / extract_params.relion_options.small_boxsize
-                )
-                subimage_ft = np.fft.fftshift(np.fft.fft2(particle_subimage))
-                deltax = (
-                    subimage_ft.shape[0] - extract_params.relion_options.small_boxsize
-                )
-                deltay = (
-                    subimage_ft.shape[1] - extract_params.relion_options.small_boxsize
-                )
-                particle_subimage = np.real(
-                    np.fft.ifft2(
-                        np.fft.ifftshift(
-                            subimage_ft[
-                                deltax // 2 : subimage_ft.shape[0] - deltax // 2,
-                                deltay // 2 : subimage_ft.shape[1] - deltay // 2,
-                            ]
-                        )
-                    )
-                )
-                extract_width = round(extract_params.relion_options.small_boxsize / 2)
-
-            # Distance of each pixel from the centre, compared to background radius
-            grid_indexes = np.meshgrid(
-                np.arange(2 * extract_width),
-                np.arange(2 * extract_width),
-            )
-            distance_from_centre = np.sqrt(
-                (grid_indexes[0] - extract_width + 0.5) ** 2
-                + (grid_indexes[1] - extract_width + 0.5) ** 2
-            )
-            bg_region = (
-                distance_from_centre
-                > np.ones(np.shape(particle_subimage)) * extract_params.bg_radius
-            )
-
-            # Fit background to a plane and subtract the plane from the image
-            positions = [grid_indexes[0][bg_region], grid_indexes[1][bg_region]]
-            # needs to create a matrix of the correct shape for  a*x + b*y + c plane fit
-            if not len(positions[0]) == len(positions[1]):
+            if failure_reason:
                 self.log.warning(
-                    f"Particle image {particle} in {extract_params.micrographs_file} is not square"
+                    f"Extraction failed for {particle} "
+                    f"in {extract_params.micrographs_file}. "
+                    f"Reason was {failure_reason}."
                 )
                 continue
-            data_size = len(positions[0])
-            positions_matrix = np.hstack(
-                (
-                    np.reshape(positions[0], (data_size, 1)),
-                    np.reshape(positions[1], (data_size, 1)),
-                )
+            particle_subimage, failure_reason = enhance_single_particle(
+                particle_subimage=full_particle_subimage,
+                extract_width=extract_width,
+                small_boxsize=extract_params.relion_options.small_boxsize,
+                bg_radius=extract_params.bg_radius,
+                invert_contrast=extract_params.invert_contrast,
+                downscale=extract_params.downscale,
+                norm=extract_params.norm,
+                plane_fit=True,
             )
-            # this ones for c
-            positions_matrix = np.hstack((np.ones((data_size, 1)), positions_matrix))
-            values = particle_subimage[bg_region]
-            # normal equation
-            try:
-                theta = np.dot(
-                    np.dot(
-                        np.linalg.inv(
-                            np.dot(positions_matrix.transpose(), positions_matrix)
-                        ),
-                        positions_matrix.transpose(),
-                    ),
-                    values,
-                )
-            except np.linalg.LinAlgError:
+            if failure_reason:
                 self.log.warning(
-                    f"Could not fit image plane for particle {particle} in {extract_params.micrographs_file}"
+                    f"Extraction failed for {particle} "
+                    f"in {extract_params.micrographs_file}. "
+                    f"Reason was {failure_reason}."
                 )
                 continue
-            # now we need the full grid across the image
-            positions_matrix = np.hstack(
-                (
-                    np.reshape(grid_indexes[0], (4 * extract_width**2, 1)),
-                    np.reshape(grid_indexes[1], (4 * extract_width**2, 1)),
-                )
-            )
-            positions_matrix = np.hstack(
-                (np.ones((4 * extract_width**2, 1)), positions_matrix)
-            )
-            plane = np.reshape(
-                np.dot(positions_matrix, theta), (2 * extract_width, 2 * extract_width)
-            )
-
-            particle_subimage -= plane
-
-            # Background normalisation
-            if extract_params.norm:
-                # Standardise the values using the background
-                bg_mean = np.mean(particle_subimage[bg_region])
-                bg_std = np.std(particle_subimage[bg_region])
-                particle_subimage = (particle_subimage - bg_mean) / bg_std
 
             # Add to output stack
             if len(output_mrc_stack):
@@ -413,3 +320,150 @@ class Extract(CommonService):
 
         self.log.info(f"Done {self.job_type} for {extract_params.coord_list_file}.")
         rw.transport.ack(header)
+
+
+def extract_single_particle(
+    input_image: np.ndarray,
+    x_coord: float,
+    y_coord: float,
+    extract_width: float,
+    shape: list[int],
+) -> tuple[np.ndarray, str]:
+    """
+    A function which can extract a single particle in a micrograph
+    """
+    # Extract the particle image and pad the edges if it is not square
+    x_left_pad = 0
+    x_right_pad = 0
+    y_top_pad = 0
+    y_bot_pad = 0
+
+    x_left = round(x_coord - extract_width)
+    if x_left < 0:
+        x_left_pad = -x_left
+        x_left = 0
+    x_right = round(x_coord + extract_width)
+    if x_right >= shape[0]:
+        x_right_pad = x_right - shape[0]
+        x_right = shape[0]
+    y_top = round(y_coord - extract_width)
+    if y_top < 0:
+        y_top_pad = -y_top
+        y_top = 0
+    y_bot = round(y_coord + extract_width)
+    if y_bot >= shape[1]:
+        y_bot_pad = y_bot - shape[1]
+        y_bot = shape[1]
+
+    if y_bot <= y_top or x_left >= x_right:
+        return np.array([]), "Particle is outside image"
+    else:
+        particle_subimage = input_image[y_top:y_bot, x_left:x_right]
+        particle_subimage = np.pad(
+            particle_subimage,
+            ((y_bot_pad, y_top_pad), (x_left_pad, x_right_pad)),
+            mode="edge",
+        )
+    return particle_subimage, ""
+
+
+def enhance_single_particle(
+    particle_subimage: np.ndarray,
+    extract_width: float,
+    small_boxsize: int,
+    bg_radius: float,
+    invert_contrast: bool = True,
+    downscale: bool = True,
+    norm: bool = True,
+    plane_fit: bool = True,
+):
+    """
+    A function which runs enhancement on an extracted particle in a micrograph
+    or a flattened particle from a tomogram volume
+    """
+    # Flip all the values on inversion
+    if invert_contrast:
+        particle_subimage = -1 * particle_subimage
+
+    if downscale:
+        # Downscale the image size
+        subimage_ft = np.fft.fftshift(np.fft.fft2(particle_subimage))
+        deltax = subimage_ft.shape[0] - small_boxsize
+        deltay = subimage_ft.shape[1] - small_boxsize
+        particle_subimage = np.real(
+            np.fft.ifft2(
+                np.fft.ifftshift(
+                    subimage_ft[
+                        deltax // 2 : subimage_ft.shape[0] - deltax // 2,
+                        deltay // 2 : subimage_ft.shape[1] - deltay // 2,
+                    ]
+                )
+            )
+        )
+        extract_width = round(small_boxsize / 2)
+
+    # Distance of each pixel from the centre for background normalization
+    grid_indexes = np.meshgrid(
+        np.arange(2 * extract_width),
+        np.arange(2 * extract_width),
+    )
+    distance_from_centre = np.sqrt(
+        (grid_indexes[0] - extract_width + 0.5) ** 2
+        + (grid_indexes[1] - extract_width + 0.5) ** 2
+    )
+    bg_region = distance_from_centre > np.ones(np.shape(particle_subimage)) * bg_radius
+
+    # Fitting of plane to the ice
+    if plane_fit:
+        # Fit background to a plane and subtract the plane from the image
+        positions = [grid_indexes[0][bg_region], grid_indexes[1][bg_region]]
+        # needs to create a matrix of the correct shape for  a*x + b*y + c plane fit
+        if not len(positions[0]) == len(positions[1]):
+            return np.array([]), "Particle image is not square"
+        data_size = len(positions[0])
+        positions_matrix = np.hstack(
+            (
+                np.reshape(positions[0], (data_size, 1)),
+                np.reshape(positions[1], (data_size, 1)),
+            )
+        )
+        # this ones for c
+        positions_matrix = np.hstack((np.ones((data_size, 1)), positions_matrix))
+        values = particle_subimage[bg_region]
+        # normal equation
+        try:
+            theta = np.dot(
+                np.dot(
+                    np.linalg.inv(
+                        np.dot(positions_matrix.transpose(), positions_matrix)
+                    ),
+                    positions_matrix.transpose(),
+                ),
+                values,
+            )
+        except np.linalg.LinAlgError:
+            return np.array([]), "Could not fit image plane"
+        # now we need the full grid across the image
+        positions_matrix = np.hstack(
+            (
+                np.reshape(grid_indexes[0], (4 * extract_width**2, 1)),
+                np.reshape(grid_indexes[1], (4 * extract_width**2, 1)),
+            )
+        )
+        positions_matrix = np.hstack(
+            (np.ones((4 * extract_width**2, 1)), positions_matrix)
+        )
+        plane = np.reshape(
+            np.dot(positions_matrix, theta), (2 * extract_width, 2 * extract_width)
+        )
+
+        particle_subimage -= plane
+
+    # Background normalisation
+    if norm:
+        # Standardise the values using the background
+        bg_mean = np.mean(particle_subimage[bg_region])
+        bg_std = np.std(particle_subimage[bg_region])
+        particle_subimage = (particle_subimage - bg_mean) / bg_std
+
+    return particle_subimage, ""
