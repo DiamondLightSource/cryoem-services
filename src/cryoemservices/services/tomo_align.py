@@ -25,6 +25,25 @@ from cryoemservices.util.relion_service_options import (
 from cryoemservices.util.tomo_output_files import _get_tilt_number_v5_12
 
 
+def run_tilt_denoising(tilt: str) -> str | None:
+    denoised_tilt = "/".join("tmp" if p == "processed" else p for p in Path(tilt).parts)
+    denoised_tilt = str(Path(denoised_tilt).with_suffix("_denoised.mrc"))
+    denoise_result = subprocess.run(
+        [
+            "python",
+            "run_denoiser.py",
+            "--nimage",
+            str(tilt),
+            "--dimage",
+            str(denoised_tilt),
+        ],
+        capture_output=True,
+    )
+    if denoise_result.returncode:
+        return None
+    return denoised_tilt
+
+
 class TomoParameters(BaseModel):
     stack_file: str = Field(..., min_length=1)
     pixel_size: float
@@ -52,6 +71,7 @@ class TomoParameters(BaseModel):
     out_imod_xf: Optional[int] = None
     dark_tol: Optional[float] = None
     manual_tilt_offset: Optional[float] = None
+    denoise_tilts: bool = False
     relion_options: RelionServiceOptions
 
     @model_validator(mode="before")
@@ -303,6 +323,24 @@ class TomoAlign(CommonService):
         )
         for index in sorted(tilts_to_remove, reverse=True):
             self.input_file_list_of_lists.remove(self.input_file_list_of_lists[index])
+
+        # Decide whether to denoise
+        if not tomo_params.denoise_tilts:
+            rw.send_to("tomo_align", {"denoise": True})
+        else:
+            new_input_list_of_lists = []
+            for tname, tangle in self.input_file_list_of_lists:
+                denoised_tilt = run_tilt_denoising(tname)
+                if not denoised_tilt:
+                    self.log.error(f"Failed to denoise {tname}")
+                    rw.transport.nack(header)
+                    return
+                new_input_list_of_lists.append([denoised_tilt, tangle])
+            self.input_file_list_of_lists = new_input_list_of_lists
+            tomo_params.stack_file = "/".join(
+                "tmp" if p == "processed" else p
+                for p in Path(tomo_params.stack_file).parts
+            )
 
         # Find the input image dimensions
         with mrcfile.open(self.input_file_list_of_lists[0][0]) as mrc:
