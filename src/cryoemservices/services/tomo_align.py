@@ -71,7 +71,7 @@ class TomoParameters(BaseModel):
     out_imod_xf: Optional[int] = None
     dark_tol: Optional[float] = None
     manual_tilt_offset: Optional[float] = None
-    denoise_tilts: bool = False
+    denoise_tilts: int = 0
     relion_options: RelionServiceOptions
 
     @model_validator(mode="before")
@@ -325,9 +325,9 @@ class TomoAlign(CommonService):
             self.input_file_list_of_lists.remove(self.input_file_list_of_lists[index])
 
         # Decide whether to denoise
-        if not tomo_params.denoise_tilts:
-            rw.send_to("tomo_align", {"denoise": True})
-        else:
+        if tomo_params.denoise_tilts == 1:
+            rw.send_to("tomo_align_denoise", {"denoise_tilts": 2})
+        elif tomo_params.denoise_tilts == 2:
             new_input_list_of_lists = []
             for tname, tangle in self.input_file_list_of_lists:
                 denoised_tilt = run_tilt_denoising(tname)
@@ -539,6 +539,10 @@ class TomoAlign(CommonService):
                 "alignment_quality": str(self.alignment_quality),
             }
         ]
+
+        # Write the score somewhere
+        with open(aretomo_output_path.with_suffix(".com"), "a") as comfile:
+            comfile.write(f"\n\nAlignment quality {self.alignment_quality}")
 
         # Find the indexes of the dark images removed by AreTomo
         missing_indices = []
