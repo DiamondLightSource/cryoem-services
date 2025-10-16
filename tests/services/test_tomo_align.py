@@ -1456,3 +1456,22 @@ def test_parse_tomo_align_output(offline_transport):
     assert service.rot_centre_z_list == ["300.0", "350.0"]
     assert service.tilt_offset == 1.0
     assert service.alignment_quality == 0.07568
+
+
+@mock.patch("cryoemservices.services.tomo_align.subprocess.run")
+def test_run_tilt_denoising(mock_subprocess, tmp_path):
+    mock_subprocess().returncode = 0
+
+    tilt_in = f"{tmp_path}/processed/relion_murfey/MotionCorr/job002/Movies/tilt.mrc"
+    tilt_out = (
+        f"{tmp_path}/tmp/relion_murfey/MotionCorr/job002/Movies/tilt_denoised.mrc"
+    )
+
+    denoised_tilt = tomo_align.run_tilt_denoising(tilt_in)
+
+    assert denoised_tilt == tilt_out
+
+    mock_subprocess.assert_called_with(
+        ["python", "run_denoiser.py", "--nimage", tilt_in, "--dimage", tilt_out],
+        capture_output=True,
+    )
