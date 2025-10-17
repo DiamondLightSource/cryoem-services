@@ -27,11 +27,12 @@ from cryoemservices.util.tomo_output_files import _get_tilt_number_v5_12
 
 def run_tilt_denoising(tilt: str) -> str | None:
     denoised_tilt = "/" + "/".join(
-        "tmp" if p == "processed" else p for p in Path(tilt).parts[1:]
+        "spool" if p == "processed" else p for p in Path(tilt).parts[1:]
     )
     denoised_tilt = str(
         Path(denoised_tilt).parent / (Path(denoised_tilt).stem + "_denoised.mrc")
     )
+    Path(denoised_tilt).parent.mkdir(parents=True, exist_ok=True)
     denoise_result = subprocess.run(
         [
             "python",
@@ -342,9 +343,10 @@ class TomoAlign(CommonService):
                 new_input_list_of_lists.append([denoised_tilt, tangle])
             self.input_file_list_of_lists = new_input_list_of_lists
             tomo_params.stack_file = "/" + "/".join(
-                "tmp" if p == "processed" else p
+                "spool" if p == "processed" else p
                 for p in Path(tomo_params.stack_file).parts[1:]
             )
+            Path(tomo_params.stack_file).parent.mkdir(parents=True, exist_ok=True)
 
         # Find the input image dimensions
         with mrcfile.open(self.input_file_list_of_lists[0][0]) as mrc:
