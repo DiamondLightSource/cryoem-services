@@ -331,8 +331,10 @@ class TomoAlign(CommonService):
 
         # Decide whether to denoise
         if tomo_params.denoise_tilts == 1:
+            self.log.info("Sending to tilt denoising and alignment re-run")
             rw.send_to("tomo_align_denoise", {"denoise_tilts": 2})
         elif tomo_params.denoise_tilts == 2:
+            self.log.info("Running tilt denoising")
             new_input_list_of_lists = []
             for tname, tangle in self.input_file_list_of_lists:
                 denoised_tilt = run_tilt_denoising(tname)

@@ -1464,7 +1464,7 @@ def test_run_tilt_denoising(mock_subprocess, tmp_path):
 
     tilt_in = f"{tmp_path}/processed/relion_murfey/MotionCorr/job002/Movies/tilt.mrc"
     tilt_out = (
-        f"{tmp_path}/tmp/relion_murfey/MotionCorr/job002/Movies/tilt_denoised.mrc"
+        f"{tmp_path}/spool/relion_murfey/MotionCorr/job002/Movies/tilt_denoised.mrc"
     )
 
     denoised_tilt = tomo_align.run_tilt_denoising(tilt_in)
