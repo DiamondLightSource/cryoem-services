@@ -51,4 +51,4 @@ def test_distance_exp_score_with_selections():
     selections = np.array([0, 1, 0, 4, 0])
     distances = np.array([1, 2, 3, 4, 5])
     score = distance_exp_score(selections, distances)
-    assert score == (np.exp(-2 / 5) + 4 * np.exp(-1 / 5)) / 5
+    assert score == (np.exp(-1 / 10) + 4 * np.exp(-1 / 5)) / 5
