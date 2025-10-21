@@ -16,7 +16,7 @@ def test_distance_matrix_2d():
             [2 * np.sqrt(2), np.sqrt(2), 0],
         ]
     )
-    assert dm == expected_result
+    assert (dm == expected_result).all()
 
 
 def test_distance_matrix_3d():
