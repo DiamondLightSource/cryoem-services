@@ -35,7 +35,7 @@ def test_distance_matrix_3d():
 
 def test_distance_exp_score_wrong_dimensions():
     with pytest.raises(ValueError):
-        selections = np.array([0, 0, 0, 0, 0])
+        selections = np.array([0, 0, 0, 0])
         distances = np.array([1, 2, 3, 4, 5])
         distance_exp_score(selections, distances)
 
@@ -51,4 +51,4 @@ def test_distance_exp_score_with_selections():
     selections = np.array([0, 1, 0, 4, 0])
     distances = np.array([1, 2, 3, 4, 5])
     score = distance_exp_score(selections, distances)
-    assert score == (np.exp(-2 / 5) + np.exp(-16 / 5)) / 5
+    assert score == (np.exp(-2 / 5) + 4 * np.exp(-1 / 5)) / 5
