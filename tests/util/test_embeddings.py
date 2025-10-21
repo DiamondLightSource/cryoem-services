@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 import numpy as np
-from cryoem_services.util.embeddings import distance_matrix
+
+from cryoemservices.util.embeddings import distance_matrix
 
 
 def test_distance_matrix_2d():
