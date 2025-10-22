@@ -11,7 +11,8 @@ metadata:
 spec:
   type: library
   lifecycle: production
-  owner: user:kif41228
+  owner: group:data-analysis
   dependsOn:
     - component:ispyb-api
     - component:workflows
+    - component:murfey-server
