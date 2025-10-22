@@ -12,8 +12,6 @@ spec:
   type: library
   lifecycle: production
   owner: user:kif41228
-  providesApis:
-    - murfey-rest
   dependsOn:
     - component:ispyb-api
     - component:workflows
