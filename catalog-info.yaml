@@ -1,0 +1,19 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: cryoem-services
+  title: Cryo-EM Services
+  description: Services for processing cryo-em data
+  annotations:
+    github.com/project-slug: DiamondLightSouce/cryoem-services
+  tags:
+    - python
+spec:
+  type: library
+  lifecycle: production
+  owner: user:kif41228
+  providesApis:
+    - murfey-rest
+  dependsOn:
+    - component:ispyb-api
+    - component:workflows
