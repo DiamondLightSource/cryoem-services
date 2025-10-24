@@ -639,7 +639,7 @@ class TomoAlign(CommonService):
             {
                 "image_command": "tilt_series_alignment",
                 "file": tomo_params.stack_file,
-                "aln_file": aln_file,
+                "aln_file": str(aln_file),
                 "pixel_size": tomo_params.pixel_size,
             },
         )
