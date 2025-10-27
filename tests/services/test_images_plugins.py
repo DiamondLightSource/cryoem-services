@@ -512,6 +512,34 @@ def test_tilt_image_alignment_works_3d(mock_imagedraw, tmp_path):
     assert np.isclose(ellipse_calls[1][0][0][3][1], y_cen_b + x_shift_2 - y_shift_b2)
 
 
+@mock.patch("cryoemservices.services.images_plugins.ImageDraw")
+def test_tilt_image_alignment_works_2d(mock_imagedraw, tmp_path):
+    tmp_mrc_path = tmp_path / "tmp.mrc"
+    aln_file = tmp_path / "tmp.aln"
+
+    # Construct mrc and aln file
+    data_2d = np.linspace(-1000, 1000, 20, dtype=np.int16).reshape((5, 4))
+    with mrcfile.new(tmp_mrc_path, overwrite=True) as mrc:
+        mrc.set_data(data_2d)
+    with open(aln_file, "w") as aln:
+        aln.write(
+            "# Header line\n# Second header line\n"
+            "0 86.7 1 -10.5 2.5 1 1 1 0 -3.0\n0 86.7 1 102.2 21.2 1 1 1 0 6.0"
+        )
+
+    # Send to image creation
+    assert tilt_series_alignment(plugin_params(tmp_mrc_path, True, 2)) == str(
+        tmp_path / "tmp_alignment.jpeg"
+    )
+
+    # Check that the expected picking ellipses were drawn - skip checking all the rest
+    mock_imagedraw.Draw.assert_called()
+    assert mock_imagedraw.Draw().polygon.call_count == 2
+    ellipse_calls = mock_imagedraw.Draw().polygon.call_args_list
+    assert ellipse_calls[0][1] == {"width": 19, "outline": "#f5e90a"}
+    assert ellipse_calls[1][1] == {"width": 20, "outline": "#f5a927"}
+
+
 def test_interfaces_without_keys():
     """Test that file path keys are required"""
     assert not mrc_to_jpeg(lambda x: None)
