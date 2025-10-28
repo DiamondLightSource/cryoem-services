@@ -3,7 +3,11 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from cryoemservices.util.embeddings import distance_exp_score, distance_matrix
+from cryoemservices.util.embeddings import (
+    distance_augmented_sort,
+    distance_exp_score,
+    distance_matrix,
+)
 
 
 def test_distance_matrix_2d():
@@ -36,19 +40,43 @@ def test_distance_matrix_3d():
 def test_distance_exp_score_wrong_dimensions():
     with pytest.raises(ValueError):
         selections = np.array([0, 0, 0, 0])
-        distances = np.array([1, 2, 3, 4, 5])
+        distances = np.array([[0, 1], [1, 0]])
         distance_exp_score(selections, distances)
 
 
 def test_distance_exp_score_no_selections():
-    selections = np.array([0, 0, 0, 0, 0])
-    distances = np.array([1, 2, 3, 4, 5])
+    selections = np.array([0, 0, 0])
+    distances = np.array([[0, 1, 1], [1, 0, 1], [1, 1, 0]])
     score = distance_exp_score(selections, distances)
-    assert score == 1
+    assert (score == np.array([1, 1, 1])).all()
 
 
 def test_distance_exp_score_with_selections():
-    selections = np.array([0, 1, 0, 4, 0])
-    distances = np.array([1, 2, 3, 4, 5])
+    selections = np.array([0, 1, 0])
+    distances = np.array([[0, 2, 3], [2, 0, 4], [3, 4, 0]])
     score = distance_exp_score(selections, distances)
-    assert score == (np.exp(-1 / 10) + 4 * np.exp(-1 / 5)) / 5
+    assert (score == np.array([np.exp(-1), np.exp(-10), np.exp(-0.5)])).all()
+
+
+def test_augmented_sort_with_no_distances():
+    scores = np.array([5, 4, 3, 2, 1])
+    classes = np.array([0, 0, 1, 0, 1])
+    distance_matrix = np.array([[0, 0], [0, 0]])
+    sorted_indices = distance_augmented_sort(scores, classes, distance_matrix)
+    assert (sorted_indices == np.array([0, 1, 2, 3, 4])).all()
+
+
+def test_augmented_sort_with_small_distance():
+    scores = np.array([5, 4, 3, 2, 1])
+    classes = np.array([0, 0, 1, 0, 1])
+    distance_matrix = np.array([[0, 1], [1, 0]])
+    sorted_indices = distance_augmented_sort(scores, classes, distance_matrix)
+    assert (sorted_indices == np.array([0, 2, 1, 3, 4])).all()
+
+
+def test_augmented_sort_with_3_classes():
+    scores = np.array([5, 4, 3, 2, 1])
+    classes = np.array([0, 2, 1, 0, 1])
+    distance_matrix = np.array([[0, 1, 10], [1, 0, 9], [10, 9, 0]])
+    sorted_indices = distance_augmented_sort(scores, classes, distance_matrix)
+    assert (sorted_indices == np.array([0, 1, 2, 3, 4])).all()
