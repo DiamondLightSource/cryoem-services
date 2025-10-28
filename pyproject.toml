@@ -60,6 +60,7 @@ dev = [
 ]
 torch = [
     "easymode@git+https://github.com/mgflast/easymode",
+    "escnn",
     "membrain-seg",
     "topaz-em",
 ]
