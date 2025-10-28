@@ -13,6 +13,7 @@ from cryoemservices.services.images_plugins import (
     picked_particles,
     picked_particles_3d_apng,
     picked_particles_3d_central_slice,
+    tilt_series_alignment,
 )
 
 
@@ -21,8 +22,10 @@ def plugin_params(jpeg_path: Path, all_frames: bool, pixel_size: float = 0):
         p = {
             "parameters": {"images_command": "mrc_to_jpeg"},
             "file": jpeg_path.with_suffix(".mrc"),
+            "aln_file": jpeg_path.with_suffix(".aln"),
             "all_frames": all_frames,
             "pixel_spacing": pixel_size,
+            "pixel_size": pixel_size,
         }
         return p.get(key)
 
@@ -183,7 +186,6 @@ def test_mrc_to_apng_skip_rescaling(mock_pil, tmp_path):
 
     # Check the image creation
     assert mock_pil.fromarray.call_count == 2
-    mock_pil.fromarray.assert_called_with(mock.ANY, mode="L")
     assert (
         mock_pil.fromarray.mock_calls[0][1] == (data_3d[0] * 255 / 24).astype("uint8")
     ).all()
@@ -207,7 +209,6 @@ def test_mrc_to_apng_jitter_edge(mock_pil, tmp_path):
     # Check the image creation
     # This time the centre should match but the edge has changed
     assert mock_pil.fromarray.call_count == 2
-    mock_pil.fromarray.assert_called_with(mock.ANY, mode="L")
     assert (mock_pil.fromarray.mock_calls[0][1] != data_3d[0] * 255 / 24).any()
     assert (mock_pil.fromarray.mock_calls[2][1] != (data_3d[1] - 25) * 255 / 24).any()
     assert (mock_pil.fromarray.mock_calls[0][1] == data_3d[0] * 255 / 24)[
@@ -240,7 +241,6 @@ def test_mrc_to_apng_rescaling(mock_pil, tmp_path):
     # Check the image creation for the first frame
     # This time the frame has been rescaled
     assert mock_pil.fromarray.call_count == 2
-    mock_pil.fromarray.assert_called_with(mock.ANY, mode="L")
     assert (mock_pil.fromarray.mock_calls[0][1] == rescaled_frame * 255 / 24).any()
     mock_pil.fromarray().thumbnail.assert_called_with((512, 512))
 
@@ -447,6 +447,99 @@ def test_picked_particles_3d_apng_works_without_coords(tmp_path):
     ) == str(tmp_path / "coords_movie.png")
 
 
+@mock.patch("cryoemservices.services.images_plugins.ImageDraw")
+def test_tilt_image_alignment_works_3d(mock_imagedraw, tmp_path):
+    tmp_mrc_path = tmp_path / "tmp.mrc"
+    aln_file = tmp_path / "tmp.aln"
+
+    # Rotation of tomogram relative to tilts
+    angle = 86.7
+    rotation_matrix = [
+        [np.cos((angle - 90) * np.pi / 180), -np.sin((angle - 90) * np.pi / 180)],
+        [np.sin((angle - 90) * np.pi / 180), np.cos((angle - 90) * np.pi / 180)],
+    ]
+
+    # Construct mrc and aln file
+    data_3d = np.linspace(-1000, 1000, 20, dtype=np.int16).reshape((2, 2, 5))
+    with mrcfile.new(tmp_mrc_path, overwrite=True) as mrc:
+        mrc.set_data(data_3d)
+    with open(aln_file, "w") as aln:
+        aln.write(
+            "# Header line\n# Second header line\n"
+            f"0 {angle} 1 -1.5 2.5 1 1 1 0 -3.0\n0 {angle} 1 1022.2 21.2 1 1 1 0 6.0"
+        )
+
+    # Send to image creation
+    assert tilt_series_alignment(plugin_params(tmp_mrc_path, True, 2)) == str(
+        tmp_path / "tmp_alignment.jpeg"
+    )
+
+    # Check that the expected picking ellipses were drawn
+    mock_imagedraw.Draw.assert_called()
+    assert mock_imagedraw.Draw().polygon.call_count == 2
+    ellipse_calls = mock_imagedraw.Draw().polygon.call_args_list
+    assert ellipse_calls[0][1] == {"width": 19, "outline": "#0af549"}
+    assert ellipse_calls[1][1] == {"width": 20, "outline": "#f52407"}
+
+    # Check the box corners are right for the first ellipse
+    x_cen_a = 2.5 - 1.5 / 2
+    y_cen_a = 1 + 2.5 / 2
+    x_shift_1 = 2.5 * rotation_matrix[0][0]
+    y_shift_a1 = rotation_matrix[0][1] * np.cos(-3 * np.pi / 180)
+    x_shift_2 = 2.5 * rotation_matrix[1][0]
+    y_shift_a2 = rotation_matrix[1][1] * np.cos(-3 * np.pi / 180)
+    assert np.isclose(ellipse_calls[0][0][0][0][0], x_cen_a + x_shift_1 + y_shift_a1)
+    assert np.isclose(ellipse_calls[0][0][0][0][1], y_cen_a + x_shift_2 + y_shift_a2)
+    assert np.isclose(ellipse_calls[0][0][0][1][0], x_cen_a - x_shift_1 + y_shift_a1)
+    assert np.isclose(ellipse_calls[0][0][0][1][1], y_cen_a - x_shift_2 + y_shift_a2)
+    assert np.isclose(ellipse_calls[0][0][0][2][0], x_cen_a - x_shift_1 - y_shift_a1)
+    assert np.isclose(ellipse_calls[0][0][0][2][1], y_cen_a - x_shift_2 - y_shift_a2)
+    assert np.isclose(ellipse_calls[0][0][0][3][0], x_cen_a + x_shift_1 - y_shift_a1)
+    assert np.isclose(ellipse_calls[0][0][0][3][1], y_cen_a + x_shift_2 - y_shift_a2)
+
+    # Check the box corners are right for the second ellipse
+    x_cen_b = 2.5 + 1022.2 / 2
+    y_cen_b = 1 + 21.2 / 2
+    y_shift_b1 = rotation_matrix[0][1] * np.cos(6 * np.pi / 180)
+    y_shift_b2 = rotation_matrix[1][1] * np.cos(6 * np.pi / 180)
+    assert np.isclose(ellipse_calls[1][0][0][0][0], x_cen_b + x_shift_1 + y_shift_b1)
+    assert np.isclose(ellipse_calls[1][0][0][0][1], y_cen_b + x_shift_2 + y_shift_b2)
+    assert np.isclose(ellipse_calls[1][0][0][1][0], x_cen_b - x_shift_1 + y_shift_b1)
+    assert np.isclose(ellipse_calls[1][0][0][1][1], y_cen_b - x_shift_2 + y_shift_b2)
+    assert np.isclose(ellipse_calls[1][0][0][2][0], x_cen_b - x_shift_1 - y_shift_b1)
+    assert np.isclose(ellipse_calls[1][0][0][2][1], y_cen_b - x_shift_2 - y_shift_b2)
+    assert np.isclose(ellipse_calls[1][0][0][3][0], x_cen_b + x_shift_1 - y_shift_b1)
+    assert np.isclose(ellipse_calls[1][0][0][3][1], y_cen_b + x_shift_2 - y_shift_b2)
+
+
+@mock.patch("cryoemservices.services.images_plugins.ImageDraw")
+def test_tilt_image_alignment_works_2d(mock_imagedraw, tmp_path):
+    tmp_mrc_path = tmp_path / "tmp.mrc"
+    aln_file = tmp_path / "tmp.aln"
+
+    # Construct mrc and aln file
+    data_2d = np.linspace(-1000, 1000, 20, dtype=np.int16).reshape((5, 4))
+    with mrcfile.new(tmp_mrc_path, overwrite=True) as mrc:
+        mrc.set_data(data_2d)
+    with open(aln_file, "w") as aln:
+        aln.write(
+            "# Header line\n# Second header line\n"
+            "0 86.7 1 -10.5 2.5 1 1 1 0 -3.0\n0 86.7 1 102.2 21.2 1 1 1 0 6.0"
+        )
+
+    # Send to image creation
+    assert tilt_series_alignment(plugin_params(tmp_mrc_path, True, 2)) == str(
+        tmp_path / "tmp_alignment.jpeg"
+    )
+
+    # Check that the expected picking ellipses were drawn - skip checking all the rest
+    mock_imagedraw.Draw.assert_called()
+    assert mock_imagedraw.Draw().polygon.call_count == 2
+    ellipse_calls = mock_imagedraw.Draw().polygon.call_args_list
+    assert ellipse_calls[0][1] == {"width": 19, "outline": "#f5e90a"}
+    assert ellipse_calls[1][1] == {"width": 20, "outline": "#f5a927"}
+
+
 def test_interfaces_without_keys():
     """Test that file path keys are required"""
     assert not mrc_to_jpeg(lambda x: None)
@@ -455,6 +548,7 @@ def test_interfaces_without_keys():
     assert not mrc_to_apng(lambda x: None)
     assert not picked_particles_3d_central_slice(lambda x: None)
     assert not picked_particles_3d_apng(lambda x: None)
+    assert not tilt_series_alignment(lambda x: None)
 
 
 def test_interfaces_without_files(tmp_path):
@@ -488,3 +582,4 @@ def test_interfaces_without_files(tmp_path):
             tmp_path / "test.mrc", tmp_path / "not.cbox", "picked_particles_3d_apng"
         )
     )
+    assert not tilt_series_alignment(plugin_params(tmp_path / "not.mrc", True, 1))

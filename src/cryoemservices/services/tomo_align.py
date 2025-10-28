@@ -197,7 +197,7 @@ class TomoAlign(CommonService):
             }
             with open(plot_path, "w") as plot_json:
                 json.dump(fig_as_json, plot_json)
-        return tomo_aln_file  # not needed anywhere atm
+        return tomo_aln_file
 
     def tomo_align(self, rw, header: dict, message: dict):
         """Main function which interprets and processes received messages"""
@@ -667,8 +667,32 @@ class TomoAlign(CommonService):
         for tilt_params in node_creator_params_list:
             rw.send_to("node_creator", tilt_params)
 
+        ispyb_command_list.append(
+            {
+                "ispyb_command": "insert_processed_tomogram",
+                "file_path": tomo_params.stack_file,
+                "processing_type": "Stack",
+            }
+        )
+        ispyb_command_list.append(
+            {
+                "ispyb_command": "insert_processed_tomogram",
+                "file_path": f"{alignment_output_dir}/{stack_name}_alignment.jpeg",
+                "processing_type": "Alignment",
+            }
+        )
+
         # Forward results to images service
         self.log.info(f"Sending to images service {tomo_params.stack_file}")
+        rw.send_to(
+            "images",
+            {
+                "image_command": "tilt_series_alignment",
+                "file": tomo_params.stack_file,
+                "aln_file": str(aln_file),
+                "pixel_size": tomo_params.pixel_size,
+            },
+        )
         rw.send_to(
             "images",
             {
