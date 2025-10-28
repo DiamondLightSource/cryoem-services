@@ -98,7 +98,7 @@ class TomoAlignSlurm(TomoAlign):
             denoised_tilt = self.get_denoised_tilt_name(tilt)
             command = [
                 "python",
-                "run_denoiser.py",
+                "/install/denoiser/run_denoiser.py",
                 "--nimage",
                 str(tilt),
                 "--dimage",
