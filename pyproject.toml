@@ -59,6 +59,7 @@ dev = [
     "pytest-mock",
 ]
 torch = [
+    "escnn",
     "membrain-seg",
     "topaz-em",
 ]

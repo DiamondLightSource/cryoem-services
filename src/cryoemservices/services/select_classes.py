@@ -24,8 +24,8 @@ from cryoemservices.pipeliner_plugins.combine_star_files import (
     split_star_file,
 )
 from cryoemservices.services.common_service import CommonService
-from cryoemservices.util.embedding_dataset import ClassDataset
-from cryoemservices.util.embedding_model import EIAE
+from cryoemservices.util.embeddings_dataset import ClassDataset
+from cryoemservices.util.embeddings_model import EIAE
 from cryoemservices.util.models import MockRW
 from cryoemservices.util.relion_service_options import RelionServiceOptions
 

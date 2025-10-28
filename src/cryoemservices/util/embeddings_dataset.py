@@ -58,7 +58,7 @@ class ClassDataset(Dataset):
         transform=None,
     ):
         self.imgs: np.array | None = None
-        self.num_classes_per_batch = None
+        self.num_classes_per_batch = 0
         true_index = 0
         for i, cl in enumerate(class_image_paths):
             data = read_img(cl, multiframe=True)
