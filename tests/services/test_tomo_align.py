@@ -179,7 +179,7 @@ def test_tomo_align_service_file_list(
     assert shift_data["data"][0]["y"] == [2.3]
 
     # Check that the correct messages were sent
-    assert offline_transport.send.call_count == 12
+    assert offline_transport.send.call_count == 13
     offline_transport.send.assert_any_call(
         "node_creator",
         {
@@ -265,7 +265,26 @@ def test_tomo_align_service_file_list(
                     "refined_tilt_axis": "86.0",
                     "path": f"{tmp_path}/MotionCorr/job002/Movies/Position_1_001_0.0.mrc",
                 },
+                {
+                    "ispyb_command": "insert_processed_tomogram",
+                    "file_path": f"{tmp_path}/Tomograms/job006/tomograms/test_stack.st",
+                    "processing_type": "Stack",
+                },
+                {
+                    "ispyb_command": "insert_processed_tomogram",
+                    "file_path": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_alignment.jpeg",
+                    "processing_type": "Alignment",
+                },
             ],
+        },
+    )
+    offline_transport.send.assert_any_call(
+        "images",
+        {
+            "image_command": "tilt_series_alignment",
+            "file": tomo_align_test_message["stack_file"],
+            "aln_file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack.aln",
+            "pixel_size": tomo_align_test_message["pixel_size"],
         },
     )
     offline_transport.send.assert_any_call(
@@ -442,7 +461,7 @@ def test_tomo_align_service_file_list_repeated_tilt(
     )
 
     # Look at a sample of the messages to check they use input file 3
-    assert offline_transport.send.call_count == 12
+    assert offline_transport.send.call_count == 13
     offline_transport.send.assert_any_call(
         "node_creator",
         {
@@ -527,7 +546,7 @@ def test_tomo_align_service_file_list_zero_rotation(
         tmp_path / "Tomograms/job006/tomograms/test_stack_xy_shift_plot.json"
     ).is_file()
     assert mock_subprocess.call_count == 3
-    assert offline_transport.send.call_count == 12
+    assert offline_transport.send.call_count == 13
 
     # This one runs the post-reconstruction volume flip
     mock_subprocess.assert_any_call(
@@ -665,7 +684,7 @@ def test_tomo_align_service_file_list_bad_tilts(
     )
 
     # Look at a sample of the messages to check they use input files 1 and 2
-    assert offline_transport.send.call_count == 14
+    assert offline_transport.send.call_count == 15
     offline_transport.send.assert_any_call(
         "node_creator",
         {
@@ -798,7 +817,7 @@ def test_tomo_align_service_file_list_rerun(
     assert shift_data["data"][0]["y"] == [2.3]
 
     # Check that the correct messages were sent - one less node creator
-    assert offline_transport.send.call_count == 11
+    assert offline_transport.send.call_count == 12
     offline_transport.send.assert_any_call(
         "node_creator",
         {
@@ -837,6 +856,15 @@ def test_tomo_align_service_file_list_rerun(
     offline_transport.send.assert_any_call(
         "ispyb_connector",
         {"ispyb_command": "multipart_message", "ispyb_command_list": mock.ANY},
+    )
+    offline_transport.send.assert_any_call(
+        "images",
+        {
+            "image_command": "tilt_series_alignment",
+            "file": tomo_align_test_message["stack_file"],
+            "aln_file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack.aln",
+            "pixel_size": tomo_align_test_message["pixel_size"],
+        },
     )
     offline_transport.send.assert_any_call(
         "images",
@@ -1067,7 +1095,7 @@ def test_tomo_align_service_path_pattern(
     assert angles_data == "1.00  1\n2.00  2\n"
 
     # No need to check all sent messages
-    assert offline_transport.send.call_count == 14
+    assert offline_transport.send.call_count == 15
     offline_transport.send.assert_any_call(
         "node_creator",
         {
@@ -1222,7 +1250,7 @@ def test_tomo_align_service_dark_images(
     assert angles_data == "0.00  1\n3.00  5\n6.00  3\n9.00  4\n12.00  2\n"
 
     # Check that the correct messages were sent
-    assert offline_transport.send.call_count == 16
+    assert offline_transport.send.call_count == 17
     # Expect to get messages for three tilts, and not the excluded ones
     for image in [1, 3, 4]:
         offline_transport.send.assert_any_call(
@@ -1306,6 +1334,16 @@ def test_tomo_align_service_dark_images(
                     "refined_tilt_angle": "9.01",
                     "refined_tilt_axis": "0.0",
                     "path": f"{tmp_path}/MotionCorr/job002/Movies/Position_1_004_0.0.mrc",
+                },
+                {
+                    "ispyb_command": "insert_processed_tomogram",
+                    "file_path": f"{tmp_path}/Tomograms/job006/tomograms/test_stack.st",
+                    "processing_type": "Stack",
+                },
+                {
+                    "ispyb_command": "insert_processed_tomogram",
+                    "file_path": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_alignment.jpeg",
+                    "processing_type": "Alignment",
                 },
             ],
         },
@@ -1404,7 +1442,7 @@ def test_tomo_align_service_all_dark(
     assert angles_data == "-4.00  4\n-2.00  2\n0.00  1\n2.00  3\n4.00  5\n"
 
     # Check that the correct messages were sent
-    assert offline_transport.send.call_count == 10
+    assert offline_transport.send.call_count == 11
     # Expect to get messages for three tilts, and not the excluded ones
     offline_transport.send.assert_any_call(
         "ispyb_connector",
@@ -1428,6 +1466,16 @@ def test_tomo_align_service_all_dark(
                     "proj_xy": "test_stack_aretomo_projXY.jpeg",
                     "proj_xz": "test_stack_aretomo_projXZ.jpeg",
                     "alignment_quality": "0.5",
+                },
+                {
+                    "ispyb_command": "insert_processed_tomogram",
+                    "file_path": f"{tmp_path}/Tomograms/job006/tomograms/test_stack.st",
+                    "processing_type": "Stack",
+                },
+                {
+                    "ispyb_command": "insert_processed_tomogram",
+                    "file_path": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_alignment.jpeg",
+                    "processing_type": "Alignment",
                 },
             ],
         },
