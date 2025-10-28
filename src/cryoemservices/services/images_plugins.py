@@ -481,7 +481,7 @@ def tilt_series_alignment(plugin_params: Callable):
     if len(data.shape) == 3:
         # Extract central slice
         total_slices = data.shape[0]
-        central_slice_index = int(total_slices / 2)
+        central_slice_index = total_slices // 2
         central_slice_data = data[central_slice_index, :, :]
     elif len(data.shape) == 2:
         central_slice_data = data
@@ -509,8 +509,8 @@ def tilt_series_alignment(plugin_params: Callable):
 
     # Pad the image to make the shifts more visible - x and y end up flipped here
     flat_size = central_slice_data.shape
-    pad_x = int(flat_size[0] / 8)
-    pad_y = int(flat_size[1] / 8)
+    pad_x = flat_size[0] // 8
+    pad_y = flat_size[1] // 8
     cen = [
         central_slice_data.shape[1] / 2 + pad_y,
         central_slice_data.shape[0] / 2 + pad_x,
