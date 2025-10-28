@@ -12,8 +12,11 @@ from typing import Any, Optional
 import mrcfile
 import numpy as np
 import starfile
+import torch
 from gemmi import cif
 from pydantic import BaseModel, Field, ValidationError
+from torch.autograd import Variable
+from torchvision import transforms
 from workflows.recipe import wrap_subscribe
 
 from cryoemservices.pipeliner_plugins.combine_star_files import (
@@ -21,6 +24,8 @@ from cryoemservices.pipeliner_plugins.combine_star_files import (
     split_star_file,
 )
 from cryoemservices.services.common_service import CommonService
+from cryoemservices.util.embedding_dataset import ClassDataset
+from cryoemservices.util.embedding_model import EIAE
 from cryoemservices.util.models import MockRW
 from cryoemservices.util.relion_service_options import RelionServiceOptions
 
@@ -40,6 +45,7 @@ class SelectClassesParameters(BaseModel):
     class_uuids: str
     relion_options: RelionServiceOptions
     app_id: Optional[int] = None
+    embed_class_images: bool = True
 
 
 class SelectClasses(CommonService):
@@ -180,6 +186,92 @@ class SelectClasses(CommonService):
         autoselect_result = subprocess.run(
             autoselect_command, cwd=str(project_dir), capture_output=True
         )
+
+        if autoselect_params.embed_class_images:
+            # Run DAE to provide latent space embedding of class images
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            impaths = list(
+                Path(autoselect_params.input_file).parent.parent.glob(
+                    f"job*/{autoselect_params.input_file.replace('_optimiser.star', '_classes.mrcs')}"
+                )
+            )
+            dataset = ClassDataset(
+                impaths, transform=transforms.Resize(64, antialias=True)
+            )
+            model = EIAE(
+                alpha=torch.Tensor([[1.0, 1.0]]).to(device),
+                input_dims=(1, 64, 64),
+                hidden_dims=(1, 16, 32, 64, 128),
+                lat_dim=2,
+            )
+            model.to(device)
+            optimiser = torch.optim.Adam(
+                model.parameters(), lr=0.005, betas=(0.9, 0.999)
+            )
+            dataloader = torch.utils.data.DataLoader(
+                dataset, bacth_size=16, shuffle=True, pin_memory=True, drop_last=True
+            )
+
+            def bvae_loss(x: torch.Tensor, logits: torch.Tensor) -> torch.Tensor:
+                recon_x, c, z, loc = logits
+
+                MSE = torch.sum((recon_x - x) ** 2, axis=(1, 2, 3))
+
+                return MSE.mean()
+
+            def train(
+                dataloader: torch.utils.data.DataLoader,
+                inmodel: EIAE,
+                inoptimiser: torch.optim.Adam,
+                indevice: torch.device,
+            ) -> tuple[list[float], float]:
+                loss_record = []
+                epoch_loss = 0.0
+
+                inmodel.train()
+                for samples in dataloader:
+                    data, _ = (
+                        Variable(samples["x1"]).to(indevice),
+                        Variable(samples["x1"]).to(indevice),
+                    )
+
+                    inoptimiser.zero_grad()
+
+                    outputs = inmodel(data)
+                    loss = bvae_loss(data.detach().clone(), outputs)
+
+                    loss_record.append(loss.detach().cpu().numpy())
+
+                    epoch_loss += loss.detach().cpu().numpy()
+                    loss.backward()
+                    inoptimiser.step()
+
+                epoch_loss = epoch_loss / len(dataloader)
+
+                return loss_record, epoch_loss
+
+            for epoch in range(1000):
+                loss_record, epoch_loss = train(dataloader, model, optimiser, device)
+
+            model.eval()
+            evaluate_dataloader = torch.utils.data.DataLoader(
+                dataset, batch_size=1, shuffle=False, pin_memory=True
+            )
+            latent_coords = {}
+            for ip, sample in enumerate(evaluate_dataloader):
+                coords = (
+                    model.encode(Variable(sample["x1"]).to(device))[0]
+                    .detach()
+                    .cpu()
+                    .numpy()
+                )
+                impath = impaths[ip // dataset.num_classes_per_batch]
+                latent_coords[
+                    (
+                        int(impath.parent.name.replace("job", "")),
+                        ip % dataset.num_classes_per_batch,
+                    )
+                ] = (coords[0][0], coords[0][1])
 
         particle_data_starfile = autoselect_params.input_file.replace(
             "_optimiser", "_data"
