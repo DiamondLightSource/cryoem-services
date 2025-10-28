@@ -32,6 +32,8 @@ spec:
           - >-
               {{ .Values.command }}
         env:
+        - name: TILT_DENOISING_SIF
+          value: "{{ .Values.tiltDenoisingSIF }}"
         - name: ARETOMO2_EXECUTABLE
           value: "{{ .Values.aretomoExecutable }}"
         - name: EXTRA_LIBRARIES

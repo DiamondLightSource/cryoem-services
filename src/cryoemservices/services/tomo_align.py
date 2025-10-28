@@ -25,30 +25,6 @@ from cryoemservices.util.relion_service_options import (
 from cryoemservices.util.tomo_output_files import _get_tilt_number_v5_12
 
 
-def run_tilt_denoising(tilt: str) -> str | None:
-    denoised_tilt = "/" + "/".join(
-        "spool" if p == "processed" else p for p in Path(tilt).parts[1:]
-    )
-    denoised_tilt = str(
-        Path(denoised_tilt).parent / (Path(denoised_tilt).stem + "_denoised.mrc")
-    )
-    Path(denoised_tilt).parent.mkdir(parents=True, exist_ok=True)
-    denoise_result = subprocess.run(
-        [
-            "python",
-            "run_denoiser.py",
-            "--nimage",
-            str(tilt),
-            "--dimage",
-            str(denoised_tilt),
-        ],
-        capture_output=True,
-    )
-    if denoise_result.returncode:
-        return None
-    return denoised_tilt
-
-
 class TomoParameters(BaseModel):
     stack_file: str = Field(..., min_length=1)
     pixel_size: float
@@ -161,6 +137,34 @@ class TomoAlign(CommonService):
                 self.tilt_offset = float(line.split()[2].strip(","))
             if line.startswith("Best tilt axis"):
                 self.alignment_quality = float(line.split()[5])
+
+    def get_denoised_tilt_name(self, tilt: str) -> str:
+        denoised_tilt = "/" + "/".join(
+            "spool" if p == "processed" else p for p in Path(tilt).parts[1:]
+        )
+        denoised_tilt = str(
+            Path(denoised_tilt).parent / (Path(denoised_tilt).stem + "_denoised.mrc")
+        )
+        Path(denoised_tilt).parent.mkdir(parents=True, exist_ok=True)
+        return denoised_tilt
+
+    def run_tilt_denoising(self, tilt_list: list[str]) -> bool:
+        for tilt in tilt_list:
+            denoised_tilt = self.get_denoised_tilt_name(tilt)
+            denoise_result = subprocess.run(
+                [
+                    "python",
+                    "run_denoiser.py",
+                    "--nimage",
+                    str(tilt),
+                    "--dimage",
+                    str(denoised_tilt),
+                ],
+                capture_output=True,
+            )
+            if denoise_result.returncode:
+                return False
+        return True
 
     def extract_from_aln(self, tomo_parameters, alignment_output_dir, plot_path):
         tomo_aln_file = None
@@ -336,13 +340,16 @@ class TomoAlign(CommonService):
         elif tomo_params.denoise_tilts == 2:
             self.log.info("Running tilt denoising")
             new_input_list_of_lists = []
+            tilts_to_denoise = []
             for tname, tangle in self.input_file_list_of_lists:
-                denoised_tilt = run_tilt_denoising(tname)
-                if not denoised_tilt:
-                    self.log.error(f"Failed to denoise {tname}")
-                    rw.transport.nack(header)
-                    return
+                denoised_tilt = self.get_denoised_tilt_name(tname)
+                tilts_to_denoise.append(tname)
                 new_input_list_of_lists.append([denoised_tilt, tangle])
+            denoise_success = self.run_tilt_denoising(tilts_to_denoise)
+            if not denoise_success:
+                self.log.error("Failed to denoise tilts")
+                rw.transport.nack(header)
+                return
             self.input_file_list_of_lists = new_input_list_of_lists
             tomo_params.stack_file = "/" + "/".join(
                 "spool" if p == "processed" else p

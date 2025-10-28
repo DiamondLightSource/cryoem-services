@@ -7,7 +7,10 @@ from pathlib import Path
 from typing import List
 
 from cryoemservices.services.tomo_align import TomoAlign, TomoParameters
-from cryoemservices.util.slurm_submission import slurm_submission_for_services
+from cryoemservices.util.slurm_submission import (
+    slurm_submission_for_services,
+    wait_for_job_completion,
+)
 
 
 def retrieve_files(
@@ -79,6 +82,67 @@ class TomoAlignSlurm(TomoAlign):
             if line.startswith("Best tilt axis"):
                 self.alignment_quality = float(line.split()[5])
         tomo_file.close()
+
+    def run_tilt_denoising(self, tilt_list: list[str]) -> bool:
+        transfer_status = transfer_files([Path(tilt) for tilt in tilt_list])
+        if len(transfer_status) != len(tilt_list):
+            self.log.error(
+                f"Unable to transfer files: desired {tilt_list}, done {transfer_status}"
+            )
+            return False
+        self.log.info("All files transferred")
+
+        job_ids = []
+        final_tilts = []
+        for tilt in tilt_list:
+            denoised_tilt = self.get_denoised_tilt_name(tilt)
+            command = [
+                "python",
+                "run_denoiser.py",
+                "--nimage",
+                str(tilt),
+                "--dimage",
+                str(denoised_tilt),
+            ]
+            tilt_job_id = slurm_submission_for_services(
+                log=self.log,
+                service_config_file=self._environment["config"],
+                slurm_cluster=self._environment["slurm_cluster"],
+                job_name="TiltDenoise",
+                command=command,
+                project_dir=Path(denoised_tilt).parent,
+                output_file=Path(denoised_tilt),
+                cpus=1,
+                use_gpu=True,
+                use_singularity=True,
+                cif_name=os.environ["TILT_DENOISING_SIF"],
+                external_filesystem=True,
+                wait_for_completion=False,
+            )
+            job_ids.append(tilt_job_id.returncode)
+            final_tilts.append(denoised_tilt)
+
+        for tid, job_id in enumerate(job_ids):
+            wait_for_job_completion(
+                job_id=job_id,
+                logger=self.log,
+                service_config=self._environment["config"],
+                cluster_name=self._environment["slurm_cluster"],
+            )
+
+            # Get back any output files and clean up
+            self.log.info("Retrieving output files...")
+            retrieve_files(
+                job_directory=Path(final_tilts[tid]).parent,
+                files_to_skip=[Path(tilt_list[tid])],
+                basepath=str(Path(tilt_list[tid]).stem),
+            )
+        self.log.info("All denoising jobs finished and output files retrieved")
+
+        for out_tilt in final_tilts:
+            if not Path(out_tilt).is_file():
+                return False
+        return True
 
     def aretomo(
         self,
