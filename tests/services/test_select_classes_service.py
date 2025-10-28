@@ -107,6 +107,7 @@ def select_classes_common_setup(
         "class3d_batch_size": 50000,
         "class3d_max_size": 200000,
         "class_uuids": "{'1': '1', '2': '2'}",
+        "embed_class_images": False,
         "relion_options": {},
     }
     return select_test_message, output_relion_options
