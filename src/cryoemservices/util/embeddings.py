@@ -35,22 +35,21 @@ def distance_augmented_sort(
     selected_indices = np.zeros(scores.shape, dtype=np.uint32)
     combined_scores = np.zeros(scores.shape)
     selection_hist = np.zeros(distance_matrix.shape[0], dtype=np.uint32)
+    selection_count = 1
     for n in range(scores.shape[0]):
         class_exp_scores = distance_exp_score(selection_hist, distance_matrix)
         exp_scores_per_particle = np.array([class_exp_scores[ci] for ci in classes])
         combined_scores = scores * exp_scores_per_particle
         if not np.sum(combined_scores):
-            missing_indices = set(range(selected_indices.shape[0])) - set(
-                selected_indices
-            )
-            for i, mi in enumerate(missing_indices):
-                selected_indices[
-                    selected_indices.shape[0] - len(missing_indices) + i
-                ] = mi
+            missing_indices = np.where(selected_indices == 0)[0]
+            for mi in missing_indices:
+                selected_indices[mi] = selection_count
+                selection_count += 1
             break
         else:
             selected_index = np.argmax(combined_scores)
-            selected_indices[n] = selected_index
+            selected_indices[selected_index] = selection_count
             scores[selected_index] = 0
             selection_hist[classes[selected_index]] += 1
-    return selected_indices
+            selection_count += 1
+    return selected_indices - 1

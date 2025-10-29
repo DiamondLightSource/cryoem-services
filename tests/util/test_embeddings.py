@@ -79,7 +79,7 @@ def test_augmented_sort_with_small_distance_and_some_zero_scores():
     classes = np.array([0, 0, 1, 0, 1])
     distance_matrix = np.array([[0, 1], [1, 0]])
     sorted_indices = distance_augmented_sort(scores, classes, distance_matrix)
-    assert (sorted_indices == np.array([0, 4, 1, 2, 3])).all()
+    assert (sorted_indices == np.array([0, 2, 3, 4, 1])).all()
 
 
 def test_augmented_sort_with_3_classes():
