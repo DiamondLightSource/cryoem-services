@@ -24,6 +24,7 @@ from cryoemservices.pipeliner_plugins.combine_star_files import (
     split_star_file,
 )
 from cryoemservices.services.common_service import CommonService
+from cryoemservices.util.embedding import distance_augmented_sort, distance_matrix
 from cryoemservices.util.embeddings_dataset import ClassDataset
 from cryoemservices.util.embeddings_model import EIAE
 from cryoemservices.util.models import MockRW
@@ -187,6 +188,7 @@ class SelectClasses(CommonService):
             autoselect_command, cwd=str(project_dir), capture_output=True
         )
 
+        class_index_map = {}
         if autoselect_params.embed_class_images:
             # Run DAE to provide latent space embedding of class images
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -257,7 +259,7 @@ class SelectClasses(CommonService):
             evaluate_dataloader = torch.utils.data.DataLoader(
                 dataset, batch_size=1, shuffle=False, pin_memory=True
             )
-            latent_coords = {}
+            latent_coords = []
             for ip, sample in enumerate(evaluate_dataloader):
                 coords = (
                     model.encode(Variable(sample["x1"]).to(device))[0]
@@ -265,13 +267,18 @@ class SelectClasses(CommonService):
                     .cpu()
                     .numpy()
                 )
-                impath = impaths[ip // dataset.num_classes_per_batch]
-                latent_coords[
-                    (
-                        int(impath.parent.name.replace("job", "")),
-                        ip % dataset.num_classes_per_batch,
-                    )
-                ] = (coords[0][0], coords[0][1])
+                latent_coords.append([coords[0][0], coords[0][1]])
+            latent_coords = np.array(latent_coords)
+            dmat = distance_matrix(latent_coords)
+            class_index_map = {
+                (
+                    impaths[i // dataset.num_classes_per_batch].parent.name.replace(
+                        "job", ""
+                    ),
+                    i % dataset.num_classes_per_batch,
+                ): i
+                for i in range(len(dataset))
+            }
 
         particle_data_starfile = autoselect_params.input_file.replace(
             "_optimiser", "_data"
@@ -300,6 +307,11 @@ class SelectClasses(CommonService):
                 }
                 rw.send_to("murfey_feedback", murfey_params)
 
+            if input_particle_data:
+                input_particle_data["particles"]["rlnClassJobNumber"] = (
+                    select_dir.name.replace("job", "")
+                )
+
             if (
                 input_particle_data
                 and "rlnCryodannScore" in input_particle_data["particles"].columns
@@ -318,11 +330,18 @@ class SelectClasses(CommonService):
                     .value_counts()
                     .to_dict()
                 )
-                input_particle_data["particles"] = (
-                    input_particle_data["particles"]
-                    .sort_values("rlnParticleScore", ascending=False)
-                    .head(len(input_particle_data["particles"]) // 2)
+                input_particle_data["particles"] = input_particle_data[
+                    "particles"
+                ].sort_values("rlnParticleScore", ascending=False)
+                starfile.write(
+                    input_particle_data,
+                    select_dir / f"all_{autoselect_params.particles_file}",
+                    overwrite=True,
                 )
+
+                input_particle_data["particles"] = input_particle_data[
+                    "particles"
+                ].head(len(input_particle_data["particles"]) // 2)
                 micrograph_particle_counts_after = (
                     input_particle_data["particles"]["rlnMicrographName"]
                     .value_counts()
@@ -426,8 +445,14 @@ class SelectClasses(CommonService):
             project_dir / f"Select/job{autoselect_params.combine_star_job_number:03}"
         )
         files_to_combine = [select_dir / autoselect_params.particles_file]
+        files_to_combine_all_particles = [
+            select_dir / f"all_{autoselect_params.particles_file}"
+        ]
         if (combine_star_dir / "particles_all.star").exists():
             files_to_combine.append(combine_star_dir / "particles_all.star")
+            files_to_combine_all_particles.append(
+                combine_star_dir / "particles_all_unfiltered.star"
+            )
         else:
             combine_star_dir.mkdir(parents=True, exist_ok=True)
             Path(project_dir / "Select/Best_particles").symlink_to(combine_star_dir)
@@ -465,6 +490,8 @@ class SelectClasses(CommonService):
                     combine_node_creator_params["success"] = False
             self.parse_combiner_output(combine_result.getvalue())
 
+            combine_star_files(files_to_combine_all_particles, combine_star_dir)
+
             # Send combination job to node creator
             self.log.info("Sending combine_star_files_job (combine) to node creator")
             rw.send_to("node_creator", combine_node_creator_params)
@@ -490,6 +517,36 @@ class SelectClasses(CommonService):
                     ):
                         self.total_count += 1
                         self.previous_total_count += 1
+
+            shutil.copy(
+                select_dir / f"all_{autoselect_params.particles_file}",
+                combine_star_dir / "particles_all.star",
+            )
+
+        if autoselect_params.embed_class_images:
+            unfiltered_particle_data = starfile.read(
+                combine_star_dir / "particles_all.star"
+            )
+            unfiltered_particle_data["particles"]["embedded_class_index"] = (
+                unfiltered_particle_data["particles"].apply(
+                    lambda r: class_index_map[
+                        (r["rlnClassJobNumber"], r["rlnClassNumber"])
+                    ],
+                    axis=1,
+                )
+            )
+            unfiltered_particle_data["particles"]["augmented_index"] = (
+                distance_augmented_sort(
+                    np.array(unfiltered_particle_data["particles"]["rlnParticleScore"]),
+                    np.array(
+                        unfiltered_particle_data["particles"]["embedded_class_index"]
+                    ),
+                    dmat,
+                )
+            )
+            unfiltered_particle_data["particles"] = unfiltered_particle_data[
+                "particles"
+            ].sort_values("augmented_index")
 
         # Create a file containing all selected classes
         if not (combine_star_dir / autoselect_params.classes_file).is_file():
