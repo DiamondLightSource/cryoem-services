@@ -8,6 +8,7 @@ from typing import List
 
 from cryoemservices.services.tomo_align import TomoAlign, TomoParameters
 from cryoemservices.util.slurm_submission import (
+    config_from_file,
     slurm_submission_for_services,
     wait_for_job_completion,
 )
@@ -122,16 +123,15 @@ class TomoAlignSlurm(TomoAlign):
             job_ids.append(tilt_job_id.returncode)
             final_tilts.append(denoised_tilt)
 
+        service_config = config_from_file(self._environment["config"])
+        self.log.info("Waiting for completion and retrieval of output files...")
         for tid, job_id in enumerate(job_ids):
             wait_for_job_completion(
                 job_id=job_id,
                 logger=self.log,
-                service_config=self._environment["config"],
+                service_config=service_config,
                 cluster_name=self._environment["slurm_cluster"],
             )
-
-            # Get back any output files and clean up
-            self.log.info("Retrieving output files...")
             retrieve_files(
                 job_directory=Path(final_tilts[tid]).parent,
                 files_to_skip=[Path(tilt_list[tid])],
