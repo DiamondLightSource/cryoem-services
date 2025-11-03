@@ -268,7 +268,7 @@ class SelectClasses(CommonService):
                     .numpy()
                 )
                 latent_coords.append([coords[0][0], coords[0][1]])
-            latent_coords = np.array(latent_coords)
+            latent_coords = np.transpose(np.array(latent_coords))
             dmat = distance_matrix(latent_coords)
             class_index_map = {
                 (
