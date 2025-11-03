@@ -24,7 +24,7 @@ from cryoemservices.pipeliner_plugins.combine_star_files import (
     split_star_file,
 )
 from cryoemservices.services.common_service import CommonService
-from cryoemservices.util.embedding import distance_augmented_sort, distance_matrix
+from cryoemservices.util.embeddings import distance_augmented_sort, distance_matrix
 from cryoemservices.util.embeddings_dataset import ClassDataset
 from cryoemservices.util.embeddings_model import EIAE
 from cryoemservices.util.models import MockRW
