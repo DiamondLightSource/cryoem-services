@@ -211,7 +211,7 @@ class SelectClasses(CommonService):
                 model.parameters(), lr=0.005, betas=(0.9, 0.999)
             )
             dataloader = torch.utils.data.DataLoader(
-                dataset, bacth_size=16, shuffle=True, pin_memory=True, drop_last=True
+                dataset, batch_size=16, shuffle=True, pin_memory=True, drop_last=True
             )
 
             def bvae_loss(x: torch.Tensor, logits: torch.Tensor) -> torch.Tensor:
