@@ -68,7 +68,7 @@ class TomoAlignSlurm(TomoAlign):
     # Logger name
     _logger_name = "cryoemservices.services.tomo_align_slurm"
 
-    def parse_tomo_output_file(self, tomo_output_file):
+    def parse_tomo_output_file(self, tomo_output_file: Path):
         tomo_file = open(tomo_output_file, "r")
         lines = tomo_file.readlines()
         for line in lines:
