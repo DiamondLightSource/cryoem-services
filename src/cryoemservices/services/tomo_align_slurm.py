@@ -68,7 +68,7 @@ class TomoAlignSlurm(TomoAlign):
     # Logger name
     _logger_name = "cryoemservices.services.tomo_align_slurm"
 
-    def parse_tomo_output(self, tomo_output_file):
+    def parse_tomo_output_file(self, tomo_output_file):
         tomo_file = open(tomo_output_file, "r")
         lines = tomo_file.readlines()
         for line in lines:
@@ -157,10 +157,10 @@ class TomoAlignSlurm(TomoAlign):
                 command,
             )
 
-        slurm_output_file = f"{aretomo_output_path}.out"
-        slurm_error_file = f"{aretomo_output_path}.out"
-        if tomo_parameters.tilt_cor and Path(slurm_output_file).is_file():
-            self.parse_tomo_output(slurm_output_file)
+        slurm_output_file = aretomo_output_path.with_suffix("out")
+        slurm_error_file = aretomo_output_path.with_suffix("err")
+        if tomo_parameters.tilt_cor and slurm_output_file.is_file():
+            self.parse_tomo_output_file(slurm_output_file)
 
         try:
             with open(slurm_output_file, "r") as slurm_stdout:
