@@ -157,8 +157,8 @@ class TomoAlignSlurm(TomoAlign):
                 command,
             )
 
-        slurm_output_file = aretomo_output_path.with_suffix("out")
-        slurm_error_file = aretomo_output_path.with_suffix("err")
+        slurm_output_file = aretomo_output_path.with_suffix(".out")
+        slurm_error_file = aretomo_output_path.with_suffix(".err")
         if tomo_parameters.tilt_cor and slurm_output_file.is_file():
             self.parse_tomo_output_file(slurm_output_file)
 
