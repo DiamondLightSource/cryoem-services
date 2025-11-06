@@ -25,7 +25,9 @@ def offline_transport(mocker):
 @mock.patch("cryoemservices.services.tomo_align.mrcfile")
 @mock.patch("cryoemservices.services.tomo_align_slurm.transfer_files")
 @mock.patch("cryoemservices.services.tomo_align_slurm.retrieve_files")
+@mock.patch("cryoemservices.services.tomo_align_slurm.get_iris_state")
 def test_tomo_align_slurm_service(
+    mock_iris_state,
     mock_retrieve,
     mock_transfer,
     mock_mrcfile,
@@ -104,6 +106,7 @@ def test_tomo_align_slurm_service(
         transport=offline_transport,
     )
     service.initializing()
+    mock_iris_state.assert_called_once()
 
     service.rot_centre_z_list = [1.1, 2.1]
     service.tilt_offset = 1.1
@@ -232,7 +235,8 @@ def test_tomo_align_slurm_service(
     assert mock_subprocess.call_count == 2
 
 
-def test_parse_tomo_align_output(offline_transport, tmp_path):
+@mock.patch("cryoemservices.services.tomo_align_slurm.get_iris_state")
+def test_parse_tomo_align_output(mock_iris_state, offline_transport, tmp_path):
     """
     Send test lines to the output parser
     to check the rotations and offsets are being read in
@@ -241,6 +245,7 @@ def test_parse_tomo_align_output(offline_transport, tmp_path):
         environment={"queue": ""}, transport=offline_transport
     )
     service.initializing()
+    mock_iris_state.assert_called_once()
 
     with open(tmp_path / "tomo_output.txt", "w") as tomo_output:
         tomo_output.write(
@@ -313,3 +318,38 @@ def test_retrieve_files(tmp_path):
     # File which doesn't exist
     assert not (tmp_path / "local_system/job_dir/file_not_exists").exists()
     assert not (tmp_path / "remote_system/job_dir/file_not_exists").exists()
+
+
+iris_test_matrix = (
+    ("green", 200),
+    ("amber", 200),
+    ("red", 200),
+    ("unknown", 500),
+)
+
+
+@pytest.mark.parametrize("test_params", iris_test_matrix)
+@mock.patch("requests.get")
+@mock.patch("time.sleep")
+def test_get_iris_state(mock_sleep, mock_requests_get, test_params: tuple[str, int]):
+    output_colour, request_status = test_params
+    mock_requests_get().status_code = request_status
+    mock_requests_get().json.return_value = {"status": output_colour}
+
+    mock_logger = mock.Mock()
+    if output_colour != "red":
+        returned_colour = tomo_align_slurm.get_iris_state(mock_logger)
+        assert returned_colour == output_colour
+    else:
+        with pytest.raises(ValueError):
+            tomo_align_slurm.get_iris_state(mock_logger)
+    mock_requests_get.assert_called_with(
+        "https://iristrafficlights.diamond.ac.uk/status"
+    )
+
+    if request_status == 200:
+        assert output_colour in str(mock_logger.mock_calls[1])
+    else:
+        assert "Could not get IRIS state" in str(mock_logger.mock_calls[1])
+    if output_colour == "red":
+        mock_sleep.assert_called_with(30 * 60)

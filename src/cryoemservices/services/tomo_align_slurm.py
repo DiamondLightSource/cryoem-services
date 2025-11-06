@@ -3,8 +3,11 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+import time
 from pathlib import Path
 from typing import List
+
+import requests
 
 from cryoemservices.services.tomo_align import TomoAlign, TomoParameters
 from cryoemservices.util.slurm_submission import slurm_submission_for_services
@@ -60,6 +63,27 @@ def transfer_files(
     return transferred_items
 
 
+def get_iris_state(logger, wait=True) -> str:
+    logger.info("Checking IRIS status...")
+    iris_status = requests.get("https://iristrafficlights.diamond.ac.uk/status")
+    if iris_status.status_code == 200:
+        iris_colour = iris_status.json()["status"]
+        if iris_colour == "green":
+            logger.info("IRIS state is green")
+        elif iris_colour == "red":
+            logger.warning("IRIS state is red, service will wait 30 minutes")
+            if wait:
+                time.sleep(30 * 60)
+            else:
+                raise ValueError("IRIS status is red")
+            iris_colour = get_iris_state(logger, wait=False)
+        else:
+            logger.warning(f"IRIS state is {iris_colour}")
+        return iris_colour
+    logger.warning("Could not get IRIS state")
+    return "unknown"
+
+
 class TomoAlignSlurm(TomoAlign):
     """
     A service for submitting AreTomo2 jobs to a slurm cluster via RestAPI
@@ -67,6 +91,10 @@ class TomoAlignSlurm(TomoAlign):
 
     # Logger name
     _logger_name = "cryoemservices.services.tomo_align_slurm"
+
+    def initializing(self):
+        get_iris_state(self.log)
+        super().initializing()
 
     def parse_tomo_output_file(self, tomo_output_file: Path):
         tomo_file = open(tomo_output_file, "r")
