@@ -118,8 +118,8 @@ def test_tomo_align_slurm_service(
 
     # Touch the expected output files
     (tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo.mrc").touch()
-    (tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo.mrc.out").touch()
-    (tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo.mrc.err").touch()
+    (tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo.out").touch()
+    (tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo.err").touch()
 
     # Send a message to the service
     service.tomo_align(None, header=header, message=tomo_align_test_message)
@@ -250,7 +250,7 @@ def test_parse_tomo_align_output(offline_transport, tmp_path):
             "Best tilt axis:   57, Score:   0.07568\n"
         )
 
-    tomo_align_slurm.TomoAlignSlurm.parse_tomo_output(
+    tomo_align_slurm.TomoAlignSlurm.parse_tomo_output_file(
         service, str(tmp_path / "tomo_output.txt")
     )
     assert service.rot_centre_z_list == ["300.0", "350.0"]

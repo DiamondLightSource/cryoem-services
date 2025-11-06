@@ -457,3 +457,174 @@ def picked_particles_3d_apng(plugin_params: Callable):
 
     logger.info(f"3D particle picker movie {outfile} saved")
     return outfile
+
+
+def tilt_series_alignment(plugin_params: Callable):
+    if not required_parameters(plugin_params, ["file", "aln_file", "pixel_size"]):
+        return False
+    filepath = Path(plugin_params("file"))
+    aln_file = Path(plugin_params("aln_file"))
+    pixel_size = float(plugin_params("pixel_size"))
+    if not filepath.is_file() or not aln_file.is_file():
+        logger.error(f"File {filepath} or {aln_file} not found")
+        return False
+    start = time.perf_counter()
+    try:
+        with mrcfile.open(filepath) as mrc:
+            data = mrc.data
+    except ValueError:
+        logger.error(
+            f"File {filepath} could not be opened. It may be corrupted or not in mrc format"
+        )
+        return False
+    outfile = str(filepath.with_suffix("")) + "_alignment.jpeg"
+    if len(data.shape) == 3:
+        # Extract central slice
+        total_slices = data.shape[0]
+        central_slice_index = total_slices // 2
+        central_slice_data = data[central_slice_index, :, :]
+    elif len(data.shape) == 2:
+        central_slice_data = data
+    else:
+        logger.error(
+            f"File {filepath} is not 2- or 3-dimensional. Cannot extract central slice"
+        )
+        return False
+
+    # Read in the tilt alignment file
+    tilts = []
+    angles = []
+    x_shifts = []
+    y_shifts = []
+    with open(aln_file) as alns:
+        while True:
+            line = alns.readline()
+            if not line:
+                break
+            if not line.startswith("#"):
+                tilts.append(float(line.split()[-1]))
+                angles.append(float(line.split()[1]))
+                x_shifts.append(float(line.split()[3]))
+                y_shifts.append(float(line.split()[4]))
+
+    # Pad the image to make the shifts more visible - x and y end up flipped here
+    flat_size = central_slice_data.shape
+    pad_x = flat_size[0] // 8
+    pad_y = flat_size[1] // 8
+    cen = [
+        central_slice_data.shape[1] / 2 + pad_y,
+        central_slice_data.shape[0] / 2 + pad_x,
+    ]
+    mrc_data = np.pad(
+        central_slice_data,
+        ((pad_x, pad_x), (pad_y, pad_y)),
+        mode="constant",
+        constant_values=np.mean(central_slice_data),
+    )
+
+    # Show image of the central slice
+    mean = np.mean(mrc_data)
+    sdev = np.std(mrc_data)
+    sigma_min = mean - 3 * sdev
+    sigma_max = mean + 3 * sdev
+    data = np.ndarray.copy(mrc_data)
+    data[data < sigma_min] = sigma_min
+    data[data > sigma_max] = sigma_max
+    data = data - data.min()
+    data = data * 255 / data.max()
+    data = data.astype("uint8")
+    im = PIL.Image.fromarray(data)
+    colour_im = im.convert("RGB")
+    dim = ImageDraw.Draw(colour_im)
+
+    # Add a box for each tilt
+    outliers = []
+    for tid, tlt in enumerate(tilts):
+        # Apply the shifts to the centre position
+        shifted_cen_x = cen[0] + x_shifts[tid] / pixel_size
+        shifted_cen_y = cen[1] + y_shifts[tid] / pixel_size
+
+        # Find distance to edge of image, accounting for y tilt
+        x_half_width = flat_size[1] / 2
+        y_half_width = (flat_size[0] * np.cos(tlt * np.pi / 180)) / 2
+
+        # Flip the angles if greater than 45 degrees
+        if angles[tid] > 45:
+            angles[tid] -= 90
+        elif angles[tid] < -45:
+            angles[tid] += 90
+
+        # Assign colours based on the size of the shift and mark outliers
+        if np.sqrt(x_shifts[tid] ** 2 + y_shifts[tid] ** 2) > 1000:
+            outline_colour = "#f52407"  # red
+            outliers.append(str(tlt))
+        elif np.sqrt(x_shifts[tid] ** 2 + y_shifts[tid] ** 2) > 100:
+            outline_colour = "#f5a927"  # orange
+        elif np.sqrt(x_shifts[tid] ** 2 + y_shifts[tid] ** 2) > 10:
+            outline_colour = "#f5e90a"  # yellow
+        else:
+            outline_colour = "#0af549"  # green
+
+        # Construct a rectangle, rotated by the tilt axis angle
+        rotation_matrix = [
+            [np.cos(angles[tid] * np.pi / 180), -np.sin(angles[tid] * np.pi / 180)],
+            [np.sin(angles[tid] * np.pi / 180), np.cos(angles[tid] * np.pi / 180)],
+        ]
+        x_corners = []
+        y_corners = []
+        for rid in range(4):
+            corner_rotations = np.matmul(
+                rotation_matrix,
+                [
+                    [x_half_width, y_half_width],
+                    [-x_half_width, y_half_width],
+                    [-x_half_width, -y_half_width],
+                    [x_half_width, -y_half_width],
+                ][rid],
+            )
+            x_corners.append(corner_rotations[0])
+            y_corners.append(corner_rotations[1])
+
+        dim.polygon(
+            [
+                (
+                    shifted_cen_x + x_corners[0],
+                    shifted_cen_y + y_corners[0],
+                ),
+                (
+                    shifted_cen_x + x_corners[1],
+                    shifted_cen_y + y_corners[1],
+                ),
+                (
+                    shifted_cen_x + x_corners[2],
+                    shifted_cen_y + y_corners[2],
+                ),
+                (
+                    shifted_cen_x + x_corners[3],
+                    shifted_cen_y + y_corners[3],
+                ),
+            ],
+            width=int(20 - np.abs(len(tilts) / 2 - tid)),
+            outline=outline_colour,
+        )
+
+    # Text to record outliers and colour key
+    if outliers:
+        dim.text(
+            (100, cen[1] * 2 - 200),
+            "Outliers (deg): " + " ".join(outliers),
+            fill="#f52407",
+            font_size=150,
+        )
+    dim.text((100, 10), "Shift over 100 nm", fill="#f52407", font_size=150)
+    dim.text((100, 160), "Shift 10 to 100 nm", fill="#f5a927", font_size=150)
+    dim.text((100, 320), "Shift 1 to 10 nm", fill="#f5e90a", font_size=150)
+    dim.text((100, 460), "Shift under 1 nm", fill="#0af549", font_size=150)
+    colour_im.thumbnail((1024, 1024))
+    colour_im.save(outfile)
+    timing = time.perf_counter() - start
+    logger.info(
+        f"Done tilt series alignment {filepath} -> {outfile} in {timing:.1f} seconds",
+        extra={"image-processing-time": timing},
+    )
+    return outfile
