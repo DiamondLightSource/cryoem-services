@@ -7,7 +7,7 @@ import re
 import subprocess
 import time
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any, List, Literal, Optional
 
 import mrcfile
 import numpy as np
@@ -26,6 +26,7 @@ from cryoemservices.util.tomo_output_files import _get_tilt_number_v5_12
 
 
 class TomoParameters(BaseModel):
+    aretomo_version: Literal[2, 3] = 3
     stack_file: str = Field(..., min_length=1)
     pixel_size: float
     path_pattern: Optional[str] = None
@@ -44,7 +45,7 @@ class TomoParameters(BaseModel):
     sart_projections: Optional[int] = None
     wbp: Optional[int] = 1  # SART is bad in AreTomo3, turn on WBP instead
     patch: Optional[int] = None
-    # kv: Optional[int] = None # Disable voltage, this would activate CTF
+    kv: Optional[int] = None
     cs: Optional[float] = None
     amplitude_contrast: Optional[float] = None
     dose_per_frame: Optional[float] = None
@@ -93,7 +94,7 @@ class TomoParameters(BaseModel):
 class TomoAlign(CommonService):
     """
     A service for grouping and aligning tomography tilt-series
-    with Newstack and AreTomo3
+    with Newstack and AreTomo2 or AreTomo3
     """
 
     # Logger name
@@ -371,9 +372,14 @@ class TomoAlign(CommonService):
             job_is_rerun = True
         else:
             job_is_rerun = False
-        aretomo_result, aretomo_command = self.aretomo(
-            tomo_params, aretomo_output_path, angle_file
-        )
+        if tomo_params.aretomo_version == 3:
+            aretomo_result, aretomo_command = self.aretomo3(
+                tomo_params, aretomo_output_path, angle_file
+            )
+        else:
+            aretomo_result, aretomo_command = self.aretomo2(
+                tomo_params, aretomo_output_path, angle_file
+            )
 
         if not job_is_rerun:
             # Send to node creator if this is the first time this tomogram is made
@@ -397,7 +403,7 @@ class TomoAlign(CommonService):
         # Stop here if the job failed
         if aretomo_result.returncode or not aretomo_output_path.is_file():
             self.log.error(
-                f"AreTomo3 failed with exitcode {aretomo_result.returncode}:\n"
+                f"AreTomo failed with exitcode {aretomo_result.returncode}:\n"
                 + aretomo_result.stderr.decode("utf8", "replace")
             )
             # Update failure processing status
@@ -736,7 +742,7 @@ class TomoAlign(CommonService):
         result = subprocess.run(newstack_cmd, capture_output=True)
         return result
 
-    def assemble_aretomo_command(
+    def assemble_aretomo3_command(
         self,
         aretomo_executable: str,
         input_file: str,
@@ -757,12 +763,7 @@ class TomoAlign(CommonService):
         ]
 
         if tomo_parameters.manual_tilt_offset is None:
-            command.extend(
-                (
-                    "-TiltCor",
-                    str(tomo_parameters.tilt_cor),
-                )
-            )
+            command.extend(("-TiltCor", str(tomo_parameters.tilt_cor)))
         else:
             command.extend(
                 (
@@ -772,13 +773,7 @@ class TomoAlign(CommonService):
                 )
             )
 
-        command.extend(
-            (
-                "-VolZ",
-                str(tomo_parameters.vol_z),
-            )
-        )
-
+        command.extend(("-VolZ", str(tomo_parameters.vol_z)))
         command.extend(
             (
                 "-TiltAxis",
@@ -805,12 +800,7 @@ class TomoAlign(CommonService):
                 )
             )
 
-        command.extend(
-            (
-                "-AtBin",
-                str(tomo_parameters.out_bin),
-            )
-        )
+        command.extend(("-AtBin", str(tomo_parameters.out_bin)))
         if tomo_parameters.second_bin:
             command.extend((str(tomo_parameters.second_bin),))
 
@@ -820,7 +810,7 @@ class TomoAlign(CommonService):
             "flip_int": "-FlipInt",
             "flip_vol": "-FlipVol",
             "wbp": "-Wbp",
-            "kv": "-kV",
+            # "kv": "-kV", # Disable voltage, this would activate CTF
             "cs": "-Cs",
             "amplitude_contrast": "-AmpContrast",
             "align_z": "-AlignZ",
@@ -838,7 +828,7 @@ class TomoAlign(CommonService):
 
         return command
 
-    def aretomo(
+    def aretomo3(
         self,
         tomo_parameters: TomoParameters,
         aretomo_output_path: Path,
@@ -847,7 +837,7 @@ class TomoAlign(CommonService):
         """
         Run AreTomo3 on output of Newstack
         """
-        command = self.assemble_aretomo_command(
+        command = self.assemble_aretomo3_command(
             aretomo_executable="AreTomo3",
             input_file=tomo_parameters.stack_file,
             tomo_parameters=tomo_parameters,
@@ -857,6 +847,104 @@ class TomoAlign(CommonService):
         self.log.info(f"Input stack: {tomo_parameters.stack_file}")
 
         # Save the AreTomo3 command then run it
+        with open(Path(tomo_parameters.stack_file).with_suffix(".com"), "w") as f:
+            f.write(" ".join(command))
+        result = subprocess.run(command, capture_output=True)
+        if tomo_parameters.tilt_cor:
+            self.parse_tomo_output(result.stdout.decode("utf8", "replace"))
+        return result, command
+
+    def assemble_aretomo2_command(
+        self,
+        aretomo_executable: str,
+        input_file: str,
+        tomo_parameters: TomoParameters,
+        aretomo_output_path: Path,
+        angle_file: Path,
+    ):
+        """
+        Assemble the command to run AreTomo2, using a base command with
+        <executable> -InMrc <input file>
+        """
+        command = [
+            aretomo_executable,
+            "-InMrc",
+            input_file,
+            "-OutMrc",
+            str(aretomo_output_path),
+        ]
+
+        command.extend(("-AngFile", str(angle_file)))
+
+        if tomo_parameters.manual_tilt_offset is None:
+            command.extend(("-TiltCor", str(tomo_parameters.tilt_cor)))
+        else:
+            command.extend(
+                (
+                    "-TiltCor",
+                    str(tomo_parameters.tilt_cor),
+                    str(tomo_parameters.manual_tilt_offset),
+                )
+            )
+
+        command.extend(("-VolZ", str(tomo_parameters.vol_z)))
+        command.extend(
+            (
+                "-TiltAxis",
+                str(tomo_parameters.tilt_axis),
+                str(tomo_parameters.refine_flag),
+            )
+        )
+
+        if tomo_parameters.frame_count and tomo_parameters.dose_per_frame:
+            command.extend(
+                (
+                    "-ImgDose",
+                    str(tomo_parameters.frame_count * tomo_parameters.dose_per_frame),
+                )
+            )
+
+        aretomo_flags = {
+            "out_bin": "-OutBin",
+            "flip_int": "-FlipInt",
+            "flip_vol": "-FlipVol",
+            "wbp": "-Wbp",
+            "patch": "-Patch",
+            "kv": "-Kv",
+            "align_z": "-AlignZ",
+            "pixel_size": "-PixSize",
+            "out_imod": "-OutImod",
+            "out_imod_xf": "-OutXF",
+            "dark_tol": "-DarkTol",
+        }
+
+        for k, v in tomo_parameters.model_dump().items():
+            if (v not in [None, ""]) and (k in aretomo_flags):
+                command.extend((aretomo_flags[k], str(v)))
+
+        return command
+
+    def aretomo2(
+        self,
+        tomo_parameters: TomoParameters,
+        aretomo_output_path: Path,
+        angle_file: Path,
+    ):
+        """
+        Run AreTomo2 on output of Newstack
+        """
+        command = self.assemble_aretomo2_command(
+            aretomo_executable="AreTomo2",
+            input_file=tomo_parameters.stack_file,
+            tomo_parameters=tomo_parameters,
+            aretomo_output_path=aretomo_output_path,
+            angle_file=angle_file,
+        )
+
+        self.log.info(f"Running AreTomo2 {command}")
+        self.log.info(f"Input stack: {tomo_parameters.stack_file}")
+
+        # Save the AreTomo2 command then run it
         with open(Path(tomo_parameters.stack_file).with_suffix(".com"), "w") as f:
             f.write(" ".join(command))
         result = subprocess.run(command, capture_output=True)
