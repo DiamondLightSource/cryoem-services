@@ -47,6 +47,7 @@ def test_tomo_align_service_file_list(
             ]
         ),
         "vol_z": 1200,
+        "extra_vol": 400,
         "align": None,
         "out_bin": 4,
         "tilt_axis": 90,
@@ -141,7 +142,7 @@ def test_tomo_align_service_file_list(
         "-PixSize",
         "1.0",
         "-ExtZ",
-        "300",
+        "400",
         "-FlipVol",
         str(tomo_align_test_message["flip_vol"]),
         "-OutImod",

@@ -89,8 +89,12 @@ def test_tomo_align_slurm_service(
         "relion_options": {},
     }
 
+    # Touch input files
+    (tmp_path / "MotionCorr/job002/Movies").mkdir(parents=True)
+    (tmp_path / "MotionCorr/job002/Movies/input_file_1.mrc").touch()
+
     # Construct the file which contains rest api submission information
-    os.environ["ARETOMO2_EXECUTABLE"] = "slurm_AreTomo"
+    os.environ["ARETOMO3_EXECUTABLE"] = "slurm_AreTomo"
     os.environ["EXTRA_LIBRARIES"] = "/lib/aretomo"
     cluster_submission_configuration(tmp_path)
 
@@ -109,17 +113,15 @@ def test_tomo_align_slurm_service(
     service.tilt_offset = 1.1
     service.alignment_quality = 0.5
 
-    (tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo_Imod").mkdir(
-        parents=True
-    )
-    (tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo_Imod/tilt.com").touch()
+    (tmp_path / "Tomograms/job006/tomograms/test_stack_Imod").mkdir(parents=True)
+    (tmp_path / "Tomograms/job006/tomograms/test_stack_Imod/tilt.com").touch()
     with open(tmp_path / "Tomograms/job006/tomograms/test_stack.aln", "w") as aln_file:
         aln_file.write("dummy 0 1000 1.2 2.3 5 6 7 8 4.5")
 
     # Touch the expected output files
-    (tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo.mrc").touch()
-    (tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo.out").touch()
-    (tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo.err").touch()
+    (tmp_path / "Tomograms/job006/tomograms/test_stack_Vol.mrc").touch()
+    (tmp_path / "Tomograms/job006/tomograms/test_stack_Vol.out").touch()
+    (tmp_path / "Tomograms/job006/tomograms/test_stack_Vol.err").touch()
 
     # Send a message to the service
     service.tomo_align(None, header=header, message=tomo_align_test_message)
@@ -138,11 +140,9 @@ def test_tomo_align_slurm_service(
     )
 
     # Check the angle file
-    assert (
-        tmp_path / "Tomograms/job006/tomograms/test_stack_tilt_angles.txt"
-    ).is_file()
+    assert (tmp_path / "Tomograms/job006/tomograms/test_stack_TLT.txt").is_file()
     with open(
-        tmp_path / "Tomograms/job006/tomograms/test_stack_tilt_angles.txt", "r"
+        tmp_path / "Tomograms/job006/tomograms/test_stack_TLT.txt", "r"
     ) as angfile:
         angles_data = angfile.read()
     assert angles_data == "1.00  0\n"
@@ -150,12 +150,12 @@ def test_tomo_align_slurm_service(
     # Command which should run
     aretomo_command = [
         "slurm_AreTomo",
-        "-InMrc",
+        "-Cmd",
+        "1",
+        "-InPrefix",
         "test_stack.mrc",
-        "-OutMrc",
-        f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
-        "-AngFile",
-        f"{tmp_path}/Tomograms/job006/tomograms/test_stack_tilt_angles.txt",
+        "-OutDir",
+        ".",
         "-TiltCor",
         "1",
         "-VolZ",
@@ -163,10 +163,13 @@ def test_tomo_align_slurm_service(
         "-TiltAxis",
         str(tomo_align_test_message["tilt_axis"]),
         "1",
+        "-AtBin",
+        str(tomo_align_test_message["out_bin"]),
+        "2",
         "-PixSize",
         "1.0",
-        "-OutBin",
-        str(tomo_align_test_message["out_bin"]),
+        "-ExtZ",
+        "300",
         "-FlipVol",
         str(tomo_align_test_message["flip_vol"]),
         "-OutImod",
@@ -194,10 +197,10 @@ def test_tomo_align_slurm_service(
             "job": {
                 "cpus_per_task": 1,
                 "current_working_directory": f"{tmp_path}/Tomograms/job006/tomograms",
-                "standard_output": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.out",
-                "standard_error": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.err",
+                "standard_output": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.out",
+                "standard_error": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.err",
                 "environment": ["USER=user", "HOME=/home"],
-                "name": "AreTomo2",
+                "name": "AreTomo3",
                 "nodes": "1",
                 "partition": "partition",
                 "prefer": "preference",
@@ -217,7 +220,7 @@ def test_tomo_align_slurm_service(
     mock_transfer.assert_any_call(
         [
             tmp_path / "Tomograms/job006/tomograms/test_stack.mrc",
-            tmp_path / "Tomograms/job006/tomograms/test_stack_tilt_angles.txt",
+            tmp_path / "Tomograms/job006/tomograms/test_stack_TLT.txt",
         ]
     )
     assert mock_retrieve.call_count == 1
@@ -225,7 +228,7 @@ def test_tomo_align_slurm_service(
         job_directory=tmp_path / "Tomograms/job006/tomograms",
         files_to_skip=[
             tmp_path / "Tomograms/job006/tomograms/test_stack.mrc",
-            tmp_path / "Tomograms/job006/tomograms/test_stack_tilt_angles.txt",
+            tmp_path / "Tomograms/job006/tomograms/test_stack_TLT.txt",
         ],
         basepath="test_stack",
     )

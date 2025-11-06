@@ -371,7 +371,9 @@ class TomoAlign(CommonService):
             job_is_rerun = True
         else:
             job_is_rerun = False
-        aretomo_result, aretomo_command = self.aretomo(tomo_params)
+        aretomo_result, aretomo_command = self.aretomo(
+            tomo_params, aretomo_output_path, angle_file
+        )
 
         if not job_is_rerun:
             # Send to node creator if this is the first time this tomogram is made
@@ -839,6 +841,8 @@ class TomoAlign(CommonService):
     def aretomo(
         self,
         tomo_parameters: TomoParameters,
+        aretomo_output_path: Path,
+        angle_file: Path,
     ):
         """
         Run AreTomo3 on output of Newstack

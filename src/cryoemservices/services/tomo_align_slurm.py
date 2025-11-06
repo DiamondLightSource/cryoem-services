@@ -86,17 +86,12 @@ class TomoAlignSlurm(TomoAlign):
         aretomo_output_path: Path,
         angle_file: Path,
     ):
-        """Submit AreTomo2 jobs to the slurm cluster via the RestAPI"""
-        self.log.info(
-            f"Input stack: {tomo_parameters.stack_file} \n"
-            f"Output file: {aretomo_output_path}"
-        )
+        """Submit AreTomo3 jobs to the slurm cluster via the RestAPI"""
+        self.log.info(f"Input stack: {tomo_parameters.stack_file}")
         command = self.assemble_aretomo_command(
-            aretomo_executable=os.environ["ARETOMO2_EXECUTABLE"],
+            aretomo_executable=os.environ["ARETOMO3_EXECUTABLE"],
             input_file=str(Path(tomo_parameters.stack_file).name),
             tomo_parameters=tomo_parameters,
-            aretomo_output_path=aretomo_output_path,
-            angle_file=angle_file,
         )
 
         # Transfer the required files
@@ -119,12 +114,12 @@ class TomoAlignSlurm(TomoAlign):
             )
         self.log.info("All files transferred")
 
-        self.log.info(f"Running AreTomo2 with command: {command}")
+        self.log.info(f"Running AreTomo3 with command: {command}")
         slurm_outcome = slurm_submission_for_services(
             log=self.log,
             service_config_file=self._environment["config"],
             slurm_cluster=self._environment["slurm_cluster"],
-            job_name="AreTomo2",
+            job_name="AreTomo3",
             command=command,
             project_dir=aretomo_output_path.parent,
             output_file=aretomo_output_path,
