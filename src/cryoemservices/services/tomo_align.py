@@ -411,7 +411,7 @@ class TomoAlign(CommonService):
             rw.transport.nack(header)
             return
 
-        imod_directory_option1 = alignment_output_dir / f"{stack_name}_aretomo_Imod"
+        imod_directory_option1 = alignment_output_dir / f"{stack_name}_Vol_Imod"
         imod_directory_option2 = alignment_output_dir / f"{stack_name}_Imod"
         if tomo_params.out_imod:
             start_time = time.time()
