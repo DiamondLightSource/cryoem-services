@@ -374,7 +374,7 @@ def test_denoise_local_subprocess_service(
 @mock.patch("cryoemservices.util.slurm_submission.requests")
 @mock.patch("cryoemservices.services.denoise_slurm.transfer_files")
 @mock.patch("cryoemservices.services.denoise_slurm.retrieve_files")
-@mock.patch("cryoemservices.services.tomo_align_slurm.get_iris_state")
+@mock.patch("cryoemservices.services.denoise_slurm.get_iris_state")
 def test_denoise_slurm_service(
     mock_iris_state,
     mock_retrieve,
