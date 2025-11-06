@@ -36,7 +36,7 @@ class TomoParameters(BaseModel):
     second_bin: Optional[int] = 2
     tilt_axis: float = 85
     tilt_cor: int = 1
-    ctf_cor: int = 1
+    ctf_cor: Optional[int] = None
     flip_int: Optional[int] = None
     flip_vol: int = 0
     flip_vol_post_reconstruction: bool = True
@@ -48,6 +48,7 @@ class TomoParameters(BaseModel):
     cs: Optional[float] = None
     amplitude_contrast: Optional[float] = None
     dose_per_frame: Optional[float] = None
+    frame_count: Optional[float] = None
     align_z: Optional[int] = None
     refine_flag: int = 1
     out_imod: int = 1
