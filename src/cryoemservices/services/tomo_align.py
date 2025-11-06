@@ -33,6 +33,7 @@ class TomoParameters(BaseModel):
     vol_z: int = 1200
     extra_vol: int = 300
     out_bin: int = 4
+    second_bin: Optional[int] = 2
     tilt_axis: float = 85
     tilt_cor: int = 1
     ctf_cor: int = 1
@@ -41,9 +42,9 @@ class TomoParameters(BaseModel):
     flip_vol_post_reconstruction: bool = True
     sart_iterations: Optional[int] = None
     sart_projections: Optional[int] = None
-    wbp: Optional[int] = None
+    wbp: Optional[int] = 1  # SART is bad in AreTomo3, turn on WBP instead
     patch: Optional[int] = None
-    kv: Optional[int] = None
+    # kv: Optional[int] = None # Disable voltage, this would activate CTF
     cs: Optional[float] = None
     amplitude_contrast: Optional[float] = None
     dose_per_frame: Optional[float] = None
@@ -737,8 +738,6 @@ class TomoAlign(CommonService):
                 (
                     "-TiltCor",
                     str(tomo_parameters.tilt_cor),
-                    "-VolZ",
-                    str(tomo_parameters.vol_z),
                 )
             )
         else:
@@ -747,10 +746,15 @@ class TomoAlign(CommonService):
                     "-TiltCor",
                     str(tomo_parameters.tilt_cor),
                     str(tomo_parameters.manual_tilt_offset),
-                    "-VolZ",
-                    str(tomo_parameters.vol_z),
                 )
             )
+
+        command.extend(
+            (
+                "-VolZ",
+                str(tomo_parameters.vol_z),
+            )
+        )
 
         command.extend(
             (
@@ -778,8 +782,16 @@ class TomoAlign(CommonService):
                 )
             )
 
+        command.extend(
+            (
+                "-AtBin",
+                str(tomo_parameters.out_bin),
+            )
+        )
+        if tomo_parameters.second_bin:
+            command.extend((str(tomo_parameters.second_bin),))
+
         aretomo_flags = {
-            "out_bin": "-AtBin",
             "dose_per_frame": "-FmDose",
             "ctf_cor": "-CorrCTF",
             "flip_int": "-FlipInt",
