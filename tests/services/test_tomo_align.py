@@ -1394,6 +1394,11 @@ def test_tomo_align_service_all_dark(
         "relion_options": {},
     }
 
+    # Touch the expected input files
+    (tmp_path / "MotionCorr/job002/Movies").mkdir(parents=True)
+    for i in range(1, 6):
+        (tmp_path / f"MotionCorr/job002/Movies/Position_1_00{i}_0.0.mrc").touch()
+
     # Set up the mock service
     service = tomo_align.TomoAlign(
         environment={"queue": ""}, transport=offline_transport
@@ -1401,11 +1406,11 @@ def test_tomo_align_service_all_dark(
     service.initializing()
 
     def write_aretomo_outputs(command, capture_output):
-        if command[0] != "AreTomo2":
+        if command[0] != "AreTomo3":
             return CompletedProcess("", returncode=0)
         # Set up outputs: stack_Imod file like AreTomo2, with exclusions and no spaces
         (tmp_path / "Tomograms/job006/tomograms/test_stack_Imod").mkdir(parents=True)
-        (tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo.mrc").touch()
+        (tmp_path / "Tomograms/job006/tomograms/test_stack_Vol.mrc").touch()
         with open(
             tmp_path / "Tomograms/job006/tomograms/test_stack_Imod/tilt.com", "w"
         ) as dark_file:
@@ -1432,11 +1437,9 @@ def test_tomo_align_service_all_dark(
     service.tomo_align(None, header=header, message=tomo_align_test_message)
 
     # Check the angle file
-    assert (
-        tmp_path / "Tomograms/job006/tomograms/test_stack_tilt_angles.txt"
-    ).is_file()
+    assert (tmp_path / "Tomograms/job006/tomograms/test_stack_TLT.txt").is_file()
     with open(
-        tmp_path / "Tomograms/job006/tomograms/test_stack_tilt_angles.txt", "r"
+        tmp_path / "Tomograms/job006/tomograms/test_stack_TLT.txt", "r"
     ) as angfile:
         angles_data = angfile.read()
     assert angles_data == "-4.00  4\n-2.00  2\n0.00  1\n2.00  3\n4.00  5\n"
@@ -1451,7 +1454,7 @@ def test_tomo_align_service_all_dark(
             "ispyb_command_list": [
                 {
                     "ispyb_command": "insert_tomogram",
-                    "volume_file": "test_stack_aretomo.mrc",
+                    "volume_file": "test_stack_Vol.mrc",
                     "stack_file": tomo_align_test_message["stack_file"],
                     "size_x": 750,
                     "size_y": 1000,
@@ -1460,11 +1463,11 @@ def test_tomo_align_service_all_dark(
                     "tilt_angle_offset": "1.1",
                     "z_shift": "2.1",
                     "file_directory": f"{tmp_path}/Tomograms/job006/tomograms",
-                    "central_slice_image": "test_stack_aretomo_thumbnail.jpeg",
-                    "tomogram_movie": "test_stack_aretomo_movie.png",
+                    "central_slice_image": "test_stack_Vol_thumbnail.jpeg",
+                    "tomogram_movie": "test_stack_Vol_movie.png",
                     "xy_shift_plot": "test_stack_xy_shift_plot.json",
-                    "proj_xy": "test_stack_aretomo_projXY.jpeg",
-                    "proj_xz": "test_stack_aretomo_projXZ.jpeg",
+                    "proj_xy": "test_stack_Vol_projXY.jpeg",
+                    "proj_xz": "test_stack_Vol_projXZ.jpeg",
                     "alignment_quality": "0.5",
                 },
                 {

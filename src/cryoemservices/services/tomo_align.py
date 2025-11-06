@@ -262,6 +262,7 @@ class TomoAlign(CommonService):
             if not Path(tilt[0]).is_file():
                 self.log.warning(f"File not found {tilt[0]}")
                 rw.transport.nack(header)
+                return
             if tilt[1] not in tilt_dict:
                 tilt_dict[tilt[1]] = []
             tilt_dict[tilt[1]].append(tilt[0])
@@ -364,7 +365,7 @@ class TomoAlign(CommonService):
                 angfile.write(f"{tilt_angles[tilt_id]}  {int(tilt_id)}\n")
 
         # Do alignment with AreTomo
-        aretomo_output_path = alignment_output_dir / f"{stack_name}_VOL.mrc"
+        aretomo_output_path = alignment_output_dir / f"{stack_name}_Vol.mrc"
         if aretomo_output_path.is_file():
             job_is_rerun = True
         else:
@@ -456,10 +457,6 @@ class TomoAlign(CommonService):
         # Names of the files made for ispyb images
         plot_file = stack_name + "_xy_shift_plot.json"
         plot_path = alignment_output_dir / plot_file
-        xy_proj_file = stack_name + "_aretomo_projXY.jpeg"
-        xz_proj_file = stack_name + "_aretomo_projXZ.jpeg"
-        central_slice_file = stack_name + "_aretomo_thumbnail.jpeg"
-        tomogram_movie_file = stack_name + "_aretomo_movie.png"
 
         # Extract results for ispyb
         aln_file = self.extract_from_aln(tomo_params, alignment_output_dir, plot_path)
@@ -494,11 +491,11 @@ class TomoAlign(CommonService):
                 ),
                 "z_shift": rot_centre_z,
                 "file_directory": str(alignment_output_dir),
-                "central_slice_image": central_slice_file,
-                "tomogram_movie": tomogram_movie_file,
+                "central_slice_image": stack_name + "_Vol_thumbnail.jpeg",
+                "tomogram_movie": stack_name + "_Vol_movie.png",
                 "xy_shift_plot": plot_file,
-                "proj_xy": xy_proj_file,
-                "proj_xz": xz_proj_file,
+                "proj_xy": stack_name + "_Vol_projXY.jpeg",
+                "proj_xz": stack_name + "_Vol_projXZ.jpeg",
                 "alignment_quality": str(self.alignment_quality),
             }
         ]
@@ -674,15 +671,14 @@ class TomoAlign(CommonService):
             },
         )
 
-        xy_input = alignment_output_dir / Path(xy_proj_file).with_suffix(".mrc")
-        xz_input = alignment_output_dir / Path(xz_proj_file).with_suffix(".mrc")
-        self.log.info(f"Sending to images service {xy_input}, {xz_input}")
-        for projection_mrc in [xy_input, xz_input]:
+        self.log.info("Sending to images service for XY and XZ projections")
+        for projection_type in ["XY", "XZ"]:
             rw.send_to(
                 "images",
                 {
-                    "image_command": "mrc_to_jpeg",
-                    "file": str(projection_mrc),
+                    "image_command": "mrc_projection",
+                    "file": str(aretomo_output_path),
+                    "projection": projection_type,
                     "pixel_spacing": pixel_spacing,
                 },
             )
