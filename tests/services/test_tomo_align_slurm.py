@@ -115,7 +115,7 @@ def test_tomo_align_slurm_service_aretomo3(
     (tmp_path / "Tomograms/job006/tomograms/test_stack_Imod").mkdir(parents=True)
     (tmp_path / "Tomograms/job006/tomograms/test_stack_Imod/tilt.com").touch()
     with open(tmp_path / "Tomograms/job006/tomograms/test_stack.aln", "w") as aln_file:
-        aln_file.write("dummy 0 1000 1.2 2.3 5 6 7 8 4.5")
+        aln_file.write("# Thickness = 130\ndummy 0 1000 1.2 2.3 5 6 7 8 4.5")
 
     # Touch the expected output files
     (tmp_path / "Tomograms/job006/tomograms/test_stack_Vol.mrc").touch()
@@ -318,7 +318,7 @@ def test_tomo_align_slurm_service_aretomo2(
     (tmp_path / "Tomograms/job006/tomograms/test_stack_Vol_Imod").mkdir(parents=True)
     (tmp_path / "Tomograms/job006/tomograms/test_stack_Vol_Imod/tilt.com").touch()
     with open(tmp_path / "Tomograms/job006/tomograms/test_stack.aln", "w") as aln_file:
-        aln_file.write("dummy 0 1000 1.2 2.3 5 6 7 8 4.5")
+        aln_file.write("# Thickness = 130\ndummy 0 1000 1.2 2.3 5 6 7 8 4.5")
 
     # Touch the expected output files
     (tmp_path / "Tomograms/job006/tomograms/test_stack_Vol.mrc").touch()

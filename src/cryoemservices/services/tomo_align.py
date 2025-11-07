@@ -110,6 +110,7 @@ class TomoAlign(CommonService):
     y_shift: List[float]
     rot_centre_z_list: List[str]
     tilt_offset: Optional[float] = None
+    thickness_pixels: int | None = None
     rot: float | None = None
     mag: float | None = None
     alignment_quality: Optional[float] = None
@@ -144,6 +145,7 @@ class TomoAlign(CommonService):
 
     def extract_from_aln(self, tomo_parameters, alignment_output_dir, plot_path):
         tomo_aln_file = None
+        self.thickness_pixels = None
         self.rot = None
         self.mag = None
         self.x_shift = []
@@ -162,6 +164,8 @@ class TomoAlign(CommonService):
         with open(tomo_aln_file) as f:
             lines = f.readlines()
             for line in lines:
+                if "Thickness" in line:
+                    self.thickness_pixels = int(line.split()[-1])
                 if not line.startswith("#"):
                     line_split = line.split()
                     self.rot = float(line_split[1])
@@ -682,15 +686,18 @@ class TomoAlign(CommonService):
 
         self.log.info("Sending to images service for XY and XZ projections")
         for projection_type in ["XY", "XZ"]:
-            rw.send_to(
-                "images",
-                {
-                    "image_command": "mrc_projection",
-                    "file": str(aretomo_output_path),
-                    "projection": projection_type,
-                    "pixel_spacing": pixel_spacing,
-                },
-            )
+            images_call_params: dict[str, str | float] = {
+                "image_command": "mrc_projection",
+                "file": str(aretomo_output_path),
+                "projection": projection_type,
+                "pixel_spacing": pixel_spacing,
+            }
+            if projection_type == "XZ" and self.thickness_pixels:
+                images_call_params["thickness_ang"] = (
+                    self.thickness_pixels * tomo_params.pixel_size
+                )
+            rw.send_to("images", images_call_params)
+            print(images_call_params)
 
         # Forward results to denoise service
         self.log.info(f"Sending to denoise service {aretomo_output_path}")

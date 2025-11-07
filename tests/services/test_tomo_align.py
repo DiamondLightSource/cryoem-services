@@ -64,7 +64,7 @@ def test_tomo_align_service_file_list_aretomo3(
         "frame_count": None,
         "align_file": None,
         "align_z": None,
-        "pixel_size": 1,
+        "pixel_size": 1.1,
         "refine_flag": -1,
         "out_imod": 1,
         "out_imod_xf": None,
@@ -104,7 +104,7 @@ def test_tomo_align_service_file_list_aretomo3(
         with open(
             tmp_path / "Tomograms/job006/tomograms/test_stack.aln", "w"
         ) as aln_file:
-            aln_file.write("dummy 86.0 1000 1.2 2.3 5 6 7 8 4.5")
+            aln_file.write("# Thickness = 130\ndummy 86.0 1000 1.2 2.3 5 6 7 8 4.5")
         return CompletedProcess(
             "",
             returncode=0,
@@ -141,7 +141,7 @@ def test_tomo_align_service_file_list_aretomo3(
         str(tomo_align_test_message["out_bin"]),
         "2",
         "-PixSize",
-        "1.0",
+        "1.1",
         "-ExtZ",
         "400",
         "-FlipVol",
@@ -252,7 +252,7 @@ def test_tomo_align_service_file_list_aretomo3(
                     "size_x": 750,
                     "size_y": 1000,
                     "size_z": 300,
-                    "pixel_spacing": "4.0",
+                    "pixel_spacing": "4.4",
                     "tilt_angle_offset": "1.1",
                     "z_shift": "2.1",
                     "file_directory": f"{tmp_path}/Tomograms/job006/tomograms",
@@ -327,7 +327,7 @@ def test_tomo_align_service_file_list_aretomo3(
             "image_command": "mrc_projection",
             "file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.mrc",
             "projection": "XY",
-            "pixel_spacing": "4.0",
+            "pixel_spacing": "4.4",
         },
     )
     offline_transport.send.assert_any_call(
@@ -336,7 +336,8 @@ def test_tomo_align_service_file_list_aretomo3(
             "image_command": "mrc_projection",
             "file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.mrc",
             "projection": "XZ",
-            "pixel_spacing": "4.0",
+            "pixel_spacing": "4.4",
+            "thickness_ang": 130 * 1.1,
         },
     )
     offline_transport.send.assert_any_call(
@@ -435,7 +436,7 @@ def test_tomo_align_service_file_list_aretomo2(
         with open(
             tmp_path / "Tomograms/job006/tomograms/test_stack.aln", "w"
         ) as aln_file:
-            aln_file.write("dummy 86.0 1000 1.2 2.3 5 6 7 8 4.5")
+            aln_file.write("# Thickness = 130\ndummy 86.0 1000 1.2 2.3 5 6 7 8 4.5")
         return CompletedProcess(
             "",
             returncode=0,
@@ -665,6 +666,7 @@ def test_tomo_align_service_file_list_aretomo2(
             "file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.mrc",
             "projection": "XZ",
             "pixel_spacing": "4.0",
+            "thickness_ang": 130,
         },
     )
     offline_transport.send.assert_any_call(
@@ -741,7 +743,7 @@ def test_tomo_align_service_file_list_repeated_tilt(
         with open(
             tmp_path / "Tomograms/job006/tomograms/test_stack.aln", "w"
         ) as aln_file:
-            aln_file.write("dummy 0 1000 1.2 2.3 5 6 7 8 4.5")
+            aln_file.write("# Thickness = 130\ndummy 0 1000 1.2 2.3 5 6 7 8 4.5")
         return CompletedProcess(
             "",
             returncode=0,
@@ -862,7 +864,7 @@ def test_tomo_align_service_file_list_zero_rotation(
         with open(
             tmp_path / "Tomograms/job006/tomograms/test_stack.aln", "w"
         ) as aln_file:
-            aln_file.write("dummy 0 1000 1.2 2.3 5 6 7 8 4.5")
+            aln_file.write("# Thickness = 130\ndummy 0 1000 1.2 2.3 5 6 7 8 4.5")
         return CompletedProcess(
             "",
             returncode=0,
@@ -981,7 +983,7 @@ def test_tomo_align_service_file_list_bad_tilts(
             tmp_path / "Tomograms/job006/tomograms/test_stack.aln", "w"
         ) as aln_file:
             aln_file.write(
-                "dummy 0 1000 1.2 2.3 5 6 7 8 4.5\ndummy 0 1000 1.2 2.3 5 6 7 8 4.5"
+                "# Thickness = 130\ndummy 0 1000 1.2 2.3 5 6 7 8 4.5\ndummy 0 1000 1.2 2.3 5 6 7 8 4.5"
             )
         return CompletedProcess(
             "",
@@ -1113,7 +1115,7 @@ def test_tomo_align_service_file_list_rerun(
         with open(
             tmp_path / "Tomograms/job006/tomograms/test_stack.aln", "w"
         ) as aln_file:
-            aln_file.write("dummy 86.0 1000 1.2 2.3 5 6 7 8 4.5")
+            aln_file.write("# Thickness = 130\ndummy 86.0 1000 1.2 2.3 5 6 7 8 4.5")
         return CompletedProcess(
             "",
             returncode=0,
@@ -1248,6 +1250,7 @@ def test_tomo_align_service_file_list_rerun(
             "file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.mrc",
             "projection": "XZ",
             "pixel_spacing": "4.0",
+            "thickness_ang": 130 * 1.0,
         },
     )
     offline_transport.send.assert_any_call(
@@ -1342,7 +1345,7 @@ def test_tomo_align_service_path_pattern(
             tmp_path / "Tomograms/job006/tomograms/test_stack.aln", "w"
         ) as aln_file:
             aln_file.write(
-                "dummy 0 1000 1.2 2.3 5 6 7 8 4.5\ndummy 0 1000 1.2 2.3 5 6 7 8 4.5"
+                "# Thickness = 130\ndummy 0 1000 1.2 2.3 5 6 7 8 4.5\ndummy 0 1000 1.2 2.3 5 6 7 8 4.5"
             )
         return CompletedProcess(
             "",
@@ -1522,6 +1525,7 @@ def test_tomo_align_service_dark_images(
         with open(
             tmp_path / "Tomograms/job006/tomograms/test_stack.aln", "w"
         ) as aln_file:
+            aln_file.write("# Thickness = 130\n")
             for i in [0, 2, 3]:
                 aln_file.write(
                     f"dummy 0 1000 {x_tilts[i]} {y_tilts[i]} 5 6 7 8 {tilt_angles[i]}\n"
