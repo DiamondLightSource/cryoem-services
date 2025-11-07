@@ -178,7 +178,7 @@ def test_mrc_projection_works_with_3d(tmp_path):
     data_3d = np.linspace(-1000, 1000, 20, dtype=np.int16).reshape((2, 2, 5))
     with mrcfile.new(tmp_mrc_path, overwrite=True) as mrc:
         mrc.set_data(data_3d)
-    for pj in ["XY", "xy", "YX", "yx", "YZ", "yz", "ZY", "zy", "ZX", "zx", "XZ", "xz"]:
+    for pj in ("XY", "xy", "YX", "yx", "YZ", "yz", "ZY", "zy", "ZX", "zx", "XZ", "xz"):
         assert mrc_projection(plugin_params(tmp_mrc_path, False, projection=pj)) == str(
             tmp_path / f"tmp_proj{pj}.jpeg"
         )
