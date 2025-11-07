@@ -98,6 +98,7 @@ def test_tomo_align_service_file_list_aretomo3(
         # Set up outputs: stack_Imod file like AreTomo3, no exclusions but with space
         (tmp_path / "Tomograms/job006/tomograms/test_stack_Imod").mkdir(parents=True)
         (tmp_path / "Tomograms/job006/tomograms/test_stack_Vol.mrc").touch()
+        (tmp_path / "Tomograms/job006/tomograms/test_stack_2ND_Vol.mrc").touch()
         with open(
             tmp_path / "Tomograms/job006/tomograms/test_stack_Imod/tilt.com", "w"
         ) as dark_file:
@@ -858,6 +859,8 @@ def test_tomo_align_service_file_list_zero_rotation(
         # Set up outputs: stack_Imod file like AreTomo3, no exclusions but with space
         (tmp_path / "Tomograms/job006/tomograms/test_stack_Imod").mkdir(parents=True)
         (tmp_path / "Tomograms/job006/tomograms/test_stack_Vol.mrc").touch()
+        (tmp_path / "Tomograms/job006/tomograms/test_stack_2ND_Vol.mrc").touch()
+        (tmp_path / "Tomograms/job006/tomograms/test_stack_2ND_Vol.mrc~").touch()
         (tmp_path / "Tomograms/job006/tomograms/test_stack_Imod/tilt.com").touch()
         with open(
             tmp_path / "Tomograms/job006/tomograms/test_stack.aln", "w"
@@ -879,7 +882,7 @@ def test_tomo_align_service_file_list_zero_rotation(
     assert (
         tmp_path / "Tomograms/job006/tomograms/test_stack_xy_shift_plot.json"
     ).is_file()
-    assert mock_subprocess.call_count == 3
+    assert mock_subprocess.call_count == 4
     assert offline_transport.send.call_count == 13
 
     # This one runs the post-reconstruction volume flip
@@ -897,6 +900,25 @@ def test_tomo_align_service_file_list_zero_rotation(
         ],
         capture_output=True,
     )
+    mock_subprocess.assert_any_call(
+        [
+            "rotatevol",
+            "-i",
+            f"{tmp_path}/Tomograms/job006/tomograms/test_stack_2ND_Vol.mrc",
+            "-ou",
+            f"{tmp_path}/Tomograms/job006/tomograms/test_stack_2ND_Vol.mrc",
+            "-size",
+            "1500,2000,600",
+            "-a",
+            "0,0,-90",
+        ],
+        capture_output=True,
+    )
+
+    assert (tmp_path / "Tomograms/job006/tomograms/test_stack_2ND_Vol.mrc").is_file()
+    assert not (
+        tmp_path / "Tomograms/job006/tomograms/test_stack_2ND_Vol.mrc~"
+    ).is_file()
 
 
 @mock.patch("cryoemservices.services.tomo_align.subprocess.run")
