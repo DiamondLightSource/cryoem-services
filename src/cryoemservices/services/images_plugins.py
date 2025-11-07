@@ -251,6 +251,94 @@ def mrc_central_slice(plugin_params: Callable):
     return outfile
 
 
+def mrc_projection(plugin_params: Callable):
+    if not required_parameters(plugin_params, ["file", "projection"]):
+        return False
+    filepath = Path(plugin_params("file"))
+    projection_type: str = plugin_params("projection")
+    thickness_ang = plugin_params("thickness_ang")
+    pixel_spacing = plugin_params("pixel_spacing")
+    if not filepath.is_file():
+        logger.error(f"File {filepath} not found")
+        return False
+    start = time.perf_counter()
+    try:
+        with mrcfile.open(filepath) as mrc:
+            data = mrc.data
+    except ValueError:
+        logger.error(
+            f"File {filepath} could not be opened. It may be corrupted or not in mrc format"
+        )
+        return False
+    outfile = str(filepath.with_suffix("")) + f"_proj{projection_type}.jpeg"
+    if len(data.shape) != 3:
+        logger.error(f"File {filepath} is not 3-dimensional. Cannot make projection")
+        return False
+
+    # Do projection
+    if projection_type.lower() in ["xy", "yx"]:
+        projected_data = np.mean(data, axis=0)
+    elif projection_type.lower() in ["yz", "zy"]:
+        projected_data = np.mean(data, axis=1)
+    elif projection_type.lower() in ["zx", "xz"]:
+        projected_data = np.mean(data, axis=2)
+    else:
+        logger.error(f"Unknown projection type {projection_type}")
+        return False
+
+    # Write as jpeg
+    projected_data = np.ndarray.copy(projected_data)
+    mean = np.mean(projected_data)
+    sdev = np.std(projected_data)
+    sigma_min = mean - 3 * sdev
+    sigma_max = mean + 3 * sdev
+    projected_data[projected_data < sigma_min] = sigma_min
+    projected_data[projected_data > sigma_max] = sigma_max
+    projected_data = projected_data - projected_data.min()
+    projected_data = projected_data * 255 / projected_data.max()
+    projected_data = projected_data.astype("uint8")
+    im = PIL.Image.fromarray(projected_data)
+
+    if pixel_spacing:
+        if thickness_ang:
+            # Show estimated thickness if given
+            scalebar_pixels = thickness_ang / pixel_spacing
+            scalebar_description = f"Thickness: {thickness_ang / 10:.0f} nm"
+        else:
+            # Add scale bar if no thickness provided
+            scalebar_pixels = projected_data.shape[0] / 3
+            scalebar_nm = float(pixel_spacing) / 10 * projected_data.shape[0] / 3
+            scalebar_description = f"{scalebar_nm:.0f} nm"
+        colour_im = im.convert("RGB")
+        dim = ImageDraw.Draw(colour_im)
+        dim.line(
+            (
+                (20, projected_data.shape[0] / 2 - scalebar_pixels / 2),
+                (20, projected_data.shape[0] / 2 + scalebar_pixels / 2),
+            ),
+            fill="yellow",
+            width=5,
+        )
+        font_to_use = ImageFont.load_default(size=26)
+        dim.text(
+            (25, projected_data.shape[0] / 2),
+            scalebar_description,
+            anchor="lm",
+            font=font_to_use,
+            fill="yellow",
+        )
+        colour_im.save(outfile)
+    else:
+        im.save(outfile)
+    timing = time.perf_counter() - start
+
+    logger.info(
+        f"Made {projection_type} projection of mrc to jpeg {filepath} -> {outfile} in {timing:.1f} seconds",
+        extra={"image-processing-time": timing},
+    )
+    return outfile
+
+
 def mrc_to_apng(plugin_params: Callable):
     if not required_parameters(plugin_params, ["file"]):
         return False
