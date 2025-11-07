@@ -32,7 +32,7 @@ class TomoParameters(BaseModel):
     path_pattern: Optional[str] = None
     input_file_list: Optional[str] = None
     vol_z: int = 1200
-    extra_vol: int = 300
+    extra_vol: int = 400
     out_bin: int = 4
     second_bin: Optional[int] = 2
     tilt_axis: float = 85
@@ -216,7 +216,7 @@ class TomoAlign(CommonService):
         def _tilt(file_list_for_tilts):
             return float(file_list_for_tilts[1])
 
-        if tomo_params.manual_tilt_offset is not None:
+        if tomo_params.manual_tilt_offset is not None and tomo_params.vol_z:
             # Stretch the volume for tilted collection
             tomo_params.vol_z = int(tomo_params.vol_z * 4 / 3)
 
@@ -780,7 +780,6 @@ class TomoAlign(CommonService):
                 )
             )
 
-        command.extend(("-VolZ", str(tomo_parameters.vol_z)))
         command.extend(
             (
                 "-TiltAxis",
@@ -812,6 +811,7 @@ class TomoAlign(CommonService):
             command.extend((str(tomo_parameters.second_bin),))
 
         aretomo_flags = {
+            "vol_z": "-VolZ",
             "dose_per_frame": "-FmDose",
             "ctf_cor": "-CorrCTF",
             "flip_int": "-FlipInt",
@@ -894,7 +894,6 @@ class TomoAlign(CommonService):
                 )
             )
 
-        command.extend(("-VolZ", str(tomo_parameters.vol_z)))
         command.extend(
             (
                 "-TiltAxis",
@@ -912,6 +911,7 @@ class TomoAlign(CommonService):
             )
 
         aretomo_flags = {
+            "vol_z": "-VolZ",
             "out_bin": "-OutBin",
             "flip_int": "-FlipInt",
             "flip_vol": "-FlipVol",
