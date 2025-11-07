@@ -31,7 +31,7 @@ class TomoParameters(BaseModel):
     pixel_size: float
     path_pattern: Optional[str] = None
     input_file_list: Optional[str] = None
-    vol_z: int = 1200
+    vol_z: Optional[int] = 1200
     extra_vol: int = 400
     out_bin: int = 4
     second_bin: Optional[int] = 2
@@ -326,7 +326,6 @@ class TomoAlign(CommonService):
         scaled_y_size = tomo_params.relion_options.tomo_size_y / int(
             tomo_params.out_bin
         )
-        scaled_z_size = tomo_params.vol_z / int(tomo_params.out_bin)
 
         # Get the names of the output files expected
         alignment_output_dir = Path(tomo_params.stack_file).parent
@@ -385,6 +384,31 @@ class TomoAlign(CommonService):
                 tomo_params, aretomo_output_path, angle_file
             )
 
+        # Names of the files made for ispyb images
+        plot_file = stack_name + "_xy_shift_plot.json"
+        plot_path = alignment_output_dir / plot_file
+
+        # Extract results
+        pixel_spacing: str = str(tomo_params.pixel_size * tomo_params.out_bin)
+        aln_file = self.extract_from_aln(tomo_params, alignment_output_dir, plot_path)
+        if not aretomo_result.returncode and not aln_file:
+            self.log.error("Failed to read alignment file")
+            rw.transport.nack(header)
+            return
+        rot_centre_z = None
+        if tomo_params.tilt_cor:
+            try:
+                rot_centre_z = self.rot_centre_z_list[-1]
+            except IndexError:
+                self.log.warning(f"No rot Z {self.rot_centre_z_list}")
+
+        # Need vol_z in the relion options before sending to node creator
+        if self.thickness_pixels and not tomo_params.vol_z:
+            tomo_params.vol_z = self.thickness_pixels + tomo_params.extra_vol
+            tomo_params.relion_options.vol_z = (
+                self.thickness_pixels + tomo_params.extra_vol
+            )
+
         if not job_is_rerun:
             # Send to node creator if this is the first time this tomogram is made
             self.log.info("Sending tomo align to node creator")
@@ -415,6 +439,15 @@ class TomoAlign(CommonService):
             rw.transport.nack(header)
             return
 
+        # Check the volume is known, then scale it
+        if not tomo_params.vol_z:
+            self.log.error("Tomogram volume is unknown")
+            rw.send_to("failure", {})
+            rw.transport.nack(header)
+            return
+        scaled_z_size = int(tomo_params.vol_z / int(tomo_params.out_bin))
+
+        # Change permissions of imod directory
         imod_directory_option1 = alignment_output_dir / f"{stack_name}_Vol_Imod"
         imod_directory_option2 = alignment_output_dir / f"{stack_name}_Imod"
         if tomo_params.out_imod:
@@ -467,27 +500,7 @@ class TomoAlign(CommonService):
                 rw.transport.nack(header)
                 return
 
-        # Names of the files made for ispyb images
-        plot_file = stack_name + "_xy_shift_plot.json"
-        plot_path = alignment_output_dir / plot_file
-
-        # Extract results for ispyb
-        aln_file = self.extract_from_aln(tomo_params, alignment_output_dir, plot_path)
-        if not aln_file:
-            self.log.error("Failed to read alignment file")
-            rw.transport.nack(header)
-            return
-        rot_centre_z = None
-        if tomo_params.tilt_cor:
-            try:
-                rot_centre_z = self.rot_centre_z_list[-1]
-            except IndexError:
-                self.log.warning(f"No rot Z {self.rot_centre_z_list}")
-
-        pixel_spacing: str = str(tomo_params.pixel_size * tomo_params.out_bin)
-        # Forward results to ispyb
-
-        # Tomogram (one per-tilt-series)
+        # Forward tomogram (one per-tilt-series)
         ispyb_command_list = [
             {
                 "ispyb_command": "insert_tomogram",
