@@ -170,7 +170,7 @@ def test_projection_fails_with_2d(tmp_path):
     data_2d = np.linspace(-1000, 1000, 20, dtype=np.int16).reshape((5, 4))
     with mrcfile.new(tmp_mrc_path, overwrite=True) as mrc:
         mrc.set_data(data_2d)
-    assert not mrc_projection(plugin_params_central(tmp_mrc_path))
+    assert not mrc_projection(plugin_params(tmp_mrc_path, False, projection="XY"))
 
 
 def test_mrc_projection_works_with_3d(tmp_path):
