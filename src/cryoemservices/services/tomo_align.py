@@ -371,7 +371,6 @@ class TomoAlign(CommonService):
 
         # Do alignment with AreTomo
         aretomo_output_path = alignment_output_dir / f"{stack_name}_Vol.mrc"
-        second_volume_path = alignment_output_dir / f"{stack_name}_2ND_Vol.mrc"
         if aretomo_output_path.is_file():
             job_is_rerun = True
         else:
@@ -496,39 +495,6 @@ class TomoAlign(CommonService):
                 )
                 rw.transport.nack(header)
                 return
-
-            if second_volume_path.is_file() and tomo_params.second_bin:
-                second_x_size = int(
-                    scaled_x_size * tomo_params.out_bin / tomo_params.second_bin
-                )
-                second_y_size = int(
-                    scaled_y_size * tomo_params.out_bin / tomo_params.second_bin
-                )
-                second_z_size = int(
-                    scaled_z_size * tomo_params.out_bin / tomo_params.second_bin
-                )
-                rotate_2nd_result = subprocess.run(
-                    [
-                        "rotatevol",
-                        "-i",
-                        str(second_volume_path),
-                        "-ou",
-                        str(second_volume_path),
-                        "-size",
-                        f"{int(second_x_size)},{int(second_y_size)},{int(second_z_size)}",
-                        "-a",
-                        angles_to_flip,
-                    ],
-                    capture_output=True,
-                )
-                if rotate_2nd_result.returncode:
-                    self.log.error(
-                        "rotatevol for second volume failed "
-                        f"with exitcode {rotate_2nd_result.returncode}:\n"
-                        + rotate_2nd_result.stderr.decode("utf8", "replace")
-                    )
-                    rw.transport.nack(header)
-                    return
 
         # Forward tomogram (one per-tilt-series)
         ispyb_command_list = [

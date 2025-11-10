@@ -882,7 +882,7 @@ def test_tomo_align_service_file_list_zero_rotation(
     assert (
         tmp_path / "Tomograms/job006/tomograms/test_stack_xy_shift_plot.json"
     ).is_file()
-    assert mock_subprocess.call_count == 4
+    assert mock_subprocess.call_count == 3
     assert offline_transport.send.call_count == 13
 
     # This one runs the post-reconstruction volume flip
@@ -895,20 +895,6 @@ def test_tomo_align_service_file_list_zero_rotation(
             f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.mrc",
             "-size",
             "750,1000,300",
-            "-a",
-            "0,0,-90",
-        ],
-        capture_output=True,
-    )
-    mock_subprocess.assert_any_call(
-        [
-            "rotatevol",
-            "-i",
-            f"{tmp_path}/Tomograms/job006/tomograms/test_stack_2ND_Vol.mrc",
-            "-ou",
-            f"{tmp_path}/Tomograms/job006/tomograms/test_stack_2ND_Vol.mrc",
-            "-size",
-            "1500,2000,600",
             "-a",
             "0,0,-90",
         ],
