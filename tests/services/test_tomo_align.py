@@ -707,6 +707,7 @@ def test_tomo_align_service_file_list_repeated_tilt(
             ]
         ),
         "pixel_size": 1,
+        "vol_z": 1200,
         "relion_options": {},
     }
     output_relion_options = dict(RelionServiceOptions())
@@ -840,6 +841,7 @@ def test_tomo_align_service_file_list_zero_rotation(
         ),
         "pixel_size": 1,
         "tilt_axis": 0,
+        "vol_z": 1200,
         "relion_options": {},
     }
 
@@ -957,6 +959,7 @@ def test_tomo_align_service_file_list_bad_tilts(
             ]
         ),
         "pixel_size": 1,
+        "vol_z": 1200,
         "relion_options": {},
     }
     output_relion_options = dict(RelionServiceOptions())
@@ -1099,6 +1102,7 @@ def test_tomo_align_service_file_list_rerun(
     output_relion_options["tomo_size_x"] = 3000
     output_relion_options["tomo_size_y"] = 4000
     output_relion_options["tilt_axis_angle"] = 86.0
+    output_relion_options["vol_z"] = 530
 
     # Touch expected input files
     (tmp_path / "MotionCorr/job002/Movies").mkdir(parents=True)

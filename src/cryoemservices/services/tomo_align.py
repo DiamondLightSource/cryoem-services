@@ -31,7 +31,7 @@ class TomoParameters(BaseModel):
     pixel_size: float
     path_pattern: Optional[str] = None
     input_file_list: Optional[str] = None
-    vol_z: Optional[int] = 1200
+    vol_z: Optional[int] = None
     extra_vol: int = 400
     out_bin: int = 4
     second_bin: Optional[int] = 2
