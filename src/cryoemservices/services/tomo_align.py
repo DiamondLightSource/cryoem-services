@@ -376,14 +376,9 @@ class TomoAlign(CommonService):
             job_is_rerun = True
         else:
             job_is_rerun = False
-        if tomo_params.aretomo_version == 3:
-            aretomo_result, aretomo_command = self.aretomo3(
-                tomo_params, aretomo_output_path, angle_file
-            )
-        else:
-            aretomo_result, aretomo_command = self.aretomo2(
-                tomo_params, aretomo_output_path, angle_file
-            )
+        aretomo_result, aretomo_command = self.aretomo(
+            tomo_params, aretomo_output_path, angle_file
+        )
 
         # Names of the files made for ispyb images
         plot_file = stack_name + "_xy_shift_plot.json"
@@ -889,32 +884,6 @@ class TomoAlign(CommonService):
 
         return command
 
-    def aretomo3(
-        self,
-        tomo_parameters: TomoParameters,
-        aretomo_output_path: Path,
-        angle_file: Path,
-    ):
-        """
-        Run AreTomo3 on output of Newstack
-        """
-        command = self.assemble_aretomo3_command(
-            aretomo_executable="AreTomo3",
-            input_file=tomo_parameters.stack_file,
-            tomo_parameters=tomo_parameters,
-        )
-
-        self.log.info(f"Running AreTomo3 {command}")
-        self.log.info(f"Input stack: {tomo_parameters.stack_file}")
-
-        # Save the AreTomo3 command then run it
-        with open(Path(tomo_parameters.stack_file).with_suffix(".com"), "w") as f:
-            f.write(" ".join(command))
-        result = subprocess.run(command, capture_output=True)
-        if tomo_parameters.tilt_cor:
-            self.parse_tomo_output(result.stdout.decode("utf8", "replace"))
-        return result, command
-
     def assemble_aretomo2_command(
         self,
         aretomo_executable: str,
@@ -985,27 +954,35 @@ class TomoAlign(CommonService):
 
         return command
 
-    def aretomo2(
+    def aretomo(
         self,
         tomo_parameters: TomoParameters,
         aretomo_output_path: Path,
         angle_file: Path,
     ):
         """
-        Run AreTomo2 on output of Newstack
+        Run AreTomo2 or AreTomo3 on output of Newstack
         """
-        command = self.assemble_aretomo2_command(
-            aretomo_executable="AreTomo2",
-            input_file=tomo_parameters.stack_file,
-            tomo_parameters=tomo_parameters,
-            aretomo_output_path=aretomo_output_path,
-            angle_file=angle_file,
-        )
+        if tomo_parameters.aretomo_version == 3:
+            command = self.assemble_aretomo3_command(
+                aretomo_executable="AreTomo3",
+                input_file=tomo_parameters.stack_file,
+                tomo_parameters=tomo_parameters,
+            )
+            self.log.info(f"Running AreTomo3 {command}")
+        else:
+            command = self.assemble_aretomo2_command(
+                aretomo_executable="AreTomo2",
+                input_file=tomo_parameters.stack_file,
+                tomo_parameters=tomo_parameters,
+                aretomo_output_path=aretomo_output_path,
+                angle_file=angle_file,
+            )
+            self.log.info(f"Running AreTomo2 {command}")
 
-        self.log.info(f"Running AreTomo2 {command}")
         self.log.info(f"Input stack: {tomo_parameters.stack_file}")
 
-        # Save the AreTomo2 command then run it
+        # Save the AreTomo command then run it
         with open(Path(tomo_parameters.stack_file).with_suffix(".com"), "w") as f:
             f.write(" ".join(command))
         result = subprocess.run(command, capture_output=True)

@@ -80,59 +80,31 @@ class TomoAlignSlurm(TomoAlign):
                 self.alignment_quality = float(line.split()[5])
         tomo_file.close()
 
-    def aretomo3(
-        self,
-        tomo_parameters: TomoParameters,
-        aretomo_output_path: Path,
-        angle_file: Path,
-    ):
-        """Submit AreTomo3 jobs to the slurm cluster via the RestAPI"""
-        self.log.info(f"Input stack: {tomo_parameters.stack_file}")
-        command = self.assemble_aretomo3_command(
-            aretomo_executable=os.environ["ARETOMO3_EXECUTABLE"],
-            input_file=str(Path(tomo_parameters.stack_file).name),
-            tomo_parameters=tomo_parameters,
-        )
-        return self.aretomo(
-            tomo_parameters,
-            aretomo_output_path,
-            angle_file,
-            command,
-            "AreTomo3",
-        )
-
-    def aretomo2(
-        self,
-        tomo_parameters: TomoParameters,
-        aretomo_output_path: Path,
-        angle_file: Path,
-    ):
-        """Submit AreTomo3 jobs to the slurm cluster via the RestAPI"""
-        self.log.info(f"Input stack: {tomo_parameters.stack_file}")
-        command = self.assemble_aretomo2_command(
-            aretomo_executable=os.environ["ARETOMO3_EXECUTABLE"],
-            input_file=str(Path(tomo_parameters.stack_file).name),
-            tomo_parameters=tomo_parameters,
-            aretomo_output_path=aretomo_output_path,
-            angle_file=angle_file,
-        )
-        return self.aretomo(
-            tomo_parameters,
-            aretomo_output_path,
-            angle_file,
-            command,
-            "AreTomo2",
-        )
-
     def aretomo(
         self,
         tomo_parameters: TomoParameters,
         aretomo_output_path: Path,
         angle_file: Path,
-        command: list[str],
-        aretomo_version: str,
     ):
-        """Shared code for submitting AreTomo to the slurm cluster via the RestAPI"""
+        """Submit AreTomo2 or 3 jobs to the slurm cluster via the RestAPI"""
+        self.log.info(f"Input stack: {tomo_parameters.stack_file}")
+        if tomo_parameters.aretomo_version == 3:
+            command = self.assemble_aretomo3_command(
+                aretomo_executable=os.environ["ARETOMO3_EXECUTABLE"],
+                input_file=str(Path(tomo_parameters.stack_file).name),
+                tomo_parameters=tomo_parameters,
+            )
+            aretomo_version = "AreTomo3"
+        else:
+            command = self.assemble_aretomo2_command(
+                aretomo_executable=os.environ["ARETOMO3_EXECUTABLE"],
+                input_file=str(Path(tomo_parameters.stack_file).name),
+                tomo_parameters=tomo_parameters,
+                aretomo_output_path=aretomo_output_path,
+                angle_file=angle_file,
+            )
+            aretomo_version = "AreTomo2"
+
         # Transfer the required files
         self.log.info("Transferring files...")
         items_to_transfer = [Path(tomo_parameters.stack_file), angle_file]
