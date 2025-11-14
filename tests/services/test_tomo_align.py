@@ -5,6 +5,8 @@ import time
 from subprocess import CompletedProcess
 from unittest import mock
 
+import mrcfile
+import numpy as np
 import pytest
 from workflows.transport.offline_transport import OfflineTransport
 
@@ -21,7 +23,9 @@ def offline_transport(mocker):
 
 @mock.patch("cryoemservices.services.tomo_align.subprocess.run")
 @mock.patch("cryoemservices.services.tomo_align.mrcfile")
+@mock.patch("cryoemservices.services.tomo_align.resize_tomogram")
 def test_tomo_align_service_file_list_aretomo3(
+    mock_resize,
     mock_mrcfile,
     mock_subprocess,
     offline_transport,
@@ -48,7 +52,8 @@ def test_tomo_align_service_file_list_aretomo3(
             ]
         ),
         "vol_z": None,
-        "extra_vol": 300,
+        "extra_vol": 350,
+        "final_extra_vol": 300,
         "align": None,
         "out_bin": 4,
         "tilt_axis": 90,
@@ -143,7 +148,7 @@ def test_tomo_align_service_file_list_aretomo3(
         "-PixSize",
         "1.1",
         "-ExtZ",
-        "300",
+        "350",
         "-FlipVol",
         str(tomo_align_test_message["flip_vol"]),
         "-OutImod",
@@ -166,6 +171,15 @@ def test_tomo_align_service_file_list_aretomo3(
     mock_subprocess.assert_any_call(
         aretomo_command,
         capture_output=True,
+    )
+
+    # Check resizing
+    assert mock_resize.call_count == 2
+    mock_resize.assert_any_call(
+        tmp_path / "Tomograms/job006/tomograms/test_stack_Vol.mrc", int(430 / 4)
+    )
+    mock_resize.assert_any_call(
+        tmp_path / "Tomograms/job006/tomograms/test_stack_2ND_Vol.mrc", int(430 / 2)
     )
 
     # Check the angle file
@@ -1276,7 +1290,9 @@ def test_tomo_align_service_file_list_rerun(
 
 @mock.patch("cryoemservices.services.tomo_align.subprocess.run")
 @mock.patch("cryoemservices.services.tomo_align.mrcfile")
+@mock.patch("cryoemservices.services.tomo_align.resize_tomogram")
 def test_tomo_align_service_path_pattern(
+    mock_resize,
     mock_mrcfile,
     mock_subprocess,
     offline_transport,
@@ -1301,7 +1317,7 @@ def test_tomo_align_service_path_pattern(
         "stack_file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack.st",
         "path_pattern": f"{tmp_path}/MotionCorr/job002/Movies/Position_1_00*.mrc",
         "input_file_list": None,
-        "vol_z": 1200,
+        "vol_z": None,
         "out_bin": 4,
         "tilt_axis": 83.0,
         "tilt_cor": 1,
@@ -1333,7 +1349,7 @@ def test_tomo_align_service_path_pattern(
     output_relion_options["manual_tilt_offset"] = 10.5
     output_relion_options["frame_count"] = 6
     output_relion_options["dose_per_frame"] = 0.2
-    output_relion_options["vol_z"] = 1600
+    output_relion_options["vol_z"] = 530
 
     # Set up the mock service
     service = tomo_align.TomoAlign(
@@ -1347,6 +1363,7 @@ def test_tomo_align_service_path_pattern(
         # Set up outputs: stack_Imod file like AreTomo3, no exclusions without space
         (tmp_path / "Tomograms/job006/tomograms/test_stack_Imod").mkdir(parents=True)
         (tmp_path / "Tomograms/job006/tomograms/test_stack_Vol.mrc").touch()
+        (tmp_path / "Tomograms/job006/tomograms/test_stack_2ND_Vol.mrc").touch()
         with open(
             tmp_path / "Tomograms/job006/tomograms/test_stack_Imod/tilt.com", "w"
         ) as dark_file:
@@ -1391,10 +1408,8 @@ def test_tomo_align_service_path_pattern(
         "2",
         "-PixSize",
         "1.0",
-        "-VolZ",
-        "1600",
         "-ExtZ",
-        "400",
+        "1000",
         "-FlipInt",
         "1",
         "-FlipVol",
@@ -1430,6 +1445,15 @@ def test_tomo_align_service_path_pattern(
     mock_subprocess.assert_any_call(
         aretomo_command,
         capture_output=True,
+    )
+
+    # Check resizing
+    assert mock_resize.call_count == 2
+    mock_resize.assert_any_call(
+        tmp_path / "Tomograms/job006/tomograms/test_stack_Vol.mrc", int(530 / 4)
+    )
+    mock_resize.assert_any_call(
+        tmp_path / "Tomograms/job006/tomograms/test_stack_2ND_Vol.mrc", int(530 / 2)
     )
 
     # Check the angle file
@@ -1579,11 +1603,9 @@ def test_tomo_align_service_dark_images(
         "-VolZ",
         str(tomo_align_test_message["vol_z"]),
         "-ExtZ",
-        "400",
+        "1000",
         "-FlipVol",
         str(tomo_align_test_message["flip_vol"]),
-        "-Wbp",
-        "1",
         "-OutImod",
         str(tomo_align_test_message["out_imod"]),
     ]
@@ -1931,11 +1953,9 @@ def test_tomo_align_service_fail_case(
         "-VolZ",
         str(tomo_align_test_message["vol_z"]),
         "-ExtZ",
-        "400",
+        "1000",
         "-FlipVol",
         str(tomo_align_test_message["flip_vol"]),
-        "-Wbp",
-        "1",
         "-OutImod",
         str(tomo_align_test_message["out_imod"]),
     ]
@@ -2077,3 +2097,26 @@ def test_parse_tomo_align_output(offline_transport):
     assert service.rot_centre_z_list == ["300.0", "350.0"]
     assert service.tilt_offset == 1.0
     assert service.alignment_quality == 0.07568
+
+
+def test_resize_tomogram(tmp_path):
+    with mrcfile.new(tmp_path / "test.mrc") as mrc:
+        mrc.set_data(np.reshape(np.arange(64, dtype=np.float32), (4, 4, 4)))
+        mrc.header.mx = 4
+        mrc.header.my = 4
+        mrc.header.mz = 4
+        mrc.header.cella = (100, 50, 20)
+
+    tomo_align.resize_tomogram(tmp_path / "test.mrc", 2)
+
+    with mrcfile.open(tmp_path / "test.mrc") as mrc:
+        data = mrc.data
+        header = mrc.header
+
+    assert data.shape == (4, 2, 4)
+    assert header.mx == 4
+    assert header.my == 2
+    assert header.mz == 4
+    assert header.cella.x == 100
+    assert header.cella.y == 25
+    assert header.cella.z == 20
