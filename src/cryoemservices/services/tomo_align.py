@@ -69,7 +69,7 @@ class TomoParameters(BaseModel):
     cs: Optional[float] = None
     amplitude_contrast: Optional[float] = None
     dose_per_frame: Optional[float] = None
-    frame_count: Optional[float] = None
+    frame_count: Optional[int] = None
     align_file: Optional[str] = None
     align_z: Optional[int] = None
     refine_flag: int = 1
