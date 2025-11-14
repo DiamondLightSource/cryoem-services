@@ -163,6 +163,10 @@ class TomoAlign(CommonService):
                 capture_output=True,
             )
             if denoise_result.returncode:
+                self.log.error(f"Failed to denoise tilt {tilt}")
+                self.log.error(
+                    f"Denoise reason: {denoise_result.stdout.decode('utf8')} {denoise_result.stderr.decode('utf8')}"
+                )
                 return False
         return True
 

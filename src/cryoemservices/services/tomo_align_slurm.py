@@ -126,7 +126,7 @@ class TomoAlignSlurm(TomoAlign):
         service_config = config_from_file(self._environment["config"])
         self.log.info("Waiting for completion and retrieval of output files...")
         for tid, job_id in enumerate(job_ids):
-            wait_for_job_completion(
+            job_state = wait_for_job_completion(
                 job_id=job_id,
                 logger=self.log,
                 service_config=service_config,
@@ -137,10 +137,17 @@ class TomoAlignSlurm(TomoAlign):
                 files_to_skip=[Path(tilt_list[tid])],
                 basepath=str(Path(tilt_list[tid]).stem),
             )
+            if job_state != "COMPLETED":
+                self.log.error(f"Job {job_id} failed with {job_state}")
         self.log.info("All denoising jobs finished and output files retrieved")
 
         for out_tilt in final_tilts:
             if not Path(out_tilt).is_file():
+                self.log.info(f"Tilt denoising failed for {out_tilt}")
+                if Path(out_tilt).with_suffix(".err").is_file():
+                    with open(Path(out_tilt).with_suffix(".err"), "r") as slurm_stderr:
+                        stderr = slurm_stderr.read()
+                    self.log.error(stderr)
                 return False
         return True
 
