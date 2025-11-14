@@ -25,6 +25,25 @@ from cryoemservices.util.relion_service_options import (
 from cryoemservices.util.tomo_output_files import _get_tilt_number_v5_12
 
 
+def resize_tomogram(tomogram: Path, new_thickness: int):
+    """Change the Z size of an XZY tomogram"""
+    with mrcfile.mmap(tomogram, mode="r+") as mrc:
+        # Open tomogram in memmap mode
+        z_size = mrc.data.shape[1]
+        start_location = np.copy([mrc.header.mx, mrc.header.my, mrc.header.mz])
+        # Slice and set new data
+        new_data = mrc.data[
+            :,
+            int(z_size / 2 - new_thickness / 2) : int(z_size / 2 + new_thickness / 2),
+            :,
+        ]
+        mrc.set_data(new_data)
+        # Fix the header values
+        mrc.header.mx = start_location[0]
+        mrc.header.mz = start_location[2]
+        mrc.header.cella.y *= new_thickness / z_size
+
+
 class TomoParameters(BaseModel):
     aretomo_version: Literal[2, 3] = 3
     stack_file: str = Field(..., min_length=1)
@@ -32,7 +51,8 @@ class TomoParameters(BaseModel):
     path_pattern: Optional[str] = None
     input_file_list: Optional[str] = None
     vol_z: Optional[int] = None
-    extra_vol: int = 400
+    extra_vol: int = 1000
+    final_extra_vol: int = 400
     out_bin: int = 4
     second_bin: Optional[int] = 2
     tilt_axis: float = 85
@@ -43,13 +63,14 @@ class TomoParameters(BaseModel):
     flip_vol_post_reconstruction: bool = True
     sart_iterations: Optional[int] = None
     sart_projections: Optional[int] = None
-    wbp: Optional[int] = 1  # SART is bad in AreTomo3, turn on WBP instead
+    wbp: Optional[int] = None
     patch: Optional[int] = None
     kv: Optional[int] = None
     cs: Optional[float] = None
     amplitude_contrast: Optional[float] = None
     dose_per_frame: Optional[float] = None
     frame_count: Optional[float] = None
+    align_file: Optional[str] = None
     align_z: Optional[int] = None
     refine_flag: int = 1
     out_imod: int = 1
@@ -371,6 +392,7 @@ class TomoAlign(CommonService):
 
         # Do alignment with AreTomo
         aretomo_output_path = alignment_output_dir / f"{stack_name}_Vol.mrc"
+        second_volume_path = alignment_output_dir / f"{stack_name}_2ND_Vol.mrc"
         if aretomo_output_path.is_file():
             job_is_rerun = True
         else:
@@ -399,9 +421,9 @@ class TomoAlign(CommonService):
 
         # Need vol_z in the relion options before sending to node creator
         if self.thickness_pixels and not tomo_params.vol_z:
-            tomo_params.vol_z = self.thickness_pixels + tomo_params.extra_vol
+            tomo_params.vol_z = self.thickness_pixels + tomo_params.final_extra_vol
             tomo_params.relion_options.vol_z = (
-                self.thickness_pixels + tomo_params.extra_vol
+                self.thickness_pixels + tomo_params.final_extra_vol
             )
 
         if not job_is_rerun:
@@ -440,7 +462,7 @@ class TomoAlign(CommonService):
             rw.send_to("failure", {})
             rw.transport.nack(header)
             return
-        scaled_z_size = int(tomo_params.vol_z / int(tomo_params.out_bin))
+        scaled_z_size = int(tomo_params.vol_z / tomo_params.out_bin)
 
         # Change permissions of imod directory
         imod_directory_option1 = alignment_output_dir / f"{stack_name}_Vol_Imod"
@@ -464,6 +486,17 @@ class TomoAlign(CommonService):
                 _f.chmod(0o750)
                 for file in _f.iterdir():
                     file.chmod(0o740)
+
+        # Resize the tomogram if needed
+        if (
+            tomo_params.aretomo_version == 3
+            and tomo_params.extra_vol > tomo_params.final_extra_vol
+        ):
+            self.log.info("Resizing tomogram")
+            resize_tomogram(aretomo_output_path, scaled_z_size)
+            if second_volume_path.is_file() and tomo_params.second_bin:
+                second_scaled_z_size = int(tomo_params.vol_z / tomo_params.second_bin)
+                resize_tomogram(second_volume_path, second_scaled_z_size)
 
         # Flip the volume if AreTomo has not done this
         if tomo_params.flip_vol_post_reconstruction and not tomo_params.flip_vol:
@@ -907,6 +940,7 @@ class TomoAlign(CommonService):
             "wbp": "-Wbp",
             "patch": "-Patch",
             "kv": "-Kv",
+            "align_file": "-AlnFile",
             "align_z": "-AlignZ",
             "pixel_size": "-PixSize",
             "out_imod": "-OutImod",
