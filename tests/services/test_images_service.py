@@ -24,8 +24,9 @@ def test_plugins_exist():
     service.initializing()
 
     # Check the expected images plugins are present
-    assert len(service.image_functions.keys()) == 7
+    assert len(service.image_functions.keys()) == 8
     assert service.image_functions.get("mrc_central_slice", "")
+    assert service.image_functions.get("mrc_projection", "")
     assert service.image_functions.get("mrc_to_apng", "")
     assert service.image_functions.get("mrc_to_jpeg", "")
     assert service.image_functions.get("picked_particles", "")

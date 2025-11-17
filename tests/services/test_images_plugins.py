@@ -8,6 +8,7 @@ import numpy as np
 
 from cryoemservices.services.images_plugins import (
     mrc_central_slice,
+    mrc_projection,
     mrc_to_apng,
     mrc_to_jpeg,
     picked_particles,
@@ -17,7 +18,13 @@ from cryoemservices.services.images_plugins import (
 )
 
 
-def plugin_params(jpeg_path: Path, all_frames: bool, pixel_size: float = 0):
+def plugin_params(
+    jpeg_path: Path,
+    all_frames: bool,
+    pixel_size: float = 0,
+    projection: str = "XY",
+    thickness: float = 0,
+):
     def params(key):
         p = {
             "parameters": {"images_command": "mrc_to_jpeg"},
@@ -26,6 +33,8 @@ def plugin_params(jpeg_path: Path, all_frames: bool, pixel_size: float = 0):
             "all_frames": all_frames,
             "pixel_spacing": pixel_size,
             "pixel_size": pixel_size,
+            "projection": projection,
+            "thickness_ang": thickness,
         }
         return p.get(key)
 
@@ -153,6 +162,80 @@ def test_central_slice_works_with_3d(tmp_path):
         mrc.set_data(data_3d)
     assert mrc_central_slice(plugin_params_central(tmp_mrc_path)) == str(
         tmp_path / "tmp_thumbnail.jpeg"
+    )
+
+
+def test_projection_fails_with_2d(tmp_path):
+    tmp_mrc_path = tmp_path / "tmp.mrc"
+    data_2d = np.linspace(-1000, 1000, 20, dtype=np.int16).reshape((5, 4))
+    with mrcfile.new(tmp_mrc_path, overwrite=True) as mrc:
+        mrc.set_data(data_2d)
+    assert not mrc_projection(plugin_params(tmp_mrc_path, False, projection="XY"))
+
+
+def test_mrc_projection_works_with_3d(tmp_path):
+    tmp_mrc_path = tmp_path / "tmp.mrc"
+    data_3d = np.linspace(-1000, 1000, 20, dtype=np.int16).reshape((2, 2, 5))
+    with mrcfile.new(tmp_mrc_path, overwrite=True) as mrc:
+        mrc.set_data(data_3d)
+    for pj in ("XY", "xy", "YX", "yx", "YZ", "yz", "ZY", "zy", "ZX", "zx", "XZ", "xz"):
+        assert mrc_projection(plugin_params(tmp_mrc_path, False, projection=pj)) == str(
+            tmp_path / f"tmp_proj{pj}.jpeg"
+        )
+    assert not mrc_projection(plugin_params(tmp_mrc_path, False, projection="other"))
+
+
+@mock.patch("cryoemservices.services.images_plugins.ImageDraw")
+def test_mrc_projection_ack_with_scalebar(mock_imagedraw, tmp_path):
+    tmp_mrc_path = tmp_path / "tmp.mrc"
+    data_3d = np.linspace(-1000, 1000, 20, dtype=np.int16).reshape((2, 2, 5))
+    with mrcfile.new(tmp_mrc_path, overwrite=True) as mrc:
+        mrc.set_data(data_3d)
+    assert mrc_projection(
+        plugin_params(tmp_mrc_path, False, 30, projection="XY")
+    ) == str(tmp_path / "tmp_projXY.jpeg")
+    mock_imagedraw.Draw.assert_called()
+    mock_imagedraw.Draw().line.assert_called_once_with(
+        (
+            (20, 2 / 2 - 2 / 3 / 2),
+            (20, 2 / 2 + 2 / 3 / 2),
+        ),
+        fill="yellow",
+        width=5,
+    )
+    mock_imagedraw.Draw().text.assert_called_once_with(
+        (25, 1),
+        "2 nm",
+        anchor="lm",
+        font=mock.ANY,
+        fill="yellow",
+    )
+
+
+@mock.patch("cryoemservices.services.images_plugins.ImageDraw")
+def test_mrc_projection_ack_with_thickness(mock_imagedraw, tmp_path):
+    tmp_mrc_path = tmp_path / "tmp.mrc"
+    data_3d = np.linspace(-1000, 1000, 20, dtype=np.int16).reshape((2, 2, 5))
+    with mrcfile.new(tmp_mrc_path, overwrite=True) as mrc:
+        mrc.set_data(data_3d)
+    assert mrc_projection(
+        plugin_params(tmp_mrc_path, False, 10, projection="XY", thickness=90)
+    ) == str(tmp_path / "tmp_projXY.jpeg")
+    mock_imagedraw.Draw.assert_called()
+    mock_imagedraw.Draw().line.assert_called_once_with(
+        (
+            (20, 2 / 2 - 90 / 10 / 2),
+            (20, 2 / 2 + 90 / 10 / 2),
+        ),
+        fill="yellow",
+        width=5,
+    )
+    mock_imagedraw.Draw().text.assert_called_once_with(
+        (25, 1),
+        "Thickness: 9 nm",
+        anchor="lm",
+        font=mock.ANY,
+        fill="yellow",
     )
 
 
@@ -545,6 +628,7 @@ def test_interfaces_without_keys():
     assert not mrc_to_jpeg(lambda x: None)
     assert not picked_particles(lambda x: None)
     assert not mrc_central_slice(lambda x: None)
+    assert not mrc_projection(lambda x: None)
     assert not mrc_to_apng(lambda x: None)
     assert not picked_particles_3d_central_slice(lambda x: None)
     assert not picked_particles_3d_apng(lambda x: None)
@@ -561,6 +645,7 @@ def test_interfaces_without_files(tmp_path):
     assert not picked_particles(plugin_params_parpick(tmp_path / "test.jpeg", None))
     assert not picked_particles(plugin_params_parpick(tmp_path / "test.mrc", None))
     assert not mrc_central_slice(plugin_params_central(tmp_path / "not.mrc"))
+    assert not mrc_projection(plugin_params(tmp_path / "not.mrc", False))
     assert not mrc_to_apng(plugin_params_central(tmp_path / "not.mrc"))
     assert not picked_particles_3d_central_slice(
         plugin_params_tomo_pick(
