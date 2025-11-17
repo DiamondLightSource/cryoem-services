@@ -33,7 +33,9 @@ spec:
               {{ .Values.command }}
         env:
         - name: ARETOMO2_EXECUTABLE
-          value: "{{ .Values.aretomoExecutable }}"
+          value: "{{ .Values.aretomo2Executable }}"
+        - name: ARETOMO3_EXECUTABLE
+          value: "{{ .Values.aretomo3Executable }}"
         - name: EXTRA_LIBRARIES
           value: "{{ .Values.extraLibraries }}"
         volumeMounts:

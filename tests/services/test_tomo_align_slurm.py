@@ -25,7 +25,7 @@ def offline_transport(mocker):
 @mock.patch("cryoemservices.services.tomo_align.mrcfile")
 @mock.patch("cryoemservices.services.tomo_align_slurm.transfer_files")
 @mock.patch("cryoemservices.services.tomo_align_slurm.retrieve_files")
-def test_tomo_align_slurm_service(
+def test_tomo_align_slurm_service_aretomo3(
     mock_retrieve,
     mock_transfer,
     mock_mrcfile,
@@ -35,7 +35,7 @@ def test_tomo_align_slurm_service(
     tmp_path,
 ):
     """
-    Send a test message to TomoAlign for the slurm submission version
+    Send a test message to TomoAlign for the slurm submission version (AreTomo3)
     This should call the mock subprocess then send messages on to
     the denoising, ispyb_connector and images services.
     """
@@ -58,12 +58,14 @@ def test_tomo_align_slurm_service(
         "subscription": mock.sentinel,
     }
     tomo_align_test_message = {
+        "aretomo_version": 3,
         "stack_file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack.mrc",
         "path_pattern": None,
         "input_file_list": str(
             [[f"{tmp_path}/MotionCorr/job002/Movies/input_file_1.mrc", "1.00"]]
         ),
         "vol_z": 1200,
+        "extra_vol": 300,
         "align": None,
         "out_bin": 4,
         "tilt_axis": 85.0,
@@ -76,8 +78,6 @@ def test_tomo_align_slurm_service(
         "kv": None,
         "dose_per_frame": None,
         "frame_count": None,
-        "align_file": None,
-        "angle_file": f"{tmp_path}/angles.file",
         "align_z": None,
         "pixel_size": 1,
         "refine_flag": 1,
@@ -88,6 +88,213 @@ def test_tomo_align_slurm_service(
         "tomogram_uuid": 0,
         "relion_options": {},
     }
+
+    # Touch input files
+    (tmp_path / "MotionCorr/job002/Movies").mkdir(parents=True)
+    (tmp_path / "MotionCorr/job002/Movies/input_file_1.mrc").touch()
+
+    # Construct the file which contains rest api submission information
+    os.environ["ARETOMO3_EXECUTABLE"] = "slurm_AreTomo"
+    os.environ["EXTRA_LIBRARIES"] = "/lib/aretomo"
+    cluster_submission_configuration(tmp_path)
+
+    # Set up the mock service
+    service = tomo_align_slurm.TomoAlignSlurm(
+        environment={
+            "config": f"{tmp_path}/config.yaml",
+            "slurm_cluster": "default",
+            "queue": "",
+        },
+        transport=offline_transport,
+    )
+    service.initializing()
+
+    service.rot_centre_z_list = [1.1, 2.1]
+    service.tilt_offset = 1.1
+    service.alignment_quality = 0.5
+
+    (tmp_path / "Tomograms/job006/tomograms/test_stack_Imod").mkdir(parents=True)
+    (tmp_path / "Tomograms/job006/tomograms/test_stack_Imod/tilt.com").touch()
+    with open(tmp_path / "Tomograms/job006/tomograms/test_stack.aln", "w") as aln_file:
+        aln_file.write("# Thickness = 130\ndummy 0 1000 1.2 2.3 5 6 7 8 4.5")
+
+    # Touch the expected output files
+    (tmp_path / "Tomograms/job006/tomograms/test_stack_Vol.mrc").touch()
+    (tmp_path / "Tomograms/job006/tomograms/test_stack_Vol.out").touch()
+    (tmp_path / "Tomograms/job006/tomograms/test_stack_Vol.err").touch()
+
+    # Send a message to the service
+    service.tomo_align(None, header=header, message=tomo_align_test_message)
+
+    # Check the newstack was run
+    mock_subprocess.assert_any_call(
+        [
+            "newstack",
+            "-fileinlist",
+            f"{tmp_path}/Tomograms/job006/tomograms/test_stack_newstack.txt",
+            "-output",
+            f"{tmp_path}/Tomograms/job006/tomograms/test_stack.mrc",
+            "-quiet",
+        ],
+        capture_output=True,
+    )
+
+    # Check the angle file
+    assert (tmp_path / "Tomograms/job006/tomograms/test_stack_TLT.txt").is_file()
+    with open(
+        tmp_path / "Tomograms/job006/tomograms/test_stack_TLT.txt", "r"
+    ) as angfile:
+        angles_data = angfile.read()
+    assert angles_data == "1.00  0\n"
+
+    # Command which should run
+    aretomo_command = [
+        "slurm_AreTomo",
+        "-Cmd",
+        "1",
+        "-InPrefix",
+        "test_stack.mrc",
+        "-OutDir",
+        ".",
+        "-TiltCor",
+        "1",
+        "-TiltAxis",
+        str(tomo_align_test_message["tilt_axis"]),
+        "1",
+        "-AtBin",
+        str(tomo_align_test_message["out_bin"]),
+        "2",
+        "-PixSize",
+        "1.0",
+        "-VolZ",
+        str(tomo_align_test_message["vol_z"]),
+        "-ExtZ",
+        "300",
+        "-FlipVol",
+        str(tomo_align_test_message["flip_vol"]),
+        "-OutImod",
+        str(tomo_align_test_message["out_imod"]),
+    ]
+
+    # Check the slurm commands were run
+    mock_requests.Session.assert_called()
+    mock_requests.Session().headers.__setitem__.assert_any_call(
+        "X-SLURM-USER-NAME", "user"
+    )
+    mock_requests.Session().headers.__setitem__.assert_any_call(
+        "X-SLURM-USER-TOKEN", "token_key"
+    )
+    mock_requests.Session().post.assert_called_with(
+        url="/url/of/slurm/restapi/slurm/v0.0.40/job/submit",
+        json={
+            "script": (
+                "#!/bin/bash\n"
+                "echo \"$(date '+%Y-%m-%d %H:%M:%S.%3N'): running slurm job\"\n"
+                "source /etc/profile.d/modules.sh\n"
+                "export LD_LIBRARY_PATH=/lib/aretomo:$LD_LIBRARY_PATH\n"
+                + " ".join(aretomo_command)
+            ),
+            "job": {
+                "cpus_per_task": 1,
+                "current_working_directory": f"{tmp_path}/Tomograms/job006/tomograms",
+                "standard_output": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.out",
+                "standard_error": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.err",
+                "environment": ["USER=user", "HOME=/home"],
+                "name": "AreTomo3",
+                "nodes": "1",
+                "partition": "partition",
+                "prefer": "preference",
+                "tasks": 1,
+                "memory_per_node": {"number": 12000, "set": True, "infinite": False},
+                "time_limit": {"number": 60, "set": True, "infinite": False},
+                "tres_per_job": "gres/gpu:1",
+            },
+        },
+    )
+    mock_requests.Session().get.assert_called_with(
+        url="/url/of/slurm/restapi/slurm/v0.0.40/job/1"
+    )
+
+    # Check file transfer and retrieval
+    assert mock_transfer.call_count == 1
+    mock_transfer.assert_any_call(
+        [
+            tmp_path / "Tomograms/job006/tomograms/test_stack.mrc",
+            tmp_path / "Tomograms/job006/tomograms/test_stack_TLT.txt",
+        ]
+    )
+    assert mock_retrieve.call_count == 1
+    mock_retrieve.assert_any_call(
+        job_directory=tmp_path / "Tomograms/job006/tomograms",
+        files_to_skip=[
+            tmp_path / "Tomograms/job006/tomograms/test_stack.mrc",
+            tmp_path / "Tomograms/job006/tomograms/test_stack_TLT.txt",
+        ],
+        basepath="test_stack",
+    )
+    assert mock_subprocess.call_count == 2
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
+@mock.patch("cryoemservices.util.slurm_submission.subprocess.run")
+@mock.patch("cryoemservices.util.slurm_submission.requests")
+@mock.patch("cryoemservices.services.tomo_align.mrcfile")
+@mock.patch("cryoemservices.services.tomo_align_slurm.transfer_files")
+@mock.patch("cryoemservices.services.tomo_align_slurm.retrieve_files")
+def test_tomo_align_slurm_service_aretomo2(
+    mock_retrieve,
+    mock_transfer,
+    mock_mrcfile,
+    mock_requests,
+    mock_subprocess,
+    offline_transport,
+    tmp_path,
+):
+    """
+    Send a test message to TomoAlign for the slurm submission version (AreTomo2)
+    This should call the mock subprocess then send messages on to
+    the denoising, ispyb_connector and images services.
+    """
+    mock_subprocess().returncode = 0
+    # Set up the returned job number
+    response_object = Response()
+    response_object._content = (
+        '{"job_id": 1, "error_code": 0, "error": "", "jobs": [{"job_state": ["COMPLETED"]}]}'
+    ).encode("utf8")
+    response_object.status_code = 200
+    mock_requests.Session().post.return_value = response_object
+    mock_requests.Session().get.return_value = response_object
+
+    mock_mrcfile.open().__enter__().header = {"nx": 2000, "ny": 3000}
+
+    mock_transfer.return_value = ["test_stack.mrc", "angles.txt"]
+
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+    tomo_align_test_message = {
+        "aretomo_version": 2,
+        "stack_file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack.mrc",
+        "input_file_list": str(
+            [[f"{tmp_path}/MotionCorr/job002/Movies/input_file_1.mrc", "1.00"]]
+        ),
+        "vol_z": 1200,
+        "out_bin": 4,
+        "tilt_axis": 85.0,
+        "tilt_cor": 1,
+        "flip_vol": 1,
+        "wbp": None,
+        "pixel_size": 1,
+        "refine_flag": 1,
+        "out_imod": 1,
+        "tomogram_uuid": 0,
+        "relion_options": {},
+    }
+
+    # Touch input files
+    (tmp_path / "MotionCorr/job002/Movies").mkdir(parents=True)
+    (tmp_path / "MotionCorr/job002/Movies/input_file_1.mrc").touch()
 
     # Construct the file which contains rest api submission information
     os.environ["ARETOMO2_EXECUTABLE"] = "slurm_AreTomo"
@@ -109,17 +316,15 @@ def test_tomo_align_slurm_service(
     service.tilt_offset = 1.1
     service.alignment_quality = 0.5
 
-    (tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo_Imod").mkdir(
-        parents=True
-    )
-    (tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo_Imod/tilt.com").touch()
+    (tmp_path / "Tomograms/job006/tomograms/test_stack_Vol_Imod").mkdir(parents=True)
+    (tmp_path / "Tomograms/job006/tomograms/test_stack_Vol_Imod/tilt.com").touch()
     with open(tmp_path / "Tomograms/job006/tomograms/test_stack.aln", "w") as aln_file:
-        aln_file.write("dummy 0 1000 1.2 2.3 5 6 7 8 4.5")
+        aln_file.write("# Thickness = 130\ndummy 0 1000 1.2 2.3 5 6 7 8 4.5")
 
     # Touch the expected output files
-    (tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo.mrc").touch()
-    (tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo.out").touch()
-    (tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo.err").touch()
+    (tmp_path / "Tomograms/job006/tomograms/test_stack_Vol.mrc").touch()
+    (tmp_path / "Tomograms/job006/tomograms/test_stack_Vol.out").touch()
+    (tmp_path / "Tomograms/job006/tomograms/test_stack_Vol.err").touch()
 
     # Send a message to the service
     service.tomo_align(None, header=header, message=tomo_align_test_message)
@@ -138,11 +343,9 @@ def test_tomo_align_slurm_service(
     )
 
     # Check the angle file
-    assert (
-        tmp_path / "Tomograms/job006/tomograms/test_stack_tilt_angles.txt"
-    ).is_file()
+    assert (tmp_path / "Tomograms/job006/tomograms/test_stack_TLT.txt").is_file()
     with open(
-        tmp_path / "Tomograms/job006/tomograms/test_stack_tilt_angles.txt", "r"
+        tmp_path / "Tomograms/job006/tomograms/test_stack_TLT.txt", "r"
     ) as angfile:
         angles_data = angfile.read()
     assert angles_data == "1.00  0\n"
@@ -153,18 +356,18 @@ def test_tomo_align_slurm_service(
         "-InMrc",
         "test_stack.mrc",
         "-OutMrc",
-        f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
+        f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.mrc",
         "-AngFile",
-        f"{tmp_path}/Tomograms/job006/tomograms/test_stack_tilt_angles.txt",
+        f"{tmp_path}/Tomograms/job006/tomograms/test_stack_TLT.txt",
         "-TiltCor",
         "1",
-        "-VolZ",
-        str(tomo_align_test_message["vol_z"]),
         "-TiltAxis",
         str(tomo_align_test_message["tilt_axis"]),
         "1",
         "-PixSize",
         "1.0",
+        "-VolZ",
+        str(tomo_align_test_message["vol_z"]),
         "-OutBin",
         str(tomo_align_test_message["out_bin"]),
         "-FlipVol",
@@ -194,8 +397,8 @@ def test_tomo_align_slurm_service(
             "job": {
                 "cpus_per_task": 1,
                 "current_working_directory": f"{tmp_path}/Tomograms/job006/tomograms",
-                "standard_output": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.out",
-                "standard_error": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.err",
+                "standard_output": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.out",
+                "standard_error": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.err",
                 "environment": ["USER=user", "HOME=/home"],
                 "name": "AreTomo2",
                 "nodes": "1",
@@ -217,7 +420,7 @@ def test_tomo_align_slurm_service(
     mock_transfer.assert_any_call(
         [
             tmp_path / "Tomograms/job006/tomograms/test_stack.mrc",
-            tmp_path / "Tomograms/job006/tomograms/test_stack_tilt_angles.txt",
+            tmp_path / "Tomograms/job006/tomograms/test_stack_TLT.txt",
         ]
     )
     assert mock_retrieve.call_count == 1
@@ -225,7 +428,7 @@ def test_tomo_align_slurm_service(
         job_directory=tmp_path / "Tomograms/job006/tomograms",
         files_to_skip=[
             tmp_path / "Tomograms/job006/tomograms/test_stack.mrc",
-            tmp_path / "Tomograms/job006/tomograms/test_stack_tilt_angles.txt",
+            tmp_path / "Tomograms/job006/tomograms/test_stack_TLT.txt",
         ],
         basepath="test_stack",
     )
