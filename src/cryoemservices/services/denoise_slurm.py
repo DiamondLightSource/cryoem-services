@@ -24,7 +24,8 @@ class DenoiseSlurm(Denoise):
     _logger_name = "cryoemservices.services.denoise_slurm"
 
     def initializing(self):
-        get_iris_state(self.log)
+        if not get_iris_state(self.log):
+            exit()
         super().initializing()
 
     def run_topaz(
