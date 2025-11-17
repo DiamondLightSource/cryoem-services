@@ -75,7 +75,7 @@ def get_iris_state(logger, wait=True) -> str:
             if wait:
                 time.sleep(30 * 60)
             else:
-                raise ValueError("IRIS status is red")
+                return ""
             iris_colour = get_iris_state(logger, wait=False)
         else:
             logger.warning(f"IRIS state is {iris_colour}")
@@ -93,7 +93,8 @@ class TomoAlignSlurm(TomoAlign):
     _logger_name = "cryoemservices.services.tomo_align_slurm"
 
     def initializing(self):
-        get_iris_state(self.log)
+        if not get_iris_state(self.log):
+            exit()
         super().initializing()
 
     def parse_tomo_output_file(self, tomo_output_file: Path):

@@ -547,8 +547,7 @@ def test_get_iris_state(mock_sleep, mock_requests_get, test_params: tuple[str, i
         returned_colour = tomo_align_slurm.get_iris_state(mock_logger)
         assert returned_colour == output_colour
     else:
-        with pytest.raises(ValueError):
-            tomo_align_slurm.get_iris_state(mock_logger)
+        assert not tomo_align_slurm.get_iris_state(mock_logger)
     mock_requests_get.assert_called_with(
         "https://iristrafficlights.diamond.ac.uk/status"
     )
