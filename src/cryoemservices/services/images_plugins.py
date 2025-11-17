@@ -78,6 +78,8 @@ def mrc_to_jpeg(plugin_params: Callable):
             )
             colour_im.save(outfile)
         else:
+            # Apply thumbnailing if 2D image without text overlay
+            im.thumbnail((1024, 1024))
             im.save(outfile)
     elif len(data.shape) == 3:
         if allframes:
@@ -182,6 +184,7 @@ def picked_particles(plugin_params: Callable):
                     outline="#98df8a",
                 )
         try:
+            fim.thumbnail((1024, 1024))
             fim.save(outfile)
         except FileNotFoundError:
             logger.error(
