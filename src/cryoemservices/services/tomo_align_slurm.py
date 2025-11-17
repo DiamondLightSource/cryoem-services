@@ -97,7 +97,7 @@ class TomoAlignSlurm(TomoAlign):
             aretomo_version = "AreTomo3"
         else:
             command = self.assemble_aretomo2_command(
-                aretomo_executable=os.environ["ARETOMO3_EXECUTABLE"],
+                aretomo_executable=os.environ["ARETOMO2_EXECUTABLE"],
                 input_file=str(Path(tomo_parameters.stack_file).name),
                 tomo_parameters=tomo_parameters,
                 aretomo_output_path=aretomo_output_path,
