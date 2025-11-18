@@ -55,7 +55,7 @@ def mrc_to_jpeg(plugin_params: Callable):
         data[data < sigma_min] = sigma_min
         data[data > sigma_max] = sigma_max
         data = data - data.min()
-        data = data * 255 / data.max()
+        data = data / data.max() * 255
         data = data.astype("uint8")
         im = PIL.Image.fromarray(data)
 
@@ -78,12 +78,14 @@ def mrc_to_jpeg(plugin_params: Callable):
             )
             colour_im.save(outfile)
         else:
+            # Apply thumbnailing if 2D image without text overlay
+            im.thumbnail((1024, 1024))
             im.save(outfile)
     elif len(data.shape) == 3:
         if allframes:
             for i, frame in enumerate(data):
                 frame = frame - frame.min()
-                frame = frame * 255 / frame.max()
+                frame = frame / frame.max() * 255
                 frame = frame.astype("uint8")
                 im = PIL.Image.fromarray(frame)
                 frame_outfile = outfile.parent / f"{outfile.stem}_{i + 1}.jpeg"
@@ -91,7 +93,7 @@ def mrc_to_jpeg(plugin_params: Callable):
                 outfiles.append(frame_outfile)
         else:
             data = data - data[0].min()
-            data = data * 255 / data[0].max()
+            data = data / data[0].max() * 255
             data = data.astype("uint8")
             im = PIL.Image.fromarray(data[0])
             im.save(outfile)
@@ -150,7 +152,7 @@ def picked_particles(plugin_params: Callable):
     data[data < sigma_min] = sigma_min
     data[data > sigma_max] = sigma_max
     data = data - data.min()
-    data = data * 255 / data.max()
+    data = data / data.max() * 255
     data = data.astype("uint8")
     with PIL.Image.fromarray(data).convert("RGB") as bim:
         enhancer = ImageEnhance.Contrast(bim)
@@ -182,6 +184,7 @@ def picked_particles(plugin_params: Callable):
                     outline="#98df8a",
                 )
         try:
+            fim.thumbnail((1024, 1024))
             fim.save(outfile)
         except FileNotFoundError:
             logger.error(
@@ -237,7 +240,7 @@ def mrc_central_slice(plugin_params: Callable):
         central_slice_data[central_slice_data < sigma_min] = sigma_min
         central_slice_data[central_slice_data > sigma_max] = sigma_max
     central_slice_data = central_slice_data - central_slice_data.min()
-    central_slice_data = central_slice_data * 255 / central_slice_data.max()
+    central_slice_data = central_slice_data / central_slice_data.max() * 255
     central_slice_data = central_slice_data.astype("uint8")
     im = PIL.Image.fromarray(central_slice_data)
     im.thumbnail((512, 512))
@@ -246,6 +249,93 @@ def mrc_central_slice(plugin_params: Callable):
 
     logger.info(
         f"Converted mrc to jpeg {filepath} -> {outfile} in {timing:.1f} seconds",
+        extra={"image-processing-time": timing},
+    )
+    return outfile
+
+
+def mrc_projection(plugin_params: Callable):
+    if not required_parameters(plugin_params, ["file", "projection"]):
+        return False
+    filepath = Path(plugin_params("file"))
+    projection_type: str = plugin_params("projection")
+    thickness_ang = plugin_params("thickness_ang")
+    pixel_spacing = plugin_params("pixel_spacing")
+    if not filepath.is_file():
+        logger.error(f"File {filepath} not found")
+        return False
+    start = time.perf_counter()
+    try:
+        with mrcfile.open(filepath) as mrc:
+            data = mrc.data
+    except ValueError:
+        logger.error(
+            f"File {filepath} could not be opened. It may be corrupted or not in mrc format"
+        )
+        return False
+    outfile = str(filepath.with_suffix("")) + f"_proj{projection_type}.jpeg"
+    if len(data.shape) != 3:
+        logger.error(f"File {filepath} is not 3-dimensional. Cannot make projection")
+        return False
+
+    # Do projection
+    if projection_type.lower() in ("xy", "yx"):
+        projected_data = np.mean(data, axis=0)
+    elif projection_type.lower() in ("yz", "zy"):
+        projected_data = np.mean(data, axis=1)
+    elif projection_type.lower() in ("zx", "xz"):
+        projected_data = np.mean(data, axis=2)
+    else:
+        logger.error(f"Unknown projection type {projection_type}")
+        return False
+
+    # Write as jpeg
+    mean = np.mean(projected_data)
+    sdev = np.std(projected_data)
+    sigma_min = mean - 3 * sdev
+    sigma_max = mean + 3 * sdev
+    projected_data[projected_data < sigma_min] = sigma_min
+    projected_data[projected_data > sigma_max] = sigma_max
+    projected_data = projected_data - projected_data.min()
+    projected_data = projected_data / projected_data.max() * 255
+    projected_data = projected_data.astype("uint8")
+    im = PIL.Image.fromarray(projected_data)
+
+    if pixel_spacing:
+        if thickness_ang:
+            # Show estimated thickness if given
+            scalebar_pixels = thickness_ang / pixel_spacing
+            scalebar_description = f"Thickness: {thickness_ang / 10:.0f} nm"
+        else:
+            # Add scale bar if no thickness provided
+            scalebar_pixels = projected_data.shape[0] / 3
+            scalebar_nm = float(pixel_spacing) / 10 * projected_data.shape[0] / 3
+            scalebar_description = f"{scalebar_nm:.0f} nm"
+        colour_im = im.convert("RGB")
+        dim = ImageDraw.Draw(colour_im)
+        dim.line(
+            (
+                (20, projected_data.shape[0] / 2 - scalebar_pixels / 2),
+                (20, projected_data.shape[0] / 2 + scalebar_pixels / 2),
+            ),
+            fill="yellow",
+            width=5,
+        )
+        font_to_use = ImageFont.load_default(size=26)
+        dim.text(
+            (25, projected_data.shape[0] / 2),
+            scalebar_description,
+            anchor="lm",
+            font=font_to_use,
+            fill="yellow",
+        )
+        colour_im.save(outfile)
+    else:
+        im.save(outfile)
+    timing = time.perf_counter() - start
+
+    logger.info(
+        f"Made {projection_type} projection of mrc to jpeg {filepath} -> {outfile} in {timing:.1f} seconds",
         extra={"image-processing-time": timing},
     )
     return outfile
@@ -281,7 +371,7 @@ def mrc_to_apng(plugin_params: Callable):
                 frame[frame < sigma_min] = sigma_min
                 frame[frame > sigma_max] = sigma_max
             frame = frame - frame.min()
-            frame = frame * 255 / frame.max()
+            frame = frame / frame.max() * 255
             if plugin_params("jitter_edge"):
                 clipped_frame = np.random.choice([0, 1], np.shape(frame))
                 clipped_frame[2:-2, 2:-2] = frame[2:-2, 2:-2]
@@ -323,7 +413,7 @@ def particles_3d_in_frame(
     frame[frame < sigma_min] = sigma_min
     frame[frame > sigma_max] = sigma_max
     frame = frame - frame.min()
-    frame = frame * 255 / frame.max()
+    frame = frame / frame.max() * 255
     frame = frame.astype("uint8")
 
     colour_im = PIL.Image.fromarray(frame).convert("RGB")
@@ -531,7 +621,7 @@ def tilt_series_alignment(plugin_params: Callable):
     data[data < sigma_min] = sigma_min
     data[data > sigma_max] = sigma_max
     data = data - data.min()
-    data = data * 255 / data.max()
+    data = data / data.max() * 255
     data = data.astype("uint8")
     im = PIL.Image.fromarray(data)
     colour_im = im.convert("RGB")

@@ -7,7 +7,7 @@ import re
 import subprocess
 import time
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any, List, Literal, Optional
 
 import mrcfile
 import numpy as np
@@ -25,31 +25,57 @@ from cryoemservices.util.relion_service_options import (
 from cryoemservices.util.tomo_output_files import _get_tilt_number_v5_12
 
 
+def resize_tomogram(tomogram: Path, new_thickness: int):
+    """Change the Z size of an XZY tomogram"""
+    with mrcfile.mmap(tomogram, mode="r+") as mrc:
+        # Open tomogram in memmap mode
+        z_size = mrc.data.shape[1]
+        start_location = np.copy([mrc.header.mx, mrc.header.my, mrc.header.mz])
+        # Slice and set new data
+        new_data = mrc.data[
+            :,
+            int(z_size / 2 - new_thickness / 2) : int(z_size / 2 + new_thickness / 2),
+            :,
+        ]
+        mrc.set_data(new_data)
+        # Fix the header values
+        mrc.header.mx = start_location[0]
+        mrc.header.mz = start_location[2]
+        mrc.header.cella.y *= new_thickness / z_size
+
+
 class TomoParameters(BaseModel):
+    aretomo_version: Literal[2, 3] = 3
     stack_file: str = Field(..., min_length=1)
     pixel_size: float
     path_pattern: Optional[str] = None
     input_file_list: Optional[str] = None
-    vol_z: int = 1200
-    align: Optional[int] = None
+    vol_z: Optional[int] = None
+    extra_vol: int = 1000
+    final_extra_vol: int = 400
     out_bin: int = 4
+    second_bin: Optional[int] = 2
     tilt_axis: float = 85
     tilt_cor: int = 1
+    ctf_cor: Optional[int] = None
     flip_int: Optional[int] = None
     flip_vol: int = 0
     flip_vol_post_reconstruction: bool = True
+    sart_iterations: Optional[int] = None
+    sart_projections: Optional[int] = None
     wbp: Optional[int] = None
-    roi_file: Optional[list] = None
     patch: Optional[int] = None
     kv: Optional[int] = None
+    cs: Optional[float] = None
+    amplitude_contrast: Optional[float] = None
     dose_per_frame: Optional[float] = None
     frame_count: Optional[int] = None
     align_file: Optional[str] = None
     align_z: Optional[int] = None
     refine_flag: int = 1
-    make_angle_file: bool = True
     out_imod: int = 1
     out_imod_xf: Optional[int] = None
+    interpolation_correction: Optional[int] = None
     dark_tol: Optional[float] = None
     manual_tilt_offset: Optional[float] = None
     denoise_tilts: int = 0
@@ -90,7 +116,7 @@ class TomoParameters(BaseModel):
 class TomoAlign(CommonService):
     """
     A service for grouping and aligning tomography tilt-series
-    with Newstack and AreTomo2
+    with Newstack and AreTomo2 or AreTomo3
     """
 
     # Logger name
@@ -106,6 +132,7 @@ class TomoAlign(CommonService):
     y_shift: List[float]
     rot_centre_z_list: List[str]
     tilt_offset: Optional[float] = None
+    thickness_pixels: int | None = None
     rot: float | None = None
     mag: float | None = None
     alignment_quality: Optional[float] = None
@@ -172,6 +199,7 @@ class TomoAlign(CommonService):
 
     def extract_from_aln(self, tomo_parameters, alignment_output_dir, plot_path):
         tomo_aln_file = None
+        self.thickness_pixels = None
         self.rot = None
         self.mag = None
         self.x_shift = []
@@ -190,6 +218,8 @@ class TomoAlign(CommonService):
         with open(tomo_aln_file) as f:
             lines = f.readlines()
             for line in lines:
+                if "Thickness" in line:
+                    self.thickness_pixels = int(line.split()[-1])
                 if not line.startswith("#"):
                     line_split = line.split()
                     self.rot = float(line_split[1])
@@ -240,7 +270,7 @@ class TomoAlign(CommonService):
         def _tilt(file_list_for_tilts):
             return float(file_list_for_tilts[1])
 
-        if tomo_params.manual_tilt_offset is not None:
+        if tomo_params.manual_tilt_offset is not None and tomo_params.vol_z:
             # Stretch the volume for tilted collection
             tomo_params.vol_z = int(tomo_params.vol_z * 4 / 3)
 
@@ -292,6 +322,7 @@ class TomoAlign(CommonService):
             if not Path(tilt[0]).is_file():
                 self.log.warning(f"File not found {tilt[0]}")
                 rw.transport.nack(header)
+                return
             if tilt[1] not in tilt_dict:
                 tilt_dict[tilt[1]] = []
             tilt_dict[tilt[1]].append(tilt[0])
@@ -373,7 +404,6 @@ class TomoAlign(CommonService):
         scaled_y_size = tomo_params.relion_options.tomo_size_y / int(
             tomo_params.out_bin
         )
-        scaled_z_size = tomo_params.vol_z / int(tomo_params.out_bin)
 
         # Get the names of the output files expected
         alignment_output_dir = Path(tomo_params.stack_file).parent
@@ -404,7 +434,7 @@ class TomoAlign(CommonService):
         # Set up the angle file needed for dose weighting
         angle_file = (
             Path(tomo_params.stack_file).parent
-            / f"{Path(tomo_params.stack_file).stem}_tilt_angles.txt"
+            / f"{Path(tomo_params.stack_file).stem}_TLT.txt"
         )
         tilt_angles = {}
         for i in range(len(self.input_file_list_of_lists)):
@@ -418,7 +448,8 @@ class TomoAlign(CommonService):
                 angfile.write(f"{tilt_angles[tilt_id]}  {int(tilt_id)}\n")
 
         # Do alignment with AreTomo
-        aretomo_output_path = alignment_output_dir / f"{stack_name}_aretomo.mrc"
+        aretomo_output_path = alignment_output_dir / f"{stack_name}_Vol.mrc"
+        second_volume_path = alignment_output_dir / f"{stack_name}_2ND_Vol.mrc"
         if aretomo_output_path.is_file():
             job_is_rerun = True
         else:
@@ -426,6 +457,31 @@ class TomoAlign(CommonService):
         aretomo_result, aretomo_command = self.aretomo(
             tomo_params, aretomo_output_path, angle_file
         )
+
+        # Names of the files made for ispyb images
+        plot_file = stack_name + "_xy_shift_plot.json"
+        plot_path = alignment_output_dir / plot_file
+
+        # Extract results
+        pixel_spacing: str = str(tomo_params.pixel_size * tomo_params.out_bin)
+        aln_file = self.extract_from_aln(tomo_params, alignment_output_dir, plot_path)
+        if not aretomo_result.returncode and not aln_file:
+            self.log.error("Failed to read alignment file")
+            rw.transport.nack(header)
+            return
+        rot_centre_z = None
+        if tomo_params.tilt_cor:
+            try:
+                rot_centre_z = self.rot_centre_z_list[-1]
+            except IndexError:
+                self.log.warning(f"No rot Z {self.rot_centre_z_list}")
+
+        # Need vol_z in the relion options before sending to node creator
+        if self.thickness_pixels and not tomo_params.vol_z:
+            tomo_params.vol_z = self.thickness_pixels + tomo_params.final_extra_vol
+            tomo_params.relion_options.vol_z = (
+                self.thickness_pixels + tomo_params.final_extra_vol
+            )
 
         if not job_is_rerun:
             # Send to node creator if this is the first time this tomogram is made
@@ -449,7 +505,7 @@ class TomoAlign(CommonService):
         # Stop here if the job failed
         if aretomo_result.returncode or not aretomo_output_path.is_file():
             self.log.error(
-                f"AreTomo2 failed with exitcode {aretomo_result.returncode}:\n"
+                f"AreTomo failed with exitcode {aretomo_result.returncode}:\n"
                 + aretomo_result.stderr.decode("utf8", "replace")
             )
             # Update failure processing status
@@ -457,7 +513,16 @@ class TomoAlign(CommonService):
             rw.transport.nack(header)
             return
 
-        imod_directory_option1 = alignment_output_dir / f"{stack_name}_aretomo_Imod"
+        # Check the volume is known, then scale it
+        if not tomo_params.vol_z:
+            self.log.error("Tomogram volume is unknown")
+            rw.send_to("failure", {})
+            rw.transport.nack(header)
+            return
+        scaled_z_size = int(tomo_params.vol_z / tomo_params.out_bin)
+
+        # Change permissions of imod directory
+        imod_directory_option1 = alignment_output_dir / f"{stack_name}_Vol_Imod"
         imod_directory_option2 = alignment_output_dir / f"{stack_name}_Imod"
         if tomo_params.out_imod:
             start_time = time.time()
@@ -479,8 +544,20 @@ class TomoAlign(CommonService):
                 for file in _f.iterdir():
                     file.chmod(0o740)
 
+        # Resize the tomogram if needed
+        if (
+            tomo_params.aretomo_version == 3
+            and tomo_params.extra_vol > tomo_params.final_extra_vol
+        ):
+            self.log.info("Resizing tomogram")
+            resize_tomogram(aretomo_output_path, scaled_z_size)
+            if second_volume_path.is_file() and tomo_params.second_bin:
+                second_scaled_z_size = int(tomo_params.vol_z / tomo_params.second_bin)
+                resize_tomogram(second_volume_path, second_scaled_z_size)
+
         # Flip the volume if AreTomo has not done this
         if tomo_params.flip_vol_post_reconstruction and not tomo_params.flip_vol:
+            self.log.info("Rotating volumes")
             if tomo_params.tilt_axis is not None and -45 < tomo_params.tilt_axis < 45:
                 # If given tilt axis of around 0, don't do rotations
                 angles_to_flip = "0,0,-90"
@@ -509,31 +586,7 @@ class TomoAlign(CommonService):
                 rw.transport.nack(header)
                 return
 
-        # Names of the files made for ispyb images
-        plot_file = stack_name + "_xy_shift_plot.json"
-        plot_path = alignment_output_dir / plot_file
-        xy_proj_file = stack_name + "_aretomo_projXY.jpeg"
-        xz_proj_file = stack_name + "_aretomo_projXZ.jpeg"
-        central_slice_file = stack_name + "_aretomo_thumbnail.jpeg"
-        tomogram_movie_file = stack_name + "_aretomo_movie.png"
-
-        # Extract results for ispyb
-        aln_file = self.extract_from_aln(tomo_params, alignment_output_dir, plot_path)
-        if not aln_file:
-            self.log.error("Failed to read alignment file")
-            rw.transport.nack(header)
-            return
-        rot_centre_z = None
-        if tomo_params.tilt_cor:
-            try:
-                rot_centre_z = self.rot_centre_z_list[-1]
-            except IndexError:
-                self.log.warning(f"No rot Z {self.rot_centre_z_list}")
-
-        pixel_spacing: str = str(tomo_params.pixel_size * tomo_params.out_bin)
-        # Forward results to ispyb
-
-        # Tomogram (one per-tilt-series)
+        # Forward tomogram (one per-tilt-series)
         ispyb_command_list = [
             {
                 "ispyb_command": "insert_tomogram",
@@ -550,11 +603,11 @@ class TomoAlign(CommonService):
                 ),
                 "z_shift": rot_centre_z,
                 "file_directory": str(alignment_output_dir),
-                "central_slice_image": central_slice_file,
-                "tomogram_movie": tomogram_movie_file,
+                "central_slice_image": stack_name + "_Vol_thumbnail.jpeg",
+                "tomogram_movie": stack_name + "_Vol_movie.png",
                 "xy_shift_plot": plot_file,
-                "proj_xy": xy_proj_file,
-                "proj_xz": xz_proj_file,
+                "proj_xy": stack_name + "_Vol_projXY.jpeg",
+                "proj_xz": stack_name + "_Vol_projXZ.jpeg",
                 "alignment_quality": str(self.alignment_quality),
             }
         ]
@@ -593,7 +646,7 @@ class TomoAlign(CommonService):
         )
         if not (
             project_dir / f"ExcludeTiltImages/job{job_number - 2:03}/tilts"
-        ).exists():
+        ).is_symlink():
             (
                 project_dir / f"ExcludeTiltImages/job{job_number - 2:03}/tilts"
             ).symlink_to(project_dir / "MotionCorr/job002/Movies")
@@ -734,18 +787,20 @@ class TomoAlign(CommonService):
             },
         )
 
-        xy_input = alignment_output_dir / Path(xy_proj_file).with_suffix(".mrc")
-        xz_input = alignment_output_dir / Path(xz_proj_file).with_suffix(".mrc")
-        self.log.info(f"Sending to images service {xy_input}, {xz_input}")
-        for projection_mrc in [xy_input, xz_input]:
-            rw.send_to(
-                "images",
-                {
-                    "image_command": "mrc_to_jpeg",
-                    "file": str(projection_mrc),
-                    "pixel_spacing": pixel_spacing,
-                },
-            )
+        self.log.info("Sending to images service for XY and XZ projections")
+        for projection_type in ["XY", "XZ"]:
+            images_call_params: dict[str, str | float] = {
+                "image_command": "mrc_projection",
+                "file": str(aretomo_output_path),
+                "projection": projection_type,
+                "pixel_spacing": pixel_spacing,
+            }
+            if projection_type == "XZ" and self.thickness_pixels:
+                images_call_params["thickness_ang"] = (
+                    self.thickness_pixels * tomo_params.pixel_size
+                )
+            rw.send_to("images", images_call_params)
+            print(images_call_params)
 
         # Forward results to denoise service
         self.log.info(f"Sending to denoise service {aretomo_output_path}")
@@ -767,6 +822,12 @@ class TomoAlign(CommonService):
         }
         self.log.info(f"Sending to ispyb {ispyb_parameters}")
         rw.send_to("ispyb_connector", ispyb_parameters)
+
+        # Remove any temporary files
+        for tmp_file in alignment_output_dir.glob(
+            f"{Path(tomo_params.stack_file).stem}*~"
+        ):
+            tmp_file.unlink()
 
         # Update success processing status
         rw.send_to("success", {})
@@ -797,7 +858,93 @@ class TomoAlign(CommonService):
         result = subprocess.run(newstack_cmd, capture_output=True)
         return result
 
-    def assemble_aretomo_command(
+    def assemble_aretomo3_command(
+        self,
+        aretomo_executable: str,
+        input_file: str,
+        tomo_parameters: TomoParameters,
+    ):
+        """
+        Assemble the command to run AreTomo3, using a base command with
+        <executable> -InPrefix <input file>
+        """
+        command = [
+            aretomo_executable,
+            "-Cmd",
+            "1",
+            "-InPrefix",
+            input_file,
+            "-OutDir",
+            str(Path(input_file).parent),
+        ]
+
+        if tomo_parameters.manual_tilt_offset is None:
+            command.extend(("-TiltCor", str(tomo_parameters.tilt_cor)))
+        else:
+            command.extend(
+                (
+                    "-TiltCor",
+                    str(tomo_parameters.tilt_cor),
+                    str(tomo_parameters.manual_tilt_offset),
+                )
+            )
+
+        command.extend(
+            (
+                "-TiltAxis",
+                str(tomo_parameters.tilt_axis),
+                str(tomo_parameters.refine_flag),
+            )
+        )
+
+        if tomo_parameters.sart_iterations and tomo_parameters.sart_projections:
+            command.extend(
+                (
+                    "-Sart",
+                    str(tomo_parameters.sart_iterations),
+                    str(tomo_parameters.sart_projections),
+                )
+            )
+
+        if tomo_parameters.patch:
+            command.extend(
+                (
+                    "-AtPatch",
+                    str(tomo_parameters.patch),
+                    str(tomo_parameters.patch),
+                )
+            )
+
+        command.extend(("-AtBin", str(tomo_parameters.out_bin)))
+        if tomo_parameters.second_bin:
+            command.extend((str(tomo_parameters.second_bin),))
+
+        aretomo_flags = {
+            "vol_z": "-VolZ",
+            "dose_per_frame": "-FmDose",
+            "ctf_cor": "-CorrCTF",
+            "flip_int": "-FlipInt",
+            "flip_vol": "-FlipVol",
+            "wbp": "-Wbp",
+            # "kv": "-kV", # Disable voltage, this would activate CTF
+            "cs": "-Cs",
+            "amplitude_contrast": "-AmpContrast",
+            "align_z": "-AlignZ",
+            "extra_vol": "-ExtZ",
+            "pixel_size": "-PixSize",
+            "out_imod": "-OutImod",
+            "out_imod_xf": "-OutXF",
+            "interpolation_correction": "-IntpCor",
+            "dark_tol": "-DarkTol",
+        }
+
+        for k, v in tomo_parameters.model_dump().items():
+            if (v not in [None, ""]) and (k in aretomo_flags):
+                command.extend((aretomo_flags[k], str(v)))
+
+        return command
+
+    def assemble_aretomo2_command(
         self,
         aretomo_executable: str,
         input_file: str,
@@ -817,34 +964,16 @@ class TomoAlign(CommonService):
             str(aretomo_output_path),
         ]
 
-        if tomo_parameters.make_angle_file:
-            command.extend(("-AngFile", str(angle_file)))
-        else:
-            command.extend(
-                (
-                    "-TiltRange",
-                    str(self.input_file_list_of_lists[0][1]),  # lowest tilt
-                    str(self.input_file_list_of_lists[-1][1]),
-                )
-            )  # highest tilt
+        command.extend(("-AngFile", str(angle_file)))
 
         if tomo_parameters.manual_tilt_offset is None:
-            command.extend(
-                (
-                    "-TiltCor",
-                    str(tomo_parameters.tilt_cor),
-                    "-VolZ",
-                    str(tomo_parameters.vol_z),
-                )
-            )
+            command.extend(("-TiltCor", str(tomo_parameters.tilt_cor)))
         else:
             command.extend(
                 (
                     "-TiltCor",
                     str(tomo_parameters.tilt_cor),
                     str(tomo_parameters.manual_tilt_offset),
-                    "-VolZ",
-                    str(tomo_parameters.vol_z),
                 )
             )
 
@@ -865,19 +994,18 @@ class TomoAlign(CommonService):
             )
 
         aretomo_flags = {
+            "vol_z": "-VolZ",
             "out_bin": "-OutBin",
             "flip_int": "-FlipInt",
             "flip_vol": "-FlipVol",
             "wbp": "-Wbp",
-            "align": "-Align",
-            "roi_file": "-RoiFile",
             "patch": "-Patch",
             "kv": "-Kv",
             "align_file": "-AlnFile",
             "align_z": "-AlignZ",
             "pixel_size": "-PixSize",
             "out_imod": "-OutImod",
-            "out_imod_xf": "-OutXf",
+            "out_imod_xf": "-OutXF",
             "dark_tol": "-DarkTol",
         }
 
@@ -894,24 +1022,29 @@ class TomoAlign(CommonService):
         angle_file: Path,
     ):
         """
-        Run AreTomo2 on output of Newstack
+        Run AreTomo2 or AreTomo3 on output of Newstack
         """
-        command = self.assemble_aretomo_command(
-            aretomo_executable="AreTomo2",
-            input_file=tomo_parameters.stack_file,
-            tomo_parameters=tomo_parameters,
-            aretomo_output_path=aretomo_output_path,
-            angle_file=angle_file,
-        )
+        if tomo_parameters.aretomo_version == 3:
+            command = self.assemble_aretomo3_command(
+                aretomo_executable="AreTomo3",
+                input_file=tomo_parameters.stack_file,
+                tomo_parameters=tomo_parameters,
+            )
+            self.log.info(f"Running AreTomo3 {command}")
+        else:
+            command = self.assemble_aretomo2_command(
+                aretomo_executable="AreTomo2",
+                input_file=tomo_parameters.stack_file,
+                tomo_parameters=tomo_parameters,
+                aretomo_output_path=aretomo_output_path,
+                angle_file=angle_file,
+            )
+            self.log.info(f"Running AreTomo2 {command}")
 
-        self.log.info(f"Running AreTomo2 {command}")
-        self.log.info(
-            f"Input stack: {tomo_parameters.stack_file} \n"
-            f"Output file: {aretomo_output_path}"
-        )
+        self.log.info(f"Input stack: {tomo_parameters.stack_file}")
 
-        # Save the AreTomo2 command then run it
-        with open(aretomo_output_path.with_suffix(".com"), "w") as f:
+        # Save the AreTomo command then run it
+        with open(Path(tomo_parameters.stack_file).with_suffix(".com"), "w") as f:
             f.write(" ".join(command))
         result = subprocess.run(command, capture_output=True)
         if tomo_parameters.tilt_cor:
