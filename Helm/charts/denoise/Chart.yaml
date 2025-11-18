@@ -1,4 +1,4 @@
 apiVersion: v2
 name: denoise
 description: A Helm chart for EM Denoise service
-version: 1.3.0
+version: 1.3.1
