@@ -56,6 +56,7 @@ def test_tomo_align_service_file_list_aretomo3(
         "final_extra_vol": 300,
         "align": None,
         "out_bin": 4,
+        "second_bin": 2,
         "tilt_axis": 90,
         "tilt_cor": 1,
         "flip_int": None,
@@ -341,7 +342,7 @@ def test_tomo_align_service_file_list_aretomo3(
             "image_command": "mrc_projection",
             "file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.mrc",
             "projection": "XY",
-            "pixel_spacing": "4.4",
+            "pixel_spacing": 4.4,
         },
     )
     offline_transport.send.assert_any_call(
@@ -350,7 +351,7 @@ def test_tomo_align_service_file_list_aretomo3(
             "image_command": "mrc_projection",
             "file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.mrc",
             "projection": "XZ",
-            "pixel_spacing": "4.4",
+            "pixel_spacing": 4.4,
             "thickness_ang": 130 * 1.1,
         },
     )
@@ -670,7 +671,7 @@ def test_tomo_align_service_file_list_aretomo2(
             "image_command": "mrc_projection",
             "file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.mrc",
             "projection": "XY",
-            "pixel_spacing": "4.0",
+            "pixel_spacing": 4.0,
         },
     )
     offline_transport.send.assert_any_call(
@@ -679,7 +680,7 @@ def test_tomo_align_service_file_list_aretomo2(
             "image_command": "mrc_projection",
             "file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.mrc",
             "projection": "XZ",
-            "pixel_spacing": "4.0",
+            "pixel_spacing": 4.0,
         },
     )
     offline_transport.send.assert_any_call(
@@ -1264,7 +1265,7 @@ def test_tomo_align_service_file_list_rerun(
             "image_command": "mrc_projection",
             "file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.mrc",
             "projection": "XY",
-            "pixel_spacing": "4.0",
+            "pixel_spacing": 4.0,
         },
     )
     offline_transport.send.assert_any_call(
@@ -1273,7 +1274,7 @@ def test_tomo_align_service_file_list_rerun(
             "image_command": "mrc_projection",
             "file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.mrc",
             "projection": "XZ",
-            "pixel_spacing": "4.0",
+            "pixel_spacing": 4.0,
             "thickness_ang": 130 * 1.0,
         },
     )
@@ -1319,6 +1320,7 @@ def test_tomo_align_service_path_pattern(
         "input_file_list": None,
         "vol_z": None,
         "out_bin": 4,
+        "second_bin": 2,
         "tilt_axis": 83.0,
         "tilt_cor": 1,
         "flip_int": 1,
@@ -1597,7 +1599,6 @@ def test_tomo_align_service_dark_images(
         "1",
         "-AtBin",
         str(tomo_align_test_message["out_bin"]),
-        "2",
         "-PixSize",
         "1.0",
         "-VolZ",
@@ -1947,7 +1948,6 @@ def test_tomo_align_service_fail_case(
         "-1",
         "-AtBin",
         "4",
-        "2",
         "-PixSize",
         "1.1",
         "-VolZ",
