@@ -44,6 +44,25 @@ def resize_tomogram(tomogram: Path, new_thickness: int):
         mrc.header.cella.y *= new_thickness / z_size
 
 
+def rotate_tomogram(tomogram: Path, tilt_axis: float):
+    if -45 < tilt_axis < 45:
+        # If given tilt axis of around 0, just rotate from xzy to xyz
+        with mrcfile.mmap(tomogram, mode="r+") as mrc:
+            start_location = np.copy([mrc.header.mx, mrc.header.my, mrc.header.mz])
+            mrc.set_data(np.rot90(mrc.data, axes=(0, 1)))
+            mrc.header.mx = start_location[1]
+            mrc.header.my = start_location[0]
+            mrc.header.mz = start_location[2]
+    else:
+        # Otherwise assume we need to flip (which is the behaviour for axis 90)
+        with mrcfile.mmap(tomogram, mode="r+") as mrc:
+            start_location = np.copy([mrc.header.mx, mrc.header.my, mrc.header.mz])
+            mrc.set_data(np.rot90(np.rot90(mrc.data, axes=(0, 1)), axes=(2, 1)))
+            mrc.header.mx = start_location[1]
+            mrc.header.my = start_location[2]
+            mrc.header.mz = start_location[0]
+
+
 class TomoParameters(BaseModel):
     aretomo_version: Literal[2, 3] = 3
     stack_file: str = Field(..., min_length=1)
@@ -54,7 +73,7 @@ class TomoParameters(BaseModel):
     extra_vol: int = 1000
     final_extra_vol: int = 400
     out_bin: int = 4
-    second_bin: Optional[int] = 2
+    second_bin: Optional[int] = None
     tilt_axis: float = 85
     tilt_cor: int = 1
     ctf_cor: Optional[int] = None
@@ -500,34 +519,10 @@ class TomoAlign(CommonService):
 
         # Flip the volume if AreTomo has not done this
         if tomo_params.flip_vol_post_reconstruction and not tomo_params.flip_vol:
-            self.log.info("Rotating volumes")
-            if tomo_params.tilt_axis is not None and -45 < tomo_params.tilt_axis < 45:
-                # If given tilt axis of around 0, don't do rotations
-                angles_to_flip = "0,0,-90"
-            else:
-                # Otherwise assume we need to flip (which is the behaviour for axis 90)
-                angles_to_flip = "90,-90,0"
-            rotate_result = subprocess.run(
-                [
-                    "rotatevol",
-                    "-i",
-                    str(aretomo_output_path),
-                    "-ou",
-                    str(aretomo_output_path),
-                    "-size",
-                    f"{int(scaled_x_size)},{int(scaled_y_size)},{int(scaled_z_size)}",
-                    "-a",
-                    angles_to_flip,
-                ],
-                capture_output=True,
-            )
-            if rotate_result.returncode:
-                self.log.error(
-                    f"rotatevol failed with exitcode {rotate_result.returncode}:\n"
-                    + rotate_result.stderr.decode("utf8", "replace")
-                )
-                rw.transport.nack(header)
-                return
+            self.log.info("Rotating tomogram")
+            rotate_tomogram(aretomo_output_path, self.rot or tomo_params.tilt_axis)
+            if second_volume_path.is_file() and tomo_params.second_bin:
+                rotate_tomogram(second_volume_path, self.rot or tomo_params.tilt_axis)
 
         # Forward tomogram (one per-tilt-series)
         ispyb_command_list = [
@@ -732,7 +727,7 @@ class TomoAlign(CommonService):
                 "image_command": "mrc_projection",
                 "file": str(aretomo_output_path),
                 "projection": projection_type,
-                "pixel_spacing": pixel_spacing,
+                "pixel_spacing": float(pixel_spacing),
             }
             if projection_type == "XZ" and self.thickness_pixels:
                 images_call_params["thickness_ang"] = (
