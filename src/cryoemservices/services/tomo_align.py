@@ -54,7 +54,7 @@ class TomoParameters(BaseModel):
     extra_vol: int = 1000
     final_extra_vol: int = 400
     out_bin: int = 4
-    second_bin: Optional[int] = 2
+    second_bin: Optional[int] = None
     tilt_axis: float = 85
     tilt_cor: int = 1
     ctf_cor: Optional[int] = None
@@ -732,7 +732,7 @@ class TomoAlign(CommonService):
                 "image_command": "mrc_projection",
                 "file": str(aretomo_output_path),
                 "projection": projection_type,
-                "pixel_spacing": pixel_spacing,
+                "pixel_spacing": float(pixel_spacing),
             }
             if projection_type == "XZ" and self.thickness_pixels:
                 images_call_params["thickness_ang"] = (
