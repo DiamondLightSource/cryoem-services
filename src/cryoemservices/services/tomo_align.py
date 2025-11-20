@@ -45,22 +45,31 @@ def resize_tomogram(tomogram: Path, new_thickness: int):
 
 
 def rotate_tomogram(tomogram: Path, tilt_axis: float):
-    if -45 < tilt_axis < 45:
-        # If given tilt axis of around 0, just rotate from xzy to xyz
-        with mrcfile.mmap(tomogram, mode="r+") as mrc:
-            start_location = np.copy([mrc.header.mx, mrc.header.my, mrc.header.mz])
+    """Rotate an XZY tomogram into XYZ"""
+
+    with mrcfile.mmap(tomogram, mode="r+") as mrc:
+        start_location = np.copy([mrc.header.mx, mrc.header.my, mrc.header.mz])
+        start_cella = np.copy(
+            [mrc.header.cella.x, mrc.header.cella.y, mrc.header.cella.z]
+        )
+        if -45 < tilt_axis < 45:
+            # If given tilt axis of around 0, just rotate from xzy to xyz
             mrc.set_data(np.rot90(mrc.data, axes=(0, 1)))
-            mrc.header.mx = start_location[1]
-            mrc.header.my = start_location[0]
-            mrc.header.mz = start_location[2]
-    else:
-        # Otherwise assume we need to flip (which is the behaviour for axis 90)
-        with mrcfile.mmap(tomogram, mode="r+") as mrc:
-            start_location = np.copy([mrc.header.mx, mrc.header.my, mrc.header.mz])
-            mrc.set_data(np.rot90(np.rot90(mrc.data, axes=(0, 1)), axes=(2, 1)))
-            mrc.header.mx = start_location[1]
+            mrc.header.mx = start_location[0]
             mrc.header.my = start_location[2]
-            mrc.header.mz = start_location[0]
+            mrc.header.mz = start_location[1]
+            mrc.header.cella.x = start_cella[0]
+            mrc.header.cella.y = start_cella[2]
+            mrc.header.cella.z = start_cella[1]
+        else:
+            # Otherwise assume we need to flip (which is the behaviour for axis 90)
+            mrc.set_data(np.rot90(np.rot90(mrc.data, axes=(0, 1)), axes=(2, 1)))
+            mrc.header.mx = start_location[2]
+            mrc.header.my = start_location[0]
+            mrc.header.mz = start_location[1]
+            mrc.header.cella.x = start_cella[2]
+            mrc.header.cella.y = start_cella[0]
+            mrc.header.cella.z = start_cella[1]
 
 
 class TomoParameters(BaseModel):
