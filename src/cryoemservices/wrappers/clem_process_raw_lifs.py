@@ -121,10 +121,10 @@ def stitch_image_frames(
             x = float(tile_info["pos_x"])
             y = float(tile_info["pos_y"])
             tile_extent = [
-                x,
-                x + image_width,
-                y,
-                y + image_height,
+                x - image_width / 2,
+                x + image_width / 2,
+                y - image_height / 2,
+                y + image_height / 2,
             ]
 
             # Add tile to the montage
@@ -251,10 +251,10 @@ def process_lif_subimage(
         y = float(tile["pos_y"])
 
         # Update the atlas limits
-        x_min = x if x < x_min else x_min
-        y_min = y if y < y_min else y_min
-        x_max = x + w if x + w > x_max else x_max
-        y_max = y + h if y + h > y_max else y_max
+        x_min = x - w / 2 if x - w / 2 < x_min else x_min
+        y_min = y - h / 2 if y - h / 2 < y_min else y_min
+        x_max = x + w / 2 if x + w / 2 > x_max else x_max
+        y_max = y + h / 2 if y + h / 2 > y_max else y_max
     extent = [x_min, x_max, y_min, y_max]
 
     # Template of results dictionary
