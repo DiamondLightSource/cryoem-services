@@ -18,6 +18,7 @@ from readlif.reader import LifFile
 
 from cryoemservices.util.clem_array_functions import (
     estimate_int_dtype,
+    get_percentiles,
     preprocess_img_stk,
     stitch_image_frames,
     write_stack_to_tiff,
@@ -54,29 +55,6 @@ def get_lif_xml_metadata(
         logger.info(f"File metadata saved to {xml_file!r}")
 
     return xml_root
-
-
-def get_percentiles(
-    file: Path,
-    scene_num: int,
-    channel_num: int,
-    frame_num: int,
-    tile_num: int,
-    percentiles: tuple[float, float] = (1, 99),
-) -> tuple[float | None, float | None]:
-    try:
-        # Load the subimage
-        image = LifFile(str(file)).get_image(scene_num)
-        arr = image.get_frame(
-            z=frame_num,
-            c=channel_num,
-            m=tile_num,
-        )
-    except Exception:
-        logger.warning(f"Unable to load frame {frame_num}-{tile_num}")
-        return (None, None)
-    p_lo, p_hi = np.percentile(arr, percentiles)
-    return p_lo, p_hi
 
 
 def process_lif_subimage(
@@ -200,11 +178,15 @@ def process_lif_subimage(
                     # Construct pool arguments in-line
                     [
                         (
+                            # LIF file-specific parameters
                             file,
                             scene_num,
                             c,
                             z,
                             t,
+                            # TIFF file-specifc parameters
+                            None,
+                            # Common parameters
                             (0.5, 99.5),
                         )
                         for z in range(num_frames)

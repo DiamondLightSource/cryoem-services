@@ -909,6 +909,66 @@ def merge_images(
     return arr_new
 
 
+def get_percentiles(
+    # LIF file-specific parameters
+    lif_file: Path | None = None,
+    scene_num: int | None = None,
+    channel_num: int | None = None,
+    frame_num: int | None = None,
+    tile_num: int | None = None,
+    # TIFF file-specific parameters
+    tiff_file: Path | None = None,
+    # Common parameters
+    percentiles: tuple[float, float] = (1, 99),
+) -> tuple[int | float | None, int | float | None]:
+    """
+    Helper function that returns the values corresponding to the specified lower and
+    upper percentiles.
+    """
+    # Validate that either TIFF file or LIF file stitching parameters are present
+    if lif_file is None and tiff_file is None:
+        err_msg = "No file-specific processing parameters provided"
+        logger.error(err_msg)
+        raise ValueError(err_msg)
+    if lif_file and tiff_file:
+        err_msg = "LIF file and TIFF file processing parameters are both present"
+        logger.error(err_msg)
+        raise ValueError(err_msg)
+    if lif_file is not None:
+        if not (
+            scene_num is not None and frame_num is not None and channel_num is not None
+        ):
+            err_msg = (
+                "One or more LIF file parameters is absent: \n"
+                f"scene_num: {scene_num} \n"
+                f"channel_num: {channel_num} \n"
+                f"frame_num: {frame_num} \n"
+            )
+            logger.error(err_msg)
+            raise ValueError(err_msg)
+
+    # Load the image
+    try:
+        if lif_file is not None:
+            image = LifFile(str(lif_file)).get_image(scene_num)
+            arr = np.asarray(
+                image.get_frame(
+                    z=frame_num,
+                    c=channel_num,
+                    m=tile_num,
+                )
+            )
+        else:
+            arr = np.asarray(PILImage.open(tiff_file))
+    except Exception:
+        logger.warning(f"Unable to load frame {frame_num}-{tile_num}")
+        return (None, None)
+
+    # Get the lower and upper percentile values
+    p_lo, p_hi = np.percentile(arr, percentiles)
+    return p_lo, p_hi
+
+
 def stitch_image_frames(
     # LIF file processing
     lif_file: Path | None = None,

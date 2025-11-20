@@ -21,6 +21,7 @@ from pydantic import BaseModel, ValidationError, field_validator, model_validato
 
 from cryoemservices.util.clem_array_functions import (
     estimate_int_dtype,
+    get_percentiles,
     preprocess_img_stk,
     stitch_image_frames,
     write_stack_to_tiff,
@@ -34,21 +35,6 @@ from cryoemservices.util.clem_metadata import (
 
 # Create logger object to output messages with
 logger = logging.getLogger("cryoemservices.services.clem_process_raw_tiffs")
-
-
-def get_percentiles(
-    file: Path, percentiles: tuple[float, float] = (1, 99)
-) -> tuple[float | None, float | None]:
-    """
-    Helper function run as part of a multiprocessing pool to extract the min and max
-    intensity values from an image.
-    """
-    try:
-        arr = np.array(Image.open(file))
-    except Exception:
-        return (None, None)
-    p_lo, p_hi = np.percentile(arr, percentiles)
-    return p_lo, p_hi
 
 
 def process_tiff_files(
@@ -246,7 +232,15 @@ def process_tiff_files(
                     get_percentiles,
                     [
                         (
+                            # LIF file-specific parameters
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            # TIFF file-specific parameters
                             file,
+                            # Common parameters
                             (0.5, 99.5),
                         )
                         for file in tiff_color_subset
