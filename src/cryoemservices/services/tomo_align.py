@@ -54,7 +54,7 @@ class TomoParameters(BaseModel):
     extra_vol: int = 1000
     final_extra_vol: int = 400
     out_bin: int = 4
-    second_bin: Optional[int] = 2
+    second_bin: Optional[int] = None
     tilt_axis: float = 85
     tilt_cor: int = 1
     ctf_cor: Optional[int] = None
@@ -479,9 +479,9 @@ class TomoAlign(CommonService):
         # Need vol_z in the relion options before sending to node creator
         if self.thickness_pixels and not tomo_params.vol_z:
             tomo_params.vol_z = self.thickness_pixels + tomo_params.final_extra_vol
-            tomo_params.relion_options.vol_z = (
-                self.thickness_pixels + tomo_params.final_extra_vol
-            )
+            if tomo_params.vol_z > 1800:
+                tomo_params.vol_z = 1800
+            tomo_params.relion_options.vol_z = tomo_params.vol_z
 
         if not job_is_rerun:
             # Send to node creator if this is the first time this tomogram is made
@@ -793,7 +793,7 @@ class TomoAlign(CommonService):
                 "image_command": "mrc_projection",
                 "file": str(aretomo_output_path),
                 "projection": projection_type,
-                "pixel_spacing": pixel_spacing,
+                "pixel_spacing": float(pixel_spacing),
             }
             if projection_type == "XZ" and self.thickness_pixels:
                 images_call_params["thickness_ang"] = (

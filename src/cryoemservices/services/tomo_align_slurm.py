@@ -241,6 +241,7 @@ class TomoAlignSlurm(TomoAlign):
                 f"export LD_LIBRARY_PATH={os.environ['EXTRA_LIBRARIES']}:$LD_LIBRARY_PATH"
             ),
             external_filesystem=True,
+            memory_request=20000,
         )
 
         # Get back any output files and clean up

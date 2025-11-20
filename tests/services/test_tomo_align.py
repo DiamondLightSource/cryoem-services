@@ -56,6 +56,7 @@ def test_tomo_align_service_file_list_aretomo3(
         "final_extra_vol": 300,
         "align": None,
         "out_bin": 4,
+        "second_bin": 2,
         "tilt_axis": 90,
         "tilt_cor": 1,
         "flip_int": None,
@@ -341,7 +342,7 @@ def test_tomo_align_service_file_list_aretomo3(
             "image_command": "mrc_projection",
             "file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.mrc",
             "projection": "XY",
-            "pixel_spacing": "4.4",
+            "pixel_spacing": 4.4,
         },
     )
     offline_transport.send.assert_any_call(
@@ -350,7 +351,7 @@ def test_tomo_align_service_file_list_aretomo3(
             "image_command": "mrc_projection",
             "file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.mrc",
             "projection": "XZ",
-            "pixel_spacing": "4.4",
+            "pixel_spacing": 4.4,
             "thickness_ang": 130 * 1.1,
         },
     )
@@ -670,7 +671,7 @@ def test_tomo_align_service_file_list_aretomo2(
             "image_command": "mrc_projection",
             "file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.mrc",
             "projection": "XY",
-            "pixel_spacing": "4.0",
+            "pixel_spacing": 4.0,
         },
     )
     offline_transport.send.assert_any_call(
@@ -679,7 +680,7 @@ def test_tomo_align_service_file_list_aretomo2(
             "image_command": "mrc_projection",
             "file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.mrc",
             "projection": "XZ",
-            "pixel_spacing": "4.0",
+            "pixel_spacing": 4.0,
         },
     )
     offline_transport.send.assert_any_call(
@@ -925,7 +926,9 @@ def test_tomo_align_service_file_list_zero_rotation(
 
 @mock.patch("cryoemservices.services.tomo_align.subprocess.run")
 @mock.patch("cryoemservices.services.tomo_align.mrcfile")
+@mock.patch("cryoemservices.services.tomo_align.resize_tomogram")
 def test_tomo_align_service_file_list_bad_tilts(
+    mock_resize,
     mock_mrcfile,
     mock_subprocess,
     offline_transport,
@@ -973,7 +976,6 @@ def test_tomo_align_service_file_list_bad_tilts(
             ]
         ),
         "pixel_size": 1,
-        "vol_z": 1200,
         "relion_options": {},
     }
     output_relion_options = dict(RelionServiceOptions())
@@ -981,6 +983,7 @@ def test_tomo_align_service_file_list_bad_tilts(
     output_relion_options["pixel_size_downscaled"] = 4
     output_relion_options["tomo_size_x"] = 3000
     output_relion_options["tomo_size_y"] = 4000
+    output_relion_options["vol_z"] = 1800
 
     # Touch the expected input files
     for i in range(1, 4):
@@ -1006,7 +1009,7 @@ def test_tomo_align_service_file_list_bad_tilts(
             tmp_path / "Tomograms/job006/tomograms/test_stack.aln", "w"
         ) as aln_file:
             aln_file.write(
-                "# Thickness = 130\ndummy 0 1000 1.2 2.3 5 6 7 8 4.5\ndummy 0 1000 1.2 2.3 5 6 7 8 4.5"
+                "# Thickness = 2000\ndummy 0 1000 1.2 2.3 5 6 7 8 4.5\ndummy 0 1000 1.2 2.3 5 6 7 8 4.5"
             )
         return CompletedProcess(
             "",
@@ -1025,6 +1028,11 @@ def test_tomo_align_service_file_list_bad_tilts(
         tmp_path / "Tomograms/job006/tomograms/test_stack_xy_shift_plot.json"
     ).is_file()
     assert mock_subprocess.call_count == 3
+
+    # Check resizing - vol z is 2000 so should be reduced to 1800
+    mock_resize.assert_called_once_with(
+        tmp_path / "Tomograms/job006/tomograms/test_stack_Vol.mrc", int(1800 / 4)
+    )
 
     # Check the angle file
     assert (tmp_path / "Tomograms/job006/tomograms/test_stack_TLT.txt").is_file()
@@ -1264,7 +1272,7 @@ def test_tomo_align_service_file_list_rerun(
             "image_command": "mrc_projection",
             "file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.mrc",
             "projection": "XY",
-            "pixel_spacing": "4.0",
+            "pixel_spacing": 4.0,
         },
     )
     offline_transport.send.assert_any_call(
@@ -1273,7 +1281,7 @@ def test_tomo_align_service_file_list_rerun(
             "image_command": "mrc_projection",
             "file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.mrc",
             "projection": "XZ",
-            "pixel_spacing": "4.0",
+            "pixel_spacing": 4.0,
             "thickness_ang": 130 * 1.0,
         },
     )
@@ -1319,6 +1327,7 @@ def test_tomo_align_service_path_pattern(
         "input_file_list": None,
         "vol_z": None,
         "out_bin": 4,
+        "second_bin": 2,
         "tilt_axis": 83.0,
         "tilt_cor": 1,
         "flip_int": 1,
@@ -1597,7 +1606,6 @@ def test_tomo_align_service_dark_images(
         "1",
         "-AtBin",
         str(tomo_align_test_message["out_bin"]),
-        "2",
         "-PixSize",
         "1.0",
         "-VolZ",
@@ -1947,7 +1955,6 @@ def test_tomo_align_service_fail_case(
         "-1",
         "-AtBin",
         "4",
-        "2",
         "-PixSize",
         "1.1",
         "-VolZ",
