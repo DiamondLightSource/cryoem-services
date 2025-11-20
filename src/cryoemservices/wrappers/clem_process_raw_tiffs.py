@@ -295,8 +295,8 @@ def process_tiff_files(
 
         # Update the atlas limits
         x_min = x - w / 2 if x - w / 2 < x_min else x_min
-        y_min = y - y / 2 if y - y / 2 < y_min else y_min
         x_max = x + w / 2 if x + w / 2 > x_max else x_max
+        y_min = y - h / 2 if y - h / 2 < y_min else y_min
         y_max = y + h / 2 if y + h / 2 > y_max else y_max
     extent = [x_min, x_max, y_min, y_max]
 
