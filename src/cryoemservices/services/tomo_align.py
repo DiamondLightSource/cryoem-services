@@ -529,9 +529,15 @@ class TomoAlign(CommonService):
         # Flip the volume if AreTomo has not done this
         if tomo_params.flip_vol_post_reconstruction and not tomo_params.flip_vol:
             self.log.info("Rotating tomogram")
-            rotate_tomogram(aretomo_output_path, self.rot or tomo_params.tilt_axis)
+            rotate_tomogram(
+                aretomo_output_path,
+                self.rot if self.rot is not None else tomo_params.tilt_axis,
+            )
             if second_volume_path.is_file() and tomo_params.second_bin:
-                rotate_tomogram(second_volume_path, self.rot or tomo_params.tilt_axis)
+                rotate_tomogram(
+                    second_volume_path,
+                    self.rot if self.rot is not None else tomo_params.tilt_axis,
+                )
 
         # Forward tomogram (one per-tilt-series)
         ispyb_command_list = [

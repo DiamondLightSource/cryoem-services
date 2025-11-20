@@ -24,7 +24,9 @@ def offline_transport(mocker):
 @mock.patch("cryoemservices.services.tomo_align.subprocess.run")
 @mock.patch("cryoemservices.services.tomo_align.mrcfile")
 @mock.patch("cryoemservices.services.tomo_align.resize_tomogram")
+@mock.patch("cryoemservices.services.tomo_align.rotate_tomogram")
 def test_tomo_align_service_file_list_aretomo3(
+    mock_rotate,
     mock_resize,
     mock_mrcfile,
     mock_subprocess,
@@ -174,7 +176,7 @@ def test_tomo_align_service_file_list_aretomo3(
         capture_output=True,
     )
 
-    # Check resizing
+    # Check resizing and rotating
     assert mock_resize.call_count == 2
     mock_resize.assert_any_call(
         tmp_path / "Tomograms/job006/tomograms/test_stack_Vol.mrc", int(430 / 4)
@@ -182,6 +184,7 @@ def test_tomo_align_service_file_list_aretomo3(
     mock_resize.assert_any_call(
         tmp_path / "Tomograms/job006/tomograms/test_stack_2ND_Vol.mrc", int(430 / 2)
     )
+    mock_rotate.assert_not_called()
 
     # Check the angle file
     assert (tmp_path / "Tomograms/job006/tomograms/test_stack_TLT.txt").is_file()
@@ -696,7 +699,9 @@ def test_tomo_align_service_file_list_aretomo2(
 
 @mock.patch("cryoemservices.services.tomo_align.subprocess.run")
 @mock.patch("cryoemservices.services.tomo_align.mrcfile")
+@mock.patch("cryoemservices.services.tomo_align.rotate_tomogram")
 def test_tomo_align_service_file_list_repeated_tilt(
+    mock_rotate,
     mock_mrcfile,
     mock_subprocess,
     offline_transport,
@@ -730,6 +735,7 @@ def test_tomo_align_service_file_list_repeated_tilt(
     output_relion_options["pixel_size_downscaled"] = 4
     output_relion_options["tomo_size_x"] = 3000
     output_relion_options["tomo_size_y"] = 4000
+    output_relion_options["tilt_axis_angle"] = 85.1
 
     # Create the input files. Needs sleeps to ensure distinct timestamps
     (tmp_path / "MotionCorr/job002/Movies").mkdir(parents=True)
@@ -758,7 +764,7 @@ def test_tomo_align_service_file_list_repeated_tilt(
         with open(
             tmp_path / "Tomograms/job006/tomograms/test_stack.aln", "w"
         ) as aln_file:
-            aln_file.write("# Thickness = 130\ndummy 0 1000 1.2 2.3 5 6 7 8 4.5")
+            aln_file.write("# Thickness = 130\ndummy 85.1 1000 1.2 2.3 5 6 7 8 4.5")
         return CompletedProcess(
             "",
             returncode=0,
@@ -775,22 +781,11 @@ def test_tomo_align_service_file_list_repeated_tilt(
     assert (
         tmp_path / "Tomograms/job006/tomograms/test_stack_xy_shift_plot.json"
     ).is_file()
-    assert mock_subprocess.call_count == 3
+    assert mock_subprocess.call_count == 2
 
     # This one runs the post-reconstruction volume flip
-    mock_subprocess.assert_any_call(
-        [
-            "rotatevol",
-            "-i",
-            f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.mrc",
-            "-ou",
-            f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.mrc",
-            "-size",
-            "750,1000,300",
-            "-a",
-            "90,-90,0",
-        ],
-        capture_output=True,
+    mock_rotate.assert_called_once_with(
+        tmp_path / "Tomograms/job006/tomograms/test_stack_Vol.mrc", 85.1
     )
 
     # Check the angle file
@@ -832,7 +827,9 @@ def test_tomo_align_service_file_list_repeated_tilt(
 
 @mock.patch("cryoemservices.services.tomo_align.subprocess.run")
 @mock.patch("cryoemservices.services.tomo_align.mrcfile")
+@mock.patch("cryoemservices.services.tomo_align.rotate_tomogram")
 def test_tomo_align_service_file_list_zero_rotation(
+    mock_rotate,
     mock_mrcfile,
     mock_subprocess,
     offline_transport,
@@ -899,23 +896,12 @@ def test_tomo_align_service_file_list_zero_rotation(
     assert (
         tmp_path / "Tomograms/job006/tomograms/test_stack_xy_shift_plot.json"
     ).is_file()
-    assert mock_subprocess.call_count == 3
+    assert mock_subprocess.call_count == 2
     assert offline_transport.send.call_count == 13
 
-    # This one runs the post-reconstruction volume flip
-    mock_subprocess.assert_any_call(
-        [
-            "rotatevol",
-            "-i",
-            f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.mrc",
-            "-ou",
-            f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.mrc",
-            "-size",
-            "750,1000,300",
-            "-a",
-            "0,0,-90",
-        ],
-        capture_output=True,
+    # Check tomogram rotation
+    mock_rotate.assert_called_once_with(
+        tmp_path / "Tomograms/job006/tomograms/test_stack_Vol.mrc", 0
     )
 
     assert (tmp_path / "Tomograms/job006/tomograms/test_stack_2ND_Vol.mrc").is_file()
@@ -926,7 +912,9 @@ def test_tomo_align_service_file_list_zero_rotation(
 
 @mock.patch("cryoemservices.services.tomo_align.subprocess.run")
 @mock.patch("cryoemservices.services.tomo_align.mrcfile")
+@mock.patch("cryoemservices.services.tomo_align.rotate_tomogram")
 def test_tomo_align_service_file_list_bad_tilts(
+    mock_rotate,
     mock_mrcfile,
     mock_subprocess,
     offline_transport,
@@ -1025,7 +1013,12 @@ def test_tomo_align_service_file_list_bad_tilts(
     assert (
         tmp_path / "Tomograms/job006/tomograms/test_stack_xy_shift_plot.json"
     ).is_file()
-    assert mock_subprocess.call_count == 3
+    assert mock_subprocess.call_count == 2
+
+    # Check tomogram rotation
+    mock_rotate.assert_called_once_with(
+        tmp_path / "Tomograms/job006/tomograms/test_stack_Vol.mrc", 0
+    )
 
     # Check the angle file
     assert (tmp_path / "Tomograms/job006/tomograms/test_stack_TLT.txt").is_file()
@@ -1080,7 +1073,9 @@ def test_tomo_align_service_file_list_bad_tilts(
 
 @mock.patch("cryoemservices.services.tomo_align.subprocess.run")
 @mock.patch("cryoemservices.services.tomo_align.mrcfile")
+@mock.patch("cryoemservices.services.tomo_align.rotate_tomogram")
 def test_tomo_align_service_file_list_rerun(
+    mock_rotate,
     mock_mrcfile,
     mock_subprocess,
     offline_transport,
@@ -1163,7 +1158,12 @@ def test_tomo_align_service_file_list_rerun(
     service.tomo_align(None, header=header, message=tomo_align_test_message)
 
     # Check the expected calls were made
-    assert mock_subprocess.call_count == 3
+    assert mock_subprocess.call_count == 2
+
+    # Check tomogram rotation
+    mock_rotate.assert_called_once_with(
+        tmp_path / "Tomograms/job006/tomograms/test_stack_Vol.mrc", 86.0
+    )
 
     # Check the angle file
     assert (tmp_path / "Tomograms/job006/tomograms/test_stack_TLT.txt").is_file()
@@ -1292,7 +1292,9 @@ def test_tomo_align_service_file_list_rerun(
 @mock.patch("cryoemservices.services.tomo_align.subprocess.run")
 @mock.patch("cryoemservices.services.tomo_align.mrcfile")
 @mock.patch("cryoemservices.services.tomo_align.resize_tomogram")
+@mock.patch("cryoemservices.services.tomo_align.rotate_tomogram")
 def test_tomo_align_service_path_pattern(
+    mock_rotate,
     mock_resize,
     mock_mrcfile,
     mock_subprocess,
@@ -1449,7 +1451,7 @@ def test_tomo_align_service_path_pattern(
         capture_output=True,
     )
 
-    # Check resizing
+    # Check resizing and rotating
     assert mock_resize.call_count == 2
     mock_resize.assert_any_call(
         tmp_path / "Tomograms/job006/tomograms/test_stack_Vol.mrc", int(530 / 4)
@@ -1457,6 +1459,7 @@ def test_tomo_align_service_path_pattern(
     mock_resize.assert_any_call(
         tmp_path / "Tomograms/job006/tomograms/test_stack_2ND_Vol.mrc", int(530 / 2)
     )
+    mock_rotate.assert_not_called()
 
     # Check the angle file
     assert (tmp_path / "Tomograms/job006/tomograms/test_stack_TLT.txt").is_file()
