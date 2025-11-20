@@ -304,7 +304,7 @@ def mrc_projection(plugin_params: Callable):
     if pixel_spacing:
         if thickness_ang:
             # Show estimated thickness if given
-            scalebar_pixels = thickness_ang / pixel_spacing
+            scalebar_pixels = thickness_ang / float(pixel_spacing)
             scalebar_description = f"Thickness: {thickness_ang / 10:.0f} nm"
         else:
             # Add scale bar if no thickness provided
