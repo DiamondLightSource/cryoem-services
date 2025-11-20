@@ -13,13 +13,13 @@ from typing import Optional
 from xml.etree import ElementTree as ET
 
 import numpy as np
-from matplotlib import pyplot as plt
 from pydantic import BaseModel, ValidationError
 from readlif.reader import LifFile
 
 from cryoemservices.util.clem_array_functions import (
     estimate_int_dtype,
     preprocess_img_stk,
+    stitch_image_frames,
     write_stack_to_tiff,
 )
 from cryoemservices.util.clem_metadata import (
@@ -77,94 +77,6 @@ def get_percentiles(
         return (None, None)
     p_lo, p_hi = np.percentile(arr, percentiles)
     return p_lo, p_hi
-
-
-def stitch_image_frames(
-    file: Path,
-    scene_num: int,
-    channel_num: int,
-    frame_num: int,
-    tile_scan_info: dict[int, dict],
-    image_width: float,
-    image_height: float,
-    extent: tuple[float, float, float, float],
-    dpi: int | float = 300,
-    contrast_limits: tuple[Optional[float], Optional[float]] = (None, None),
-) -> np.ndarray:
-    """
-    Helper function to dynamically stitch together image tiles to create a montage.
-
-    This function makes use of Matplotlib's 'imshow' to define the position and size
-    of the image tiles and render them on a blank canvas spatially relative to one
-    another. The plot is then converted into a NumPy array, which is returned and
-    used to build up the final image stack.
-    """
-
-    # Create the figure to stitch the tiles in
-    fig, ax = plt.subplots(facecolor="black", figsize=(6, 6))
-    fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
-    fig.set_dpi(dpi)
-    ax.set_xlim(extent[0], extent[1])
-    ax.set_ylim(extent[2], extent[3])
-    ax.invert_yaxis()  # Set origin to top left of figure
-    ax.set_aspect("equal")  # Ensure same scales on x- and y-axis
-    ax.axis("off")
-    ax.set_facecolor("black")
-
-    # Unpack min and max values
-    vmin, vmax = contrast_limits
-
-    for tile_num, tile_info in tile_scan_info.items():
-        logger.info(f"Loading tile {tile_num}")
-        try:
-            # Get extent of current tile
-            x = float(tile_info["pos_x"])
-            y = float(tile_info["pos_y"])
-            tile_extent = [
-                x - image_width / 2,
-                x + image_width / 2,
-                y - image_height / 2,
-                y + image_height / 2,
-            ]
-
-            # Add tile to the montage
-            arr = (
-                LifFile(file)
-                .get_image(scene_num)
-                .get_frame(z=frame_num, c=channel_num, m=tile_num)
-            )
-            ax.imshow(
-                arr,
-                extent=tile_extent,
-                origin="lower",
-                cmap="gray",
-                vmin=vmin,
-                vmax=vmax,
-            )
-        except Exception:
-            logger.warning(
-                f"Unable to add file {str(file)!r} to the montage",
-                exc_info=True,
-            )
-            continue
-
-    # Extract the stitched image as an array
-    fig.canvas.draw()  # Render the figure using Matplotlib's engine
-    canvas = np.frombuffer(fig.canvas.buffer_rgba(), dtype=np.uint8)
-    canvas_width, canvas_height = fig.canvas.get_width_height()
-    canvas = canvas.reshape(canvas_height, canvas_width, 4)
-    logger.debug(f"Rendered canvas has shape {canvas.shape}")
-
-    # Find the extent of the stitched image on the rendered canvas
-    bbox = ax.get_window_extent().transformed(fig.dpi_scale_trans.inverted())
-    x0, y0, x1, y1 = [int(coord * fig.dpi) for coord in bbox.extents]
-    logger.debug(f"Image extents on canvas are {[x0, x1, y0, y1]}")
-
-    # Extract and return the stitched image as an array
-    frame = np.array(canvas[y0:y1, x0:x1, :3].mean(axis=-1), dtype=np.uint8)
-    plt.close()
-    logger.debug(f"Image frame has shape {frame.shape}")
-    return frame
 
 
 def process_lif_subimage(
@@ -313,10 +225,14 @@ def process_lif_subimage(
                     # Construct pool arguments in-line
                     [
                         (
+                            # LIF file-specific params
                             file,
                             scene_num,
                             c,
                             z,
+                            # TIFF file-specific params
+                            [],
+                            # Common params
                             tile_scan_info,
                             w,
                             h,

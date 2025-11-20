@@ -16,13 +16,13 @@ from xml.etree import ElementTree as ET
 
 import numpy as np
 from defusedxml.ElementTree import parse
-from matplotlib import pyplot as plt
 from PIL import Image
 from pydantic import BaseModel, ValidationError, field_validator, model_validator
 
 from cryoemservices.util.clem_array_functions import (
     estimate_int_dtype,
     preprocess_img_stk,
+    stitch_image_frames,
     write_stack_to_tiff,
 )
 from cryoemservices.util.clem_metadata import (
@@ -49,102 +49,6 @@ def get_percentiles(
         return (None, None)
     p_lo, p_hi = np.percentile(arr, percentiles)
     return p_lo, p_hi
-
-
-def stitch_image_frames(
-    image_list: list[Path],
-    tile_scan_info: dict[int, dict],
-    image_width: float,
-    image_height: float,
-    extent: tuple[float, float, float, float],
-    dpi: int | float = 300,
-    contrast_limits: tuple[Optional[float], Optional[float]] = (None, None),
-) -> np.ndarray:
-    """
-    Helper function to dynamically stitch together image tiles to create a montage.
-
-    This function makes use of Matplotlib's 'imshow' to define the position and size
-    of the image tiles and render them on a blank canvas spatially relative to one
-    another. The plot is then converted into a NumPy array, which is returned and
-    used to build up the final image stack.
-    """
-
-    # Sort by "Stage"
-    image_list.sort(
-        key=lambda f: (
-            (int(m.group(1)) if (m := re.search(r"--Stage(\d+)", f.stem)) else -1),
-        )
-    )
-
-    # Create the figure to stitch the tiles in
-    fig, ax = plt.subplots(facecolor="black", figsize=(6, 6))
-    fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
-    fig.set_dpi(dpi)
-    ax.set_xlim(extent[0], extent[1])
-    ax.set_ylim(extent[2], extent[3])
-    ax.invert_yaxis()  # Set origin to top left of figure
-    ax.set_aspect("equal")  # Ensure same scales on x- and y-axis
-    ax.axis("off")  # Switch off axis ticks and labels
-    ax.set_facecolor("black")
-
-    # Unpack min and max values
-    vmin, vmax = contrast_limits
-
-    for file in image_list:
-        # Extract tile number to cross-reference metadata with
-        tile_num = (
-            int(m.group(1)) if (m := re.search(r"--Stage(\d+)", file.stem)) else None
-        )
-        logger.info(f"Loading file {str(file)!r}")
-        if tile_num is None:
-            logger.warning(f"Unable to extract tile number from {str(file)!r}")
-            continue
-        tile_info = tile_scan_info[tile_num]
-        try:
-            # Get extent of current tile
-            x = float(tile_info["pos_x"])
-            y = float(tile_info["pos_y"])
-            tile_extent = [
-                x - image_width / 2,
-                x + image_width / 2,
-                y - image_height / 2,
-                y + image_height / 2,
-            ]
-
-            # Add tile to the montage
-            arr = np.array(Image.open(image_list[tile_num]))
-            ax.imshow(
-                arr,
-                extent=tile_extent,
-                origin="lower",
-                cmap="gray",
-                vmin=vmin,
-                vmax=vmax,
-            )
-        except Exception:
-            logger.warning(
-                f"Unable to add file {str(file)!r} to the montage",
-                exc_info=True,
-            )
-            continue
-
-    # Extract the stitched image as an array
-    fig.canvas.draw()  # Render the figure using Matplotlib engine
-    canvas = np.frombuffer(fig.canvas.buffer_rgba(), dtype=np.uint8)
-    canvas_width, canvas_height = fig.canvas.get_width_height()
-    canvas = canvas.reshape(canvas_height, canvas_width, 4)
-    logger.debug(f"Rendered canvas has shape {canvas.shape}")
-
-    # Find the extent of the stitched image on the rendered canvas
-    bbox = ax.get_window_extent().transformed(fig.dpi_scale_trans.inverted())
-    x0, y0, x1, y1 = [int(coord * fig.dpi) for coord in bbox.extents]
-    logger.debug(f"Image extents on canvas are {[x0, x1, y0, y1]}")
-
-    # Extract and return the stitched image as an array
-    frame = np.array(canvas[y0:y1, x0:x1, :3].mean(axis=-1), dtype=np.uint8)
-    plt.close()
-    logger.debug(f"Image frame has shape {frame.shape}")
-    return frame
 
 
 def process_tiff_files(
@@ -362,6 +266,12 @@ def process_tiff_files(
                     # Construct pool args in-line
                     [
                         (
+                            # LIF file-specific params
+                            None,
+                            None,
+                            None,
+                            None,
+                            # TIFF file-specific params
                             (
                                 [
                                     file
@@ -371,6 +281,7 @@ def process_tiff_files(
                                 if num_frames > 1
                                 else tiff_color_subset
                             ),
+                            # Common params
                             tile_scan_info,
                             w,
                             h,
