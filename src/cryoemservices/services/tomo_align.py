@@ -422,9 +422,9 @@ class TomoAlign(CommonService):
         # Need vol_z in the relion options before sending to node creator
         if self.thickness_pixels and not tomo_params.vol_z:
             tomo_params.vol_z = self.thickness_pixels + tomo_params.final_extra_vol
-            tomo_params.relion_options.vol_z = (
-                self.thickness_pixels + tomo_params.final_extra_vol
-            )
+            if tomo_params.vol_z > 1800:
+                tomo_params.vol_z = 1800
+            tomo_params.relion_options.vol_z = tomo_params.vol_z
 
         if not job_is_rerun:
             # Send to node creator if this is the first time this tomogram is made
