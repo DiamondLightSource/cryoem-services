@@ -12,13 +12,15 @@ from pytest_mock import MockerFixture
 from workflows.recipe.wrapper import RecipeWrapper
 from workflows.transport.offline_transport import OfflineTransport
 
+from cryoemservices.util.clem_array_functions import (
+    get_percentiles,
+    stitch_image_frames,
+)
 from cryoemservices.util.clem_metadata import get_dimension_info, get_tile_scan_info
 from cryoemservices.wrappers.clem_process_raw_tiffs import (
     ProcessRawTIFFsParameters,
     ProcessRawTIFFsWrapper,
-    get_percentiles,
     process_tiff_files,
-    stitch_image_frames,
 )
 from tests.test_utils.clem import create_tiff_xml_metadata
 
@@ -37,12 +39,12 @@ colors = [
     "red",
 ]
 num_channels = len(colors)
-num_pixels = 512
-pixel_size = 0.0000005
+num_pixels = 256
+pixel_size = 0.0000004
 num_frames = 5
 z_size = 0.0000004
 num_tiles = [6 if i % 2 else 1 for i in range(num_datasets)]
-tile_offset = 0.00025
+tile_offset = 0.0001024
 
 
 # Create fixtures for use in subsequent tests
@@ -120,13 +122,13 @@ def test_get_percentiles(
 
     # Construct return values for the mocked PIL Image
     mock_image = mocker.patch(
-        "cryoemservices.wrappers.clem_process_raw_tiffs.Image", autospec=True
+        "cryoemservices.util.clem_array_functions.PILImage", autospec=True
     )
     arr = np.arange(256).reshape(16, 16).astype("uint8")
     mock_image.open.return_value = arr
 
     v_min, v_max = get_percentiles(
-        file=tiff_lists[0][0],
+        tiff_file=tiff_lists[0][0],
         percentiles=(p_lo, p_hi),
     )
     expected_min, expected_max = np.percentile(arr, (p_lo, p_hi))
@@ -139,7 +141,7 @@ def test_get_percentiles_fails(
     tiff_lists: list[list[Path]],
 ):
     # It should return (None, None) if the TIFF file cannot be read
-    assert get_percentiles(file=tiff_lists[0][0]) == (None, None)
+    assert get_percentiles(tiff_file=tiff_lists[0][0]) == (None, None)
 
 
 def test_stitch_image_frames(
@@ -171,10 +173,10 @@ def test_stitch_image_frames(
     # Calculate the extent that will be covered by the test metadata
     x_min, x_max, y_min, y_max = 1e10, 0.0, 1e10, 0.0
     for tile_scan in tile_scan_info.values():
-        x0 = tile_scan["pos_x"]
-        x1 = x0 + tile_offset
-        y0 = tile_scan["pos_y"]
-        y1 = y0 + tile_offset
+        x0 = tile_scan["pos_x"] - tile_offset / 2
+        x1 = tile_scan["pos_x"] + tile_offset / 2
+        y0 = tile_scan["pos_y"] - tile_offset / 2
+        y1 = tile_scan["pos_y"] + tile_offset / 2
         x_min = x0 if x0 < x_min else x_min
         x_max = x1 if x1 > x_max else x_max
         y_min = y0 if y0 < y_min else y_min
@@ -192,14 +194,14 @@ def test_stitch_image_frames(
 
     # Patch the PIL Image object to return an array of ones
     mock_image = mocker.patch(
-        "cryoemservices.wrappers.clem_process_raw_tiffs.Image", autospec=True
+        "cryoemservices.util.clem_array_functions.PILImage", autospec=True
     )
     arr = np.ones((num_pixels, num_pixels), dtype="uint8")
     mock_image.open.return_value = arr
 
     # Run the function
     frame = stitch_image_frames(
-        image_list=tiff_list,
+        tiff_list=tiff_list,
         tile_scan_info=tile_scan_info,
         image_width=num_pixels,
         image_height=num_pixels,
@@ -231,10 +233,10 @@ def create_dummy_result(
     num_rows = math.ceil(num_tiles[test_num] / num_cols)
     extent = [
         # [x_min, x_max, y_min, y_max] in real space
-        tile_offset,
-        (tile_offset * num_cols) + (num_pixels * pixel_size),
-        tile_offset,
-        (tile_offset * num_rows) + (num_pixels * pixel_size),
+        tile_offset / 2,
+        tile_offset / 2 + (tile_offset * (num_cols - 1)) + (num_pixels * pixel_size),
+        tile_offset / 2,
+        tile_offset / 2 + (tile_offset * (num_rows - 1)) + (num_pixels * pixel_size),
     ]
 
     # After calculating the extent, update num_pixels, pixel_size, and resolution
@@ -351,10 +353,10 @@ def test_process_tiff_files(
     num_rows = math.ceil(num_tiles[test_num] / num_cols)
     extent = [
         # [x_min, x_max, y_min, y_max] in real space
-        tile_offset,
-        (tile_offset * num_cols) + (num_pixels * pixel_size),
-        tile_offset,
-        (tile_offset * num_rows) + (num_pixels * pixel_size),
+        tile_offset / 2,
+        tile_offset / 2 + (tile_offset * (num_cols - 1)) + (num_pixels * pixel_size),
+        tile_offset / 2,
+        tile_offset / 2 + (tile_offset * (num_rows - 1)) + (num_pixels * pixel_size),
     ]
 
     # After calculating the extent, update num_pixels, pixel_size, and resolution
@@ -400,7 +402,15 @@ def test_process_tiff_files(
                     get_percentiles,
                     [
                         (
+                            # LIF file-based parameters
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            # TIFF file-based parameters
                             file,
+                            # Common parameters
                             (0.5, 99.5),
                         )
                         for file in tiff_color_subset
@@ -416,11 +426,18 @@ def test_process_tiff_files(
                     stitch_image_frames,
                     [
                         (
+                            # LIF file-based parameters
+                            None,
+                            None,
+                            None,
+                            None,
+                            # TIFF file-based parameters
                             [
                                 file
                                 for file in tiff_color_subset
                                 if f"Z{str(z).zfill(2)}" in file.stem.split("--")
                             ],
+                            # Common parameters
                             tile_scan_info,
                             w,
                             h,

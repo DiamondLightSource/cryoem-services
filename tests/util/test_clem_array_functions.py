@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, Literal, Optional
 
 import numpy as np
@@ -14,11 +15,13 @@ from cryoemservices.util.clem_array_functions import (
     estimate_int_dtype,
     flatten_image,
     get_dtype_info,
+    get_percentiles,
     get_valid_dtypes,
     is_grayscale_image,
     is_image_stack,
     merge_images,
     preprocess_img_stk,
+    stitch_image_frames,
     stretch_image_contrast,
 )
 
@@ -1107,6 +1110,59 @@ def test_merge_images_fails(test_params: tuple[str, int, bool, bool, bool]):
         merge_images(arr_list)
 
 
+get_percentiles_fail_cases = (
+    # LIF file | TIFF file
+    (None, None),  # No LIF or TIFF file
+    ("test_file.lif", "test_file.tiff"),  # LIF and TIFF files present
+    ("test_file.lif", None),  # LIF file params missing
+)
+
+
+@pytest.mark.parametrize("test_params", get_percentiles_fail_cases)
+def test_get_percentiles_fails(
+    tmp_path: Path, test_params: tuple[str | None, str | None]
+):
+    # Unpack test params
+    lif_file, tiff_file = test_params
+    for file in (lif_file, tiff_file):
+        if file is not None:
+            (tmp_path / file).touch(exist_ok=True)
+
+    with pytest.raises(ValueError):
+        get_percentiles(
+            lif_file=(tmp_path / lif_file) if lif_file else lif_file,
+            tiff_file=(tmp_path / tiff_file) if tiff_file else tiff_file,
+        )
+
+
+stitch_image_frames_fail_cases = (
+    # LIF file | TIFF list | Extent
+    (None, None, ()),  # LIF and TIFF params not provided
+    ("test_file.lif", "test_file.tiff", ()),  # Both LIF and TIFF params are present
+    ("test_file.lif", None, ()),  # Missing LIF file params
+    (None, "test_file.tiff", ()),  # Invalid extent value
+    (None, "test_file.tiff", (0, 1, 0, 1)),  # Invalid image dimensions
+)
+
+
+@pytest.mark.parametrize("test_params", stitch_image_frames_fail_cases)
+def test_stitch_image_frames_fails(
+    tmp_path: Path, test_params: tuple[str | None, str | None, tuple[int, ...]]
+):
+    # Unpack test params
+    lif_file, tiff_file, extent = test_params
+    for file in (lif_file, tiff_file):
+        if file is not None:
+            (tmp_path / file).touch(exist_ok=True)
+
+    with pytest.raises(ValueError):
+        stitch_image_frames(
+            lif_file=(tmp_path / lif_file) if lif_file else lif_file,
+            tiff_list=[(tmp_path / tiff_file)] if tiff_file else [],
+            extent=extent,
+        )
+
+
 preprocess_img_test_matrix = (
     # Image type | Initial dtype | Target dtype | Num frames | Contrast adjustment
     ("gray", "float64", "uint8", 1, "stretch"),
@@ -1205,9 +1261,11 @@ def test_preprocess_img_stk_fails(test_params: tuple):
         )
 
 
+@pytest.mark.skip
 def test_write_stack_to_tiff():
     pass
 
 
+@pytest.mark.skip
 def test_write_stack_to_tiff_fails():
     pass

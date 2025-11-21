@@ -12,10 +12,13 @@ from enum import Enum
 from pathlib import Path
 from typing import Literal, Optional
 
+import matplotlib.pyplot as plt
 import numpy as np
 import SimpleITK as sitk
+from PIL import Image as PILImage
 from pystackreg import StackReg
-from SimpleITK.SimpleITK import Image
+from readlif.reader import LifFile
+from SimpleITK.SimpleITK import Image as SITKImage
 from tifffile import imwrite
 
 # Create logger object to output messages with
@@ -683,8 +686,12 @@ def align_image_to_reference(
         raise ValueError
 
     # SimpleITK's image registration prefers to work with floats
-    fixed: Image = sitk.Cast(sitk.GetImageFromArray(reference_array), sitk.sitkFloat64)
-    moving: Image = sitk.Cast(sitk.GetImageFromArray(moving_array), sitk.sitkFloat64)
+    fixed: SITKImage = sitk.Cast(
+        sitk.GetImageFromArray(reference_array), sitk.sitkFloat64
+    )
+    moving: SITKImage = sitk.Cast(
+        sitk.GetImageFromArray(moving_array), sitk.sitkFloat64
+    )
 
     # Check if an image or a stack has been passed to the function, and handle accordingly
     shape: tuple[int, ...] = (
@@ -693,10 +700,10 @@ def align_image_to_reference(
     num_frames = 1 if len(shape) == 2 else shape[-1]
 
     # Iterate through stacks, aligning corresponding frames
-    aligned_frames: list[Image] = []
+    aligned_frames: list[SITKImage] = []
     for f in range(num_frames):
-        fixed_frame: Image
-        moving_frame: Image
+        fixed_frame: SITKImage
+        moving_frame: SITKImage
         if len(shape) == 2:
             fixed_frame = fixed
             moving_frame = moving
@@ -763,7 +770,7 @@ def align_image_to_reference(
         final_transform = registration.Execute(fixed_frame, moving_frame)
 
         # Transform the moving frame
-        aligned_frame: Image = sitk.Resample(
+        aligned_frame: SITKImage = sitk.Resample(
             moving_frame,
             transform=final_transform,
             interpolator=sitk.sitkLinear,
@@ -900,6 +907,207 @@ def merge_images(
     arr_new = arr_new.astype(dtype)
 
     return arr_new
+
+
+def get_percentiles(
+    # LIF file-specific parameters
+    lif_file: Path | None = None,
+    scene_num: int | None = None,
+    channel_num: int | None = None,
+    frame_num: int | None = None,
+    tile_num: int | None = None,
+    # TIFF file-specific parameters
+    tiff_file: Path | None = None,
+    # Common parameters
+    percentiles: tuple[float, float] = (1, 99),
+) -> tuple[int | float | None, int | float | None]:
+    """
+    Helper function that returns the values corresponding to the specified lower and
+    upper percentiles.
+    """
+    # Validate that either TIFF file or LIF file stitching parameters are present
+    if lif_file is None and tiff_file is None:
+        err_msg = "No file-specific processing parameters provided"
+        logger.error(err_msg)
+        raise ValueError(err_msg)
+    if lif_file and tiff_file:
+        err_msg = "LIF file and TIFF file processing parameters are both present"
+        logger.error(err_msg)
+        raise ValueError(err_msg)
+    if lif_file is not None:
+        if not (
+            scene_num is not None and frame_num is not None and channel_num is not None
+        ):
+            err_msg = (
+                "One or more LIF file parameters is absent: \n"
+                f"scene_num: {scene_num} \n"
+                f"channel_num: {channel_num} \n"
+                f"frame_num: {frame_num} \n"
+            )
+            logger.error(err_msg)
+            raise ValueError(err_msg)
+
+    # Load the image
+    try:
+        if lif_file is not None:
+            image = LifFile(str(lif_file)).get_image(scene_num)
+            arr = np.asarray(
+                image.get_frame(
+                    z=frame_num,
+                    c=channel_num,
+                    m=tile_num,
+                )
+            )
+        else:
+            arr = np.asarray(PILImage.open(tiff_file))
+    except Exception:
+        logger.warning(f"Unable to load frame {frame_num}-{tile_num}")
+        return (None, None)
+
+    # Get the lower and upper percentile values
+    p_lo, p_hi = np.percentile(arr, percentiles)
+    return p_lo, p_hi
+
+
+def stitch_image_frames(
+    # LIF file processing
+    lif_file: Path | None = None,
+    scene_num: int | None = None,
+    channel_num: int | None = None,
+    frame_num: int | None = None,
+    # TIFF file processing
+    tiff_list: list[Path] = [],
+    # Common fields
+    tile_scan_info: dict[int, dict] = {},
+    image_width: float | None = None,
+    image_height: float | None = None,
+    extent: tuple[float, ...] = (),
+    dpi: int | float = 300,
+    contrast_limits: tuple[float | None, float | None] = (None, None),
+):
+    """
+    Helper function to stitch together tiles from a single frame.
+
+    Makes use of Matplotlib's 'imshow()' to overlay the tiles on the canvas using
+    their real-space coordinates. Upon rendering all the tiles, the canvas can be
+    converted into a NumPy array to be used in the rest of the workflow.
+    """
+
+    # Validate that either TIFF file or LIF file stitching parameters are present
+    if lif_file is None and not tiff_list:
+        err_msg = "No file-specific processing parameters provided"
+        logger.error(err_msg)
+        raise ValueError(err_msg)
+    if lif_file and tiff_list:
+        err_msg = "LIF file and TIFF file processing parameters are both present"
+        logger.error(err_msg)
+        raise ValueError(err_msg)
+    if lif_file is not None:
+        if not (
+            scene_num is not None and frame_num is not None and channel_num is not None
+        ):
+            err_msg = (
+                "One or more LIF file parameters is absent: \n"
+                f"scene_num: {scene_num} \n"
+                f"channel_num: {channel_num} \n"
+                f"frame_num: {frame_num} \n"
+            )
+            logger.error(err_msg)
+            raise ValueError(err_msg)
+    # Sort into TIFF files into dictionary for more effective lookup later
+    tiff_dict = {}
+    if tiff_list:
+        for file in tiff_list:
+            tile_num = (
+                int(m.group(1))
+                if (m := re.search(r"--Stage(\d+)", file.stem))
+                else None
+            )
+            if tile_num is None:
+                continue
+            tiff_dict[tile_num] = file
+    # Validate common parameters
+    if len(extent) != 4:
+        err_msg = "'extent' must be a tuple of length 4"
+        logger.error(err_msg)
+        raise ValueError(err_msg)
+    if not (image_width is not None and image_height is not None):
+        err_msg = (
+            "One or more essential parameters is None: \n"
+            f"image_width: {image_width} \n"
+            f"image_height: {image_height} \n"
+        )
+        logger.error(err_msg)
+        raise ValueError(err_msg)
+
+    # Create the figure to stitch the tiles in
+    fig, ax = plt.subplots(facecolor="black", figsize=(6, 6))
+    fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
+    fig.set_dpi(dpi)
+    ax.set_xlim(extent[0], extent[1])
+    ax.set_ylim(extent[2], extent[3])
+    ax.invert_yaxis()  # Set origin to top left of figure
+    ax.set_aspect("equal")  # Ensure same scales on x- and y-axis
+    ax.axis("off")
+    ax.set_facecolor("black")
+
+    # Unpack min and max values
+    vmin, vmax = contrast_limits
+
+    for tile_num, tile_info in tile_scan_info.items():
+        logger.info(f"Loading tile {tile_num}")
+        try:
+            # Get extent of current tile
+            x = float(tile_info["pos_x"])
+            y = float(tile_info["pos_y"])
+            tile_extent = [
+                x - image_width / 2,
+                x + image_width / 2,
+                y - image_height / 2,
+                y + image_height / 2,
+            ]
+
+            # Add tile to the montage
+            if lif_file is not None:
+                arr = (
+                    LifFile(lif_file)
+                    .get_image(scene_num)
+                    .get_frame(z=frame_num, c=channel_num, m=tile_num)
+                )
+            else:
+                arr = np.array(PILImage.open(tiff_dict[tile_num]))
+            ax.imshow(
+                arr,
+                extent=tile_extent,
+                origin="lower",
+                cmap="gray",
+                vmin=vmin,
+                vmax=vmax,
+            )
+        except Exception:
+            logger.warning(
+                f"Unable to add tile {tile_num} to the montage",
+                exc_info=True,
+            )
+            continue
+
+    # Extract the stitched image as an array
+    fig.canvas.draw()  # Render the figure using Matplotlib's engine
+    canvas = np.frombuffer(fig.canvas.buffer_rgba(), dtype=np.uint8)
+    canvas_width, canvas_height = fig.canvas.get_width_height()
+    canvas = canvas.reshape(canvas_height, canvas_width, 4)
+    logger.debug(f"Rendered canvas has shape {canvas.shape}")
+
+    # Find the extent of the stitched image on the rendered canvas
+    bbox = ax.get_window_extent().transformed(fig.dpi_scale_trans.inverted())
+    x0, y0, x1, y1 = [int(coord * fig.dpi) for coord in bbox.extents]
+    logger.debug(f"Image extents on canvas are {[x0, x1, y0, y1]}")
+
+    # Extract and return the stitched image as an array
+    frame = np.array(canvas[y0:y1, x0:x1, :3].mean(axis=-1), dtype=np.uint8)
+    plt.close()
+    logger.debug(f"Image frame has shape {frame.shape}")
+    return frame
 
 
 def preprocess_img_stk(
