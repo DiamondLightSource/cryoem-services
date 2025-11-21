@@ -1261,9 +1261,11 @@ def test_preprocess_img_stk_fails(test_params: tuple):
         )
 
 
+@pytest.mark.skip
 def test_write_stack_to_tiff():
     pass
 
 
+@pytest.mark.skip
 def test_write_stack_to_tiff_fails():
     pass
