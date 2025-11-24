@@ -100,9 +100,10 @@ class TomoAlignSlurm(TomoAlign):
 
     @staticmethod
     def check_visit(output_stack):
+        # Requeue visits that should not be sent via slurm
         visit_search = re.search("/[a-z]{2}[0-9]{5}-[0-9]{1,3}/", output_stack)
         if visit_search:
-            visit_name = visit_search[1:-1]
+            visit_name = visit_search[0][1:-1]
             visit_code = visit_name[:2]
             if visit_code in ["bi", "cm", "nr", "nt"]:
                 return True
