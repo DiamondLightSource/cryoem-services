@@ -273,24 +273,8 @@ class TomoAlign(CommonService):
                         input_file_list.append([str(item), part])
             self.input_file_list_of_lists = input_file_list
         elif tomo_params.input_file_list:
-            try:
-                file_list = ast.literal_eval(
-                    tomo_params.input_file_list
-                )  # if input_file_list is '' it will break here
-            except Exception as e:
-                self.log.warning(f"Input file list conversion failed with: {e}")
-                rw.transport.nack(header)
-                return
-            if isinstance(file_list, list) and isinstance(file_list[0], list):
-                self.input_file_list_of_lists = file_list
-            else:
-                self.log.warning("input_file_list is not a list of lists")
-                rw.transport.nack(header)
-                return
-        else:
-            self.log.error("Model validation failed")
-            rw.transport.nack(header)
-            return
+            file_list = ast.literal_eval(tomo_params.input_file_list)
+            self.input_file_list_of_lists = file_list
 
         self.log.info(f"Input list {self.input_file_list_of_lists}")
         self.input_file_list_of_lists.sort(key=_tilt)
