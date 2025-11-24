@@ -51,8 +51,8 @@ class TomoParameters(BaseModel):
     path_pattern: Optional[str] = None
     input_file_list: Optional[str] = None
     vol_z: Optional[int] = None
-    extra_vol: int = 1000
-    final_extra_vol: int = 400
+    max_vol: int = 1800
+    extra_vol: int = 400
     out_bin: int = 4
     second_bin: Optional[int] = None
     tilt_axis: float = 85
@@ -152,6 +152,10 @@ class TomoAlign(CommonService):
             allow_non_recipe_messages=True,
         )
 
+    @staticmethod
+    def check_visit(output_stack):
+        return True
+
     def parse_tomo_output(self, tomo_stdout: str):
         self.rot_centre_z_list = []
         self.tilt_offset = None
@@ -237,9 +241,17 @@ class TomoAlign(CommonService):
         def _tilt(file_list_for_tilts):
             return float(file_list_for_tilts[1])
 
+        if not self.check_visit(tomo_params.stack_file):
+            self.log.warning(f"Visit rejected for {tomo_params.stack_file}")
+            rw.transport.nack(header, requeue=True)
+            return
+
         if tomo_params.manual_tilt_offset is not None and tomo_params.vol_z:
             # Stretch the volume for tilted collection
             tomo_params.vol_z = int(tomo_params.vol_z * 4 / 3)
+        elif not tomo_params.vol_z:
+            # If no volume provided, set it to the maximum we allow
+            tomo_params.vol_z = tomo_params.max_vol
 
         # Update the relion options
         tomo_params.relion_options = update_relion_options(
@@ -388,7 +400,13 @@ class TomoAlign(CommonService):
             tilt_angles[tilt_index] = self.input_file_list_of_lists[i][1]
         with open(angle_file, "w") as angfile:
             for tilt_id in tilt_angles.keys():
-                angfile.write(f"{tilt_angles[tilt_id]}  {int(tilt_id)}\n")
+                if tomo_params.aretomo_version == 3 and tomo_params.manual_tilt_offset:
+                    # AreTomo3 performs better with pre-shifted angles
+                    angfile.write(
+                        f"{tilt_angles[tilt_id] + tomo_params.manual_tilt_offset}  {int(tilt_id)}\n"
+                    )
+                else:
+                    angfile.write(f"{tilt_angles[tilt_id]}  {int(tilt_id)}\n")
 
         # Do alignment with AreTomo
         aretomo_output_path = alignment_output_dir / f"{stack_name}_Vol.mrc"
@@ -420,10 +438,11 @@ class TomoAlign(CommonService):
                 self.log.warning(f"No rot Z {self.rot_centre_z_list}")
 
         # Need vol_z in the relion options before sending to node creator
-        if self.thickness_pixels and not tomo_params.vol_z:
-            tomo_params.vol_z = self.thickness_pixels + tomo_params.final_extra_vol
-            if tomo_params.vol_z > 1800:
-                tomo_params.vol_z = 1800
+        if (
+            self.thickness_pixels
+            and self.thickness_pixels + tomo_params.extra_vol < tomo_params.max_vol
+        ):
+            tomo_params.vol_z = self.thickness_pixels + tomo_params.extra_vol
             tomo_params.relion_options.vol_z = tomo_params.vol_z
 
         if not job_is_rerun:
@@ -487,10 +506,10 @@ class TomoAlign(CommonService):
                 for file in _f.iterdir():
                     file.chmod(0o740)
 
-        # Resize the tomogram if needed
+        # Resize the tomogram if it should be smaller than the maximum allowed volume
         if (
-            tomo_params.aretomo_version == 3
-            and tomo_params.extra_vol > tomo_params.final_extra_vol
+            self.thickness_pixels
+            and self.thickness_pixels + tomo_params.extra_vol < tomo_params.max_vol
         ):
             self.log.info("Resizing tomogram")
             resize_tomogram(aretomo_output_path, scaled_z_size)
