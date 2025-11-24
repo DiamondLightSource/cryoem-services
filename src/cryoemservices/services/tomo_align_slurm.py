@@ -99,13 +99,18 @@ class TomoAlignSlurm(TomoAlign):
         super().initializing()
 
     @staticmethod
-    def check_visit(output_stack):
+    def check_visit(tomo_params: TomoParameters):
         # Requeue visits that should not be sent via slurm
-        visit_search = re.search("/[a-z]{2}[0-9]{5}-[0-9]{1,3}/", output_stack)
+        visit_search = re.search(
+            "/[a-z]{2}[0-9]{5}-[0-9]{1,3}/", tomo_params.stack_file
+        )
         if visit_search:
             visit_name = visit_search[0][1:-1]
             visit_code = visit_name[:2]
-            if visit_code in ["bi", "cm", "nr", "nt"]:
+            if (
+                not tomo_params.visits_for_slurm
+                or visit_code in tomo_params.visits_for_slurm
+            ):
                 return True
         return False
 

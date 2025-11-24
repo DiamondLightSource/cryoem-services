@@ -78,6 +78,7 @@ class TomoParameters(BaseModel):
     interpolation_correction: Optional[int] = None
     dark_tol: Optional[float] = None
     manual_tilt_offset: Optional[float] = None
+    visits_for_slurm: Optional[list] = ["bi", "cm", "nr", "nt"]
     relion_options: RelionServiceOptions
 
     @model_validator(mode="before")
@@ -153,7 +154,7 @@ class TomoAlign(CommonService):
         )
 
     @staticmethod
-    def check_visit(output_stack):
+    def check_visit(tomo_params: TomoParameters):
         return True
 
     def parse_tomo_output(self, tomo_stdout: str):
@@ -241,7 +242,7 @@ class TomoAlign(CommonService):
         def _tilt(file_list_for_tilts):
             return float(file_list_for_tilts[1])
 
-        if not self.check_visit(tomo_params.stack_file):
+        if not self.check_visit(tomo_params):
             self.log.warning(f"Visit rejected for {tomo_params.stack_file}")
             rw.transport.nack(header, requeue=True)
             return
