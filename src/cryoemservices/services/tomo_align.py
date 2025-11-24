@@ -381,16 +381,16 @@ class TomoAlign(CommonService):
                 Path(self.input_file_list_of_lists[i][0])
             )
             tilt_index -= len(np.where(removed_tilt_numbers < tilt_index)[0])
-            tilt_angles[tilt_index] = self.input_file_list_of_lists[i][1]
+            tilt_angles[tilt_index] = float(self.input_file_list_of_lists[i][1])
         with open(angle_file, "w") as angfile:
             for tilt_id in tilt_angles.keys():
                 if tomo_params.aretomo_version == 3 and tomo_params.manual_tilt_offset:
                     # AreTomo3 performs better with pre-shifted angles
                     angfile.write(
-                        f"{tilt_angles[tilt_id] + tomo_params.manual_tilt_offset}  {int(tilt_id)}\n"
+                        f"{tilt_angles[tilt_id] + tomo_params.manual_tilt_offset:.2f}  {int(tilt_id)}\n"
                     )
                 else:
-                    angfile.write(f"{tilt_angles[tilt_id]}  {int(tilt_id)}\n")
+                    angfile.write(f"{tilt_angles[tilt_id]:.2f}  {int(tilt_id)}\n")
 
         # Do alignment with AreTomo
         aretomo_output_path = alignment_output_dir / f"{stack_name}_Vol.mrc"
@@ -459,14 +459,6 @@ class TomoAlign(CommonService):
             rw.transport.nack(header)
             return
 
-        # Check the volume is known, then scale it
-        if not tomo_params.vol_z:
-            self.log.error("Tomogram volume is unknown")
-            rw.send_to("failure", {})
-            rw.transport.nack(header)
-            return
-        scaled_z_size = int(tomo_params.vol_z / tomo_params.out_bin)
-
         # Change permissions of imod directory
         imod_directory_option1 = alignment_output_dir / f"{stack_name}_Vol_Imod"
         imod_directory_option2 = alignment_output_dir / f"{stack_name}_Imod"
@@ -491,6 +483,7 @@ class TomoAlign(CommonService):
                     file.chmod(0o740)
 
         # Resize the tomogram if it should be smaller than the maximum allowed volume
+        scaled_z_size = int(tomo_params.vol_z / tomo_params.out_bin)
         if (
             self.thickness_pixels
             and self.thickness_pixels + tomo_params.extra_vol < tomo_params.max_vol
