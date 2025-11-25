@@ -52,8 +52,8 @@ def test_tomo_align_service_file_list_aretomo3(
             ]
         ),
         "vol_z": None,
-        "extra_vol": 350,
-        "final_extra_vol": 300,
+        "max_vol": 1600,
+        "extra_vol": 300,
         "align": None,
         "out_bin": 4,
         "second_bin": 2,
@@ -148,8 +148,10 @@ def test_tomo_align_service_file_list_aretomo3(
         "2",
         "-PixSize",
         "1.1",
+        "-VolZ",
+        "1600",
         "-ExtZ",
-        "350",
+        "300",
         "-FlipVol",
         str(tomo_align_test_message["flip_vol"]),
         "-OutImod",
@@ -730,6 +732,7 @@ def test_tomo_align_service_file_list_repeated_tilt(
     output_relion_options["pixel_size_downscaled"] = 4
     output_relion_options["tomo_size_x"] = 3000
     output_relion_options["tomo_size_y"] = 4000
+    output_relion_options["vol_z"] = 530
 
     # Create the input files. Needs sleeps to ensure distinct timestamps
     (tmp_path / "MotionCorr/job002/Movies").mkdir(parents=True)
@@ -786,7 +789,7 @@ def test_tomo_align_service_file_list_repeated_tilt(
             "-ou",
             f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.mrc",
             "-size",
-            "750,1000,300",
+            f"750,1000,{int(530 / 4)}",
             "-a",
             "90,-90,0",
         ],
@@ -911,7 +914,7 @@ def test_tomo_align_service_file_list_zero_rotation(
             "-ou",
             f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.mrc",
             "-size",
-            "750,1000,300",
+            f"750,1000,{int(530 / 4)}",
             "-a",
             "0,0,-90",
         ],
@@ -1029,10 +1032,8 @@ def test_tomo_align_service_file_list_bad_tilts(
     ).is_file()
     assert mock_subprocess.call_count == 3
 
-    # Check resizing - vol z is 2000 so should be reduced to 1800
-    mock_resize.assert_called_once_with(
-        tmp_path / "Tomograms/job006/tomograms/test_stack_Vol.mrc", int(1800 / 4)
-    )
+    # Check resizing - vol z is 2000 but only run at 1800 so no resizing
+    mock_resize.assert_not_called()
 
     # Check the angle file
     assert (tmp_path / "Tomograms/job006/tomograms/test_stack_TLT.txt").is_file()
@@ -1417,8 +1418,10 @@ def test_tomo_align_service_path_pattern(
         "2",
         "-PixSize",
         "1.0",
+        "-VolZ",
+        "1800",
         "-ExtZ",
-        "1000",
+        "400",
         "-FlipInt",
         "1",
         "-FlipVol",
@@ -1471,7 +1474,7 @@ def test_tomo_align_service_path_pattern(
         tmp_path / "Tomograms/job006/tomograms/test_stack_TLT.txt", "r"
     ) as angfile:
         angles_data = angfile.read()
-    assert angles_data == "1.00  1\n2.00  2\n"
+    assert angles_data == "11.50  1\n12.50  2\n"  # Tilt offset added
 
     # No need to check all sent messages
     assert offline_transport.send.call_count == 15
@@ -1538,6 +1541,7 @@ def test_tomo_align_service_dark_images(
     )
     output_relion_options["tomo_size_x"] = 3000
     output_relion_options["tomo_size_y"] = 4000
+    output_relion_options["vol_z"] = 530
 
     # Touch the expected input files
     (tmp_path / "MotionCorr/job002/Movies").mkdir(parents=True)
@@ -1611,7 +1615,7 @@ def test_tomo_align_service_dark_images(
         "-VolZ",
         str(tomo_align_test_message["vol_z"]),
         "-ExtZ",
-        "1000",
+        "400",
         "-FlipVol",
         str(tomo_align_test_message["flip_vol"]),
         "-OutImod",
@@ -1680,7 +1684,7 @@ def test_tomo_align_service_dark_images(
                     "stack_file": tomo_align_test_message["stack_file"],
                     "size_x": 750,
                     "size_y": 1000,
-                    "size_z": 300,
+                    "size_z": int(530 / 4),
                     "pixel_spacing": "4.0",
                     "tilt_angle_offset": "1.1",
                     "z_shift": "2.1",
@@ -1960,7 +1964,7 @@ def test_tomo_align_service_fail_case(
         "-VolZ",
         str(tomo_align_test_message["vol_z"]),
         "-ExtZ",
-        "1000",
+        "400",
         "-FlipVol",
         str(tomo_align_test_message["flip_vol"]),
         "-OutImod",
@@ -1988,96 +1992,6 @@ def test_tomo_align_service_fail_case(
             "stdout": "stdout",
             "stderr": "stderr",
             "success": False,
-        },
-    )
-    offline_transport.send.assert_any_call("failure", {})
-
-
-@mock.patch("cryoemservices.services.tomo_align.subprocess.run")
-@mock.patch("cryoemservices.services.tomo_align.mrcfile")
-def test_tomo_align_service_no_volume(
-    mock_mrcfile,
-    mock_subprocess,
-    offline_transport,
-    tmp_path,
-):
-    """
-    Send a test message to TomoAlign (AreTomo2)
-    No volume is provided so this should mark it as a failure
-    """
-    mock_mrcfile.open().__enter__().header = {"nx": 3000, "ny": 4000}
-
-    header = {
-        "message-id": mock.sentinel,
-        "subscription": mock.sentinel,
-    }
-    tomo_align_test_message = {
-        "aretomo_version": 2,
-        "stack_file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack.st",
-        "input_file_list": str(
-            [
-                [f"{tmp_path}/MotionCorr/job002/Movies/Position_1_001_0.0.mrc", "1.00"],
-            ]
-        ),
-        "vol_z": None,
-        "out_bin": 4,
-        "pixel_size": 1,
-        "relion_options": {},
-    }
-    output_relion_options = dict(RelionServiceOptions())
-    output_relion_options["pixel_size"] = tomo_align_test_message["pixel_size"]
-    output_relion_options["pixel_size_downscaled"] = (
-        4 * tomo_align_test_message["pixel_size"]
-    )
-    output_relion_options["tomo_size_x"] = 3000
-    output_relion_options["tomo_size_y"] = 4000
-
-    # Touch the expected input files
-    (tmp_path / "MotionCorr/job002/Movies").mkdir(parents=True)
-    (tmp_path / "MotionCorr/job002/Movies/Position_1_001_0.0.mrc").touch()
-
-    # Set up the mock service
-    service = tomo_align.TomoAlign(
-        environment={"queue": ""}, transport=offline_transport
-    )
-    service.initializing()
-
-    def write_aretomo_outputs(command, capture_output):
-        if command[0] != "AreTomo2":
-            return CompletedProcess("", returncode=0)
-        # Set up outputs: stack_Imod file like AreTomo2, no exclusions but with space
-        (tmp_path / "Tomograms/job006/tomograms/test_stack_Vol.mrc").touch()
-        with open(
-            tmp_path / "Tomograms/job006/tomograms/test_stack.aln", "w"
-        ) as aln_file:
-            aln_file.write("dummy 86.0 1000 1.2 2.3 5 6 7 8 4.5")
-        return CompletedProcess(
-            "",
-            returncode=0,
-            stdout="stdout".encode("ascii"),
-            stderr="stderr".encode("ascii"),
-        )
-
-    mock_subprocess.side_effect = write_aretomo_outputs
-
-    # Send a message to the service
-    service.tomo_align(None, header=header, message=tomo_align_test_message)
-
-    # Check the expected calls were made
-    assert mock_subprocess.call_count == 2
-    assert offline_transport.send.call_count == 2
-    offline_transport.send.assert_any_call(
-        "node_creator",
-        {
-            "experiment_type": "tomography",
-            "job_type": "relion.reconstructtomograms",
-            "input_file": f"{tmp_path}/MotionCorr/job002/Movies/Position_1_001_0.0.mrc",
-            "output_file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.mrc",
-            "relion_options": output_relion_options,
-            "command": mock.ANY,
-            "stdout": "stdout",
-            "stderr": "stderr",
-            "success": True,
         },
     )
     offline_transport.send.assert_any_call("failure", {})
