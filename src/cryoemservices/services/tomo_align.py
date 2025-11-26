@@ -79,8 +79,8 @@ class TomoParameters(BaseModel):
     path_pattern: Optional[str] = None
     input_file_list: Optional[str] = None
     vol_z: Optional[int] = None
-    extra_vol: int = 1000
-    final_extra_vol: int = 400
+    max_vol: int = 1800
+    extra_vol: int = 400
     out_bin: int = 4
     second_bin: Optional[int] = None
     tilt_axis: float = 85
@@ -106,6 +106,7 @@ class TomoParameters(BaseModel):
     interpolation_correction: Optional[int] = None
     dark_tol: Optional[float] = None
     manual_tilt_offset: Optional[float] = None
+    visits_for_slurm: Optional[list] = ["bi", "cm", "nr", "nt"]
     relion_options: RelionServiceOptions
 
     @model_validator(mode="before")
@@ -179,6 +180,10 @@ class TomoAlign(CommonService):
             acknowledgement=True,
             allow_non_recipe_messages=True,
         )
+
+    @staticmethod
+    def check_visit(tomo_params: TomoParameters):
+        return True
 
     def parse_tomo_output(self, tomo_stdout: str):
         self.rot_centre_z_list = []
@@ -265,9 +270,17 @@ class TomoAlign(CommonService):
         def _tilt(file_list_for_tilts):
             return float(file_list_for_tilts[1])
 
+        if not self.check_visit(tomo_params):
+            self.log.warning(f"Visit rejected for {tomo_params.stack_file}")
+            rw.transport.nack(header, requeue=True)
+            return
+
         if tomo_params.manual_tilt_offset is not None and tomo_params.vol_z:
             # Stretch the volume for tilted collection
             tomo_params.vol_z = int(tomo_params.vol_z * 4 / 3)
+        elif not tomo_params.vol_z:
+            # If no volume provided, set it to the maximum we allow
+            tomo_params.vol_z = tomo_params.max_vol
 
         # Update the relion options
         tomo_params.relion_options = update_relion_options(
@@ -289,24 +302,8 @@ class TomoAlign(CommonService):
                         input_file_list.append([str(item), part])
             self.input_file_list_of_lists = input_file_list
         elif tomo_params.input_file_list:
-            try:
-                file_list = ast.literal_eval(
-                    tomo_params.input_file_list
-                )  # if input_file_list is '' it will break here
-            except Exception as e:
-                self.log.warning(f"Input file list conversion failed with: {e}")
-                rw.transport.nack(header)
-                return
-            if isinstance(file_list, list) and isinstance(file_list[0], list):
-                self.input_file_list_of_lists = file_list
-            else:
-                self.log.warning("input_file_list is not a list of lists")
-                rw.transport.nack(header)
-                return
-        else:
-            self.log.error("Model validation failed")
-            rw.transport.nack(header)
-            return
+            file_list = ast.literal_eval(tomo_params.input_file_list)
+            self.input_file_list_of_lists = file_list
 
         self.log.info(f"Input list {self.input_file_list_of_lists}")
         self.input_file_list_of_lists.sort(key=_tilt)
@@ -413,10 +410,16 @@ class TomoAlign(CommonService):
                 Path(self.input_file_list_of_lists[i][0])
             )
             tilt_index -= len(np.where(removed_tilt_numbers < tilt_index)[0])
-            tilt_angles[tilt_index] = self.input_file_list_of_lists[i][1]
+            tilt_angles[tilt_index] = float(self.input_file_list_of_lists[i][1])
         with open(angle_file, "w") as angfile:
             for tilt_id in tilt_angles.keys():
-                angfile.write(f"{tilt_angles[tilt_id]}  {int(tilt_id)}\n")
+                if tomo_params.aretomo_version == 3 and tomo_params.manual_tilt_offset:
+                    # AreTomo3 performs better with pre-shifted angles
+                    angfile.write(
+                        f"{tilt_angles[tilt_id] + tomo_params.manual_tilt_offset:.2f}  {int(tilt_id)}\n"
+                    )
+                else:
+                    angfile.write(f"{tilt_angles[tilt_id]:.2f}  {int(tilt_id)}\n")
 
         # Do alignment with AreTomo
         aretomo_output_path = alignment_output_dir / f"{stack_name}_Vol.mrc"
@@ -448,11 +451,12 @@ class TomoAlign(CommonService):
                 self.log.warning(f"No rot Z {self.rot_centre_z_list}")
 
         # Need vol_z in the relion options before sending to node creator
-        if self.thickness_pixels and not tomo_params.vol_z:
-            tomo_params.vol_z = self.thickness_pixels + tomo_params.final_extra_vol
-            tomo_params.relion_options.vol_z = (
-                self.thickness_pixels + tomo_params.final_extra_vol
-            )
+        if (
+            self.thickness_pixels
+            and self.thickness_pixels + tomo_params.extra_vol < tomo_params.max_vol
+        ):
+            tomo_params.vol_z = self.thickness_pixels + tomo_params.extra_vol
+            tomo_params.relion_options.vol_z = tomo_params.vol_z
 
         if not job_is_rerun:
             # Send to node creator if this is the first time this tomogram is made
@@ -484,14 +488,6 @@ class TomoAlign(CommonService):
             rw.transport.nack(header)
             return
 
-        # Check the volume is known, then scale it
-        if not tomo_params.vol_z:
-            self.log.error("Tomogram volume is unknown")
-            rw.send_to("failure", {})
-            rw.transport.nack(header)
-            return
-        scaled_z_size = int(tomo_params.vol_z / tomo_params.out_bin)
-
         # Change permissions of imod directory
         imod_directory_option1 = alignment_output_dir / f"{stack_name}_Vol_Imod"
         imod_directory_option2 = alignment_output_dir / f"{stack_name}_Imod"
@@ -515,10 +511,11 @@ class TomoAlign(CommonService):
                 for file in _f.iterdir():
                     file.chmod(0o740)
 
-        # Resize the tomogram if needed
+        # Resize the tomogram if it should be smaller than the maximum allowed volume
+        scaled_z_size = int(tomo_params.vol_z / tomo_params.out_bin)
         if (
-            tomo_params.aretomo_version == 3
-            and tomo_params.extra_vol > tomo_params.final_extra_vol
+            self.thickness_pixels
+            and self.thickness_pixels + tomo_params.extra_vol < tomo_params.max_vol
         ):
             self.log.info("Resizing tomogram")
             resize_tomogram(aretomo_output_path, scaled_z_size)

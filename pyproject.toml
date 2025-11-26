@@ -45,7 +45,7 @@ dependencies = [
     "requests",
     "SimpleITK", # CLEM workflow
     "starfile",
-    "stomp-py==8.1.0",
+    "stomp-py>8.1.1",
     "tifffile", # CLEM workflow
     "workflows>=3",
 ]

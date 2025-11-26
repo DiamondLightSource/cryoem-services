@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 import time
@@ -96,6 +97,22 @@ class TomoAlignSlurm(TomoAlign):
         if not get_iris_state(self.log):
             exit()
         super().initializing()
+
+    @staticmethod
+    def check_visit(tomo_params: TomoParameters):
+        # Requeue visits that should not be sent via slurm
+        visit_search = re.search(
+            "/[a-z]{2}[0-9]{5}-[0-9]{1,3}/", tomo_params.stack_file
+        )
+        if visit_search:
+            visit_name = visit_search[0][1:-1]
+            visit_code = visit_name[:2]
+            if (
+                not tomo_params.visits_for_slurm
+                or visit_code in tomo_params.visits_for_slurm
+            ):
+                return True
+        return False
 
     def parse_tomo_output_file(self, tomo_output_file: Path):
         tomo_file = open(tomo_output_file, "r")
