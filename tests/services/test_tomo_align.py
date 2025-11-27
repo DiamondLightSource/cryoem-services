@@ -830,6 +830,17 @@ def test_tomo_align_service_file_list_repeated_tilt(
             "success": True,
         },
     )
+    # Check XZ projection if tilt axis around 90
+    offline_transport.send.assert_any_call(
+        "images",
+        {
+            "image_command": "mrc_projection",
+            "file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.mrc",
+            "projection": "XZ",
+            "pixel_spacing": 4,
+            "thickness_ang": 130,
+        },
+    )
     offline_transport.send.assert_any_call("success", {})
 
 
@@ -925,6 +936,18 @@ def test_tomo_align_service_file_list_zero_rotation(
     assert not (
         tmp_path / "Tomograms/job006/tomograms/test_stack_2ND_Vol.mrc~"
     ).is_file()
+
+    # Check YZ projection if tilt axis around 0
+    offline_transport.send.assert_any_call(
+        "images",
+        {
+            "image_command": "mrc_projection",
+            "file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.mrc",
+            "projection": "YZ",
+            "pixel_spacing": 4,
+            "thickness_ang": 130,
+        },
+    )
 
 
 @mock.patch("cryoemservices.services.tomo_align.subprocess.run")
