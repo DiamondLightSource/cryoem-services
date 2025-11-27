@@ -31,6 +31,7 @@ RUN groupadd -r -g "${groupid}" "${groupname}" && useradd -r -M "${groupname}" -
 # Copy python environment
 COPY --from=conda-build --chown="${userid}":"${groupid}" /install/venv /install/venv
 ENV PATH=/install/venv/bin:${PATH}
+ENV LD_LIBRARY_PATH=/install/venv/lib:${LD_LIBRARY_PATH}
 
 # Install IMOD
 RUN mkdir imod_install && \

@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
+import time
 from pathlib import Path
 from typing import List
+
+import requests
 
 from cryoemservices.services.tomo_align import TomoAlign, TomoParameters
 from cryoemservices.util.slurm_submission import slurm_submission_for_services
@@ -60,6 +64,27 @@ def transfer_files(
     return transferred_items
 
 
+def get_iris_state(logger, wait=True) -> str:
+    logger.info("Checking IRIS status...")
+    iris_status = requests.get("https://iristrafficlights.diamond.ac.uk/status")
+    if iris_status.status_code == 200:
+        iris_colour = iris_status.json()["status"]
+        if iris_colour == "green":
+            logger.info("IRIS state is green")
+        elif iris_colour == "red":
+            logger.warning("IRIS state is red, service will wait 30 minutes")
+            if wait:
+                time.sleep(30 * 60)
+            else:
+                return ""
+            iris_colour = get_iris_state(logger, wait=False)
+        else:
+            logger.warning(f"IRIS state is {iris_colour}")
+        return iris_colour
+    logger.warning("Could not get IRIS state")
+    return "unknown"
+
+
 class TomoAlignSlurm(TomoAlign):
     """
     A service for submitting AreTomo2 jobs to a slurm cluster via RestAPI
@@ -68,7 +93,28 @@ class TomoAlignSlurm(TomoAlign):
     # Logger name
     _logger_name = "cryoemservices.services.tomo_align_slurm"
 
-    def parse_tomo_output(self, tomo_output_file):
+    def initializing(self):
+        if not get_iris_state(self.log):
+            exit()
+        super().initializing()
+
+    @staticmethod
+    def check_visit(tomo_params: TomoParameters):
+        # Requeue visits that should not be sent via slurm
+        visit_search = re.search(
+            "/[a-z]{2}[0-9]{5}-[0-9]{1,3}/", tomo_params.stack_file
+        )
+        if visit_search:
+            visit_name = visit_search[0][1:-1]
+            visit_code = visit_name[:2]
+            if (
+                not tomo_params.visits_for_slurm
+                or visit_code in tomo_params.visits_for_slurm
+            ):
+                return True
+        return False
+
+    def parse_tomo_output_file(self, tomo_output_file: Path):
         tomo_file = open(tomo_output_file, "r")
         lines = tomo_file.readlines()
         for line in lines:
@@ -86,18 +132,24 @@ class TomoAlignSlurm(TomoAlign):
         aretomo_output_path: Path,
         angle_file: Path,
     ):
-        """Submit AreTomo2 jobs to the slurm cluster via the RestAPI"""
-        self.log.info(
-            f"Input stack: {tomo_parameters.stack_file} \n"
-            f"Output file: {aretomo_output_path}"
-        )
-        command = self.assemble_aretomo_command(
-            aretomo_executable=os.environ["ARETOMO2_EXECUTABLE"],
-            input_file=str(Path(tomo_parameters.stack_file).name),
-            tomo_parameters=tomo_parameters,
-            aretomo_output_path=aretomo_output_path,
-            angle_file=angle_file,
-        )
+        """Submit AreTomo2 or 3 jobs to the slurm cluster via the RestAPI"""
+        self.log.info(f"Input stack: {tomo_parameters.stack_file}")
+        if tomo_parameters.aretomo_version == 3:
+            command = self.assemble_aretomo3_command(
+                aretomo_executable=os.environ["ARETOMO3_EXECUTABLE"],
+                input_file=str(Path(tomo_parameters.stack_file).name),
+                tomo_parameters=tomo_parameters,
+            )
+            aretomo_version = "AreTomo3"
+        else:
+            command = self.assemble_aretomo2_command(
+                aretomo_executable=os.environ["ARETOMO2_EXECUTABLE"],
+                input_file=str(Path(tomo_parameters.stack_file).name),
+                tomo_parameters=tomo_parameters,
+                aretomo_output_path=aretomo_output_path,
+                angle_file=angle_file,
+            )
+            aretomo_version = "AreTomo2"
 
         # Transfer the required files
         self.log.info("Transferring files...")
@@ -119,12 +171,12 @@ class TomoAlignSlurm(TomoAlign):
             )
         self.log.info("All files transferred")
 
-        self.log.info(f"Running AreTomo2 with command: {command}")
+        self.log.info(f"Running {aretomo_version} with command: {command}")
         slurm_outcome = slurm_submission_for_services(
             log=self.log,
             service_config_file=self._environment["config"],
             slurm_cluster=self._environment["slurm_cluster"],
-            job_name="AreTomo2",
+            job_name=aretomo_version,
             command=command,
             project_dir=aretomo_output_path.parent,
             output_file=aretomo_output_path,
@@ -135,6 +187,7 @@ class TomoAlignSlurm(TomoAlign):
                 f"export LD_LIBRARY_PATH={os.environ['EXTRA_LIBRARIES']}:$LD_LIBRARY_PATH"
             ),
             external_filesystem=True,
+            memory_request=20000,
         )
 
         # Get back any output files and clean up
@@ -157,10 +210,10 @@ class TomoAlignSlurm(TomoAlign):
                 command,
             )
 
-        slurm_output_file = f"{aretomo_output_path}.out"
-        slurm_error_file = f"{aretomo_output_path}.out"
-        if tomo_parameters.tilt_cor and Path(slurm_output_file).is_file():
-            self.parse_tomo_output(slurm_output_file)
+        slurm_output_file = aretomo_output_path.with_suffix(".out")
+        slurm_error_file = aretomo_output_path.with_suffix(".err")
+        if tomo_parameters.tilt_cor and slurm_output_file.is_file():
+            self.parse_tomo_output_file(slurm_output_file)
 
         try:
             with open(slurm_output_file, "r") as slurm_stdout:

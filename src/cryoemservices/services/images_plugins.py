@@ -55,9 +55,9 @@ def mrc_to_jpeg(plugin_params: Callable):
         data[data < sigma_min] = sigma_min
         data[data > sigma_max] = sigma_max
         data = data - data.min()
-        data = data * 255 / data.max()
+        data = data / data.max() * 255
         data = data.astype("uint8")
-        im = PIL.Image.fromarray(data, mode="L")
+        im = PIL.Image.fromarray(data)
 
         if plugin_params("pixel_spacing"):
             scalebar_nm = float(plugin_params("pixel_spacing")) / 10 * data.shape[0] / 3
@@ -78,22 +78,24 @@ def mrc_to_jpeg(plugin_params: Callable):
             )
             colour_im.save(outfile)
         else:
+            # Apply thumbnailing if 2D image without text overlay
+            im.thumbnail((1024, 1024))
             im.save(outfile)
     elif len(data.shape) == 3:
         if allframes:
             for i, frame in enumerate(data):
                 frame = frame - frame.min()
-                frame = frame * 255 / frame.max()
+                frame = frame / frame.max() * 255
                 frame = frame.astype("uint8")
-                im = PIL.Image.fromarray(frame, mode="L")
+                im = PIL.Image.fromarray(frame)
                 frame_outfile = outfile.parent / f"{outfile.stem}_{i + 1}.jpeg"
                 im.save(frame_outfile)
                 outfiles.append(frame_outfile)
         else:
             data = data - data[0].min()
-            data = data * 255 / data[0].max()
+            data = data / data[0].max() * 255
             data = data.astype("uint8")
-            im = PIL.Image.fromarray(data[0], mode="L")
+            im = PIL.Image.fromarray(data[0])
             im.save(outfile)
     timing = time.perf_counter() - start
 
@@ -150,9 +152,9 @@ def picked_particles(plugin_params: Callable):
     data[data < sigma_min] = sigma_min
     data[data > sigma_max] = sigma_max
     data = data - data.min()
-    data = data * 255 / data.max()
+    data = data / data.max() * 255
     data = data.astype("uint8")
-    with PIL.Image.fromarray(data).convert(mode="RGB") as bim:
+    with PIL.Image.fromarray(data).convert("RGB") as bim:
         enhancer = ImageEnhance.Contrast(bim)
         enhanced = enhancer.enhance(contrast_factor)
         fim = enhanced.filter(ImageFilter.BLUR)
@@ -182,6 +184,7 @@ def picked_particles(plugin_params: Callable):
                     outline="#98df8a",
                 )
         try:
+            fim.thumbnail((1024, 1024))
             fim.save(outfile)
         except FileNotFoundError:
             logger.error(
@@ -237,15 +240,102 @@ def mrc_central_slice(plugin_params: Callable):
         central_slice_data[central_slice_data < sigma_min] = sigma_min
         central_slice_data[central_slice_data > sigma_max] = sigma_max
     central_slice_data = central_slice_data - central_slice_data.min()
-    central_slice_data = central_slice_data * 255 / central_slice_data.max()
+    central_slice_data = central_slice_data / central_slice_data.max() * 255
     central_slice_data = central_slice_data.astype("uint8")
-    im = PIL.Image.fromarray(central_slice_data, mode="L")
+    im = PIL.Image.fromarray(central_slice_data)
     im.thumbnail((512, 512))
     im.save(outfile)
     timing = time.perf_counter() - start
 
     logger.info(
         f"Converted mrc to jpeg {filepath} -> {outfile} in {timing:.1f} seconds",
+        extra={"image-processing-time": timing},
+    )
+    return outfile
+
+
+def mrc_projection(plugin_params: Callable):
+    if not required_parameters(plugin_params, ["file", "projection"]):
+        return False
+    filepath = Path(plugin_params("file"))
+    projection_type: str = plugin_params("projection")
+    thickness_ang = plugin_params("thickness_ang")
+    pixel_spacing = plugin_params("pixel_spacing")
+    if not filepath.is_file():
+        logger.error(f"File {filepath} not found")
+        return False
+    start = time.perf_counter()
+    try:
+        with mrcfile.open(filepath) as mrc:
+            data = mrc.data
+    except ValueError:
+        logger.error(
+            f"File {filepath} could not be opened. It may be corrupted or not in mrc format"
+        )
+        return False
+    outfile = str(filepath.with_suffix("")) + f"_proj{projection_type}.jpeg"
+    if len(data.shape) != 3:
+        logger.error(f"File {filepath} is not 3-dimensional. Cannot make projection")
+        return False
+
+    # Do projection
+    if projection_type.lower() in ("xy", "yx"):
+        projected_data = np.mean(data, axis=0)
+    elif projection_type.lower() in ("yz", "zy"):
+        projected_data = np.mean(data, axis=1)
+    elif projection_type.lower() in ("zx", "xz"):
+        projected_data = np.mean(data, axis=2)
+    else:
+        logger.error(f"Unknown projection type {projection_type}")
+        return False
+
+    # Write as jpeg
+    mean = np.mean(projected_data)
+    sdev = np.std(projected_data)
+    sigma_min = mean - 3 * sdev
+    sigma_max = mean + 3 * sdev
+    projected_data[projected_data < sigma_min] = sigma_min
+    projected_data[projected_data > sigma_max] = sigma_max
+    projected_data = projected_data - projected_data.min()
+    projected_data = projected_data / projected_data.max() * 255
+    projected_data = projected_data.astype("uint8")
+    im = PIL.Image.fromarray(projected_data)
+
+    if pixel_spacing:
+        if thickness_ang:
+            # Show estimated thickness if given
+            scalebar_pixels = thickness_ang / float(pixel_spacing)
+            scalebar_description = f"Thickness: {thickness_ang / 10:.0f} nm"
+        else:
+            # Add scale bar if no thickness provided
+            scalebar_pixels = projected_data.shape[0] / 3
+            scalebar_nm = float(pixel_spacing) / 10 * projected_data.shape[0] / 3
+            scalebar_description = f"{scalebar_nm:.0f} nm"
+        colour_im = im.convert("RGB")
+        dim = ImageDraw.Draw(colour_im)
+        dim.line(
+            (
+                (20, projected_data.shape[0] / 2 - scalebar_pixels / 2),
+                (20, projected_data.shape[0] / 2 + scalebar_pixels / 2),
+            ),
+            fill="yellow",
+            width=5,
+        )
+        font_to_use = ImageFont.load_default(size=26)
+        dim.text(
+            (25, projected_data.shape[0] / 2),
+            scalebar_description,
+            anchor="lm",
+            font=font_to_use,
+            fill="yellow",
+        )
+        colour_im.save(outfile)
+    else:
+        im.save(outfile)
+    timing = time.perf_counter() - start
+
+    logger.info(
+        f"Made {projection_type} projection of mrc to jpeg {filepath} -> {outfile} in {timing:.1f} seconds",
         extra={"image-processing-time": timing},
     )
     return outfile
@@ -281,14 +371,14 @@ def mrc_to_apng(plugin_params: Callable):
                 frame[frame < sigma_min] = sigma_min
                 frame[frame > sigma_max] = sigma_max
             frame = frame - frame.min()
-            frame = frame * 255 / frame.max()
+            frame = frame / frame.max() * 255
             if plugin_params("jitter_edge"):
                 clipped_frame = np.random.choice([0, 1], np.shape(frame))
                 clipped_frame[2:-2, 2:-2] = frame[2:-2, 2:-2]
                 frame = clipped_frame.astype("uint8")
             else:
                 frame = frame.astype("uint8")
-            im = PIL.Image.fromarray(frame, mode="L")
+            im = PIL.Image.fromarray(frame)
             im.thumbnail((512, 512))
             images_to_append.append(im)
         try:
@@ -323,11 +413,10 @@ def particles_3d_in_frame(
     frame[frame < sigma_min] = sigma_min
     frame[frame > sigma_max] = sigma_max
     frame = frame - frame.min()
-    frame = frame * 255 / frame.max()
+    frame = frame / frame.max() * 255
     frame = frame.astype("uint8")
 
-    im = PIL.Image.fromarray(frame, mode="L")
-    colour_im = im.convert("RGB")
+    colour_im = PIL.Image.fromarray(frame).convert("RGB")
     dim = ImageDraw.Draw(colour_im)
 
     # Find the coordinates of the picks
@@ -457,4 +546,175 @@ def picked_particles_3d_apng(plugin_params: Callable):
         return False
 
     logger.info(f"3D particle picker movie {outfile} saved")
+    return outfile
+
+
+def tilt_series_alignment(plugin_params: Callable):
+    if not required_parameters(plugin_params, ["file", "aln_file", "pixel_size"]):
+        return False
+    filepath = Path(plugin_params("file"))
+    aln_file = Path(plugin_params("aln_file"))
+    pixel_size = float(plugin_params("pixel_size"))
+    if not filepath.is_file() or not aln_file.is_file():
+        logger.error(f"File {filepath} or {aln_file} not found")
+        return False
+    start = time.perf_counter()
+    try:
+        with mrcfile.open(filepath) as mrc:
+            data = mrc.data
+    except ValueError:
+        logger.error(
+            f"File {filepath} could not be opened. It may be corrupted or not in mrc format"
+        )
+        return False
+    outfile = str(filepath.with_suffix("")) + "_alignment.jpeg"
+    if len(data.shape) == 3:
+        # Extract central slice
+        total_slices = data.shape[0]
+        central_slice_index = total_slices // 2
+        central_slice_data = data[central_slice_index, :, :]
+    elif len(data.shape) == 2:
+        central_slice_data = data
+    else:
+        logger.error(
+            f"File {filepath} is not 2- or 3-dimensional. Cannot extract central slice"
+        )
+        return False
+
+    # Read in the tilt alignment file
+    tilts = []
+    angles = []
+    x_shifts = []
+    y_shifts = []
+    with open(aln_file) as alns:
+        while True:
+            line = alns.readline()
+            if not line:
+                break
+            if not line.startswith("#"):
+                tilts.append(float(line.split()[-1]))
+                angles.append(float(line.split()[1]))
+                x_shifts.append(float(line.split()[3]))
+                y_shifts.append(float(line.split()[4]))
+
+    # Pad the image to make the shifts more visible - x and y end up flipped here
+    flat_size = central_slice_data.shape
+    pad_x = flat_size[0] // 8
+    pad_y = flat_size[1] // 8
+    cen = [
+        central_slice_data.shape[1] / 2 + pad_y,
+        central_slice_data.shape[0] / 2 + pad_x,
+    ]
+    mrc_data = np.pad(
+        central_slice_data,
+        ((pad_x, pad_x), (pad_y, pad_y)),
+        mode="constant",
+        constant_values=np.mean(central_slice_data),
+    )
+
+    # Show image of the central slice
+    mean = np.mean(mrc_data)
+    sdev = np.std(mrc_data)
+    sigma_min = mean - 3 * sdev
+    sigma_max = mean + 3 * sdev
+    data = np.ndarray.copy(mrc_data)
+    data[data < sigma_min] = sigma_min
+    data[data > sigma_max] = sigma_max
+    data = data - data.min()
+    data = data / data.max() * 255
+    data = data.astype("uint8")
+    im = PIL.Image.fromarray(data)
+    colour_im = im.convert("RGB")
+    dim = ImageDraw.Draw(colour_im)
+
+    # Add a box for each tilt
+    outliers = []
+    for tid, tlt in enumerate(tilts):
+        # Apply the shifts to the centre position
+        shifted_cen_x = cen[0] + x_shifts[tid] / pixel_size
+        shifted_cen_y = cen[1] + y_shifts[tid] / pixel_size
+
+        # Find distance to edge of image, accounting for y tilt
+        x_half_width = flat_size[1] / 2
+        y_half_width = (flat_size[0] * np.cos(tlt * np.pi / 180)) / 2
+
+        # Flip the angles if greater than 45 degrees
+        if angles[tid] > 45:
+            angles[tid] -= 90
+        elif angles[tid] < -45:
+            angles[tid] += 90
+
+        # Assign colours based on the size of the shift and mark outliers
+        if np.sqrt(x_shifts[tid] ** 2 + y_shifts[tid] ** 2) > 1000:
+            outline_colour = "#f52407"  # red
+            outliers.append(str(tlt))
+        elif np.sqrt(x_shifts[tid] ** 2 + y_shifts[tid] ** 2) > 100:
+            outline_colour = "#f5a927"  # orange
+        elif np.sqrt(x_shifts[tid] ** 2 + y_shifts[tid] ** 2) > 10:
+            outline_colour = "#f5e90a"  # yellow
+        else:
+            outline_colour = "#0af549"  # green
+
+        # Construct a rectangle, rotated by the tilt axis angle
+        rotation_matrix = [
+            [np.cos(angles[tid] * np.pi / 180), -np.sin(angles[tid] * np.pi / 180)],
+            [np.sin(angles[tid] * np.pi / 180), np.cos(angles[tid] * np.pi / 180)],
+        ]
+        x_corners = []
+        y_corners = []
+        for rid in range(4):
+            corner_rotations = np.matmul(
+                rotation_matrix,
+                [
+                    [x_half_width, y_half_width],
+                    [-x_half_width, y_half_width],
+                    [-x_half_width, -y_half_width],
+                    [x_half_width, -y_half_width],
+                ][rid],
+            )
+            x_corners.append(corner_rotations[0])
+            y_corners.append(corner_rotations[1])
+
+        dim.polygon(
+            [
+                (
+                    shifted_cen_x + x_corners[0],
+                    shifted_cen_y + y_corners[0],
+                ),
+                (
+                    shifted_cen_x + x_corners[1],
+                    shifted_cen_y + y_corners[1],
+                ),
+                (
+                    shifted_cen_x + x_corners[2],
+                    shifted_cen_y + y_corners[2],
+                ),
+                (
+                    shifted_cen_x + x_corners[3],
+                    shifted_cen_y + y_corners[3],
+                ),
+            ],
+            width=int(20 - np.abs(len(tilts) / 2 - tid)),
+            outline=outline_colour,
+        )
+
+    # Text to record outliers and colour key
+    if outliers:
+        dim.text(
+            (100, cen[1] * 2 - 200),
+            "Outliers (deg): " + " ".join(outliers),
+            fill="#f52407",
+            font_size=150,
+        )
+    dim.text((100, 10), "Shift over 100 nm", fill="#f52407", font_size=150)
+    dim.text((100, 160), "Shift 10 to 100 nm", fill="#f5a927", font_size=150)
+    dim.text((100, 320), "Shift 1 to 10 nm", fill="#f5e90a", font_size=150)
+    dim.text((100, 460), "Shift under 1 nm", fill="#0af549", font_size=150)
+    colour_im.thumbnail((1024, 1024))
+    colour_im.save(outfile)
+    timing = time.perf_counter() - start
+    logger.info(
+        f"Done tilt series alignment {filepath} -> {outfile} in {timing:.1f} seconds",
+        extra={"image-processing-time": timing},
+    )
     return outfile

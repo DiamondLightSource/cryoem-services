@@ -6,7 +6,11 @@ from pathlib import Path
 from typing import List
 
 from cryoemservices.services.denoise import Denoise, DenoiseParameters
-from cryoemservices.services.tomo_align_slurm import retrieve_files, transfer_files
+from cryoemservices.services.tomo_align_slurm import (
+    get_iris_state,
+    retrieve_files,
+    transfer_files,
+)
 from cryoemservices.util.slurm_submission import slurm_submission_for_services
 
 
@@ -18,6 +22,11 @@ class DenoiseSlurm(Denoise):
 
     # Logger name
     _logger_name = "cryoemservices.services.denoise_slurm"
+
+    def initializing(self):
+        if not get_iris_state(self.log):
+            exit()
+        super().initializing()
 
     def run_topaz(
         self,

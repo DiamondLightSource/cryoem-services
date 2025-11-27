@@ -277,7 +277,8 @@ tomo_align:
   scaleOnQueueLength: false
 
 tomo_align_slurm:
-  aretomoExectable: /path/to/AreTomo2
+  aretomo2Exectable: /path/to/AreTomo2
+  aretomo3Exectable: /path/to/AreTomo3
   extraLibraries: /path/to/aretomo/lib
   replicas: 1
   image: gcr.io/image/path
