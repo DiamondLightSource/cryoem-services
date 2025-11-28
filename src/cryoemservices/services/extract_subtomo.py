@@ -50,6 +50,15 @@ in2 = {
     "particle_diameter": 500,
 }
 
+in3 = {
+    "cbox_3d_file": "/dls/m06/data/2025/bi37708-55/tmp/extract-test/AutoPick/job009/CBOX_3D/Tomo_position3_stack_Vol.denoised.cbox",
+    "tomogram": "/dls/m06/data/2025/bi37708-55/tmp/extract-test/Tomograms/job006/tomograms/Tomo_position3_stack_Vol.mrc",
+    "output_star": "/dls/m06/data/2025/bi37708-55/tmp/extract-test/Extract/class2d/Tomo_position3_stack_Vol.star",
+    "pixel_size": 7.76,
+    "particle_diameter": 225,
+    "relion_options": {},
+}
+
 
 class ExtractSubTomoParameters2D(BaseModel):
     cbox_3d_file: str = Field(..., min_length=1)
@@ -158,6 +167,10 @@ class ExtractSubTomoFor2D(CommonService):
         extract_subtomo_params.relion_options = update_relion_options(
             extract_subtomo_params.relion_options, dict(extract_subtomo_params)
         )
+        if extract_subtomo_params.particle_diameter:
+            extract_subtomo_params.boxsize = (
+                extract_subtomo_params.relion_options.boxsize
+            )
 
         # Make sure the output directory exists
         if not Path(extract_subtomo_params.output_star).parent.exists():
@@ -283,7 +296,7 @@ class ExtractSubTomoFor2D(CommonService):
                     "2.70",
                     "0.10",
                     "1",
-                    "optics1",
+                    "opticsGroup1",
                     "1",
                     "2",
                     str(extract_subtomo_params.pixel_size),
