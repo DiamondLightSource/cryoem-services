@@ -35,6 +35,7 @@ def test_motioncor2_service_spa(mock_subprocess, offline_transport, tmp_path):
     mock_subprocess().stderr = "stderr".encode("ascii")
 
     (tmp_path / "gain.mrc").touch()
+    (tmp_path / "gain.gain").touch()
     movie = Path(f"{tmp_path}/Movies/sample.tiff")
     movie.parent.mkdir(parents=True)
     movie.touch()
@@ -316,6 +317,7 @@ def test_motioncor_relion_service_spa(mock_subprocess, offline_transport, tmp_pa
     mock_subprocess().stderr = "stderr".encode("ascii")
 
     (tmp_path / "gain.mrc").touch()
+    (tmp_path / "gain.gain").touch()
     movie = Path(f"{tmp_path}/Movies/sample.eer")
     movie.parent.mkdir(parents=True)
     movie.touch()
@@ -376,7 +378,7 @@ def test_motioncor_relion_service_spa(mock_subprocess, offline_transport, tmp_pa
     output_relion_options["voltage"] = motioncorr_test_message["voltage"]
     output_relion_options["pixel_size"] = motioncorr_test_message["pixel_size"]
     output_relion_options["dose_per_frame"] = motioncorr_test_message["dose_per_frame"]
-    output_relion_options["gain_ref"] = motioncorr_test_message["gain_ref"]
+    output_relion_options["gain_ref"] = f"{tmp_path}/gain.gain"
     output_relion_options["motion_corr_binning"] = motioncorr_test_message[
         "motion_corr_binning"
     ]
@@ -431,7 +433,7 @@ def test_motioncor_relion_service_spa(mock_subprocess, offline_transport, tmp_pa
         "--j",
         "2",
         "--gainref",
-        motioncorr_test_message["gain_ref"],
+        f"{tmp_path}/gain.gain",
         "--gain_rot",
         "1",
         "--gain_flip",
