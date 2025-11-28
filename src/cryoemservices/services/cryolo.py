@@ -23,7 +23,7 @@ class CryoloParameters(BaseModel):
     input_path: str = Field(..., min_length=1)
     output_path: str = Field(..., min_length=1)
     experiment_type: str
-    pixel_size: Optional[float] = None
+    pixel_size: float
     cryolo_box_size: int = 160
     cryolo_model_weights: str = "gmodel_phosnet_202005_N63_c17.h5"
     cryolo_threshold: float = 0.3
@@ -40,6 +40,7 @@ class CryoloParameters(BaseModel):
     mc_uuid: Optional[int] = None
     app_id: Optional[int] = None
     picker_uuid: Optional[int] = None
+    raw_tomogram: Optional[str] = None
     relion_options: RelionServiceOptions
     ctf_values: dict = {}
 
@@ -53,13 +54,12 @@ class CryoloParameters(BaseModel):
     @model_validator(mode="after")
     def check_spa_has_uuids_and_pixel_size(self):
         if self.experiment_type == "spa" and (
-            self.mc_uuid is None or self.picker_uuid is None or not self.pixel_size
+            self.mc_uuid is None or self.picker_uuid is None
         ):
             raise ValueError(
                 "In SPA mode the following must be provided: "
                 f"mc_uuid (given {self.mc_uuid}), "
-                f"picker_uuid (given {self.picker_uuid}), "
-                f"pixel_size (given {self.pixel_size})"
+                f"picker_uuid (given {self.picker_uuid})"
             )
         return self
 
@@ -329,6 +329,29 @@ class CrYOLO(CommonService):
             }
             rw.send_to("ispyb_connector", ispyb_parameters_tomo)
 
+            # Get the diameters of the particles in Angstroms for Murfey
+            try:
+                cbox_file = cif.read_file(cryolo_params.output_path)
+                cbox_block = cbox_file.find_block("cryolo")
+                cbox_sizes = (
+                    np.array(cbox_block.find_loop("_EstWidth"), dtype=float)
+                    + np.array(cbox_block.find_loop("_EstHeight"), dtype=float)
+                ) / 2
+                cryolo_particle_sizes = cbox_sizes * cryolo_params.pixel_size
+            except (FileNotFoundError, OSError, AttributeError):
+                cryolo_particle_sizes = []
+
+            # Send to murfey for extraction
+            extraction_parameters = {
+                "register": "picked_tomogram",
+                "tomogram": cryolo_params.raw_tomogram or cryolo_params.input_path,
+                "cbox_3d": cryolo_params.output_path,
+                "pixel_size": cryolo_params.pixel_size,
+                "particle_diameters": list(cryolo_particle_sizes),
+                "particle_count": len(cryolo_particle_sizes),
+            }
+            rw.send_to("murfey_feedback", extraction_parameters)
+
             self.log.info(
                 f"Done {self.job_type} {cryolo_params.experiment_type} "
                 f"for {cryolo_params.input_path}."
@@ -345,14 +368,11 @@ class CrYOLO(CommonService):
                 )
             )
             cbox_block = cbox_file.find_block("cryolo")
-            cbox_sizes = np.append(
-                np.array(cbox_block.find_loop("_EstWidth"), dtype=float),
-                np.array(cbox_block.find_loop("_EstHeight"), dtype=float),
-            )
-            cbox_confidence = np.append(
-                np.array(cbox_block.find_loop("_Confidence"), dtype=float),
-                np.array(cbox_block.find_loop("_Confidence"), dtype=float),
-            )
+            cbox_sizes = (
+                np.array(cbox_block.find_loop("_EstWidth"), dtype=float)
+                + np.array(cbox_block.find_loop("_EstHeight"), dtype=float)
+            ) / 2
+            cbox_confidence = np.array(cbox_block.find_loop("_Confidence"), dtype=float)
 
             # Select only a fraction of particles based on confidence if requested
             if (

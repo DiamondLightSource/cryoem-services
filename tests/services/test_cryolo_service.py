@@ -175,8 +175,8 @@ def test_cryolo_service_spa(mock_flatten, mock_subprocess, offline_transport, tm
             "register": "picked_particles",
             "motion_correction_id": cryolo_test_message["mc_uuid"],
             "micrograph": cryolo_test_message["input_path"],
-            "particle_diameters": [10.0, 20.0],
-            "particle_count": 2,
+            "particle_diameters": [15.0],
+            "particle_count": 1,
             "resolution": ctf_test_values["CtfMaxResolution"],
             "astigmatism": ctf_test_values["DefocusU"] - ctf_test_values["DefocusV"],
             "defocus": (ctf_test_values["DefocusU"] + ctf_test_values["DefocusV"]) / 2,
@@ -213,20 +213,18 @@ def test_cryolo_service_tomography(mock_subprocess, offline_transport, tmp_path)
     This should call the mock subprocess then send messages on to the
     node_creator, murfey_feedback, ispyb_connector and images services
     """
-    mock_subprocess().returncode = 0
-    mock_subprocess().stdout = "stdout".encode("ascii")
-    mock_subprocess().stderr = "stderr".encode("ascii")
-
     header = {
         "message-id": mock.sentinel,
         "subscription": mock.sentinel,
     }
 
-    output_path = tmp_path / "AutoPick/job007/STAR/sample.star"
+    output_path = tmp_path / "AutoPick/job007/CBOX_3D/sample.cbox"
     cryolo_test_message = {
-        "input_path": "MotionCorr/job002/sample.mrc",
+        "input_path": "Denoise/job007/tomograms/sample_denoised.mrc",
         "output_path": str(output_path),
+        "raw_tomogram": f"{tmp_path}/Tomogram/job006/tomograms/sample.mrc",
         "experiment_type": "tomography",
+        "pixel_size": 5.3,
         "cryolo_box_size": 40,
         "cryolo_model_weights": "sample_weights",
         "cryolo_threshold": 0.15,
@@ -246,17 +244,34 @@ def test_cryolo_service_tomography(mock_subprocess, offline_transport, tmp_path)
     )
     output_relion_options["cryolo_box_size"] = 40
 
+    def write_cbox_file(command, cwd, capture_output):
+        # Write star co-ordinate file in the format cryolo will output
+        (cwd / "CBOX").mkdir()
+        with open(cwd / "CBOX_3D/sample.cbox", "w") as f:
+            f.write(
+                "data_cryolo\n\nloop_\n\n_EstWidth\n_EstHeight\n_Confidence\n"
+                "_CoordinateX\n_CoordinateY\n_Width\n_Height\n"
+                "100 200 0.6 0.1 0.2 2 4\n150 250 0.5 0.3 0.4 6 8"
+            )
+        return CompletedProcess(
+            "",
+            returncode=0,
+            stdout="stdout".encode("ascii"),
+            stderr="stderr".encode("ascii"),
+        )
+
+    mock_subprocess.side_effect = write_cbox_file
+
     # Set up the mock service and send the message to it
     service = cryolo.CrYOLO(environment={"queue": ""}, transport=offline_transport)
     service.initializing()
     service.cryolo(None, header=header, message=cryolo_test_message)
 
-    assert mock_subprocess.call_count == 4
-    mock_subprocess.assert_called_with(
+    mock_subprocess.assert_called_once_with(
         [
             "cryolo_predict.py",
             "-i",
-            "MotionCorr/job002/sample.mrc",
+            "Denoise/job007/tomograms/sample_denoised.mrc",
             "--conf",
             str(tmp_path / "AutoPick/job007/cryolo_config.json"),
             "-o",
@@ -299,7 +314,7 @@ def test_cryolo_service_tomography(mock_subprocess, offline_transport, tmp_path)
     assert config_values["other"] == {"log_path": "logs/"}
 
     # Check that the correct messages were sent
-    assert offline_transport.send.call_count == 4
+    assert offline_transport.send.call_count == 5
     offline_transport.send.assert_any_call(
         "ispyb_connector",
         {
@@ -334,7 +349,7 @@ def test_cryolo_service_tomography(mock_subprocess, offline_transport, tmp_path)
             "output_file": str(output_path),
             "relion_options": output_relion_options,
             "command": (
-                "cryolo_predict.py -i MotionCorr/job002/sample.mrc "
+                "cryolo_predict.py -i Denoise/job007/tomograms/sample_denoised.mrc "
                 f"--conf {tmp_path}/AutoPick/job007/cryolo_config.json "
                 f"-o {tmp_path}/AutoPick/job007 "
                 f"--tomogram -tsr -1 -tmem 0 -tmin 5 --gpus 0 "
@@ -345,6 +360,17 @@ def test_cryolo_service_tomography(mock_subprocess, offline_transport, tmp_path)
             "stderr": "stderr",
             "experiment_type": "tomography",
             "success": True,
+        },
+    )
+    offline_transport.send.assert_any_call(
+        "murfey_feedback",
+        {
+            "cbox_3d": f"{tmp_path}/AutoPick/job007/CBOX_3D/sample.cbox",
+            "particle_count": 2,
+            "particle_diameters": [150 * 5.3, 200 * 5.3],
+            "pixel_size": 5.3,
+            "register": "picked_tomogram",
+            "tomogram": f"{tmp_path}/Tomogram/job006/tomograms/sample.mrc",
         },
     )
 
