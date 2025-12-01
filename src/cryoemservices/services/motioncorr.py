@@ -313,6 +313,17 @@ class MotionCorr(CommonService):
                 except ValueError:
                     self.log.warning("Cannot read eer grouping")
 
+        # Relion's motion correction behaves differently for eer with .mrc gain
+        # In that case switch it to use .gain file if possible
+        if (
+            mc_params.movie.endswith(".eer")
+            and mc_params.gain_ref
+            and mc_params.gain_ref.endswith(".mrc")
+            and not mc_params.use_motioncor2
+            and Path(mc_params.gain_ref).with_suffix(".gain").is_file()
+        ):
+            mc_params.gain_ref = str(Path(mc_params.gain_ref).with_suffix(".gain"))
+
         # Submit all super-resolution jobs to slurm using MotionCor2
         if mc_params.motion_corr_binning == 2:
             mc_params.use_motioncor2 = True
