@@ -33,6 +33,9 @@ spec:
           - -c
           - >-
               {{ .Values.command }}
+        env:
+          - name: HOME
+            value: "/tmp"
         volumeMounts:
         - name: config-file
           mountPath: /cryoemservices/config
