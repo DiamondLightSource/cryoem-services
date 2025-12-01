@@ -785,14 +785,19 @@ class TomoAlign(CommonService):
         )
 
         self.log.info("Sending to images service for XY and XZ projections")
-        for projection_type in ["XY", "XZ"]:
+        side_projection = (
+            "YZ"
+            if tomo_params.tilt_axis is not None and -45 < tomo_params.tilt_axis < 45
+            else "XZ"
+        )
+        for projection_type in ["XY", side_projection]:
             images_call_params: dict[str, str | float] = {
                 "image_command": "mrc_projection",
                 "file": str(aretomo_output_path),
                 "projection": projection_type,
                 "pixel_spacing": float(pixel_spacing),
             }
-            if projection_type == "XZ" and self.thickness_pixels:
+            if projection_type in ["XZ", "YZ"] and self.thickness_pixels:
                 images_call_params["thickness_ang"] = (
                     self.thickness_pixels * tomo_params.pixel_size
                 )
