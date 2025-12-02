@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Callable
 
 import murfey.util.processing_db as models
@@ -57,6 +58,11 @@ def buffer(message: dict, parameters: Callable, session: Session):
     return result
 
 
+def insert_movie(message: dict, parameters: Callable, session: Session):
+    """Do nothing as this will already be present in the murfey database"""
+    return {"success": True, "return_value": 0}
+
+
 def insert_cryoem_initial_model(message: dict, parameters: Callable, session: Session):
     """Override of initial model search for if the link table does not exist"""
 
@@ -78,6 +84,61 @@ def insert_cryoem_initial_model(message: dict, parameters: Callable, session: Se
     except SQLAlchemyError as e:
         logger.error(
             f"Inserting CryoEM Initial Model entry caused exception {e}",
+            exc_info=True,
+        )
+        return False
+
+
+def insert_tilt_image_alignment(message: dict, parameters: Callable, session: Session):
+    """Override of tilt image alignment for murfey movie table"""
+
+    def full_parameters(param):
+        return ispyb_commands.parameters_with_replacement(param, message, parameters)
+
+    movie_name = Path(full_parameters("path")).stem.replace("_motion_corrected", "")
+    if full_parameters("movie_id"):
+        mvid = full_parameters("movie_id")
+    else:
+        logger.info(
+            f"Looking for Movie ID. Movie name: {movie_name} DCID: {full_parameters('dcid')}"
+        )
+        results = (
+            session.query(models.Movie)
+            .filter(
+                models.Movie.data_collection_id == full_parameters("dcid"),
+            )
+            .all()
+        )
+        mvid = None
+        for result in results:
+            if movie_name in result.path:
+                logger.info(f"Found Movie ID: {mvid}")
+                mvid = result.movieId
+    if not mvid:
+        logger.error(f"No movie ID for {movie_name} in tilt image alignment")
+        return False
+
+    try:
+        values = models.TiltImageAlignment(
+            movieId=mvid,
+            tomogramId=full_parameters("tomogram_id"),
+            defocusU=full_parameters("defocus_u"),
+            defocusV=full_parameters("defocus_v"),
+            psdFile=full_parameters("psd_file"),
+            resolution=full_parameters("resolution"),
+            fitQuality=full_parameters("fit_quality"),
+            refinedMagnification=full_parameters("refined_magnification"),
+            refinedTiltAngle=full_parameters("refined_tilt_angle"),
+            refinedTiltAxis=full_parameters("refined_tilt_axis"),
+            residualError=full_parameters("residual_error"),
+        )
+        session.add(values)
+        session.commit()
+        logger.info(f"Created tilt image alignment record for {values.tomogramId}")
+        return {"success": True, "return_value": values.tomogramId}
+    except SQLAlchemyError as e:
+        logger.error(
+            f"Inserting Tilt Image Alignment entry caused exception {e}",
             exc_info=True,
         )
         return False

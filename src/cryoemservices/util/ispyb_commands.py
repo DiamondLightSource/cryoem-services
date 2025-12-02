@@ -171,33 +171,6 @@ def buffer(message: dict, parameters: Callable, session: sqlalchemy.orm.Session)
     return result
 
 
-def _get_movie_id(
-    full_path,
-    data_collection_id,
-    db_session,
-):
-    logger.info(
-        f"Looking for Movie ID. Movie name: {full_path} DCID: {data_collection_id}"
-    )
-    movie_name = Path(full_path).stem.replace("_motion_corrected", "")
-    mv_query = db_session.query(models.Movie).filter(
-        models.Movie.dataCollectionId == data_collection_id,
-    )
-    results = mv_query.all()
-    correct_result = None
-    if results:
-        for result in results:
-            if movie_name in result.movieFullPath:
-                correct_result = result
-    if correct_result:
-        mvid = correct_result.movieId
-        logger.info(f"Found Movie ID: {mvid}")
-        return mvid
-    else:
-        logger.error(f"Unable to find movie ID for {movie_name}")
-        return None
-
-
 def insert_movie(message: dict, parameters: Callable, session: sqlalchemy.orm.Session):
     try:
         foil_hole_id = (
@@ -680,13 +653,27 @@ def insert_tilt_image_alignment(
     def full_parameters(param):
         return parameters_with_replacement(param, message, parameters)
 
+    movie_name = Path(full_parameters("path")).stem.replace("_motion_corrected", "")
     if full_parameters("movie_id"):
         mvid = full_parameters("movie_id")
     else:
-        mvid = _get_movie_id(full_parameters("path"), full_parameters("dcid"), session)
-
+        logger.info(
+            f"Looking for Movie ID. Movie name: {movie_name} DCID: {full_parameters('dcid')}"
+        )
+        results = (
+            session.query(models.Movie)
+            .filter(
+                models.Movie.dataCollectionId == full_parameters("dcid"),
+            )
+            .all()
+        )
+        mvid = None
+        for result in results:
+            if movie_name in result.movieFullPath:
+                logger.info(f"Found Movie ID: {mvid}")
+                mvid = result.movieId
     if not mvid:
-        logger.error("No movie ID for tilt image alignment")
+        logger.error(f"No movie ID for {movie_name} in tilt image alignment")
         return False
 
     try:
