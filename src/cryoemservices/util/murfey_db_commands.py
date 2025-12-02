@@ -95,10 +95,10 @@ def insert_tilt_image_alignment(message: dict, parameters: Callable, session: Se
     def full_parameters(param):
         return ispyb_commands.parameters_with_replacement(param, message, parameters)
 
-    movie_name = Path(full_parameters("path")).stem.replace("_motion_corrected", "")
     if full_parameters("movie_id"):
         mvid = full_parameters("movie_id")
     else:
+        movie_name = Path(full_parameters("path")).stem.replace("_motion_corrected", "")
         logger.info(
             f"Looking for Movie ID. Movie name: {movie_name} DCID: {full_parameters('dcid')}"
         )
@@ -113,10 +113,10 @@ def insert_tilt_image_alignment(message: dict, parameters: Callable, session: Se
         for result in results:
             if movie_name in result.path:
                 logger.info(f"Found Movie ID: {mvid}")
-                mvid = result.movieId
-    if not mvid:
-        logger.error(f"No movie ID for {movie_name} in tilt image alignment")
-        return False
+                mvid = result.murfey_id
+        if not mvid:
+            logger.error(f"No movie ID for {movie_name} in tilt image alignment")
+            return False
 
     try:
         values = models.TiltImageAlignment(

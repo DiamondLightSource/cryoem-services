@@ -653,10 +653,10 @@ def insert_tilt_image_alignment(
     def full_parameters(param):
         return parameters_with_replacement(param, message, parameters)
 
-    movie_name = Path(full_parameters("path")).stem.replace("_motion_corrected", "")
     if full_parameters("movie_id"):
         mvid = full_parameters("movie_id")
     else:
+        movie_name = Path(full_parameters("path")).stem.replace("_motion_corrected", "")
         logger.info(
             f"Looking for Movie ID. Movie name: {movie_name} DCID: {full_parameters('dcid')}"
         )
@@ -672,9 +672,9 @@ def insert_tilt_image_alignment(
             if movie_name in result.movieFullPath:
                 logger.info(f"Found Movie ID: {mvid}")
                 mvid = result.movieId
-    if not mvid:
-        logger.error(f"No movie ID for {movie_name} in tilt image alignment")
-        return False
+        if not mvid:
+            logger.error(f"No movie ID for {movie_name} in tilt image alignment")
+            return False
 
     try:
         values = models.TiltImageAlignment(
