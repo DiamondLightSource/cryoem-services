@@ -19,7 +19,10 @@ def buffer(message: dict, parameters: Callable, session: Session):
     Override of the buffer command,
     which just uses the given value rather than doing a lookup
     """
-    command = message.get("buffer_command", {}).get("ispyb_command", "")
+    if isinstance(message.get("buffer_command"), dict):
+        command = message.get("buffer_command", {}).get("ispyb_command", "")
+    else:
+        command = None
     if not command:
         logger.error(f"Invalid buffer call: no buffer command in {message}")
         return False
@@ -36,6 +39,9 @@ def buffer(message: dict, parameters: Callable, session: Session):
         return False
 
     # Prepare command: Resolve all references
+    if message.get("buffer_lookup") and not isinstance(message["buffer_lookup"], dict):
+        logger.error("Invalid buffer call: buffer_lookup is not a dictionary")
+        return False
     for entry in list(message.get("buffer_lookup", [])):
         # Copy value into command variables
         message["buffer_command"][entry] = message["buffer_lookup"][entry]
