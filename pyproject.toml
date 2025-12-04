@@ -7,7 +7,7 @@ requires = [
 
 [project]
 name = "cryoemservices"
-version = "1.3.0"
+version = "1.3.2"
 description = "Services for CryoEM processing"
 readme = "README.md"
 keywords = [
@@ -45,7 +45,7 @@ dependencies = [
     "requests",
     "SimpleITK", # CLEM workflow
     "starfile",
-    "stomp-py==8.1.0",
+    "stomp-py>8.1.1",
     "tifffile", # CLEM workflow
     "workflows>=3",
 ]
@@ -111,11 +111,13 @@ torch = [
     TopazPick = "cryoemservices.services.topaz_pick:TopazPick"
 [project.entry-points."cryoemservices.services.images.plugins"]
     "mrc_central_slice" = "cryoemservices.services.images_plugins:mrc_central_slice"
+    "mrc_projection" = "cryoemservices.services.images_plugins:mrc_projection"
     "mrc_to_apng" = "cryoemservices.services.images_plugins:mrc_to_apng"
     "mrc_to_jpeg" = "cryoemservices.services.images_plugins:mrc_to_jpeg"
     "picked_particles" = "cryoemservices.services.images_plugins:picked_particles"
     "picked_particles_3d_apng" = "cryoemservices.services.images_plugins:picked_particles_3d_apng"
     "picked_particles_3d_central_slice" = "cryoemservices.services.images_plugins:picked_particles_3d_central_slice"
+    "tilt_series_alignment" = "cryoemservices.services.images_plugins:tilt_series_alignment"
 [project.entry-points."cryoemservices.services.process_recipe.filters"]
     ispyb = "cryoemservices.util.process_recipe_tools:ispyb_filter"
 [project.entry-points."cryoemservices.wrappers"]

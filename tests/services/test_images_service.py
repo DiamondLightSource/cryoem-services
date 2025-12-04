@@ -24,13 +24,15 @@ def test_plugins_exist():
     service.initializing()
 
     # Check the expected images plugins are present
-    assert len(service.image_functions.keys()) == 6
+    assert len(service.image_functions.keys()) == 8
     assert service.image_functions.get("mrc_central_slice", "")
+    assert service.image_functions.get("mrc_projection", "")
     assert service.image_functions.get("mrc_to_apng", "")
     assert service.image_functions.get("mrc_to_jpeg", "")
     assert service.image_functions.get("picked_particles", "")
     assert service.image_functions.get("picked_particles_3d_apng", "")
     assert service.image_functions.get("picked_particles_3d_central_slice", "")
+    assert service.image_functions.get("tilt_series_alignment", "")
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
