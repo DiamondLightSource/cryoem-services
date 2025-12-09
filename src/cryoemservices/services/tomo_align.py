@@ -276,9 +276,15 @@ class TomoAlign(CommonService):
         elif tomo_params.input_file_list:
             file_list = ast.literal_eval(tomo_params.input_file_list)
             self.input_file_list_of_lists = file_list
-        else:
-            tomo_params.pixel_size = self.convert_txrm_to_stack(tomo_params.txrm_file)
+        elif tomo_params.txrm_file and Path(tomo_params.txrm_file).is_file():
+            tomo_params.pixel_size = self.convert_txrm_to_stack(
+                tomo_params.txrm_file, tomo_params.stack_file
+            )
             self.input_file_list_of_lists = []
+        else:
+            self.log.warning(f"Invalid input or {tomo_params.txrm_file} is not a file")
+            rw.transport.nack(header, requeue=True)
+            return
 
         self.log.info(
             f"Input list {self.input_file_list_of_lists or tomo_params.txrm_file}"
@@ -355,7 +361,7 @@ class TomoAlign(CommonService):
             # Read shape of the tiff stack if using txrm
             data_shape = tifffile.imread(tomo_params.stack_file).shape
             tomo_params.relion_options.tomo_size_x = data_shape[2]
-            tomo_params.relion_options.tomo_size_x = data_shape[1]
+            tomo_params.relion_options.tomo_size_y = data_shape[1]
 
         # Scale size of output
         scaled_x_size = tomo_params.relion_options.tomo_size_x / int(
@@ -599,18 +605,19 @@ class TomoAlign(CommonService):
         im_diff = 0
         # TiltImageAlignment (one per movie)
         node_creator_params_list = []
-        (project_dir / f"ExcludeTiltImages/job{job_number - 2:03}").mkdir(
-            parents=True, exist_ok=True
-        )
-        if not (
-            project_dir / f"ExcludeTiltImages/job{job_number - 2:03}/tilts"
-        ).is_symlink():
-            (
+        if self.input_file_list_of_lists:
+            (project_dir / f"ExcludeTiltImages/job{job_number - 2:03}").mkdir(
+                parents=True, exist_ok=True
+            )
+            if not (
                 project_dir / f"ExcludeTiltImages/job{job_number - 2:03}/tilts"
-            ).symlink_to(project_dir / "MotionCorr/job002/Movies")
-        (project_dir / f"AlignTiltSeries/job{job_number - 1:03}").mkdir(
-            parents=True, exist_ok=True
-        )
+            ).is_symlink():
+                (
+                    project_dir / f"ExcludeTiltImages/job{job_number - 2:03}/tilts"
+                ).symlink_to(project_dir / "MotionCorr/job002/Movies")
+            (project_dir / f"AlignTiltSeries/job{job_number - 1:03}").mkdir(
+                parents=True, exist_ok=True
+            )
         if self.rot:
             tomo_params.relion_options.tilt_axis_angle = self.rot
         for im, movie in enumerate(self.input_file_list_of_lists):
@@ -763,7 +770,6 @@ class TomoAlign(CommonService):
                     self.thickness_pixels * tomo_params.pixel_size
                 )
             rw.send_to("images", images_call_params)
-            print(images_call_params)
 
         # Forward results to denoise service
         self.log.info(f"Sending to denoise service {aretomo_output_path}")
@@ -797,12 +803,14 @@ class TomoAlign(CommonService):
         self.log.info(f"Done tomogram alignment for {tomo_params.stack_file}")
         rw.transport.ack(header)
 
-    def convert_txrm_to_stack(self, txrm_file) -> float:
+    def convert_txrm_to_stack(self, txrm_file, stack_file) -> float:
         from txrm2tiff.inspector import Inspector
+        from txrm2tiff.main import convert_and_save
         from txrm2tiff.txrm import open_txrm
         from txrm2tiff.txrm_functions.general import read_stream
         from txrm2tiff.xradia_properties.enums import XrmDataTypes
 
+        # Read the tilt angles and pixel size from the txrm
         with open_txrm(
             txrm_file, load_images=False, load_reference=False, strict=False
         ) as txrm:
@@ -820,6 +828,9 @@ class TomoAlign(CommonService):
                 strict=True,
             )
         self.tilt_angles = dict(enumerate(angles))
+
+        # Convert the txrm to a tiff stack
+        convert_and_save(txrm_file, stack_file, custom_reference=None)
         if pixel_size_microns:
             return pixel_size_microns[0] * 1000
         return 100
