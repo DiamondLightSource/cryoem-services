@@ -22,17 +22,14 @@
       "success": 7
     },
     "parameters": {
-      "align_z": 200,
-      "dose_per_frame": "{dose_per_frame}",
-      "frame_count": "{frame_count}",
-      "input_file_list": "{input_file_list}",
-      "manual_tilt_offset": "{manual_tilt_offset}",
-      "path_pattern": "{path_pattern}",
-      "pixel_size": "{pixel_size}",
+      "dark_tol": 0,
+      "manual_tilt_offset": 0,
+      "out_bin": 1,
+      "pixel_size": 100,
       "relion_options": {},
       "stack_file": "{stack_file}",
-      "tilt_axis": "{tilt_axis}",
-      "vol_z": 700,
+      "tilt_axis": 0,
+      "txrm_file": "{txrm_file}",
       "wbp": 1
     },
     "queue": "tomo_align",
