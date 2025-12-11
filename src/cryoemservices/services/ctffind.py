@@ -11,6 +11,7 @@ from workflows.recipe import wrap_subscribe
 from cryoemservices.services.common_service import CommonService
 from cryoemservices.util.models import MockRW
 from cryoemservices.util.relion_service_options import RelionServiceOptions
+from cryoemservices.util.spa_output_files import get_ice_ring_density
 
 
 class CTFParameters(BaseModel):
@@ -253,6 +254,7 @@ class CTFFind(CommonService):
         # Extract results for ispyb
         astigmatism = self.defocus1 - self.defocus2
         estimated_defocus = (self.defocus1 + self.defocus2) / 2
+        ice_ring_density = get_ice_ring_density(Path(ctf_params.output_image))
 
         # Forward results to images service
         self.log.info(f"Sending to images service {ctf_params.output_image}")
@@ -284,7 +286,8 @@ class CTFFind(CommonService):
             "cc_value": str(self.cc_value),
             "fft_theoretical_full_path": str(
                 Path(ctf_params.output_image).with_suffix(".jpeg")
-            ),  # path to output mrc (would be jpeg if we could convert in SW)
+            ),
+            "ice_ring_density": ice_ring_density,
         }
         self.log.info(f"Sending to ispyb {ispyb_parameters}")
 
@@ -328,6 +331,7 @@ class CTFFind(CommonService):
                     "smartem",
                     {
                         "ctf_max_resolution_estimate": self.estimated_resolution,
+                        "ice_ring_density": ice_ring_density,
                         "app_id": ctf_params.app_id,
                         "mc_uuid": ctf_params.mc_uuid,
                         "mc_path": ctf_params.input_image,
