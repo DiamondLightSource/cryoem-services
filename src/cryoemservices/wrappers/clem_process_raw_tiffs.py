@@ -197,6 +197,8 @@ def process_tiff_files(
         "is_stack": num_frames > 1,
         "is_montage": num_tiles > 1,
         "output_files": {},
+        "thumbnails": {},
+        "thumbnail_size": (512, 512),
         "metadata": str(img_xml_file.resolve()),
         "parent_tiffs": {},
         "pixels_x": None,
@@ -394,10 +396,15 @@ def process_tiff_files(
             axes="ZYX",
             image_labels=image_labels,
             photometric="minisblack",
-        )
+        ).resolve()
         # Collect the images created
-        result["output_files"][color] = str(img_stk_file.resolve())
+        result["output_files"][color] = str(img_stk_file)
         result["parent_tiffs"][color] = [str(file) for file in tiff_color_subset][0:1]
+
+        # Append path to where the PNG images should be created
+        result["thumbnails"][color] = str(
+            img_stk_file.parent / ".thumbnails" / f"{img_stk_file.stem}.png"
+        )
 
     logger.debug(f"Processing results are as follows: {result}")
     return result
@@ -535,6 +542,19 @@ class ProcessRawTIFFsWrapper:
                 f"No processing results were returned for TIFF series {series_name!r}"
             )
             return False
+
+        # Request for PNG images to be created
+        for color in result["output_files"].keys():
+            self.recwrap.send_to(
+                "images",
+                {
+                    "image_command": "tiff_to_apng",
+                    "input_file": result["output_files"][color],
+                    "output_file": result["thumbnails"][color],
+                    "target_size": result["thumbnail_size"],
+                    "color": color,
+                },
+            )
 
         # Send results to Murfey's "feedback_callback" function
         murfey_params = {

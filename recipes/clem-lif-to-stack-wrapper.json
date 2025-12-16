@@ -5,7 +5,8 @@
       "root_folder": "{root_folder}"
     },
     "output": {
-      "murfey_feedback": 2
+      "murfey_feedback": 2,
+      "images": 3
     },
     "parameters": {
       "cluster": {
@@ -40,6 +41,10 @@
     },
     "queue": "{feedback_queue}",
     "service": "Murfey"
+  },
+  "3": {
+    "queue": "images",
+    "service": "Images"
   },
   "start": [[1, []]]
 }

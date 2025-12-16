@@ -88,6 +88,19 @@ class ProcessRawLIFsService(CommonService):
 
         # Send each subset of output files to Murfey for registration
         for result in results:
+            # Request for PNG images to be created
+            for color in result["output_files"].keys():
+                rw.send_to(
+                    "images",
+                    {
+                        "image_command": "tiff_to_apng",
+                        "input_file": result["output_files"][color],
+                        "output_file": result["thumbnails"][color],
+                        "target_size": result["thumbnail_size"],
+                        "color": color,
+                    },
+                )
+
             # Create dictionary and send it to Murfey's "feedback_callback" function
             murfey_params = {
                 "register": "clem.register_preprocessing_result",
