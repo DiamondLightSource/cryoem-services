@@ -198,7 +198,7 @@ def process_tiff_files(
         "is_montage": num_tiles > 1,
         "output_files": {},
         "thumbnails": {},
-        "thumbnail_size": (512, 512),
+        "thumbnail_size": (512, 512),  # height, row
         "metadata": str(img_xml_file.resolve()),
         "parent_tiffs": {},
         "pixels_x": None,

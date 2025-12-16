@@ -558,11 +558,12 @@ def tiff_to_apng(plugin_params: Callable):
     # Load parameters
     input_file = Path(plugin_params("input_file"))
     output_file = Path(plugin_params("output_file"))
-    target_size: tuple[int, int] | None = (
+    target_size: tuple[int | None, int | None] = (
         tuple(plugin_params("target_size"))
         if plugin_params("target_size") is not None
-        else None
+        else (None, None)
     )
+    target_height, target_width = target_size
     color: str | None = (
         str(plugin_params("color")) if plugin_params("color") is not None else None
     )
@@ -582,8 +583,8 @@ def tiff_to_apng(plugin_params: Callable):
         while True:
             frame = img.copy()
             # Resize image if target size provided
-            if target_size is not None:
-                frame.thumbnail(target_size)
+            if target_height and target_width:
+                frame.thumbnail((target_width, target_height))
             # Convert only grayscale 8-bit images if a color LUT is provided
             if color is not None and frame.mode == "L":
                 frame = PIL.Image.fromarray(

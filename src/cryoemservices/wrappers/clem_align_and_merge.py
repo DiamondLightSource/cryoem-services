@@ -414,7 +414,7 @@ def align_and_merge_stacks(
         "align_across": align_across,
         "output_file": str(save_name),
         "thumbnail": str(save_name.parent / ".thumbnails" / f"{save_name.stem}.png"),
-        "thumbnail_size": (512, 512),
+        "thumbnail_size": (512, 512),  # height, row
     }
     return result
 

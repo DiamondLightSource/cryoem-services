@@ -155,7 +155,7 @@ def process_lif_subimage(
         "is_montage": num_tiles > 1,
         "output_files": {},
         "thumbnails": {},
-        "thumbnail_size": (512, 512),
+        "thumbnail_size": (512, 512),  # height, row
         "metadata": str(img_xml_file.resolve()),
         "parent_lif": str(file.resolve()),
         "pixels_x": None,
