@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any, cast
 from unittest import mock
 
 import pytest
@@ -116,7 +117,9 @@ def test_process_raw_tiffs_service(
     # Set up expected mock values
     result = {
         "series_name": "dummy",
-        "dummy": "dummy",
+        "output_files": dict.fromkeys(channels, "dummy"),
+        "thumbnails": dict.fromkeys(channels, "dummy"),
+        "thumbnail_size": (512, 512),
     }
     mock_convert.return_value = result
 
@@ -146,6 +149,19 @@ def test_process_raw_tiffs_service(
     assert kwargs["root_folder"] == raw_dir.stem
     assert kwargs["metadata_file"] == metadata
 
+    # Check that 'images' was called for each colour
+    for color in cast(dict[str, Any], result["output_files"]).keys():
+        offline_transport.send.assert_any_call(
+            "images",
+            {
+                "image_command": "tiff_to_apng",
+                "input_file": cast(dict[str, str], result["output_files"])[color],
+                "output_file": cast(dict[str, str], result["thumbnails"])[color],
+                "target_size": result["thumbnail_size"],
+                "color": color,
+            },
+        )
+    # Check that 'murfey_feedback' was called at the end
     offline_transport.send.assert_any_call(
         "murfey_feedback",
         {
@@ -153,6 +169,8 @@ def test_process_raw_tiffs_service(
             "result": result,
         },
     )
+    # Check that send was called the expected number of times
+    assert offline_transport.send.call_count == 1 + len(channels)
 
 
 def test_process_raw_tiffs_bad_messsage(
