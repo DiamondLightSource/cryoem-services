@@ -105,6 +105,23 @@ class ProcessRawTIFFsService(CommonService):
             rw.transport.nack(header)
             return
 
+        # Request for PNG images to be created
+        for color in result["output_files"].keys():
+            images_params = {
+                "image_command": "tiff_to_apng",
+                "input_file": result["output_files"][color],
+                "output_file": result["thumbnails"][color],
+                "target_size": result["thumbnail_size"],
+                "color": color,
+            }
+            rw.send_to(
+                "images",
+                images_params,
+            )
+            self.log.info(
+                f"Submitted the following job to Images service: \n{images_params}"
+            )
+
         # Create dictionary and send it to Murfey's "feedback_callback" function
         murfey_params = {
             "register": "clem.register_preprocessing_result",

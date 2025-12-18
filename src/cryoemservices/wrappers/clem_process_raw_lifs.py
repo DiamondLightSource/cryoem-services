@@ -154,6 +154,8 @@ def process_lif_subimage(
         "is_stack": num_frames > 1,
         "is_montage": num_tiles > 1,
         "output_files": {},
+        "thumbnails": {},
+        "thumbnail_size": (512, 512),  # height, row
         "metadata": str(img_xml_file.resolve()),
         "parent_lif": str(file.resolve()),
         "pixels_x": None,
@@ -322,9 +324,14 @@ def process_lif_subimage(
             axes="ZYX",
             image_labels=image_labels,
             photometric="minisblack",
-        )
+        ).resolve()
         # Collect the images created
-        result["output_files"][color] = str(img_stk_file.resolve())
+        result["output_files"][color] = str(img_stk_file)
+
+        # Create and append paths to PNG files to create
+        result["thumbnails"][color] = str(
+            img_stk_file.parent / ".thumbnails" / f"{img_stk_file.stem}.png"
+        )
 
     logger.debug(f"Processing results are as follows: {result}")
     return result
@@ -487,6 +494,23 @@ class ProcessRawLIFsWrapper:
 
         # Send each subset of output files to Murfey for registration
         for result in results:
+            # Request for PNG images to be created
+            for color in result["output_files"].keys():
+                images_params = {
+                    "image_command": "tiff_to_apng",
+                    "input_file": result["output_files"][color],
+                    "output_file": result["thumbnails"][color],
+                    "target_size": result["thumbnail_size"],
+                    "color": color,
+                }
+                self.recwrap.send_to(
+                    "images",
+                    images_params,
+                )
+                logger.info(
+                    f"Submitted the following job to Images service: \n{images_params}"
+                )
+
             # Create dictionary and send it to Murfey's "feedback_callback" function
             murfey_params = {
                 "register": "clem.register_preprocessing_result",

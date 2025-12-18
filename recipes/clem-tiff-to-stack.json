@@ -7,7 +7,8 @@
       "metadata": "{metadata}"
     },
     "output": {
-      "murfey_feedback": 2
+      "murfey_feedback": 2,
+      "images": 3
     },
     "queue": "cluster.submission",
     "service": "TIFF2STACK"
@@ -18,6 +19,10 @@
     },
     "queue": "{feedback_queue}",
     "service": "Murfey"
+  },
+  "3": {
+    "queue": "images",
+    "service": "Images"
   },
   "start": [[1, []]]
 }

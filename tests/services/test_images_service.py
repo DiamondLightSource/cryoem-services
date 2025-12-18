@@ -24,7 +24,7 @@ def test_plugins_exist():
     service.initializing()
 
     # Check the expected images plugins are present
-    assert len(service.image_functions.keys()) == 8
+    assert len(service.image_functions.keys()) == 9
     assert service.image_functions.get("mrc_central_slice", "")
     assert service.image_functions.get("mrc_projection", "")
     assert service.image_functions.get("mrc_to_apng", "")
@@ -32,6 +32,7 @@ def test_plugins_exist():
     assert service.image_functions.get("picked_particles", "")
     assert service.image_functions.get("picked_particles_3d_apng", "")
     assert service.image_functions.get("picked_particles_3d_central_slice", "")
+    assert service.image_functions.get("tiff_to_apng", "")
     assert service.image_functions.get("tilt_series_alignment", "")
 
 

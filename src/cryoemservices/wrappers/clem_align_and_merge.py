@@ -379,7 +379,7 @@ def align_and_merge_stacks(
         z_size = spacing_list[0]
 
     # Save image as a TIFF file
-    save_name = parent_dir / f"composite_{img_type}.tiff"
+    save_name = (parent_dir / f"composite_{img_type}.tiff").resolve()
     imwrite(
         save_name,
         composite_img,
@@ -412,7 +412,9 @@ def align_and_merge_stacks(
         "align_self": align_self,
         "flatten": flatten,
         "align_across": align_across,
-        "composite_image": str(save_name.resolve()),
+        "output_file": str(save_name),
+        "thumbnail": str(save_name.parent / ".thumbnails" / f"{save_name.stem}.png"),
+        "thumbnail_size": (512, 512),  # height, row
     }
     return result
 
@@ -509,6 +511,19 @@ class AlignAndMergeWrapper:
                 f"{params.series_name!r}"
             )
             return False
+
+        # Request for PNG image to be created
+        images_params = {
+            "image_command": "tiff_to_apng",
+            "input_file": result["output_file"],
+            "output_file": result["thumbnail"],
+            "target_size": result["thumbnail_size"],
+        }
+        self.recwrap.send_to(
+            "images",
+            images_params,
+        )
+        logger.info(f"Submitted the following job to Images service: \n{images_params}")
 
         # Send results to Murfey for registration
         result["series_name"] = params.series_name

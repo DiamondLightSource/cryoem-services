@@ -12,6 +12,10 @@ RUN apt-get update && \
 
 # Build CryoEM Services, pipeliner, and IMOD in a branch image
 FROM base as build
+
+# Set up build arguments for this stage
+ARG IMOD_INSTALLER=imod_5.1.9_RHEL8-64_CUDA12.0.sh
+
 COPY ./ /cryoem-services/
 RUN apt-get update && \
     apt-get upgrade -y && \
@@ -31,10 +35,13 @@ RUN apt-get update && \
         /cryoem-services \
         http://gitlab.com/stephen-riggs/ccpem-pipeliner/-/archive/diamond_tomo/ccpem-pipeliner-diamond_tomo.zip \
         && \
-    curl https://bio3d.colorado.edu/imod/AMD64-RHEL5/imod_5.1.0_RHEL8-64_CUDA12.0.sh > imod_5.1.0_RHEL8-64_CUDA12.0.sh && \
-    chmod +x imod_5.1.0_RHEL8-64_CUDA12.0.sh && \
+    if [ ! -f /cryoem-services/installers/${IMOD_INSTALLER} ]; then \
+        echo "IMOD installer not found; downloading..."; \
+        curl https://bio3d.colorado.edu/imod/AMD64-RHEL5/${IMOD_INSTALLER} > /cryoem-services/installers/${IMOD_INSTALLER}; \
+    fi && \
+    chmod +x /cryoem-services/installers/${IMOD_INSTALLER} && \
     mkdir imod && \
-    ./imod_5.1.0_RHEL8-64_CUDA12.0.sh -dir imod -skip -y
+    /cryoem-services/installers/${IMOD_INSTALLER} -dir imod -skip -y
 
 # Transfer completed build to base image
 FROM base

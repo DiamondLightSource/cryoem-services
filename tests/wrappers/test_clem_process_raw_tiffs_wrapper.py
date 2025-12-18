@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from unittest.mock import MagicMock
 
 import numpy as np
@@ -271,6 +271,13 @@ def create_dummy_result(
             color: str(processed_dir / area_name / series_name / f"{color}.tiff")
             for color in colors
         },
+        "thumbnails": {
+            color: str(
+                processed_dir / area_name / series_name / ".thumbnails" / f"{color}.png"
+            )
+            for color in colors
+        },
+        "thumbnail_size": (512, 512),
         "parent_tiffs": (
             {
                 color: sorted(
@@ -482,6 +489,7 @@ def test_process_tiff_files(
 
     # Order of list of dictionaries should match exactly
     for key, value in expected_result.items():
+        # Allow deviation for float values
         if key == "extent":
             for c, coord in enumerate(value):
                 assert math.isclose(coord, result[key][c])
@@ -493,6 +501,7 @@ def test_process_tiff_files(
             assert math.isclose(value, result[key], abs_tol=1e-9)
         elif key == "resolution":
             assert math.isclose(value, result[key], abs_tol=1e-9)
+        # Assert everything else exactly
         else:
             assert value == result[key]
 
@@ -589,6 +598,7 @@ def test_process_raw_tiffs_wrapper(
     test_params: tuple[int],
     offline_transport,  # 'offline_transport' fixture defined above
     tiff_lists: list[list[Path]],
+    processed_dir: Path,
     raw_metadata_files: list[Path],
 ):
     # Unpack test params and load relevant test datasets
@@ -624,8 +634,13 @@ def test_process_raw_tiffs_wrapper(
     # Generate the expected output result of the TIFF processing function
     # series_dir = processed_dir / area_name / series_name.replace(" ", "_")
     # processed_metadata = series_dir / "metadata" / f"{series_name.replace(" ", "_")}.xml"
-    output = {"series_name": series_name, "dummy": "dummy"}
-    mock_process_raw_tiffs.return_value = output
+    result = create_dummy_result(
+        tiff_list=tiff_list,
+        series_name=series_name,
+        processed_dir=processed_dir,
+        test_num=dataset_num,
+    )
+    mock_process_raw_tiffs.return_value = result
 
     # Set up a recipe wrapper with the defined message
     recipe_wrapper = RecipeWrapper(message=message, transport=offline_transport)
@@ -642,14 +657,28 @@ def test_process_raw_tiffs_wrapper(
         number_of_processes=20,
     )
 
-    # Check that all the results set up are sent out at the end of the function
-    # Generate the dictionary to be sent out
-    murfey_params = {
-        "register": "clem.register_preprocessing_result",
-        "result": output,
-    }
+    # Check that 'images' was called for each colour
+    for color in cast(dict[str, str], result["output_files"]).keys():
+        mock_send_to.assert_any_call(
+            "images",
+            {
+                "image_command": "tiff_to_apng",
+                "input_file": cast(dict[str, str], result["output_files"])[color],
+                "output_file": cast(dict[str, str], result["thumbnails"])[color],
+                "target_size": result["thumbnail_size"],
+                "color": color,
+            },
+        )
     # Check that the messag is sent out correctly
-    mock_send_to.assert_called_once_with("murfey_feedback", murfey_params)
+    mock_send_to.assert_any_call(
+        "murfey_feedback",
+        {
+            "register": "clem.register_preprocessing_result",
+            "result": result,
+        },
+    )
+    # Check that 'send_to' was called the expected number of times
+    assert mock_send_to.call_count == 1 + len(colors)
 
     # Check that the wrapper ran through to completion
     assert return_code
