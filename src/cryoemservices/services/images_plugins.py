@@ -551,6 +551,13 @@ def picked_particles_3d_apng(plugin_params: Callable):
 
 
 def tiff_to_apng(plugin_params: Callable):
+    """
+    Converts TIFF images/image stacks into PNGs.
+
+    This function only works with unsigned 8-bit (grayscale or RGB) TIFF images, as
+    Pillow cannot correctly parse 16-bit or higher channels, nor can it save float-
+    based images as PNGs.
+    """
     # Check that the essential parameters are provided
     if not required_parameters(plugin_params, ["input_file", "output_file"]):
         return False
