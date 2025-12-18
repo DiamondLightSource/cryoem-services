@@ -2022,7 +2022,7 @@ def test_tomo_align_service_fail_case(
 
 
 @mock.patch("cryoemservices.services.tomo_align.subprocess.run")
-@mock.patch("cryoemservices.services.tomo_align.tifffile")
+@mock.patch("cryoemservices.services.tomo_align.mrcfile")
 @mock.patch("txrm2tiff.main.convert_and_save")
 @mock.patch("txrm2tiff.txrm.open_txrm")
 @mock.patch("txrm2tiff.inspector.Inspector")
@@ -2034,7 +2034,7 @@ def test_tomo_align_service_txrm(
     mock_inspector,
     mock_open_txrm,
     mock_convert_and_save,
-    mock_tifffile,
+    mock_mrcfile,
     mock_subprocess,
     offline_transport,
     tmp_path,
@@ -2042,7 +2042,7 @@ def test_tomo_align_service_txrm(
     """
     Send a test message to TomoAlign (AreTomo3) for a txrm file
     """
-    mock_tifffile.imread().shape = (600, 3000, 4000)
+    mock_mrcfile.open().__enter__().header = {"nx": 4000, "ny": 3000, "nz": 600}
     mock_read_stream.return_value = [0.1, 0.3, 0.5]
 
     header = {
@@ -2076,8 +2076,9 @@ def test_tomo_align_service_txrm(
     )
     service.initializing()
 
-    def write_aretomo_outputs(command, capture_output):
+    def write_aretomo_outputs(command, capture_output: bool = False):
         if command[0] != "AreTomo3":
+            (tmp_path / "Tomograms/job001/stack.mrc").touch(exist_ok=True)
             return CompletedProcess("", returncode=0)
         # Set up outputs: stack_Imod file like AreTomo3, no exclusions but with space
         (tmp_path / "Tomograms/job001/stack_Imod").mkdir(parents=True)
@@ -2158,12 +2159,19 @@ def test_tomo_align_service_txrm(
     )
     mock_convert_and_save.assert_called_once_with(
         tomo_align_test_message["txrm_file"],
-        tomo_align_test_message["stack_file"],
+        f"{tmp_path}/Tomograms/job001/stack.tiff",
         custom_reference=None,
     )
 
     # Check the expected calls were made
-    assert mock_subprocess.call_count == 2
+    assert mock_subprocess.call_count == 3
+    mock_subprocess.assert_any_call(
+        [
+            "tif2mrc",
+            f"{tmp_path}/Tomograms/job001/stack.tiff",
+            f"{tmp_path}/Tomograms/job001/stack.mrc",
+        ]
+    )
     mock_subprocess.assert_any_call(
         aretomo_command,
         capture_output=True,

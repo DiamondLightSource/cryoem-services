@@ -12,7 +12,6 @@ from typing import Any, List, Literal, Optional
 import mrcfile
 import numpy as np
 import plotly.express as px
-import tifffile
 from gemmi import cif
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 from workflows.recipe import wrap_subscribe
@@ -261,6 +260,11 @@ class TomoAlign(CommonService):
             # If no volume provided, set it to the maximum we allow
             tomo_params.vol_z = tomo_params.max_vol
 
+        # Get the names of the output files expected
+        alignment_output_dir = Path(tomo_params.stack_file).parent
+        Path(tomo_params.stack_file).parent.mkdir(parents=True, exist_ok=True)
+        stack_name = str(Path(tomo_params.stack_file).stem)
+
         # Convert a path pattern into a file list
         self.tilt_angles = {}
         if tomo_params.path_pattern:
@@ -281,9 +285,14 @@ class TomoAlign(CommonService):
                 tomo_params.txrm_file, tomo_params.stack_file
             )
             self.input_file_list_of_lists = []
+            # Check we now have the expected stack file
+            if not Path(tomo_params.stack_file).is_file():
+                self.log.warning("Stack file generation failed")
+                rw.transport.nack(header)
+                return
         else:
             self.log.warning(f"Invalid input or {tomo_params.txrm_file} is not a file")
-            rw.transport.nack(header, requeue=True)
+            rw.transport.nack(header)
             return
 
         self.log.info(
@@ -353,15 +362,16 @@ class TomoAlign(CommonService):
 
         # Find the input image dimensions
         if self.input_file_list_of_lists:
+            # Read the first image if a list is given
             with mrcfile.open(self.input_file_list_of_lists[0][0]) as mrc:
                 mrc_header = mrc.header
-            tomo_params.relion_options.tomo_size_x = int(mrc_header["nx"])
-            tomo_params.relion_options.tomo_size_y = int(mrc_header["ny"])
+
         else:
-            # Read shape of the tiff stack if using txrm
-            data_shape = tifffile.imread(tomo_params.stack_file).shape
-            tomo_params.relion_options.tomo_size_x = data_shape[2]
-            tomo_params.relion_options.tomo_size_y = data_shape[1]
+            # Read shape of the stack if using txrm
+            with mrcfile.open(tomo_params.stack_file) as mrc:
+                mrc_header = mrc.header
+        tomo_params.relion_options.tomo_size_x = int(mrc_header["nx"])
+        tomo_params.relion_options.tomo_size_y = int(mrc_header["ny"])
 
         # Scale size of output
         scaled_x_size = tomo_params.relion_options.tomo_size_x / int(
@@ -370,11 +380,6 @@ class TomoAlign(CommonService):
         scaled_y_size = tomo_params.relion_options.tomo_size_y / int(
             tomo_params.out_bin
         )
-
-        # Get the names of the output files expected
-        alignment_output_dir = Path(tomo_params.stack_file).parent
-        Path(tomo_params.stack_file).parent.mkdir(parents=True, exist_ok=True)
-        stack_name = str(Path(tomo_params.stack_file).stem)
 
         project_dir_search = re.search(".+/job[0-9]+/", tomo_params.stack_file)
         job_num_search = re.search("/job[0-9]+", tomo_params.stack_file)
@@ -399,10 +404,7 @@ class TomoAlign(CommonService):
                 return
 
         # Set up the angle file needed for dose weighting
-        angle_file = (
-            Path(tomo_params.stack_file).parent
-            / f"{Path(tomo_params.stack_file).stem}_TLT.txt"
-        )
+        angle_file = Path(tomo_params.stack_file).parent / f"{stack_name}_TLT.txt"
         for i in range(len(self.input_file_list_of_lists)):
             tilt_index = _get_tilt_number_v5_12(
                 Path(self.input_file_list_of_lists[i][0])
@@ -803,7 +805,7 @@ class TomoAlign(CommonService):
         self.log.info(f"Done tomogram alignment for {tomo_params.stack_file}")
         rw.transport.ack(header)
 
-    def convert_txrm_to_stack(self, txrm_file, stack_file) -> float:
+    def convert_txrm_to_stack(self, txrm_file: str, stack_file: str) -> float:
         from txrm2tiff.inspector import Inspector
         from txrm2tiff.main import convert_and_save
         from txrm2tiff.txrm import open_txrm
@@ -829,8 +831,12 @@ class TomoAlign(CommonService):
             )
         self.tilt_angles = dict(enumerate(angles))
 
-        # Convert the txrm to a tiff stack
-        convert_and_save(txrm_file, stack_file, custom_reference=None)
+        # Convert the txrm to a tiff stack, then convert to mrc for aretomo
+        tifftomo = Path(stack_file).with_suffix(".tiff")
+        convert_and_save(txrm_file, str(tifftomo), custom_reference=None)
+        # Let this run, and check later if the output file exists
+        subprocess.run(["tif2mrc", str(tifftomo), stack_file])
+        tifftomo.unlink(missing_ok=True)
         if pixel_size_microns:
             return pixel_size_microns[0] * 1000
         return 100
