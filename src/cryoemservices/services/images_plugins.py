@@ -622,7 +622,7 @@ def tiff_to_apng(plugin_params: Callable):
         f"Converted TIFF to PNG {input_file} -> {output_file} in {timing:.1f} seconds",
         extra={"image-processing-time": timing},
     )
-    return output_file
+    return str(output_file)
 
 
 def tilt_series_alignment(plugin_params: Callable):
