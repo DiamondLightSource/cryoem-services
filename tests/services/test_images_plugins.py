@@ -538,7 +538,7 @@ def test_picked_particles_3d_apng_works_without_coords(tmp_path):
 def plugin_params_tiff_to_apng(
     input_file: Path | None = None,
     output_file: Path | None = None,
-    target_size: tuple[int, int] | None = None,
+    target_size: tuple[int | None, int | None] | None = None,
     color: str | None = None,
 ):
     def params(key):
@@ -583,8 +583,8 @@ def test_tiff_to_apng(
     test_params: tuple[str, str, int, bool, str | None, bool],
 ):
     # Unpack test parameters
-    input_file_name, output_file_name, frames, is_rgb, color, resize = test_params
-    target_size = (16, 16) if resize else None  # height, width
+    input_file_name, output_file_name, num_frames, is_rgb, color, resize = test_params
+    target_h, target_w = (8, 32) if resize else (None, None)  # height, width
 
     # Construct full file paths for input and output files
     input_file = tmp_path / input_file_name
@@ -592,8 +592,11 @@ def test_tiff_to_apng(
     output_file = tmp_path / output_file_name
 
     # Create test image using 'tifffile'
-    shape = (frames, 32, 32) if frames > 1 else (32, 32)
-    arr = np.random.randint(0, 256, shape).astype("uint8")
+    initial_h, initial_w = (16, 64)
+    arr = np.linspace(0, 255, 1024).reshape((initial_h, initial_w))
+    if num_frames > 1:
+        arr = np.asarray([arr for f in range(num_frames)])
+    arr = arr.astype("uint8")
     if is_rgb:
         arr = convert_to_rgb(arr, "gray")
     tf.imwrite(
@@ -606,18 +609,18 @@ def test_tiff_to_apng(
 
     # Run the function and check that the outputs are as expected
     assert tiff_to_apng(
-        plugin_params_tiff_to_apng(input_file, output_file, target_size, color)
+        plugin_params_tiff_to_apng(input_file, output_file, (target_h, target_w), color)
     ) == str(output_file)
     assert output_file.exists()
 
-    # Open the output file and inspec image propoerties
+    # Open the output file and inspect image propoerties
     output_img = PIL.Image.open(output_file)
 
     # Incoming RGB images will stay RGB; if 'color' is set, 8-bit images will be converted
     assert output_img.mode == "RGB" if is_rgb or color is not None else "L"
 
     # Check that image has been resized as specified
-    assert output_img.size == target_size if resize else shape[-2:]
+    assert output_img.size == (target_w, target_h) if resize else (initial_w, initial_h)
 
     # Check that the number of image frames is preserved
     frame_counter = 0
@@ -628,7 +631,7 @@ def test_tiff_to_apng(
             output_img.seek(output_img.tell() + 1)
     except EOFError:
         pass
-    assert frame_counter == frames
+    assert frame_counter == num_frames
 
 
 @mock.patch("cryoemservices.services.images_plugins.ImageDraw")
