@@ -18,6 +18,7 @@ class SelectParticlesParameters(BaseModel):
     batch_size: int
     image_size: int
     incomplete_batch_size: int = 10000
+    tomo: bool = False
     relion_options: RelionServiceOptions
 
 
@@ -92,7 +93,10 @@ class SelectParticles(CommonService):
         select_dir.mkdir(parents=True, exist_ok=True)
 
         extracted_parts_file = cif.read_file(select_params.input_file)
-        extracted_parts_block = extracted_parts_file.sole_block()
+        try:
+            extracted_parts_block = extracted_parts_file.sole_block()
+        except RuntimeError:
+            extracted_parts_block = extracted_parts_file.find_block("particles")
         extracted_parts_loop = extracted_parts_block.find_loop(
             "_rlnCoordinateX"
         ).get_loop()
@@ -160,24 +164,35 @@ class SelectParticles(CommonService):
             )
 
             new_split_block = new_particles_cif.add_new_block("particles")
-            new_split_loop = new_split_block.init_loop(
-                "_rln",
-                [
-                    "CoordinateX",
-                    "CoordinateY",
-                    "ImageName",
-                    "MicrographName",
-                    "OpticsGroup",
-                    "CtfMaxResolution",
-                    "CtfFigureOfMerit",
-                    "DefocusU",
-                    "DefocusV",
-                    "DefocusAngle",
-                    "CtfBfactor",
-                    "CtfScalefactor",
-                    "PhaseShift",
-                ],
-            )
+            if select_params.tomo:
+                new_split_loop = new_split_block.init_loop(
+                    "_rln",
+                    [
+                        "TomoName",
+                        "OpticsGroup",
+                        "TomoParticleName",
+                        "ImageName",
+                    ],
+                )
+            else:
+                new_split_loop = new_split_block.init_loop(
+                    "_rln",
+                    [
+                        "CoordinateX",
+                        "CoordinateY",
+                        "ImageName",
+                        "MicrographName",
+                        "OpticsGroup",
+                        "CtfMaxResolution",
+                        "CtfFigureOfMerit",
+                        "DefocusU",
+                        "DefocusV",
+                        "DefocusAngle",
+                        "CtfBfactor",
+                        "CtfScalefactor",
+                        "PhaseShift",
+                    ],
+                )
 
             num_prev_parts = 0
             # While we have particles to add and the file is not full

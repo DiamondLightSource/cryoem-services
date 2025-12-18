@@ -281,6 +281,7 @@ class ExtractSubTomoFor2D(CommonService):
             "input_file": extract_subtomo_params.output_star,
             "batch_size": extract_subtomo_params.batch_size,
             "image_size": extract_subtomo_params.boxsize,
+            "tomo": True,
             "relion_options": dict(extract_subtomo_params.relion_options),
         }
         rw.send_to("select_particles", select_params)
