@@ -5,6 +5,9 @@ from unittest import mock
 
 import mrcfile
 import numpy as np
+import PIL.Image
+import pytest
+import tifffile as tf
 
 from cryoemservices.services.images_plugins import (
     mrc_central_slice,
@@ -14,8 +17,10 @@ from cryoemservices.services.images_plugins import (
     picked_particles,
     picked_particles_3d_apng,
     picked_particles_3d_central_slice,
+    tiff_to_apng,
     tilt_series_alignment,
 )
+from cryoemservices.util.clem_array_functions import convert_to_rgb
 
 
 def plugin_params(
@@ -528,6 +533,102 @@ def test_picked_particles_3d_apng_works_without_coords(tmp_path):
     assert picked_particles_3d_apng(
         plugin_params_tomo_pick(tmp_mrc_path, coords_file, "picked_particles_3d_apng")
     ) == str(tmp_path / "coords_movie.png")
+
+
+def plugin_params_tiff_to_apng(
+    input_file: Path | None = None,
+    output_file: Path | None = None,
+    target_size: tuple[int, int] | None = None,
+    color: str | None = None,
+):
+    def params(key):
+        p = {
+            "parameters": {"images_command": "tiff_to_apng"},
+            "input_file": input_file,
+            "output_file": output_file,
+            "target_size": target_size,
+            "color": color,
+        }
+        return p.get(key)
+
+    return params
+
+
+# Programmatically generate test matrix
+tiff_to_apng_test_params = []
+for frame in (1, 5):
+    for is_rgb in (True, False):
+        for color in (
+            None,
+            "gray",
+            "red",
+            "green",
+            "blue",
+            "cyan",
+            "magenta",
+            "yellow",
+        ):
+            for resize in (True, False):
+                tiff_to_apng_test_params.append((frame, is_rgb, color, resize))
+tiff_to_apng_test_matrix = [
+    # Input file | Output file | Frames | Initial image is RGB? | Color | Resize image
+    (f"test_{n}.tiff", f".thumbnails/test_{n}.png", frames, is_rgb, color, resize)
+    for n, (frames, is_rgb, color, resize) in enumerate(tiff_to_apng_test_params)
+]
+
+
+@pytest.mark.parametrize("test_params", tiff_to_apng_test_matrix)
+def test_tiff_to_apng(
+    tmp_path: Path,
+    test_params: tuple[str, str, int, bool, str | None, bool],
+):
+    # Unpack test parameters
+    input_file_name, output_file_name, frames, is_rgb, color, resize = test_params
+    target_size = (16, 16) if resize else None  # height, width
+
+    # Construct full file paths for input and output files
+    input_file = tmp_path / input_file_name
+    input_file.parent.mkdir(parents=True, exist_ok=True)
+    output_file = tmp_path / output_file_name
+
+    # Create test image using 'tifffile'
+    shape = (frames, 32, 32) if frames > 1 else (32, 32)
+    arr = np.random.randint(0, 256, shape).astype("uint8")
+    if is_rgb:
+        arr = convert_to_rgb(arr, "gray")
+    tf.imwrite(
+        input_file,
+        arr,
+        shape=arr.shape,
+        dtype=str(arr.dtype),
+        imagej=True,
+    )
+
+    # Run the function and check that the outputs are as expected
+    assert tiff_to_apng(
+        plugin_params_tiff_to_apng(input_file, output_file, target_size, color)
+    ) == str(output_file)
+    assert output_file.exists()
+
+    # Open the output file and inspec image propoerties
+    output_img = PIL.Image.open(output_file)
+
+    # Incoming RGB images will stay RGB; if 'color' is set, 8-bit images will be converted
+    assert output_img.mode == "RGB" if is_rgb or color is not None else "L"
+
+    # Check that image has been resized as specified
+    assert output_img.size == target_size if resize else shape[-2:]
+
+    # Check that the number of image frames is preserved
+    frame_counter = 0
+    output_img.seek(0)
+    try:
+        while True:
+            frame_counter += 1
+            output_img.seek(output_img.tell() + 1)
+    except EOFError:
+        pass
+    assert frame_counter == frames
 
 
 @mock.patch("cryoemservices.services.images_plugins.ImageDraw")
