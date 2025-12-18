@@ -513,15 +513,17 @@ class AlignAndMergeWrapper:
             return False
 
         # Request for PNG image to be created
+        images_params = {
+            "image_command": "tiff_to_apng",
+            "input_file": result["output_file"],
+            "output_file": result["thumbnail"],
+            "target_size": result["thumbnail_size"],
+        }
         self.recwrap.send_to(
             "images",
-            {
-                "image_command": "tiff_to_apng",
-                "input_file": result["output_file"],
-                "output_file": result["thumbnail"],
-                "target_size": result["thumbnail_size"],
-            },
+            images_params,
         )
+        logger.info(f"Submitted the following job to Images service: \n{images_params}")
 
         # Send results to Murfey for registration
         result["series_name"] = params.series_name

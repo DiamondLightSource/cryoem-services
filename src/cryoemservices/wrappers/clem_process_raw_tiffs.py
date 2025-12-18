@@ -545,15 +545,19 @@ class ProcessRawTIFFsWrapper:
 
         # Request for PNG images to be created
         for color in result["output_files"].keys():
+            images_params = {
+                "image_command": "tiff_to_apng",
+                "input_file": result["output_files"][color],
+                "output_file": result["thumbnails"][color],
+                "target_size": result["thumbnail_size"],
+                "color": color,
+            }
             self.recwrap.send_to(
                 "images",
-                {
-                    "image_command": "tiff_to_apng",
-                    "input_file": result["output_files"][color],
-                    "output_file": result["thumbnails"][color],
-                    "target_size": result["thumbnail_size"],
-                    "color": color,
-                },
+                images_params,
+            )
+            logger.info(
+                f"Submitted the following job to Images service: \n{images_params}"
             )
 
         # Send results to Murfey's "feedback_callback" function
