@@ -52,6 +52,7 @@ class TomoParameters(BaseModel):
     input_file_list: Optional[str] = None
     vol_z: Optional[int] = None
     max_vol: int = 1800
+    min_vol: int = 800
     extra_vol: int = 400
     out_bin: int = 4
     second_bin: Optional[int] = None
@@ -427,7 +428,10 @@ class TomoAlign(CommonService):
             self.thickness_pixels
             and self.thickness_pixels + tomo_params.extra_vol < tomo_params.max_vol
         ):
-            tomo_params.vol_z = self.thickness_pixels + tomo_params.extra_vol
+            if self.thickness_pixels + tomo_params.extra_vol > tomo_params.min_vol:
+                tomo_params.vol_z = self.thickness_pixels + tomo_params.extra_vol
+            else:
+                tomo_params.vol_z = tomo_params.min_vol
             tomo_params.relion_options.vol_z = tomo_params.vol_z
 
         if not job_is_rerun:
