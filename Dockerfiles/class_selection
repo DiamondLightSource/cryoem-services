@@ -44,7 +44,7 @@ RUN groupadd -r -g "${groupid}" "${groupname}" && useradd -r -M "${groupname}" -
 RUN yum install openmpi fftw-devel libtiff-devel libpng-devel libjpeg-devel zlib-devel -y
 
 # Copy Relion
-COPY --from="${relionbuild} --chown="${userid}":"${groupid}" /install/relion5.0 /install/relion5.0
+COPY --from="${relionbuild}" --chown="${userid}":"${groupid}" /install/relion5.0 /install/relion5.0
 ENV PATH="/install/relion5.0/bin:${PATH}"
 
 # Copy python environment (from Relion build)
