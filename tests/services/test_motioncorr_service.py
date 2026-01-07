@@ -997,6 +997,7 @@ def test_motioncor2_slurm_service_spa(mock_requests, offline_transport, tmp_path
         "patch_sizes": {"x": 5, "y": 5},
         "mc_uuid": 0,
         "picker_uuid": 0,
+        "slurm_memory": 12000,
         "relion_options": {},
     }
     output_relion_options = dict(RelionServiceOptions())
@@ -1235,7 +1236,7 @@ def test_motioncor_superres_does_slurm(mock_requests, offline_transport, tmp_pat
                 "partition": "partition",
                 "prefer": "preference",
                 "tasks": 1,
-                "memory_per_node": {"number": 12000, "set": True, "infinite": False},
+                "memory_per_node": {"number": 20000, "set": True, "infinite": False},
                 "time_limit": {"number": 60, "set": True, "infinite": False},
                 "tres_per_job": "gres/gpu:1",
             },
@@ -1353,6 +1354,7 @@ def test_motioncor2_slurm_parameters(mock_slurm, offline_transport, tmp_path):
         use_gpu=True,
         use_singularity=True,
         cif_name="MotionCor2_SIF",
+        memory_request=20000,
         extra_singularity_directories=["/lib64"],
     )
 
@@ -1389,6 +1391,7 @@ def test_motioncor_relion_slurm_parameters(mock_slurm, offline_transport, tmp_pa
         "patch_sizes": {"x": 5, "y": 5},
         "mc_uuid": 0,
         "picker_uuid": 0,
+        "slurm_memory": 12000,
         "relion_options": {},
     }
 
@@ -1456,6 +1459,7 @@ def test_motioncor_relion_slurm_parameters(mock_slurm, offline_transport, tmp_pa
         cpus=4,
         use_gpu=False,
         use_singularity=False,
+        memory_request=12000,
         script_extras="module load EM/relion/motioncorr",
     )
 
