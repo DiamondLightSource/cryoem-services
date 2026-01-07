@@ -571,9 +571,7 @@ def tiff_to_apng(plugin_params: Callable):
         else (None, None)
     )
     target_height, target_width = target_size
-    color: str | None = (
-        str(plugin_params("color")) if plugin_params("color") is not None else None
-    )
+    color: str | None = plugin_params("color")
 
     # Verify that the input file exists
     if not input_file.is_file():
