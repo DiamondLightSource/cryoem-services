@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 import PIL.Image
 import starfile
+import tifffile as tf
 from PIL import ImageDraw, ImageEnhance, ImageFilter, ImageFont
 
 from cryoemservices.services.cryolo import grid_bar_histogram
@@ -582,31 +583,31 @@ def tiff_to_apng(plugin_params: Callable):
     start = time.perf_counter()
     img = PIL.Image.open(input_file)
 
-    # Collect image frames
-    frames: list[PIL.Image.ImageFile.ImageFile] = []
-    try:
-        while True:
-            frame = img.copy()
-            # Resize image if target size provided
-            if target_height and target_width:
-                frame.thumbnail((target_width, target_height))
-            # Convert only grayscale 8-bit images if a color LUT is provided
-            if color is not None and frame.mode == "L":
-                frame = PIL.Image.fromarray(
-                    convert_to_rgb(np.asarray(frame, dtype="uint8"), color)
-                )
-            # Skip colorisation step and notify why
-            elif color is not None and frame.mode != "L" and img.tell() == 0:
-                logger.debug(
-                    f"Image format {frame.mode} not valid for color conversion"
-                )
+    # Determine number of frames in image
+    with tf.TiffFile(input_file) as tiff_file:
+        num_frames = len(tiff_file.pages)
 
-            # Append frame and load next frame in sequence
-            frames.append(frame)
-            img.seek(img.tell() + 1)
-    except EOFError:
-        pass  # All frames in the image will have been loaded by this point
-    img.seek(0)  # Reset the image after being done
+    # Collect image frames
+    frames: list[PIL.Image.Image] = []
+    for f in range(num_frames):
+        # Load relevant frame
+        img.seek(f)
+        frame = img.copy()
+
+        # Resize image if target size provided
+        if target_height and target_width:
+            frame.thumbnail((target_width, target_height))
+        # Convert only grayscale 8-bit images if a color LUT is provided
+        if color is not None and frame.mode == "L":
+            frame = PIL.Image.fromarray(
+                convert_to_rgb(np.asarray(frame, dtype="uint8"), color)
+            )
+        # Skip colorisation step and notify why
+        elif color is not None and frame.mode != "L":
+            logger.debug(f"Image format {frame.mode} not valid for color conversion")
+
+        # Append frame and load next frame in sequence
+        frames.append(frame)
 
     # Save as PNG
     if not output_file.parent.exists():
