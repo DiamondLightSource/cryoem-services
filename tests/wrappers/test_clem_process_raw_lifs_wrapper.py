@@ -302,6 +302,17 @@ def create_dummy_result(
             color: str(processed_dir / lif_file.stem / series_name / f"{color}.tiff")
             for color in colors
         },
+        "thumbnails": {
+            color: str(
+                processed_dir
+                / lif_file.stem
+                / series_name
+                / ".thumbnails"
+                / f"{color}.png"
+            )
+            for color in colors
+        },
+        "thumbnail_size": (512, 512),
         "metadata": str(
             processed_dir
             / lif_file.stem
@@ -476,17 +487,19 @@ def test_process_lif_subimage(
 
     # Order of list of dictionaries should match exactly
     for key, value in expected_result.items():
+        # Permit some leeway for float values
         if key == "extent":
             for c, coord in enumerate(value):
                 assert math.isclose(coord, result[key][c])
-        elif key in ("pixels_y",):
-            assert math.isclose(value, result[key], abs_tol=2)
         elif key in ("pixels_x",):
+            assert math.isclose(value, result[key], abs_tol=2)
+        elif key in ("pixels_y",):
             assert math.isclose(value, result[key], abs_tol=2)
         elif key == "pixel_size":
             assert math.isclose(value, result[key], abs_tol=1e-9)
         elif key == "resolution":
             assert math.isclose(value, result[key], abs_tol=1e-9)
+        # Match everything else exactly
         else:
             assert value == result[key]
 
@@ -588,7 +601,7 @@ def test_lif_to_stack_wrapper(
     }
 
     # Construct the expected output result
-    outputs = [
+    results = [
         create_dummy_result(
             lif_file=lif_file,
             series_name=series_name,
@@ -597,7 +610,7 @@ def test_lif_to_stack_wrapper(
         )
         for scene_num in range(num_scenes)
     ]
-    mock_process_lif_file.return_value = outputs
+    mock_process_lif_file.return_value = results
 
     # Set up a recipe wrapper with the defined recipe
     recipe_wrapper = RecipeWrapper(message=message, transport=offline_transport)
@@ -615,14 +628,36 @@ def test_lif_to_stack_wrapper(
     )
 
     # Check that all the results set up are sent out at the end of the function
-    for output in outputs:
-        # Generate the dictionary to be sent out
-        murfey_params = {
-            "register": "clem.register_preprocessing_result",
-            "result": output,
-        }
-        # Check that the message is sent out correctly
-        mock_send_to.assert_any_call("murfey_feedback", murfey_params)
+    for result in results:
+        # Check that the call to 'images' was sent out
+        for color in result["output_files"].keys():
+            mock_send_to.assert_any_call(
+                "images",
+                {
+                    "image_command": "tiff_to_apng",
+                    "input_file": result["output_files"][color],
+                    "output_file": result["thumbnails"][color],
+                    "target_size": result["thumbnail_size"],
+                    "color": color,
+                },
+            )
+
+        # Check that the message was sent to 'murfey_feedback' correctly
+        mock_send_to.assert_any_call(
+            "murfey_feedback",
+            {
+                "register": "clem.register_preprocessing_result",
+                "result": result,
+            },
+        )
+
+    assert mock_send_to.call_count == (
+        len(results)
+        * (
+            len(colors)  # 'images' calls
+            + 1  # 'murfey_feedback' call
+        )
+    )
 
     # Check that the wrapper ran through to completion
     assert return_code

@@ -66,7 +66,7 @@ class AlignAndMergeService(CommonService):
 
         # Process files and collect output
         try:
-            results = align_and_merge_stacks(
+            result = align_and_merge_stacks(
                 images=params.images,
                 metadata=params.metadata,
                 crop_to_n_frames=params.crop_to_n_frames,
@@ -82,7 +82,7 @@ class AlignAndMergeService(CommonService):
             )
             rw.transport.nack(header)
             return
-        if not results:
+        if not result:
             self.log.error(
                 "Failed to complete the aligning and merging process for "
                 f"{params.series_name!r}"
@@ -90,15 +90,30 @@ class AlignAndMergeService(CommonService):
             rw.transport.nack(header)
             return
 
+        # Request for PNG image to be created
+        images_params = {
+            "image_command": "tiff_to_apng",
+            "input_file": result["output_file"],
+            "output_file": result["thumbnail"],
+            "target_size": result["thumbnail_size"],
+        }
+        rw.send_to(
+            "images",
+            images_params,
+        )
+        self.log.info(
+            f"Submitted the following job to Images service: \n{images_params}"
+        )
+
         # Send results to Murfey for registration
-        results["series_name"] = params.series_name
+        result["series_name"] = params.series_name
         murfey_params = {
             "register": "clem.register_align_and_merge_result",
-            "result": results,
+            "result": result,
         }
         rw.send_to("murfey_feedback", murfey_params)
         self.log.info(
-            f"Submitted alignment and merging result for {results['series_name']!r} "
+            f"Submitted alignment and merging result for {result['series_name']!r} "
             "to Murfey for registration"
         )
         rw.transport.ack(header)

@@ -1,0 +1,11 @@
+# Ignore everything by default
+**
+
+# Whitelist only the files and folders needed for building
+!Dockerfiles/
+!installers/
+!src/
+!pyproject.toml
+!setup.py
+!LICENSE
+!README.md
