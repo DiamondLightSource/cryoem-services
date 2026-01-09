@@ -7,10 +7,8 @@ import mrcfile
 import numpy as np
 from gemmi import cif
 from pydantic import BaseModel, Field, ValidationError
-from workflows.recipe import wrap_subscribe
 
 from cryoemservices.services.common_service import CommonService
-from cryoemservices.util.models import MockRW
 from cryoemservices.util.relion_service_options import (
     RelionServiceOptions,
     update_relion_options,
@@ -55,44 +53,27 @@ class Extract(CommonService):
     def initializing(self):
         """Subscribe to a queue. Received messages must be acknowledged."""
         self.log.info("Extract service starting")
-        wrap_subscribe(
-            self._transport,
+        self._transport.subscribe(
             self._environment["queue"] or "extract",
             self.extract,
             acknowledgement=True,
-            allow_non_recipe_messages=True,
         )
 
-    def extract(self, rw, header: dict, message: dict):
+    def extract(self, header: dict, message: dict):
         """Main function which interprets and processes received messages"""
-        if not rw:
-            self.log.info("Received a simple message")
-            if not isinstance(message, dict):
-                self.log.error("Rejected invalid simple message")
-                self._transport.nack(header)
-                return
-
-            # Create a wrapper-like object that can be passed to functions
-            # as if a recipe wrapper was present.
-            rw = MockRW(self._transport)
-            rw.recipe_step = {"parameters": message}
+        if not isinstance(message, dict):
+            self.log.error("Rejected invalid non-dictionary message")
+            self._transport.nack(header)
+            return
 
         try:
-            if isinstance(message, dict):
-                extract_params = ExtractParameters(
-                    **{**rw.recipe_step.get("parameters", {}), **message}
-                )
-            else:
-                extract_params = ExtractParameters(
-                    **{**rw.recipe_step.get("parameters", {})}
-                )
+            extract_params = ExtractParameters(**message)
         except (ValidationError, TypeError) as e:
             self.log.warning(
                 f"Extraction parameter validation failed for message: {message} "
-                f"and recipe parameters: {rw.recipe_step.get('parameters', {})} "
                 f"with exception: {e}"
             )
-            rw.transport.nack(header)
+            self._transport.nack(header)
             return
 
         self.log.info(
@@ -113,7 +94,7 @@ class Extract(CommonService):
             job_dir = Path(job_dir_search[0])
         else:
             self.log.warning(f"Invalid job directory in {extract_params.output_file}")
-            rw.transport.nack(header)
+            self._transport.nack(header)
             return
         project_dir = job_dir.parent.parent
         if not Path(extract_params.output_file).parent.exists():
@@ -399,7 +380,7 @@ class Extract(CommonService):
             "stderr": "",
             "results": {"box_size": box_len},
         }
-        rw.send_to("node_creator", node_creator_parameters)
+        self._transport.send("node_creator", node_creator_parameters)
 
         # Register the files needed for selection and batching
         self.log.info("Sending to particle selection")
@@ -409,7 +390,7 @@ class Extract(CommonService):
             "image_size": box_len,
             "relion_options": dict(extract_params.relion_options),
         }
-        rw.send_to("select_particles", select_params)
+        self._transport.send("select_particles", select_params)
 
         self.log.info(f"Done {self.job_type} for {extract_params.coord_list_file}.")
-        rw.transport.ack(header)
+        self._transport.ack(header)
