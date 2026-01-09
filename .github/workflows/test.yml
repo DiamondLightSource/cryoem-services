@@ -44,7 +44,7 @@ jobs:
       - name: Install dependencies
         run: |
           pip install pytest pytest-cov pytest-mock pytest-datafiles
-          pip install .[torch]
+          pip install .[murfey_db,torch]
 
       - name: Install fork of CCP-EM pipeliner
         run: |
