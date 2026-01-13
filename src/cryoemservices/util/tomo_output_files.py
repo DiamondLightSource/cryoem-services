@@ -27,7 +27,7 @@ def _get_tilt_angle_v5_12(p: Path) -> str:
     return split_name[angle_idx]
 
 
-def _get_tilt_number_v5_12(p: Path) -> int:
+def get_tilt_number_v5_12(p: Path) -> int:
     split_name = p.stem.split("_")
     angle_idx = _find_angle_index(split_name)
     try:
@@ -111,7 +111,7 @@ def _import_output_files(
 ):
     """Import jobs save a list of all micrographs"""
     tilt_series_name = _get_tilt_name_v5_12(output_file)
-    tilt_number = _get_tilt_number_v5_12(output_file)
+    tilt_number = get_tilt_number_v5_12(output_file)
     stage_tilt_angle = _get_tilt_angle_v5_12(output_file)
 
     # Construct the global file for all tilt series
@@ -170,7 +170,7 @@ def _motioncorr_output_files(
 ):
     """Motion correction saves a list of micrographs and their motion"""
     tilt_series_name = _get_tilt_name_v5_12(output_file)
-    tilt_number = _get_tilt_number_v5_12(output_file)
+    tilt_number = get_tilt_number_v5_12(output_file)
     stage_tilt_angle = _get_tilt_angle_v5_12(output_file)
 
     # Construct the global file for all tilt series
@@ -243,7 +243,7 @@ def _ctffind_output_files(
 ):
     """Ctf estimation saves a list of micrographs and their ctf parameters"""
     tilt_series_name = _get_tilt_name_v5_12(output_file)
-    tilt_number = _get_tilt_number_v5_12(output_file)
+    tilt_number = get_tilt_number_v5_12(output_file)
     stage_tilt_angle = _get_tilt_angle_v5_12(output_file)
 
     # Construct the global file for all tilt series
@@ -323,7 +323,7 @@ def _exclude_tilt_output_files(
 ):
     """Tilt exclusion lists all tilts which have not been removed"""
     tilt_series_name = _get_tilt_name_v5_12(output_file)
-    tilt_number = _get_tilt_number_v5_12(output_file)
+    tilt_number = get_tilt_number_v5_12(output_file)
     stage_tilt_angle = _get_tilt_angle_v5_12(output_file)
 
     # Construct the global file for all tilt series
@@ -427,7 +427,7 @@ def _align_tilt_output_files(
 ):
     """Alignment lists all the tilts and their aligned positions"""
     tilt_series_name = _get_tilt_name_v5_12(output_file)
-    tilt_number = _get_tilt_number_v5_12(output_file)
+    tilt_number = get_tilt_number_v5_12(output_file)
     stage_tilt_angle = _get_tilt_angle_v5_12(output_file)
 
     # Construct the global file for all tilt series

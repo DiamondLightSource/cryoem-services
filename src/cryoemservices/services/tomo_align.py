@@ -22,7 +22,7 @@ from cryoemservices.util.relion_service_options import (
     RelionServiceOptions,
     update_relion_options,
 )
-from cryoemservices.util.tomo_output_files import _get_tilt_number_v5_12
+from cryoemservices.util.tomo_output_files import get_tilt_number_v5_12
 
 
 def resize_tomogram(tomogram: Path, new_thickness: int):
@@ -326,7 +326,7 @@ class TomoAlign(CommonService):
                         )
         removed_tilt_numbers = np.array(
             [
-                _get_tilt_number_v5_12(Path(self.input_file_list_of_lists[index][0]))
+                get_tilt_number_v5_12(Path(self.input_file_list_of_lists[index][0]))
                 for index in tilts_to_remove
             ]
         )
@@ -379,7 +379,7 @@ class TomoAlign(CommonService):
         )
         tilt_angles = {}
         for i in range(len(self.input_file_list_of_lists)):
-            tilt_index = _get_tilt_number_v5_12(
+            tilt_index = get_tilt_number_v5_12(
                 Path(self.input_file_list_of_lists[i][0])
             )
             tilt_index -= len(np.where(removed_tilt_numbers < tilt_index)[0])
