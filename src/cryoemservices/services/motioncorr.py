@@ -20,7 +20,7 @@ from cryoemservices.util.relion_service_options import (
     update_relion_options,
 )
 from cryoemservices.util.slurm_submission import slurm_submission_for_services
-from cryoemservices.util.tomo_output_files import _get_tilt_number_v5_12
+from cryoemservices.util.tomo_output_files import get_tilt_number_v5_12
 
 
 class MotionCorrParameters(BaseModel):
@@ -336,7 +336,7 @@ class MotionCorr(CommonService):
             and mc_params.frame_count
             and not mc_params.init_dose
         ):
-            tilt_number = _get_tilt_number_v5_12(Path(mc_params.movie))
+            tilt_number = get_tilt_number_v5_12(Path(mc_params.movie))
             if tilt_number:
                 mc_params.init_dose = (
                     mc_params.dose_per_frame * mc_params.frame_count * (tilt_number - 1)
