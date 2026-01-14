@@ -1,4 +1,6 @@
 # This Dockerfile is used for Relion class selection
+# The second stage needs an image built with the common Relion Dockerfile
+
 # First stage creates a conda environment
 FROM rockylinux:8 AS conda-build
 
@@ -28,43 +30,21 @@ RUN tar -xzf /tmp/env.tar.gz -C /install/venv
 RUN eval "$(conda shell.bash hook)" && conda activate /install/venv && /install/venv/bin/conda-unpack
 
 
-# Second stage builds relion
-FROM rockylinux:8 AS relion-build
-
-# Copy python environment
-COPY --from=conda-build --chown="${userid}":"${groupid}" /install/venv /install/venv
-ENV PATH="/install/venv/bin:${PATH}"
-
-# Get required build packages and libraries
-RUN yum install gcc gcc-c++ cmake openmpi -y
-RUN yum install fftw-devel libtiff-devel libpng-devel libjpeg-devel zlib-devel -y
-
-# Build Relion - need to be on the ver5.0-mc-devolve tag
-RUN mkdir -p /install/relion5.0
-RUN curl -L -o relion.tar.gz https://github.com/d-j-hatton/relion/archive/ver5.0-mc-devolve.tar.gz
-RUN tar -xf relion.tar.gz -C /install
-RUN mkdir /install/relion-ver5.0-mc-devolve/build
-
-RUN mkdir /torch_home
-
-RUN cmake -DCMAKE_INSTALL_PREFIX=/install/relion5.0 -DCMAKE_C_COMPILER=/usr/bin/gcc -DCMAKE_CXX_COMPILER=/usr/bin/g++ -DMPI_C_COMPILER=/usr/lib64/openmpi/bin/mpicc -DMPI_CXX_COMPILER=/usr/lib64/openmpi/bin/mpicxx -DMPI_C_LIBRARIES=/usr/lib64/openmpi/lib/libmpi.so -DMPI_CXX_LIBRARIES=/usr/lib64/openmpi/lib/libmpi.so -DGUI=OFF -DALTCPU=ON -DPYTHON_EXE_PATH=/install/venv/bin/python -DTORCH_HOME_PATH=/torch_home -B/install/relion-ver5.0-mc-devolve/build -S/install/relion-ver5.0-mc-devolve
-RUN make --directory=/install/relion-ver5.0-mc-devolve/build/ install
-
-
-# Third stage combines the Relion and conda builds
+# Second stage combines the Relion and conda builds
 FROM rockylinux:8
 
 # Create EM user
 ARG groupid
 ARG userid
 ARG groupname
+ARG relionbuild
 RUN groupadd -r -g "${groupid}" "${groupname}" && useradd -r -M "${groupname}" -u "${userid}" -g "${groupname}"
 
 # Install libraries for Relion
 RUN yum install openmpi fftw-devel libtiff-devel libpng-devel libjpeg-devel zlib-devel -y
 
 # Copy Relion
-COPY --from=relion-build --chown="${userid}":"${groupid}" /install/relion5.0 /install/relion5.0
+COPY --from="${relionbuild}" --chown="${userid}":"${groupid}" /install/relion5.0 /install/relion5.0
 ENV PATH="/install/relion5.0/bin:${PATH}"
 
 # Copy python environment (from Relion build)

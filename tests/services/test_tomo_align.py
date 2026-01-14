@@ -85,7 +85,7 @@ def test_tomo_align_service_file_list_aretomo3(
     )
     output_relion_options["tomo_size_x"] = 3000
     output_relion_options["tomo_size_y"] = 4000
-    output_relion_options["vol_z"] = 430
+    output_relion_options["vol_z"] = 1430
     output_relion_options["tilt_axis_angle"] = 86.0
 
     # Touch the expected input files
@@ -112,7 +112,7 @@ def test_tomo_align_service_file_list_aretomo3(
         with open(
             tmp_path / "Tomograms/job006/tomograms/test_stack.aln", "w"
         ) as aln_file:
-            aln_file.write("# Thickness = 130\ndummy 86.0 1000 1.2 2.3 5 6 7 8 4.5")
+            aln_file.write("# Thickness = 1130\ndummy 86.0 1000 1.2 2.3 5 6 7 8 4.5")
         return CompletedProcess(
             "",
             returncode=0,
@@ -179,10 +179,10 @@ def test_tomo_align_service_file_list_aretomo3(
     # Check resizing
     assert mock_resize.call_count == 2
     mock_resize.assert_any_call(
-        tmp_path / "Tomograms/job006/tomograms/test_stack_Vol.mrc", int(430 / 4)
+        tmp_path / "Tomograms/job006/tomograms/test_stack_Vol.mrc", int(1430 / 4)
     )
     mock_resize.assert_any_call(
-        tmp_path / "Tomograms/job006/tomograms/test_stack_2ND_Vol.mrc", int(430 / 2)
+        tmp_path / "Tomograms/job006/tomograms/test_stack_2ND_Vol.mrc", int(1430 / 2)
     )
 
     # Check the angle file
@@ -268,7 +268,7 @@ def test_tomo_align_service_file_list_aretomo3(
                     "stack_file": tomo_align_test_message["stack_file"],
                     "size_x": 750,
                     "size_y": 1000,
-                    "size_z": int(430 / 4),
+                    "size_z": int(1430 / 4),
                     "pixel_spacing": "4.4",
                     "tilt_angle_offset": "1.1",
                     "z_shift": "2.1",
@@ -354,7 +354,7 @@ def test_tomo_align_service_file_list_aretomo3(
             "file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.mrc",
             "projection": "XZ",
             "pixel_spacing": 4.4,
-            "thickness_ang": 130 * 1.1,
+            "thickness_ang": 1130 * 1.1,
         },
     )
     offline_transport.send.assert_any_call(
@@ -732,7 +732,7 @@ def test_tomo_align_service_file_list_repeated_tilt(
     output_relion_options["pixel_size_downscaled"] = 4
     output_relion_options["tomo_size_x"] = 3000
     output_relion_options["tomo_size_y"] = 4000
-    output_relion_options["vol_z"] = 530
+    output_relion_options["vol_z"] = 1530
 
     # Create the input files. Needs sleeps to ensure distinct timestamps
     (tmp_path / "MotionCorr/job002/Movies").mkdir(parents=True)
@@ -761,7 +761,7 @@ def test_tomo_align_service_file_list_repeated_tilt(
         with open(
             tmp_path / "Tomograms/job006/tomograms/test_stack.aln", "w"
         ) as aln_file:
-            aln_file.write("# Thickness = 130\ndummy 0 1000 1.2 2.3 5 6 7 8 4.5")
+            aln_file.write("# Thickness = 1130\ndummy 0 1000 1.2 2.3 5 6 7 8 4.5")
         return CompletedProcess(
             "",
             returncode=0,
@@ -789,7 +789,7 @@ def test_tomo_align_service_file_list_repeated_tilt(
             "-ou",
             f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.mrc",
             "-size",
-            f"750,1000,{int(530 / 4)}",
+            f"750,1000,{int(1530 / 4)}",
             "-a",
             "90,-90,0",
         ],
@@ -838,7 +838,7 @@ def test_tomo_align_service_file_list_repeated_tilt(
             "file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.mrc",
             "projection": "XZ",
             "pixel_spacing": 4,
-            "thickness_ang": 130,
+            "thickness_ang": 1130,
         },
     )
     offline_transport.send.assert_any_call("success", {})
@@ -896,7 +896,7 @@ def test_tomo_align_service_file_list_zero_rotation(
         with open(
             tmp_path / "Tomograms/job006/tomograms/test_stack.aln", "w"
         ) as aln_file:
-            aln_file.write("# Thickness = 130\ndummy 0 1000 1.2 2.3 5 6 7 8 4.5")
+            aln_file.write("# Thickness = 1130\ndummy 0 1000 1.2 2.3 5 6 7 8 4.5")
         return CompletedProcess(
             "",
             returncode=0,
@@ -925,7 +925,7 @@ def test_tomo_align_service_file_list_zero_rotation(
             "-ou",
             f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.mrc",
             "-size",
-            f"750,1000,{int(530 / 4)}",
+            f"750,1000,{int(1530 / 4)}",
             "-a",
             "0,0,-90",
         ],
@@ -945,7 +945,7 @@ def test_tomo_align_service_file_list_zero_rotation(
             "file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.mrc",
             "projection": "YZ",
             "pixel_spacing": 4,
-            "thickness_ang": 130,
+            "thickness_ang": 1130,
         },
     )
 
@@ -1148,7 +1148,7 @@ def test_tomo_align_service_file_list_rerun(
     output_relion_options["tomo_size_x"] = 3000
     output_relion_options["tomo_size_y"] = 4000
     output_relion_options["tilt_axis_angle"] = 86.0
-    output_relion_options["vol_z"] = 530
+    output_relion_options["vol_z"] = 1530
 
     # Touch expected input files
     (tmp_path / "MotionCorr/job002/Movies").mkdir(parents=True)
@@ -1171,7 +1171,7 @@ def test_tomo_align_service_file_list_rerun(
         with open(
             tmp_path / "Tomograms/job006/tomograms/test_stack.aln", "w"
         ) as aln_file:
-            aln_file.write("# Thickness = 130\ndummy 86.0 1000 1.2 2.3 5 6 7 8 4.5")
+            aln_file.write("# Thickness = 1130\ndummy 86.0 1000 1.2 2.3 5 6 7 8 4.5")
         return CompletedProcess(
             "",
             returncode=0,
@@ -1306,7 +1306,7 @@ def test_tomo_align_service_file_list_rerun(
             "file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.mrc",
             "projection": "XZ",
             "pixel_spacing": 4.0,
-            "thickness_ang": 130 * 1.0,
+            "thickness_ang": 1130 * 1.0,
         },
     )
     offline_transport.send.assert_any_call(
@@ -1382,7 +1382,8 @@ def test_tomo_align_service_path_pattern(
     output_relion_options["manual_tilt_offset"] = 10.5
     output_relion_options["frame_count"] = 6
     output_relion_options["dose_per_frame"] = 0.2
-    output_relion_options["vol_z"] = 530
+    # Volume default to minimum
+    output_relion_options["vol_z"] = 800
 
     # Set up the mock service
     service = tomo_align.TomoAlign(
@@ -1485,10 +1486,10 @@ def test_tomo_align_service_path_pattern(
     # Check resizing
     assert mock_resize.call_count == 2
     mock_resize.assert_any_call(
-        tmp_path / "Tomograms/job006/tomograms/test_stack_Vol.mrc", int(530 / 4)
+        tmp_path / "Tomograms/job006/tomograms/test_stack_Vol.mrc", int(800 / 4)
     )
     mock_resize.assert_any_call(
-        tmp_path / "Tomograms/job006/tomograms/test_stack_2ND_Vol.mrc", int(530 / 2)
+        tmp_path / "Tomograms/job006/tomograms/test_stack_2ND_Vol.mrc", int(800 / 2)
     )
 
     # Check the angle file
@@ -1564,7 +1565,7 @@ def test_tomo_align_service_dark_images(
     )
     output_relion_options["tomo_size_x"] = 3000
     output_relion_options["tomo_size_y"] = 4000
-    output_relion_options["vol_z"] = 530
+    output_relion_options["vol_z"] = 1530
 
     # Touch the expected input files
     (tmp_path / "MotionCorr/job002/Movies").mkdir(parents=True)
@@ -1595,7 +1596,7 @@ def test_tomo_align_service_dark_images(
         with open(
             tmp_path / "Tomograms/job006/tomograms/test_stack.aln", "w"
         ) as aln_file:
-            aln_file.write("# Thickness = 130\n")
+            aln_file.write("# Thickness = 1130\n")
             for i in [0, 2, 3]:
                 aln_file.write(
                     f"dummy 0 1000 {x_tilts[i]} {y_tilts[i]} 5 6 7 8 {tilt_angles[i]}\n"
@@ -1707,7 +1708,7 @@ def test_tomo_align_service_dark_images(
                     "stack_file": tomo_align_test_message["stack_file"],
                     "size_x": 750,
                     "size_y": 1000,
-                    "size_z": int(530 / 4),
+                    "size_z": int(1530 / 4),
                     "pixel_spacing": "4.0",
                     "tilt_angle_offset": "1.1",
                     "z_shift": "2.1",
