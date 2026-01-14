@@ -57,6 +57,11 @@ def test_ctffind4_service_spa(mock_subprocess, offline_transport, tmp_path):
     output_relion_options = dict(RelionServiceOptions())
     output_relion_options.update(ctffind_test_message["relion_options"])
 
+    # Write expected angular values output file
+    (tmp_path / "CtfFind/job006").mkdir(parents=True, exist_ok=True)
+    with open(tmp_path / "CtfFind/job006/sample_avrot.txt", "w") as avrot_file:
+        avrot_file.write("0\n0\n0\n0\n0\n0.26 0.27 0.29\n1.2 1.3 1.4\n")
+
     # Set up the mock service
     service = ctffind.CTFFind(environment={"queue": ""}, transport=offline_transport)
     service.initializing()
@@ -139,6 +144,7 @@ def test_ctffind4_service_spa(mock_subprocess, offline_transport, tmp_path):
             "ispyb_command": "buffer",
             "buffer_lookup": {"motion_correction_id": 0},
             "buffer_command": {"ispyb_command": "insert_ctf"},
+            "ice_ring_density": 2.5,
         },
     )
     offline_transport.send.assert_any_call(
@@ -198,6 +204,10 @@ def test_ctffind5_service_tomo(mock_subprocess, offline_transport, tmp_path):
     }
     output_relion_options = dict(RelionServiceOptions())
     output_relion_options.update(ctffind_test_message["relion_options"])
+
+    # Write expected angular values output file
+    (tmp_path / "CtfFind/job006").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "CtfFind/job006/sample_avrot.txt").touch()
 
     # Set up the mock service
     service = ctffind.CTFFind(environment={"queue": ""}, transport=offline_transport)
@@ -301,6 +311,10 @@ def test_ctffind5_service_nothickness(mock_subprocess, offline_transport, tmp_pa
     output_relion_options = dict(RelionServiceOptions())
     output_relion_options.update(ctffind_test_message["relion_options"])
 
+    # Write expected angular values output file
+    (tmp_path / "CtfFind/job006").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "CtfFind/job006/sample_avrot.txt").touch()
+
     # Set up the mock service
     service = ctffind.CTFFind(environment={"queue": ""}, transport=offline_transport)
     service.initializing()
@@ -394,15 +408,13 @@ def test_job_reruns(mock_subprocess, test_params, offline_transport, tmp_path):
     service = ctffind.CTFFind(environment={"queue": ""}, transport=offline_transport)
     service.initializing()
 
+    # Write expected angular values output file
+    (tmp_path / "CtfFind/job006").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "CtfFind/job006/sample_avrot.txt").touch()
+
     if make_output:
-        (tmp_path / "CtfFind/job006/sample.ctf").parent.mkdir(
-            parents=True, exist_ok=True
-        )
         (tmp_path / "CtfFind/job006/sample.ctf").touch()
     if make_tmp_file:
-        (tmp_path / "CtfFind/job006/sample.tmp").parent.mkdir(
-            parents=True, exist_ok=True
-        )
         (tmp_path / "CtfFind/job006/sample.tmp").touch()
 
     # Set some parameters then send a message to the service
