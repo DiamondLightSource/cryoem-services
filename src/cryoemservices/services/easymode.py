@@ -1,10 +1,10 @@
 import os
 from pathlib import Path
-from typing import Optional
 
 import mrcfile
+import numpy as np
 import tensorflow as tf
-from easymode.core.distribution import cache_model, load_model
+from easymode.core.distribution import get_model, load_model
 from easymode.segmentation import inference
 from pydantic import BaseModel, Field, ValidationError
 from workflows.recipe import wrap_subscribe
@@ -20,14 +20,19 @@ def fix_header(input_tomogram, output_tomogram):
         header = mrc.header
 
     with mrcfile.open(output_tomogram, "r+") as mrc:
-        mrc.header = header
+        mrc.header.cella = header.cella
+        mrc.header.mx = header.mx
+        mrc.header.my = header.my
+        mrc.header.mz = header.mz
 
 
 class EasymodeParameters(BaseModel):
     tomogram: str = Field(..., min_length=1)
     output_dir: str = Field(..., min_length=1)
     feature: str
-    pixel_size: Optional[float] = None
+    pixel_size: float
+    batch_size: int = 1
+    tta: int = 1
     relion_options: RelionServiceOptions
 
 
@@ -88,23 +93,30 @@ class Easymode(CommonService):
             rw.transport.nack(header)
             return
 
-        print(f"GPU - loading model ({easymode_params.feature}).")
-        model_path = cache_model(easymode_params.feature)
+        self.log.info(f"Loading model ({easymode_params.feature}).")
+        model_path, model_metadata = get_model(easymode_params.feature)
         model = load_model(model_path)
-        print("GPU - model loaded")
+        self.log.info("Model loaded")
 
         output_tomogram = Path(easymode_params.output_dir) / (
-            Path(easymode_params.tomogram).stem + "_easymode_{feature}.mrc"
+            Path(easymode_params.tomogram).stem
+            + f"_easymode_{easymode_params.feature}.mrc"
         )
-        print(f"Running for output {output_tomogram}")
+        self.log.info(f"Running for output {output_tomogram}")
+        segmented_volume, volume_apix = inference.segment_tomogram(
+            model=model,
+            tomogram_path=easymode_params.tomogram,
+            tta=easymode_params.tta,
+            batch_size=easymode_params.batch_size,
+            model_apix=model_metadata["apix"],
+            input_apix=easymode_params.pixel_size,
+        )
 
-        binning = 1
-        batch_size = 1
-        tta = 1
-        segmented_volume = inference.segment_tomogram(
-            model, output_tomogram, tta, batch_size, binning
-        )
+        # Convert to int8 and save mrc
+        segmented_volume = (segmented_volume * 127).astype(np.int8)
         with mrcfile.new(output_tomogram, overwrite=True) as m:
             m.set_data(segmented_volume)
 
         fix_header(easymode_params.tomogram, output_tomogram)
+        self.log.info(f"Finished segmenting {easymode_params.tomogram}")
+        rw.transport.ack(header)

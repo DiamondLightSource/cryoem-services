@@ -94,6 +94,7 @@ torch = [
     Denoise = "cryoemservices.services.denoise:Denoise"
     DenoiseSlurm = "cryoemservices.services.denoise_slurm:DenoiseSlurm"
     EMISPyB = "cryoemservices.services.ispyb_connector:EMISPyB"
+    Easymode = "cryoemservices.services.easymode:Easymode"
     Extract = "cryoemservices.services.extract:Extract"
     ExtractClass = "cryoemservices.services.extract_class:ExtractClass"
     IceBreaker = "cryoemservices.services.icebreaker:IceBreaker"

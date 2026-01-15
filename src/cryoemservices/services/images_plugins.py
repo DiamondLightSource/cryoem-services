@@ -397,6 +397,58 @@ def mrc_to_apng(plugin_params: Callable):
     return outfile
 
 
+def mrc_to_apng_multiple_stacks(plugin_params: Callable):
+    if not required_parameters(plugin_params, ["file_list", "outfile"]):
+        return False
+    file_list = plugin_params("file_list")
+    outfile = plugin_params("outfile")
+    data_stack = []
+    for filepath in file_list:
+        if not Path(filepath).is_file():
+            logger.error(f"File {filepath} not found")
+            return False
+        try:
+            with mrcfile.open(filepath) as mrc:
+                data = mrc.data
+        except ValueError:
+            logger.error(
+                f"File {filepath} could not be opened. It may be corrupted or not in mrc format"
+            )
+            return False
+        if not len(data.shape) == 3:
+            logger.error(f"File {filepath} is not a 3D volume")
+            return False
+        data_stack.append(data)
+
+    rgbvals = [[199, 255, 237], [181, 146, 160], [187, 200, 202]]
+
+    images_to_append = []
+    for frame in range(len(data_stack[0])):
+        print(frame)
+        # 01 or 10?
+        rgb_stack = np.zeros(
+            (data_stack[0][frame].shape[0], data_stack[0][frame].shape[1], 3)
+        )
+        for segid, segtype in enumerate(data_stack):
+            relevant_area = segtype[frame] > segtype.max() / 2
+            for i in range(data_stack[0][frame].shape[0]):
+                for j in range(data_stack[0][frame].shape[1]):
+                    if relevant_area[i, j]:
+                        rgb_stack[i, j] = rgbvals[segid]
+        rgb_stack = rgb_stack.astype("uint8")
+        im = PIL.Image.fromarray(rgb_stack)
+        im.thumbnail((512, 512))
+        images_to_append.append(im)
+    try:
+        im_frame0 = images_to_append[0]
+        im_frame0.save(outfile, save_all=True, append_images=images_to_append[1:])
+    except IndexError:
+        logger.error(f"Unable to save movie to file {outfile}")
+        return False
+    logger.info(f"Converted mrc to apng {file_list} -> {outfile}")
+    return outfile
+
+
 def particles_3d_in_frame(
     framedata: np.ndarray,
     framenum: int,
