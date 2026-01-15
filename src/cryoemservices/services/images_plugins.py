@@ -402,41 +402,59 @@ def mrc_to_apng_multiple_stacks(plugin_params: Callable):
         return False
     file_list = plugin_params("file_list")
     outfile = plugin_params("outfile")
-    data_stack = []
-    for filepath in file_list:
+    mask = plugin_params("mask")
+
+    # Verify that all files exist and have the same dimensions
+    start = time.perf_counter()
+    initial_data_shape: tuple = ()
+    files_to_verify = file_list + [mask] if mask else file_list
+    for filepath in files_to_verify:
         if not Path(filepath).is_file():
             logger.error(f"File {filepath} not found")
             return False
         try:
             with mrcfile.open(filepath) as mrc:
-                data = mrc.data
+                new_data_shape = mrc.data.shape
         except ValueError:
             logger.error(
                 f"File {filepath} could not be opened. It may be corrupted or not in mrc format"
             )
             return False
-        if not len(data.shape) == 3:
+        if not len(new_data_shape) == 3:
             logger.error(f"File {filepath} is not a 3D volume")
             return False
-        data_stack.append(data)
 
-    rgbvals = [[199, 255, 237], [181, 146, 160], [187, 200, 202]]
+        if initial_data_shape and not new_data_shape == initial_data_shape:
+            logger.error("Volume shapes do not match")
+            return False
+        elif not initial_data_shape:
+            initial_data_shape = new_data_shape
+
+    rgbvals = np.array(
+        [[199, 255, 237], [181, 146, 160], [244, 250, 255]], dtype="uint8"
+    )
+
+    if mask and Path(mask).is_file():
+        with mrcfile.open(mask) as mrc:
+            mask_data = mrc.data
+        allowed_vol = mask_data < mask_data.max() / 2
+    else:
+        allowed_vol = np.ones(initial_data_shape, dtype="bool")
+
+    rgb_stacks = np.zeros(initial_data_shape + (3,), dtype="uint8")
+    for fid, filepath in enumerate(file_list):
+        with mrcfile.open(filepath) as mrc:
+            data = mrc.data
+
+        relevant_area = np.where((data > data.max() / 2) * allowed_vol)
+        for i in range(len(relevant_area[0])):
+            rgb_stacks[
+                relevant_area[0][i], relevant_area[1][i], relevant_area[2][i]
+            ] = rgbvals[fid]
 
     images_to_append = []
-    for frame in range(len(data_stack[0])):
-        print(frame)
-        # 01 or 10?
-        rgb_stack = np.zeros(
-            (data_stack[0][frame].shape[0], data_stack[0][frame].shape[1], 3)
-        )
-        for segid, segtype in enumerate(data_stack):
-            relevant_area = segtype[frame] > segtype.max() / 2
-            for i in range(data_stack[0][frame].shape[0]):
-                for j in range(data_stack[0][frame].shape[1]):
-                    if relevant_area[i, j]:
-                        rgb_stack[i, j] = rgbvals[segid]
-        rgb_stack = rgb_stack.astype("uint8")
-        im = PIL.Image.fromarray(rgb_stack)
+    for frame in range(initial_data_shape[0]):
+        im = PIL.Image.fromarray(rgb_stacks[frame])
         im.thumbnail((512, 512))
         images_to_append.append(im)
     try:
@@ -445,7 +463,12 @@ def mrc_to_apng_multiple_stacks(plugin_params: Callable):
     except IndexError:
         logger.error(f"Unable to save movie to file {outfile}")
         return False
-    logger.info(f"Converted mrc to apng {file_list} -> {outfile}")
+    timing = time.perf_counter() - start
+    logger.info(
+        f"Converted mrc to apng {file_list} -> {outfile} in {timing:.1f} seconds",
+        extra={"image-processing-time": timing},
+    )
+    print(timing)
     return outfile
 
 
