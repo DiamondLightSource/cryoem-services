@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from typing import Optional
 
 import mrcfile
 import numpy as np
@@ -29,7 +30,10 @@ def fix_header(input_tomogram, output_tomogram):
 class EasymodeParameters(BaseModel):
     tomogram: str = Field(..., min_length=1)
     output_dir: str = Field(..., min_length=1)
-    feature: str
+    segmentation_apng: str = Field(..., min_length=1)
+    membrain_segmention: Optional[str] = None
+    feature_list: list[str] = ["microtubule", "ribosome", "tric"]
+    mask: Optional[str] = "void"
     pixel_size: float
     batch_size: int = 1
     tta: int = 1
@@ -93,30 +97,57 @@ class Easymode(CommonService):
             rw.transport.nack(header)
             return
 
-        self.log.info(f"Loading model ({easymode_params.feature}).")
-        model_path, model_metadata = get_model(easymode_params.feature)
-        model = load_model(model_path)
-        self.log.info("Model loaded")
+        output_tomograms: dict[str, Path] = {}
+        if easymode_params.mask:
+            easymode_params.feature_list.append(easymode_params.mask)
+        for feature in easymode_params.feature_list:
+            self.log.info(f"Loading model for {feature}.")
+            model_path, model_metadata = get_model(feature)
+            model = load_model(model_path)
+            self.log.info("Model loaded")
 
-        output_tomogram = Path(easymode_params.output_dir) / (
-            Path(easymode_params.tomogram).stem
-            + f"_easymode_{easymode_params.feature}.mrc"
+            output_tomograms[feature] = Path(easymode_params.output_dir) / (
+                Path(easymode_params.tomogram).stem + f"_easymode_{feature}.mrc"
+            )
+            self.log.info(f"Running for output {output_tomograms[feature]}")
+            segmented_volume, volume_apix = inference.segment_tomogram(
+                model=model,
+                tomogram_path=easymode_params.tomogram,
+                tta=easymode_params.tta,
+                batch_size=easymode_params.batch_size,
+                model_apix=model_metadata["apix"],
+                input_apix=easymode_params.pixel_size,
+            )
+
+            # Convert to int8 and save mrc
+            segmented_volume = (segmented_volume * 127).astype(np.int8)
+            with mrcfile.new(output_tomograms[feature], overwrite=True) as m:
+                m.set_data(segmented_volume)
+            fix_header(easymode_params.tomogram, output_tomograms[feature])
+
+        # Forward results to images service
+        self.log.info(f"Sending to images service {easymode_params.segmentation_apng}")
+        full_segmentation_list = (
+            [easymode_params.membrain_segmentation]
+            if easymode_params.membrain_segmention
+            else []
         )
-        self.log.info(f"Running for output {output_tomogram}")
-        segmented_volume, volume_apix = inference.segment_tomogram(
-            model=model,
-            tomogram_path=easymode_params.tomogram,
-            tta=easymode_params.tta,
-            batch_size=easymode_params.batch_size,
-            model_apix=model_metadata["apix"],
-            input_apix=easymode_params.pixel_size,
+        full_segmentation_list += [
+            str(output_tomograms[feat])
+            for feat in output_tomograms.keys()
+            if feat != easymode_params.mask
+        ]
+        rw.send_to(
+            "movie",
+            {
+                "image_command": "mrc_to_apng_colour",
+                "file_list": full_segmentation_list,
+                "outfile": easymode_params.segmentation_apng,
+                "mask": str(output_tomograms[easymode_params.mask])
+                if easymode_params.mask
+                else None,
+            },
         )
 
-        # Convert to int8 and save mrc
-        segmented_volume = (segmented_volume * 127).astype(np.int8)
-        with mrcfile.new(output_tomogram, overwrite=True) as m:
-            m.set_data(segmented_volume)
-
-        fix_header(easymode_params.tomogram, output_tomogram)
         self.log.info(f"Finished segmenting {easymode_params.tomogram}")
         rw.transport.ack(header)

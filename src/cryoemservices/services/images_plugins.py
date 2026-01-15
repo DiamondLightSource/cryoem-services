@@ -397,7 +397,7 @@ def mrc_to_apng(plugin_params: Callable):
     return outfile
 
 
-def mrc_to_apng_multiple_stacks(plugin_params: Callable):
+def mrc_to_apng_colour(plugin_params: Callable):
     if not required_parameters(plugin_params, ["file_list", "outfile"]):
         return False
     file_list = plugin_params("file_list")
@@ -431,7 +431,14 @@ def mrc_to_apng_multiple_stacks(plugin_params: Callable):
             initial_data_shape = new_data_shape
 
     rgbvals = np.array(
-        [[199, 255, 237], [181, 146, 160], [244, 250, 255]], dtype="uint8"
+        [
+            [255, 255, 255],
+            [111, 191, 170],
+            [142, 59, 70],
+            [137, 128, 245],
+            [196, 146, 177],
+        ],
+        dtype="uint8",
     )
 
     if mask and Path(mask).is_file():
@@ -448,6 +455,7 @@ def mrc_to_apng_multiple_stacks(plugin_params: Callable):
 
         relevant_area = np.where((data > data.max() / 2) * allowed_vol)
         for i in range(len(relevant_area[0])):
+            # Currently just ends up with the last volume considered if they overlap
             rgb_stacks[
                 relevant_area[0][i], relevant_area[1][i], relevant_area[2][i]
             ] = rgbvals[fid]
@@ -463,12 +471,17 @@ def mrc_to_apng_multiple_stacks(plugin_params: Callable):
     except IndexError:
         logger.error(f"Unable to save movie to file {outfile}")
         return False
+
+    # Make central slice image
+    central_slice_file = outfile.strip("movie.png") + "thumbnail.jpeg"
+    central_slice = initial_data_shape[0] // 2
+    images_to_append[central_slice].save(central_slice_file)
+
     timing = time.perf_counter() - start
     logger.info(
         f"Converted mrc to apng {file_list} -> {outfile} in {timing:.1f} seconds",
         extra={"image-processing-time": timing},
     )
-    print(timing)
     return outfile
 
 
