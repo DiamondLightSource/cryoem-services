@@ -10,6 +10,7 @@ from cryoemservices.services.bfactor_setup import BFactorParameters
 from cryoemservices.services.cryolo import CryoloParameters
 from cryoemservices.services.ctffind import CTFParameters
 from cryoemservices.services.denoise import DenoiseParameters
+from cryoemservices.services.easymode import EasymodeParameters
 from cryoemservices.services.extract import ExtractParameters
 from cryoemservices.services.extract_class import ExtractClassParameters
 from cryoemservices.services.icebreaker import IceBreakerParameters
@@ -64,6 +65,7 @@ known_services = {
     "CrYOLO": CryoloParameters,
     "CTFFind": CTFParameters,
     "Denoise": DenoiseParameters,
+    "Easymode": EasymodeParameters,
     "EMISPyB": ISPyBParameters,
     "Extract": ExtractParameters,
     "ExtractClass": ExtractClassParameters,

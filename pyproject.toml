@@ -59,6 +59,7 @@ dev = [
     "pytest-mock",
 ]
 torch = [
+    "easymode@git+https://github.com/mgflast/easymode",
     "membrain-seg",
     "topaz-em",
 ]
@@ -94,6 +95,7 @@ torch = [
     Denoise = "cryoemservices.services.denoise:Denoise"
     DenoiseSlurm = "cryoemservices.services.denoise_slurm:DenoiseSlurm"
     EMISPyB = "cryoemservices.services.ispyb_connector:EMISPyB"
+    Easymode = "cryoemservices.services.easymode:Easymode"
     Extract = "cryoemservices.services.extract:Extract"
     ExtractClass = "cryoemservices.services.extract_class:ExtractClass"
     IceBreaker = "cryoemservices.services.icebreaker:IceBreaker"
@@ -113,6 +115,7 @@ torch = [
     "mrc_central_slice" = "cryoemservices.services.images_plugins:mrc_central_slice"
     "mrc_projection" = "cryoemservices.services.images_plugins:mrc_projection"
     "mrc_to_apng" = "cryoemservices.services.images_plugins:mrc_to_apng"
+    "mrc_to_apng_colour" = "cryoemservices.services.images_plugins:mrc_to_apng_colour"
     "mrc_to_jpeg" = "cryoemservices.services.images_plugins:mrc_to_jpeg"
     "picked_particles" = "cryoemservices.services.images_plugins:picked_particles"
     "picked_particles_3d_apng" = "cryoemservices.services.images_plugins:picked_particles_3d_apng"

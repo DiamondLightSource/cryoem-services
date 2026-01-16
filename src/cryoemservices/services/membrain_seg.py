@@ -253,6 +253,18 @@ class MembrainSeg(CommonService):
         }
         rw.send_to("ispyb_connector", ispyb_parameters)
 
+        # Send on to easymode for further segmentation
+        rw.send_to(
+            "easymode",
+            {
+                "tomogram": membrain_seg_params.tomogram,
+                "output_dir": membrain_seg_params.output_dir,
+                "segmentation_apng": str(segmented_path.with_suffix("")) + "_movie.png",
+                "pixel_size": membrain_seg_params.pixel_size,
+                "relion_options": dict(membrain_seg_params.relion_options),
+            },
+        )
+
         self.log.info(f"Done segmentation for {membrain_seg_params.tomogram}")
         rw.transport.ack(header)
         return

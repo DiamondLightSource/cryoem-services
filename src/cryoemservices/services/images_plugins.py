@@ -399,6 +399,99 @@ def mrc_to_apng(plugin_params: Callable):
     return outfile
 
 
+def mrc_to_apng_colour(plugin_params: Callable):
+    if not required_parameters(plugin_params, ["file_list", "outfile"]):
+        return False
+    file_list = plugin_params("file_list")
+    outfile = plugin_params("outfile")
+    mask = plugin_params("mask")
+
+    # Verify that all files exist and have the same dimensions
+    start = time.perf_counter()
+    initial_data_shape: tuple = ()
+    files_to_verify = file_list + [mask] if mask else file_list
+    for filepath in files_to_verify:
+        if not Path(filepath).is_file():
+            logger.error(f"File {filepath} not found")
+            return False
+        try:
+            with mrcfile.open(filepath) as mrc:
+                new_data_shape = mrc.data.shape
+        except ValueError:
+            logger.error(
+                f"File {filepath} could not be opened. It may be corrupted or not in mrc format"
+            )
+            return False
+        if not len(new_data_shape) == 3:
+            logger.error(f"File {filepath} is not a 3D volume")
+            return False
+
+        if initial_data_shape and not new_data_shape == initial_data_shape:
+            logger.error("Volume shapes do not match")
+            return False
+        elif not initial_data_shape:
+            initial_data_shape = new_data_shape
+
+    rgbvals = np.array(
+        [
+            [255, 255, 255],
+            [142, 59, 70],
+            [111, 191, 170],
+            [137, 128, 245],
+            [196, 146, 177],
+        ],
+        dtype="uint8",
+    )
+
+    if mask and Path(mask).is_file():
+        with mrcfile.open(mask) as mrc:
+            mask_data = mrc.data
+        allowed_vol = mask_data < mask_data.max() / 2
+    else:
+        # Apply a bit of edge clipping
+        allowed_vol = np.ones(initial_data_shape, dtype="bool")
+        for i in range(5):
+            allowed_vol[i] = np.zeros(allowed_vol[i].shape, dtype=bool)
+        for i in range(allowed_vol.shape[0] - 5, allowed_vol.shape[0]):
+            allowed_vol[i] = np.zeros(allowed_vol[i].shape, dtype=bool)
+
+    rgb_stacks = np.zeros(initial_data_shape + (3,), dtype="uint8")
+    for fid, filepath in enumerate(file_list):
+        with mrcfile.open(filepath) as mrc:
+            data = mrc.data
+
+        relevant_area = np.where((data > data.max() / 2) * allowed_vol)
+        for i in range(len(relevant_area[0])):
+            # Currently just ends up with the last volume considered if they overlap
+            rgb_stacks[
+                relevant_area[0][i], relevant_area[1][i], relevant_area[2][i]
+            ] = rgbvals[fid]
+
+    images_to_append = []
+    for frame in range(initial_data_shape[0]):
+        im = PIL.Image.fromarray(rgb_stacks[frame])
+        im.thumbnail((512, 512))
+        images_to_append.append(im)
+    try:
+        im_frame0 = images_to_append[0]
+        im_frame0.save(outfile, save_all=True, append_images=images_to_append[1:])
+    except IndexError:
+        logger.error(f"Unable to save movie to file {outfile}")
+        return False
+
+    # Make central slice image
+    central_slice_file = outfile.strip("movie.png") + "thumbnail.jpeg"
+    central_slice = initial_data_shape[0] // 2
+    images_to_append[central_slice].save(central_slice_file)
+
+    timing = time.perf_counter() - start
+    logger.info(
+        f"Converted mrc to apng {file_list} -> {outfile} in {timing:.1f} seconds",
+        extra={"image-processing-time": timing},
+    )
+    return outfile
+
+
 def particles_3d_in_frame(
     framedata: np.ndarray,
     framenum: int,

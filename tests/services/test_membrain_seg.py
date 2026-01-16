@@ -95,7 +95,7 @@ def test_membrain_seg_service_local_memseg(
     )
 
     # Check the images service request
-    assert offline_transport.send.call_count == 4
+    assert offline_transport.send.call_count == 5
     offline_transport.send.assert_any_call(
         "node_creator",
         {
@@ -132,6 +132,16 @@ def test_membrain_seg_service_local_memseg(
             "ispyb_command": "insert_processed_tomogram",
             "file_path": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented.mrc",
             "processing_type": "Segmented",
+        },
+    )
+    offline_transport.send.assert_any_call(
+        "easymode",
+        {
+            "tomogram": f"{tmp_path}/Denoise/job007/tomograms/test_stack_aretomo.denoised.mrc",
+            "output_dir": f"{tmp_path}/Segmentation/job008/tomograms",
+            "segmentation_apng": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented_movie.png",
+            "pixel_size": 1.0,
+            "relion_options": output_relion_options,
         },
     )
 
@@ -206,7 +216,7 @@ def test_membrain_seg_service_local_subprocess(
     mock_subprocess.assert_any_call(membrain_command, capture_output=True)
 
     # Check the images service request
-    assert offline_transport.send.call_count == 4
+    assert offline_transport.send.call_count == 5
     offline_transport.send.assert_any_call(
         "node_creator",
         {
@@ -243,6 +253,16 @@ def test_membrain_seg_service_local_subprocess(
             "ispyb_command": "insert_processed_tomogram",
             "file_path": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented.mrc",
             "processing_type": "Segmented",
+        },
+    )
+    offline_transport.send.assert_any_call(
+        "easymode",
+        {
+            "tomogram": f"{tmp_path}/Denoise/job007/tomograms/test_stack_aretomo.denoised.mrc",
+            "output_dir": f"{tmp_path}/Segmentation/job008/tomograms",
+            "segmentation_apng": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented_movie.png",
+            "pixel_size": 1.0,
+            "relion_options": output_relion_options,
         },
     )
 
@@ -379,7 +399,7 @@ def test_membrain_seg_service_slurm(
     )
 
     # Check the images service request
-    assert offline_transport.send.call_count == 4
+    assert offline_transport.send.call_count == 5
     offline_transport.send.assert_any_call(
         "node_creator",
         {
@@ -418,6 +438,16 @@ def test_membrain_seg_service_slurm(
             "processing_type": "Segmented",
         },
     )
+    offline_transport.send.assert_any_call(
+        "easymode",
+        {
+            "tomogram": f"{tmp_path}/Denoise/job007/tomograms/test_stack_aretomo.denoised.mrc",
+            "output_dir": f"{tmp_path}/Segmentation/job008/tomograms",
+            "segmentation_apng": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented_movie.png",
+            "pixel_size": 1.0,
+            "relion_options": output_relion_options,
+        },
+    )
 
 
 @mock.patch("cryoemservices.services.membrain_seg.segment")
@@ -450,6 +480,7 @@ def test_membrain_seg_service_local_memseg_rerun(
         "segmentation_threshold": 4,
         "relion_options": {},
     }
+    output_relion_options = dict(RelionServiceOptions())
 
     # Pre-make the output so this is a rerun
     (tmp_path / "Segmentation/job008/tomograms").mkdir(parents=True)
@@ -466,7 +497,7 @@ def test_membrain_seg_service_local_memseg_rerun(
     service.membrain_seg(None, header=header, message=segmentation_test_message)
 
     # Check the images service request
-    assert offline_transport.send.call_count == 3
+    assert offline_transport.send.call_count == 4
     offline_transport.send.assert_any_call(
         "images",
         {
@@ -489,5 +520,15 @@ def test_membrain_seg_service_local_memseg_rerun(
             "ispyb_command": "insert_processed_tomogram",
             "file_path": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented.mrc",
             "processing_type": "Segmented",
+        },
+    )
+    offline_transport.send.assert_any_call(
+        "easymode",
+        {
+            "tomogram": f"{tmp_path}/Denoise/job007/tomograms/test_stack_aretomo.denoised.mrc",
+            "output_dir": f"{tmp_path}/Segmentation/job008/tomograms",
+            "segmentation_apng": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented_movie.png",
+            "pixel_size": 1.0,
+            "relion_options": output_relion_options,
         },
     )
