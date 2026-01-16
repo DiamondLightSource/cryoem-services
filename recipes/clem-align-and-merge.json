@@ -10,7 +10,8 @@
       "align_across": "{align_across}"
     },
     "output": {
-      "murfey_feedback": 2
+      "murfey_feedback": 2,
+      "images": 3
     },
     "queue": "cluster.submission",
     "service": "ALIGN-AND-MERGE"
@@ -21,6 +22,10 @@
     },
     "queue": "{feedback_queue}",
     "service": "Murfey"
+  },
+  "3": {
+    "queue": "images",
+    "service": "Images"
   },
   "start": [[1, []]]
 }

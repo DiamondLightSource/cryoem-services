@@ -10,9 +10,11 @@ import numpy as np
 import pandas as pd
 import PIL.Image
 import starfile
+import tifffile as tf
 from PIL import ImageDraw, ImageEnhance, ImageFilter, ImageFont
 
 from cryoemservices.services.cryolo import grid_bar_histogram
+from cryoemservices.util.clem_array_functions import convert_to_rgb
 
 logger = logging.getLogger("cryoemservices.services.images_plugins")
 logger.setLevel(logging.INFO)
@@ -304,7 +306,7 @@ def mrc_projection(plugin_params: Callable):
     if pixel_spacing:
         if thickness_ang:
             # Show estimated thickness if given
-            scalebar_pixels = thickness_ang / pixel_spacing
+            scalebar_pixels = thickness_ang / float(pixel_spacing)
             scalebar_description = f"Thickness: {thickness_ang / 10:.0f} nm"
         else:
             # Add scale bar if no thickness provided
@@ -640,6 +642,86 @@ def picked_particles_3d_apng(plugin_params: Callable):
 
     logger.info(f"3D particle picker movie {outfile} saved")
     return outfile
+
+
+def tiff_to_apng(plugin_params: Callable):
+    """
+    Converts TIFF images/image stacks into PNGs.
+
+    This function only works with unsigned 8-bit (grayscale or RGB) TIFF images, as
+    Pillow cannot correctly parse 16-bit or higher channels, nor can it save float-
+    based images as PNGs.
+    """
+    # Check that the essential parameters are provided
+    if not required_parameters(plugin_params, ["input_file", "output_file"]):
+        return False
+
+    # Load parameters
+    input_file = Path(plugin_params("input_file"))
+    output_file = Path(plugin_params("output_file"))
+    target_size: tuple[int | None, int | None] = (
+        tuple(plugin_params("target_size"))
+        if plugin_params("target_size") is not None
+        else (None, None)
+    )
+    target_height, target_width = target_size
+    color: str | None = plugin_params("color")
+
+    # Verify that the input file exists
+    if not input_file.is_file():
+        logger.error(f"File {input_file} not found")
+        return False
+
+    # Start of function
+    start = time.perf_counter()
+    img = PIL.Image.open(input_file)
+
+    # Determine number of frames in image
+    with tf.TiffFile(input_file) as tiff_file:
+        num_frames = len(tiff_file.pages)
+
+    # Collect image frames
+    frames: list[PIL.Image.Image] = []
+    for f in range(num_frames):
+        # Load relevant frame
+        img.seek(f)
+        frame = img.copy()
+
+        # Resize image if target size provided
+        if target_height and target_width:
+            frame.thumbnail((target_width, target_height))
+        # Convert only grayscale 8-bit images if a color LUT is provided
+        if color is not None and frame.mode == "L":
+            frame = PIL.Image.fromarray(
+                convert_to_rgb(np.asarray(frame, dtype="uint8"), color)
+            )
+        # Skip colorisation step and notify why
+        elif color is not None and frame.mode != "L":
+            logger.debug(f"Image format {frame.mode} not valid for color conversion")
+
+        # Append frame and load next frame in sequence
+        frames.append(frame)
+
+    # Save as PNG
+    if not output_file.parent.exists():
+        output_file.parent.mkdir(parents=True)
+    try:
+        frames[0].save(
+            output_file,
+            save_all=True,
+            append_images=frames[1:],
+        )
+    except Exception:
+        logger.error(f"Unable to create PNG from TIFF file {input_file}", exc_info=True)
+        return False
+
+    # Report on successful processing result
+    timing = time.perf_counter() - start
+    logger.info(
+        f"Converted TIFF to PNG {input_file} -> {output_file} in {timing:.1f} seconds",
+        extra={"image-processing-time": timing},
+    )
+    return str(output_file)
 
 
 def tilt_series_alignment(plugin_params: Callable):

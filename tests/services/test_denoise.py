@@ -374,7 +374,9 @@ def test_denoise_local_subprocess_service(
 @mock.patch("cryoemservices.util.slurm_submission.requests")
 @mock.patch("cryoemservices.services.denoise_slurm.transfer_files")
 @mock.patch("cryoemservices.services.denoise_slurm.retrieve_files")
+@mock.patch("cryoemservices.services.denoise_slurm.get_iris_state")
 def test_denoise_slurm_service(
+    mock_iris_state,
     mock_retrieve,
     mock_transfer,
     mock_requests,
@@ -431,6 +433,7 @@ def test_denoise_slurm_service(
         transport=offline_transport,
     )
     service.initializing()
+    mock_iris_state.assert_called_once()
 
     # Send a message to the service
     service.denoise(None, header=header, message=denoise_test_message)

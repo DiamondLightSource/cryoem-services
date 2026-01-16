@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from unittest.mock import MagicMock
 
 import numpy as np
@@ -12,13 +12,15 @@ from pytest_mock import MockerFixture
 from workflows.recipe.wrapper import RecipeWrapper
 from workflows.transport.offline_transport import OfflineTransport
 
+from cryoemservices.util.clem_array_functions import (
+    get_percentiles,
+    stitch_image_frames,
+)
 from cryoemservices.util.clem_metadata import get_dimension_info, get_tile_scan_info
 from cryoemservices.wrappers.clem_process_raw_tiffs import (
     ProcessRawTIFFsParameters,
     ProcessRawTIFFsWrapper,
-    get_percentiles,
     process_tiff_files,
-    stitch_image_frames,
 )
 from tests.test_utils.clem import create_tiff_xml_metadata
 
@@ -37,12 +39,12 @@ colors = [
     "red",
 ]
 num_channels = len(colors)
-num_pixels = 512
-pixel_size = 0.0000005
+num_pixels = 256
+pixel_size = 0.0000004
 num_frames = 5
 z_size = 0.0000004
 num_tiles = [6 if i % 2 else 1 for i in range(num_datasets)]
-tile_offset = 0.00025
+tile_offset = 0.0001024
 
 
 # Create fixtures for use in subsequent tests
@@ -120,13 +122,13 @@ def test_get_percentiles(
 
     # Construct return values for the mocked PIL Image
     mock_image = mocker.patch(
-        "cryoemservices.wrappers.clem_process_raw_tiffs.Image", autospec=True
+        "cryoemservices.util.clem_array_functions.PILImage", autospec=True
     )
     arr = np.arange(256).reshape(16, 16).astype("uint8")
     mock_image.open.return_value = arr
 
     v_min, v_max = get_percentiles(
-        file=tiff_lists[0][0],
+        tiff_file=tiff_lists[0][0],
         percentiles=(p_lo, p_hi),
     )
     expected_min, expected_max = np.percentile(arr, (p_lo, p_hi))
@@ -139,7 +141,7 @@ def test_get_percentiles_fails(
     tiff_lists: list[list[Path]],
 ):
     # It should return (None, None) if the TIFF file cannot be read
-    assert get_percentiles(file=tiff_lists[0][0]) == (None, None)
+    assert get_percentiles(tiff_file=tiff_lists[0][0]) == (None, None)
 
 
 def test_stitch_image_frames(
@@ -171,10 +173,10 @@ def test_stitch_image_frames(
     # Calculate the extent that will be covered by the test metadata
     x_min, x_max, y_min, y_max = 1e10, 0.0, 1e10, 0.0
     for tile_scan in tile_scan_info.values():
-        x0 = tile_scan["pos_x"]
-        x1 = x0 + tile_offset
-        y0 = tile_scan["pos_y"]
-        y1 = y0 + tile_offset
+        x0 = tile_scan["pos_x"] - tile_offset / 2
+        x1 = tile_scan["pos_x"] + tile_offset / 2
+        y0 = tile_scan["pos_y"] - tile_offset / 2
+        y1 = tile_scan["pos_y"] + tile_offset / 2
         x_min = x0 if x0 < x_min else x_min
         x_max = x1 if x1 > x_max else x_max
         y_min = y0 if y0 < y_min else y_min
@@ -192,14 +194,14 @@ def test_stitch_image_frames(
 
     # Patch the PIL Image object to return an array of ones
     mock_image = mocker.patch(
-        "cryoemservices.wrappers.clem_process_raw_tiffs.Image", autospec=True
+        "cryoemservices.util.clem_array_functions.PILImage", autospec=True
     )
     arr = np.ones((num_pixels, num_pixels), dtype="uint8")
     mock_image.open.return_value = arr
 
     # Run the function
     frame = stitch_image_frames(
-        image_list=tiff_list,
+        tiff_list=tiff_list,
         tile_scan_info=tile_scan_info,
         image_width=num_pixels,
         image_height=num_pixels,
@@ -231,10 +233,10 @@ def create_dummy_result(
     num_rows = math.ceil(num_tiles[test_num] / num_cols)
     extent = [
         # [x_min, x_max, y_min, y_max] in real space
-        tile_offset,
-        (tile_offset * num_cols) + (num_pixels * pixel_size),
-        tile_offset,
-        (tile_offset * num_rows) + (num_pixels * pixel_size),
+        tile_offset / 2,
+        tile_offset / 2 + (tile_offset * (num_cols - 1)) + (num_pixels * pixel_size),
+        tile_offset / 2,
+        tile_offset / 2 + (tile_offset * (num_rows - 1)) + (num_pixels * pixel_size),
     ]
 
     # After calculating the extent, update num_pixels, pixel_size, and resolution
@@ -269,6 +271,13 @@ def create_dummy_result(
             color: str(processed_dir / area_name / series_name / f"{color}.tiff")
             for color in colors
         },
+        "thumbnails": {
+            color: str(
+                processed_dir / area_name / series_name / ".thumbnails" / f"{color}.png"
+            )
+            for color in colors
+        },
+        "thumbnail_size": (512, 512),
         "parent_tiffs": (
             {
                 color: sorted(
@@ -351,10 +360,10 @@ def test_process_tiff_files(
     num_rows = math.ceil(num_tiles[test_num] / num_cols)
     extent = [
         # [x_min, x_max, y_min, y_max] in real space
-        tile_offset,
-        (tile_offset * num_cols) + (num_pixels * pixel_size),
-        tile_offset,
-        (tile_offset * num_rows) + (num_pixels * pixel_size),
+        tile_offset / 2,
+        tile_offset / 2 + (tile_offset * (num_cols - 1)) + (num_pixels * pixel_size),
+        tile_offset / 2,
+        tile_offset / 2 + (tile_offset * (num_rows - 1)) + (num_pixels * pixel_size),
     ]
 
     # After calculating the extent, update num_pixels, pixel_size, and resolution
@@ -400,7 +409,15 @@ def test_process_tiff_files(
                     get_percentiles,
                     [
                         (
+                            # LIF file-based parameters
+                            None,
+                            None,
+                            None,
+                            None,
+                            None,
+                            # TIFF file-based parameters
                             file,
+                            # Common parameters
                             (0.5, 99.5),
                         )
                         for file in tiff_color_subset
@@ -416,11 +433,18 @@ def test_process_tiff_files(
                     stitch_image_frames,
                     [
                         (
+                            # LIF file-based parameters
+                            None,
+                            None,
+                            None,
+                            None,
+                            # TIFF file-based parameters
                             [
                                 file
                                 for file in tiff_color_subset
                                 if f"Z{str(z).zfill(2)}" in file.stem.split("--")
                             ],
+                            # Common parameters
                             tile_scan_info,
                             w,
                             h,
@@ -465,6 +489,7 @@ def test_process_tiff_files(
 
     # Order of list of dictionaries should match exactly
     for key, value in expected_result.items():
+        # Allow deviation for float values
         if key == "extent":
             for c, coord in enumerate(value):
                 assert math.isclose(coord, result[key][c])
@@ -476,6 +501,7 @@ def test_process_tiff_files(
             assert math.isclose(value, result[key], abs_tol=1e-9)
         elif key == "resolution":
             assert math.isclose(value, result[key], abs_tol=1e-9)
+        # Assert everything else exactly
         else:
             assert value == result[key]
 
@@ -572,6 +598,7 @@ def test_process_raw_tiffs_wrapper(
     test_params: tuple[int],
     offline_transport,  # 'offline_transport' fixture defined above
     tiff_lists: list[list[Path]],
+    processed_dir: Path,
     raw_metadata_files: list[Path],
 ):
     # Unpack test params and load relevant test datasets
@@ -607,8 +634,13 @@ def test_process_raw_tiffs_wrapper(
     # Generate the expected output result of the TIFF processing function
     # series_dir = processed_dir / area_name / series_name.replace(" ", "_")
     # processed_metadata = series_dir / "metadata" / f"{series_name.replace(" ", "_")}.xml"
-    output = {"series_name": series_name, "dummy": "dummy"}
-    mock_process_raw_tiffs.return_value = output
+    result = create_dummy_result(
+        tiff_list=tiff_list,
+        series_name=series_name,
+        processed_dir=processed_dir,
+        test_num=dataset_num,
+    )
+    mock_process_raw_tiffs.return_value = result
 
     # Set up a recipe wrapper with the defined message
     recipe_wrapper = RecipeWrapper(message=message, transport=offline_transport)
@@ -625,14 +657,28 @@ def test_process_raw_tiffs_wrapper(
         number_of_processes=20,
     )
 
-    # Check that all the results set up are sent out at the end of the function
-    # Generate the dictionary to be sent out
-    murfey_params = {
-        "register": "clem.register_preprocessing_result",
-        "result": output,
-    }
+    # Check that 'images' was called for each colour
+    for color in cast(dict[str, str], result["output_files"]).keys():
+        mock_send_to.assert_any_call(
+            "images",
+            {
+                "image_command": "tiff_to_apng",
+                "input_file": cast(dict[str, str], result["output_files"])[color],
+                "output_file": cast(dict[str, str], result["thumbnails"])[color],
+                "target_size": result["thumbnail_size"],
+                "color": color,
+            },
+        )
     # Check that the messag is sent out correctly
-    mock_send_to.assert_called_once_with("murfey_feedback", murfey_params)
+    mock_send_to.assert_any_call(
+        "murfey_feedback",
+        {
+            "register": "clem.register_preprocessing_result",
+            "result": result,
+        },
+    )
+    # Check that 'send_to' was called the expected number of times
+    assert mock_send_to.call_count == 1 + len(colors)
 
     # Check that the wrapper ran through to completion
     assert return_code

@@ -165,7 +165,11 @@ def test_align_and_merge_stacks(
     assert result["align_self"] == align_self
     assert result["flatten"] == flatten
     assert result["align_across"] == align_across
-    assert Path(result["composite_image"]).exists()
+    output_file = Path(result["output_file"])
+    assert output_file.exists()
+    thumbnail = output_file.parent / ".thumbnails" / f"{output_file.stem}.png"
+    assert result["thumbnail"] == str(thumbnail)
+    assert result["thumbnail_size"] == (512, 512)
 
 
 align_and_merge_wrong_params = (
@@ -368,11 +372,18 @@ def test_align_and_merge_wrapper(
         "register": "clem.register_align_and_merge_result",
         "result": mock.ANY,  # Checks that an object exists
     }
-    # Check that the message is sent out correctly
-    mock_send_to.assert_called_once_with(
+    # Check that the message to 'images' is sent correctly
+    mock_send_to.assert_any_call(
+        "images",
+        mock.ANY,
+    )
+    # Check that message to 'murfey_feedback' is sent correctly
+    mock_send_to.assert_any_call(
         "murfey_feedback",
         murfey_params,
     )
+    # Check that it was called twice
+    assert mock_send_to.call_count == 2
 
     # Check that the wrapper ran through to completion
     assert result

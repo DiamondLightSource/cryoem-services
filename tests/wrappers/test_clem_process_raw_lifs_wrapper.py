@@ -14,6 +14,10 @@ from readlif.reader import LifFile, LifImage
 from workflows.recipe.wrapper import RecipeWrapper
 from workflows.transport.offline_transport import OfflineTransport
 
+from cryoemservices.util.clem_array_functions import (
+    get_percentiles,
+    stitch_image_frames,
+)
 from cryoemservices.util.clem_metadata import (
     find_image_elements,
     get_dimension_info,
@@ -22,10 +26,8 @@ from cryoemservices.util.clem_metadata import (
 from cryoemservices.wrappers.clem_process_raw_lifs import (
     ProcessRawLIFsWrapper,
     get_lif_xml_metadata,
-    get_percentiles,
     process_lif_file,
     process_lif_subimage,
-    stitch_image_frames,
 )
 from tests.test_utils.clem import create_lif_xml_metadata
 
@@ -45,12 +47,12 @@ colors = [
     "blue",
 ]
 num_channels = len(colors)
-num_pixels = 512
-pixel_size = 0.0000005
+num_pixels = 256
+pixel_size = 0.0000004
 num_frames = 5
 z_size = 0.00000040
 num_tiles = [6 if i % 2 else 1 for i in range(num_scenes)]
-tile_offset = 0.00025
+tile_offset = 0.0001024
 
 
 # Create fixtures to represent the directory structure and raw data
@@ -147,7 +149,7 @@ def test_get_percentiles(
 
     # Construct return values for the mocked LifFile object
     mock_lif_file = mocker.patch(
-        "cryoemservices.wrappers.clem_process_raw_lifs.LifFile", autospec=True
+        "cryoemservices.util.clem_array_functions.LifFile", autospec=True
     )
     arr = np.arange(256).reshape((16, 16)).astype("uint8")
     mock_lif_image = MagicMock()
@@ -155,7 +157,7 @@ def test_get_percentiles(
     mock_lif_file.return_value.get_image.return_value = mock_lif_image
 
     v_min, v_max = get_percentiles(
-        file=lif_file,
+        lif_file=lif_file,
         scene_num=scene_num,
         channel_num=0,
         frame_num=0,
@@ -174,7 +176,7 @@ def test_get_percentiles_fails(
 ):
     # It should return (None, None) if the LifFile cannot be read
     assert get_percentiles(
-        file=lif_file,
+        lif_file=lif_file,
         scene_num=scene_num,
         channel_num=0,
         frame_num=0,
@@ -201,10 +203,10 @@ def test_stitch_image_frames(
     # Calculate the extent that will be covered by the test metadata
     x_min, x_max, y_min, y_max = 1e10, 0.0, 1e10, 0.0
     for tile_scan in tile_scan_info.values():
-        x0 = tile_scan["pos_x"]
-        x1 = x0 + tile_offset
-        y0 = tile_scan["pos_y"]
-        y1 = y0 + tile_offset
+        x0 = tile_scan["pos_x"] - tile_offset / 2
+        x1 = tile_scan["pos_x"] + tile_offset / 2
+        y0 = tile_scan["pos_y"] - tile_offset / 2
+        y1 = tile_scan["pos_y"] + tile_offset / 2
         x_min = x0 if x0 < x_min else x_min
         x_max = x1 if x1 > x_max else x_max
         y_min = y0 if y0 < y_min else y_min
@@ -222,14 +224,14 @@ def test_stitch_image_frames(
 
     # Patch the LifFile object call in the function to return array of ones
     mock_lif_file = mocker.patch(
-        "cryoemservices.wrappers.clem_process_raw_lifs.LifFile", autospec=True
+        "cryoemservices.util.clem_array_functions.LifFile", autospec=True
     )
     arr = np.ones((num_pixels, num_pixels), dtype="uint8")
     mock_lif_file.return_value.get_image.return_value.get_frame.return_value = arr
 
     # Run the function
     frame = stitch_image_frames(
-        file=lif_file,
+        lif_file=lif_file,
         scene_num=scene_num,
         channel_num=0,
         frame_num=0,
@@ -262,10 +264,10 @@ def create_dummy_result(
     num_rows = math.ceil(num_tiles[scene_num] / num_cols)
     extent = [
         # [x_min, x_max, y_min, y_max] in real space
-        tile_offset,
-        (tile_offset * num_cols) + (num_pixels * pixel_size),
-        tile_offset,
-        (tile_offset * num_rows) + (num_pixels * pixel_size),
+        tile_offset / 2,
+        tile_offset / 2 + (tile_offset * (num_cols - 1)) + (num_pixels * pixel_size),
+        tile_offset / 2,
+        tile_offset / 2 + (tile_offset * (num_rows - 1)) + (num_pixels * pixel_size),
     ]
 
     # After calculating the extent, update num_pixels, pixel_size, and resolution
@@ -300,6 +302,17 @@ def create_dummy_result(
             color: str(processed_dir / lif_file.stem / series_name / f"{color}.tiff")
             for color in colors
         },
+        "thumbnails": {
+            color: str(
+                processed_dir
+                / lif_file.stem
+                / series_name
+                / ".thumbnails"
+                / f"{color}.png"
+            )
+            for color in colors
+        },
+        "thumbnail_size": (512, 512),
         "metadata": str(
             processed_dir
             / lif_file.stem
@@ -359,10 +372,10 @@ def test_process_lif_subimage(
     num_rows = math.ceil(num_tiles[scene_num] / num_cols)
     extent = [
         # [x_min, x_max, y_min, y_max] in real space
-        tile_offset,
-        (tile_offset * num_cols) + (num_pixels * pixel_size),
-        tile_offset,
-        (tile_offset * num_rows) + (num_pixels * pixel_size),
+        tile_offset / 2,
+        tile_offset / 2 + (tile_offset * (num_cols - 1)) + (num_pixels * pixel_size),
+        tile_offset / 2,
+        tile_offset / 2 + (tile_offset * (num_rows - 1)) + (num_pixels * pixel_size),
     ]
 
     # After calculating the extent, update num_pixels, pixel_size, and resolution
@@ -407,6 +420,7 @@ def test_process_lif_subimage(
                             c,
                             z,
                             t,
+                            None,
                             (0.5, 99.5),
                         )
                         for z in range(num_frames)
@@ -427,6 +441,7 @@ def test_process_lif_subimage(
                             scene_num,
                             c,
                             z,
+                            [],
                             tile_scan_info,
                             w,
                             h,
@@ -472,17 +487,19 @@ def test_process_lif_subimage(
 
     # Order of list of dictionaries should match exactly
     for key, value in expected_result.items():
+        # Permit some leeway for float values
         if key == "extent":
             for c, coord in enumerate(value):
                 assert math.isclose(coord, result[key][c])
-        elif key in ("pixels_y",):
-            assert math.isclose(value, result[key], abs_tol=2)
         elif key in ("pixels_x",):
+            assert math.isclose(value, result[key], abs_tol=2)
+        elif key in ("pixels_y",):
             assert math.isclose(value, result[key], abs_tol=2)
         elif key == "pixel_size":
             assert math.isclose(value, result[key], abs_tol=1e-9)
         elif key == "resolution":
             assert math.isclose(value, result[key], abs_tol=1e-9)
+        # Match everything else exactly
         else:
             assert value == result[key]
 
@@ -584,7 +601,7 @@ def test_lif_to_stack_wrapper(
     }
 
     # Construct the expected output result
-    outputs = [
+    results = [
         create_dummy_result(
             lif_file=lif_file,
             series_name=series_name,
@@ -593,7 +610,7 @@ def test_lif_to_stack_wrapper(
         )
         for scene_num in range(num_scenes)
     ]
-    mock_process_lif_file.return_value = outputs
+    mock_process_lif_file.return_value = results
 
     # Set up a recipe wrapper with the defined recipe
     recipe_wrapper = RecipeWrapper(message=message, transport=offline_transport)
@@ -611,14 +628,36 @@ def test_lif_to_stack_wrapper(
     )
 
     # Check that all the results set up are sent out at the end of the function
-    for output in outputs:
-        # Generate the dictionary to be sent out
-        murfey_params = {
-            "register": "clem.register_preprocessing_result",
-            "result": output,
-        }
-        # Check that the message is sent out correctly
-        mock_send_to.assert_any_call("murfey_feedback", murfey_params)
+    for result in results:
+        # Check that the call to 'images' was sent out
+        for color in result["output_files"].keys():
+            mock_send_to.assert_any_call(
+                "images",
+                {
+                    "image_command": "tiff_to_apng",
+                    "input_file": result["output_files"][color],
+                    "output_file": result["thumbnails"][color],
+                    "target_size": result["thumbnail_size"],
+                    "color": color,
+                },
+            )
+
+        # Check that the message was sent to 'murfey_feedback' correctly
+        mock_send_to.assert_any_call(
+            "murfey_feedback",
+            {
+                "register": "clem.register_preprocessing_result",
+                "result": result,
+            },
+        )
+
+    assert mock_send_to.call_count == (
+        len(results)
+        * (
+            len(colors)  # 'images' calls
+            + 1  # 'murfey_feedback' call
+        )
+    )
 
     # Check that the wrapper ran through to completion
     assert return_code
