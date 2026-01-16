@@ -446,7 +446,12 @@ def mrc_to_apng_colour(plugin_params: Callable):
             mask_data = mrc.data
         allowed_vol = mask_data < mask_data.max() / 2
     else:
+        # Apply a bit of edge clipping
         allowed_vol = np.ones(initial_data_shape, dtype="bool")
+        for i in range(5):
+            allowed_vol[i] = np.zeros(allowed_vol[i].shape, dtype=bool)
+        for i in range(allowed_vol.shape[0] - 5, allowed_vol.shape[0]):
+            allowed_vol[i] = np.zeros(allowed_vol[i].shape, dtype=bool)
 
     rgb_stacks = np.zeros(initial_data_shape + (3,), dtype="uint8")
     for fid, filepath in enumerate(file_list):
