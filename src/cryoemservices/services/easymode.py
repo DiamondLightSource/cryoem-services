@@ -34,7 +34,7 @@ class EasymodeParameters(BaseModel):
     membrain_segmention: Optional[str] = None
     feature_list: list[str] = ["ribosome", "microtubule", "tric"]
     mask: Optional[str] = "void"
-    pixel_size: float
+    pixel_size: Optional[float] = None
     batch_size: int = 1
     tta: int = 1
     relion_options: RelionServiceOptions

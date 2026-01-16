@@ -261,7 +261,7 @@ class MembrainSeg(CommonService):
                 "output_dir": membrain_seg_params.output_dir,
                 "segmentation_apng": str(segmented_path.with_suffix("")) + "_movie.png",
                 "pixel_size": membrain_seg_params.pixel_size,
-                "relion_options": membrain_seg_params.relion_options,
+                "relion_options": dict(membrain_seg_params.relion_options),
             },
         )
 
