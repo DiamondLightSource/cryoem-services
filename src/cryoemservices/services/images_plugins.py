@@ -433,8 +433,8 @@ def mrc_to_apng_colour(plugin_params: Callable):
     rgbvals = np.array(
         [
             [255, 255, 255],
-            [111, 191, 170],
             [142, 59, 70],
+            [111, 191, 170],
             [137, 128, 245],
             [196, 146, 177],
         ],
