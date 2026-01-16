@@ -5,6 +5,7 @@ from typing import Optional
 import mrcfile
 import numpy as np
 import tensorflow as tf
+from easymode.core import config as easymode_config
 from easymode.core.distribution import get_model, load_model
 from easymode.segmentation import inference
 from pydantic import BaseModel, Field, ValidationError
@@ -13,18 +14,6 @@ from workflows.recipe import wrap_subscribe
 from cryoemservices.services.common_service import CommonService
 from cryoemservices.util.models import MockRW
 from cryoemservices.util.relion_service_options import RelionServiceOptions
-
-
-def fix_header(input_tomogram, output_tomogram):
-    """Set header of output tomogram equal to that of input"""
-    with mrcfile.open(input_tomogram) as mrc:
-        header = mrc.header
-
-    with mrcfile.open(output_tomogram, "r+") as mrc:
-        mrc.header.cella = header.cella
-        mrc.header.mx = header.mx
-        mrc.header.my = header.my
-        mrc.header.mz = header.mz
 
 
 class EasymodeParameters(BaseModel):
@@ -57,6 +46,8 @@ class Easymode(CommonService):
         os.environ["CUDA_VISIBLE_DEVICES"] = "0"
         for device in tf.config.list_physical_devices("GPU"):
             tf.config.experimental.set_memory_growth(device, True)
+        if self._environment["config"]:
+            easymode_config.edit_setting("MODEL_DIRECTORY", self._environment["config"])
         wrap_subscribe(
             self._transport,
             self._environment["queue"] or "segmentation",
@@ -97,6 +88,14 @@ class Easymode(CommonService):
             rw.transport.nack(header)
             return
 
+        try:
+            with mrcfile.open(easymode_params.tomogram) as mrc:
+                tomogram_header = mrc.header
+        except (FileNotFoundError, ValueError):
+            self.log.error(f"Input tomogram {easymode_params.tomogram} cannot be read")
+            rw.transport.nack(header)
+            return
+
         output_tomograms: dict[str, Path] = {}
         if easymode_params.mask:
             easymode_params.feature_list.append(easymode_params.mask)
@@ -121,9 +120,13 @@ class Easymode(CommonService):
 
             # Convert to int8 and save mrc
             segmented_volume = (segmented_volume * 127).astype(np.int8)
-            with mrcfile.new(output_tomograms[feature], overwrite=True) as m:
-                m.set_data(segmented_volume)
-            fix_header(easymode_params.tomogram, output_tomograms[feature])
+            with mrcfile.new(output_tomograms[feature], overwrite=True) as mrc:
+                mrc.set_data(segmented_volume)
+                # Set header of output tomogram equal to that of input
+                mrc.header.cella = tomogram_header.cella
+                mrc.header.mx = tomogram_header.mx
+                mrc.header.my = tomogram_header.my
+                mrc.header.mz = tomogram_header.mz
 
         # Forward results to images service
         self.log.info(f"Sending to images service {easymode_params.segmentation_apng}")
