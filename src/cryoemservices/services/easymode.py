@@ -7,7 +7,7 @@ import numpy as np
 import tensorflow as tf
 from easymode.core import config as easymode_config
 from easymode.core.distribution import get_model, load_model
-from easymode.segmentation import inference
+from easymode.segmentation.inference import segment_tomogram
 from pydantic import BaseModel, Field, ValidationError
 from workflows.recipe import wrap_subscribe
 
@@ -20,7 +20,7 @@ class EasymodeParameters(BaseModel):
     tomogram: str = Field(..., min_length=1)
     output_dir: str = Field(..., min_length=1)
     segmentation_apng: str = Field(..., min_length=1)
-    membrain_segmention: Optional[str] = None
+    membrain_segmentation: Optional[str] = None
     feature_list: list[str] = ["ribosome", "microtubule", "tric"]
     mask: Optional[str] = "void"
     pixel_size: Optional[float] = None
@@ -109,7 +109,7 @@ class Easymode(CommonService):
                 Path(easymode_params.tomogram).stem + f"_easymode_{feature}.mrc"
             )
             self.log.info(f"Running for output {output_tomograms[feature]}")
-            segmented_volume, volume_apix = inference.segment_tomogram(
+            segmented_volume, volume_apix = segment_tomogram(
                 model=model,
                 tomogram_path=easymode_params.tomogram,
                 tta=easymode_params.tta,
@@ -132,7 +132,7 @@ class Easymode(CommonService):
         self.log.info(f"Sending to images service {easymode_params.segmentation_apng}")
         full_segmentation_list = (
             [easymode_params.membrain_segmentation]
-            if easymode_params.membrain_segmention
+            if easymode_params.membrain_segmentation
             else []
         )
         full_segmentation_list += [
