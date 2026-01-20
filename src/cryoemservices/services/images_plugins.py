@@ -432,6 +432,7 @@ def mrc_to_apng_colour(plugin_params: Callable):
         elif not initial_data_shape:
             initial_data_shape = new_data_shape
 
+    # Selection of colours for image
     rgbvals = np.array(
         [
             [255, 255, 255],
@@ -442,24 +443,32 @@ def mrc_to_apng_colour(plugin_params: Callable):
         ],
         dtype="uint8",
     )
+    if len(file_list) > len(rgbvals):
+        # If there aren't enough colours add some
+        rgbvals = np.vstack(
+            rgbvals, np.random.randint(0, 256, (len(file_list) - len(rgbvals), 3))
+        )
 
+    # Generate a mask
     if mask and Path(mask).is_file():
+        # Read file supplied as mask
         with mrcfile.open(mask) as mrc:
             mask_data = mrc.data
         allowed_vol = mask_data < mask_data.max() / 2
     else:
-        # Apply a bit of edge clipping
+        # Apply a bit of edge clipping if no mask
         allowed_vol = np.ones(initial_data_shape, dtype="bool")
         for i in range(5):
             allowed_vol[i] = np.zeros(allowed_vol[i].shape, dtype=bool)
         for i in range(allowed_vol.shape[0] - 5, allowed_vol.shape[0]):
             allowed_vol[i] = np.zeros(allowed_vol[i].shape, dtype=bool)
 
+    # Read in andadd the individual files to the segmentation
     rgb_stacks = np.zeros(initial_data_shape + (3,), dtype="uint8")
     for fid, filepath in enumerate(file_list):
         with mrcfile.open(filepath) as mrc:
             data = mrc.data
-
+        # Find areas with segmented data which are not masked
         relevant_area = np.where((data > data.max() / 2) * allowed_vol)
         for i in range(len(relevant_area[0])):
             # Currently just ends up with the last volume considered if they overlap
@@ -467,6 +476,7 @@ def mrc_to_apng_colour(plugin_params: Callable):
                 relevant_area[0][i], relevant_area[1][i], relevant_area[2][i]
             ] = rgbvals[fid]
 
+    # Save output apng of volume
     images_to_append = []
     for frame in range(initial_data_shape[0]):
         im = PIL.Image.fromarray(rgb_stacks[frame])
@@ -486,7 +496,7 @@ def mrc_to_apng_colour(plugin_params: Callable):
 
     timing = time.perf_counter() - start
     logger.info(
-        f"Converted mrc to apng {file_list} -> {outfile} in {timing:.1f} seconds",
+        f"Converted mrc to colour apng {file_list} -> {outfile} in {timing:.1f} seconds",
         extra={"image-processing-time": timing},
     )
     return outfile
