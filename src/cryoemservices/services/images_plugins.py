@@ -492,7 +492,11 @@ def mrc_to_apng_colour(plugin_params: Callable):
     # Make central slice image
     central_slice_file = outfile.strip("movie.png") + "thumbnail.jpeg"
     central_slice = initial_data_shape[0] // 2
-    images_to_append[central_slice].save(central_slice_file)
+    try:
+        images_to_append[central_slice].save(central_slice_file)
+    except IndexError:
+        logger.error(f"Unable to save central slide to file {central_slice_file}")
+        return False
 
     timing = time.perf_counter() - start
     logger.info(

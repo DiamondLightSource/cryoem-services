@@ -22,7 +22,7 @@ class EasymodeParameters(BaseModel):
     segmentation_apng: str = Field(..., min_length=1)
     membrain_segmentation: Optional[str] = None
     feature_list: list[str] = ["ribosome", "microtubule", "tric"]
-    mask: Optional[str] = "void"
+    mask: Optional[str] = None  # "void"
     pixel_size: Optional[float] = None
     batch_size: int = 1
     tta: int = 1
