@@ -481,8 +481,9 @@ def mrc_to_apng_colour(plugin_params: Callable):
         im.thumbnail((512, 512))
         images_to_append.append(im)
     try:
-        im_frame0 = images_to_append[0]
-        im_frame0.save(outfile, save_all=True, append_images=images_to_append[1:])
+        images_to_append[0].save(
+            outfile, save_all=True, append_images=images_to_append[1:]
+        )
     except IndexError:
         logger.error(f"Unable to save movie to file {outfile}")
         return False
