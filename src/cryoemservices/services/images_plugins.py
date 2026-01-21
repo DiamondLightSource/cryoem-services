@@ -405,32 +405,30 @@ def mrc_to_apng_colour(plugin_params: Callable):
     file_list = plugin_params("file_list")
     outfile = plugin_params("outfile")
     mask = plugin_params("mask")
-
-    # Verify that all files exist and have the same dimensions
     start = time.perf_counter()
-    initial_data_shape: tuple = ()
-    files_to_verify = file_list + [mask] if mask else file_list
-    for filepath in files_to_verify:
-        if not Path(filepath).is_file():
-            logger.error(f"File {filepath} not found")
-            return False
-        try:
-            with mrcfile.open(filepath) as mrc:
-                new_data_shape = (mrc.header.nz, mrc.header.ny, mrc.header.nx)
-        except ValueError:
-            logger.error(
-                f"File {filepath} could not be opened. It may be corrupted or not in mrc format"
-            )
-            return False
-        if not len(new_data_shape) == 3:
-            logger.error(f"File {filepath} is not a 3D volume")
-            return False
 
-        if initial_data_shape and not new_data_shape == initial_data_shape:
+    # Verify that all files exist and have the same/expected dimensions
+    files_to_verify = file_list + [mask] if mask else file_list
+    if any(not Path(file).is_file() for file in files_to_verify):
+        logger.error("One or more files could not be found")
+        return False
+    try:
+        initial_data_shapes: set[tuple[int, ...]] = {
+            mrcfile.mmap(file).data.shape for file in files_to_verify
+        }
+        if len(initial_data_shapes) != 1:
             logger.error("Volume shapes do not match")
             return False
-        elif not initial_data_shape:
-            initial_data_shape = new_data_shape
+        initial_data_shape = list(initial_data_shapes)[0]
+        if len(initial_data_shape) != 3:
+            logger.error("Files do not contain a 3D volume")
+            return False
+    except ValueError:
+        logger.error(
+            "One or more files could not be opened. "
+            "They may be corrupted or not in MRC format"
+        )
+        return False
 
     # Selection of colours for image
     rgbvals = np.array(
@@ -467,7 +465,7 @@ def mrc_to_apng_colour(plugin_params: Callable):
     rgb_stacks = np.zeros(initial_data_shape + (3,), dtype="uint8")
     for fid, filepath in enumerate(file_list):
         with mrcfile.open(filepath) as mrc:
-            data = mrc.data
+            data: np.ndarray = mrc.data
         # Find areas with segmented data which are not masked
         relevant_area = np.where((data > data.max() / 2) * allowed_vol)
         rgb_stacks[relevant_area] = np.outer(
