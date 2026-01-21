@@ -416,7 +416,7 @@ def mrc_to_apng_colour(plugin_params: Callable):
             return False
         try:
             with mrcfile.open(filepath) as mrc:
-                new_data_shape = mrc.data.shape
+                new_data_shape = (mrc.header.nz, mrc.header.ny, mrc.header.nx)
         except ValueError:
             logger.error(
                 f"File {filepath} could not be opened. It may be corrupted or not in mrc format"
@@ -463,18 +463,16 @@ def mrc_to_apng_colour(plugin_params: Callable):
         for i in range(allowed_vol.shape[0] - 5, allowed_vol.shape[0]):
             allowed_vol[i] = np.zeros(allowed_vol[i].shape, dtype=bool)
 
-    # Read in andadd the individual files to the segmentation
+    # Read in and add the individual files to the segmentation
     rgb_stacks = np.zeros(initial_data_shape + (3,), dtype="uint8")
     for fid, filepath in enumerate(file_list):
         with mrcfile.open(filepath) as mrc:
             data = mrc.data
         # Find areas with segmented data which are not masked
         relevant_area = np.where((data > data.max() / 2) * allowed_vol)
-        for i in range(len(relevant_area[0])):
-            # Currently just ends up with the last volume considered if they overlap
-            rgb_stacks[
-                relevant_area[0][i], relevant_area[1][i], relevant_area[2][i]
-            ] = rgbvals[fid]
+        rgb_stacks[relevant_area] = np.outer(
+            np.ones(len(relevant_area[0])), rgbvals[fid]
+        )
 
     # Save output apng of volume
     images_to_append = []
