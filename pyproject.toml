@@ -58,6 +58,9 @@ dev = [
     "pytest-datafiles",
     "pytest-mock",
 ]
+murfey_db = [
+    "murfey",
+]
 torch = [
     "membrain-seg",
     "topaz-em",
@@ -100,6 +103,7 @@ torch = [
     Images = "cryoemservices.services.images:Images"
     MembrainSeg = "cryoemservices.services.membrain_seg:MembrainSeg"
     MotionCorr = "cryoemservices.services.motioncorr:MotionCorr"
+    MurfeyDBConnector = "cryoemservices.services.murfey_db_connector:MurfeyDBConnector"
     NodeCreator = "cryoemservices.services.node_creator:NodeCreator"
     PostProcess = "cryoemservices.services.postprocess:PostProcess"
     ProcessRecipe = "cryoemservices.services.process_recipe:ProcessRecipe"
