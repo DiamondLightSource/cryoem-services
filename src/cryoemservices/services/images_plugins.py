@@ -456,10 +456,8 @@ def mrc_to_apng_colour(plugin_params: Callable):
     else:
         # Apply a bit of edge clipping if no mask
         allowed_vol = np.ones(initial_data_shape, dtype="bool")
-        for i in range(5):
-            allowed_vol[i] = np.zeros(allowed_vol[i].shape, dtype=bool)
-        for i in range(allowed_vol.shape[0] - 5, allowed_vol.shape[0]):
-            allowed_vol[i] = np.zeros(allowed_vol[i].shape, dtype=bool)
+        allowed_vol[:5] = False
+        allowed_vol[-5:] = False
 
     # Read in and add the individual files to the segmentation
     rgb_stacks = np.zeros(initial_data_shape + (3,), dtype="uint8")
