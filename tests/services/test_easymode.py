@@ -127,7 +127,7 @@ def test_easymode_service_with_mask(
     # Check the images service request
     assert offline_transport.send.call_count == 1
     offline_transport.send.assert_any_call(
-        "movie",
+        "images",
         {
             "image_command": "mrc_to_apng_colour",
             "file_list": [
@@ -252,7 +252,7 @@ def test_easymode_service_without_mask(
     # Check the images service request
     assert offline_transport.send.call_count == 1
     offline_transport.send.assert_any_call(
-        "movie",
+        "images",
         {
             "image_command": "mrc_to_apng_colour",
             "file_list": [

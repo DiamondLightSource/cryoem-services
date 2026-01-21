@@ -143,7 +143,7 @@ class Easymode(CommonService):
             if feat != easymode_params.mask
         ]
         rw.send_to(
-            "movie",
+            "images",
             {
                 "image_command": "mrc_to_apng_colour",
                 "file_list": full_segmentation_list,
