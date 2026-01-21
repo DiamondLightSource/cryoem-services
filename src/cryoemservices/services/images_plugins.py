@@ -712,6 +712,7 @@ def tiff_to_apng(plugin_params: Callable):
 
         # Append frame and load next frame in sequence
         frames.append(frame)
+    img.close()
 
     # Save as PNG
     if not output_file.parent.exists():

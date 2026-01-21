@@ -709,6 +709,7 @@ def test_tiff_to_apng(
     except EOFError:
         pass
     assert frame_counter == num_frames
+    output_img.close()
 
 
 @mock.patch("cryoemservices.services.images_plugins.ImageDraw")
