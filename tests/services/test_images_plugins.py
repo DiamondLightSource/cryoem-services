@@ -363,6 +363,21 @@ def test_mrc_to_apng_colour_works_with_3d_mask(tmp_path):
     assert (tmp_path / "tmp1_thumbnail.jpeg").is_file()
 
 
+def test_mrc_to_apng_colour_withs_with_3d_no_mask(tmp_path):
+    tmp_mrc_path1 = tmp_path / "tmp1.mrc"
+    tmp_mrc_path2 = tmp_path / "tmp2.mrc"
+    data_3d = np.linspace(-1000, 1000, 80, dtype=np.int16).reshape((20, 2, 2))
+    with mrcfile.new(tmp_mrc_path1, overwrite=True) as mrc:
+        mrc.set_data(data_3d)
+    with mrcfile.new(tmp_mrc_path2, overwrite=True) as mrc:
+        mrc.set_data(data_3d)
+    assert mrc_to_apng_colour(
+        plugin_params_apng_colour([str(tmp_mrc_path1), str(tmp_mrc_path2)], mask=None)
+    ) == str(tmp_path / "tmp1_movie.png")
+    assert (tmp_path / "tmp1_movie.png").is_file()
+    assert (tmp_path / "tmp1_thumbnail.jpeg").is_file()
+
+
 def test_mrc_to_apng_colour_fail_cases(tmp_path):
     tmp_mrc_path1 = tmp_path / "tmp1.mrc"
     tmp_mrc_path2 = tmp_path / "tmp2.mrc"
