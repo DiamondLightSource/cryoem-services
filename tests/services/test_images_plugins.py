@@ -393,18 +393,21 @@ def test_mrc_to_apng_colour_fail_cases(tmp_path):
     assert not mrc_to_apng_colour(
         plugin_params_apng_colour([str(tmp_mrc_path1)], mask=str(tmp_mrc_path2))
     )
+    # Non-matching volume shapes
+    tmp_mrc_path1.unlink()
+    data_3d = np.linspace(-1000, 1000, 20, dtype=np.int16).reshape((2, 5, 2))
+    with mrcfile.new(tmp_mrc_path1, overwrite=True) as mrc:
+        mrc.set_data(data_3d)
+    assert not mrc_to_apng_colour(
+        plugin_params_apng_colour([str(tmp_mrc_path1)], mask=str(tmp_mrc_path2))
+    )
     # 2D data case
     tmp_mrc_path1.unlink()
     data_2d = np.linspace(-1000, 1000, 20, dtype=np.int16).reshape((5, 4))
     with mrcfile.new(tmp_mrc_path1, overwrite=True) as mrc:
         mrc.set_data(data_2d)
-    assert not mrc_to_apng_colour(
-        plugin_params_apng_colour([str(tmp_mrc_path1)], mask=str(tmp_mrc_path2))
-    )
-    # Non-matching volume shapes
-    data_3d = np.linspace(-1000, 1000, 20, dtype=np.int16).reshape((2, 5, 2))
-    with mrcfile.new(tmp_mrc_path1, overwrite=True) as mrc:
-        mrc.set_data(data_3d)
+    with mrcfile.new(tmp_mrc_path2, overwrite=True) as mrc:
+        mrc.set_data(data_2d)
     assert not mrc_to_apng_colour(
         plugin_params_apng_colour([str(tmp_mrc_path1)], mask=str(tmp_mrc_path2))
     )
