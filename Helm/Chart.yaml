@@ -13,6 +13,7 @@ dependencies:
   - name: ctffind
   - name: denoise
   - name: denoise_slurm
+  - name: easymode
   - name: extract
   - name: extract_class
   - name: icebreaker

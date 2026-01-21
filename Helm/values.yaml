@@ -131,6 +131,17 @@ denoise_slurm:
   minReplicaCount: 0
   maxReplicaCount: 2
 
+easymode:
+  replicas: 0
+  image: gcr.io/image/path
+  command: cryoemservices.services -s Easymode -c /cryoemservices/config/cryoemservices.config.yaml --extra_config /easymode_models
+  cpuRequest: "1"
+  cpuLimit: "1"
+  memoryLimit: 25Gi
+  scaleOnQueueLength: true
+  minReplicaCount: 0
+  maxReplicaCount: 1
+
 extract:
   replicas: 1
   image: gcr.io/image/path

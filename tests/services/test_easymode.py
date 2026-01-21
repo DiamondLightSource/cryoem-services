@@ -68,7 +68,7 @@ def test_easymode_service(
 
     # Set up the mock service and send a message to it
     service = easymode.Easymode(
-        environment={"queue": "", "config": f"{tmp_path}/easymode_dir"},
+        environment={"queue": "", "extra_config": f"{tmp_path}/easymode_dir"},
         transport=offline_transport,
     )
     service.initializing()

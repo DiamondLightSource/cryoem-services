@@ -46,8 +46,10 @@ class Easymode(CommonService):
         os.environ["CUDA_VISIBLE_DEVICES"] = "0"
         for device in tf.config.list_physical_devices("GPU"):
             tf.config.experimental.set_memory_growth(device, True)
-        if self._environment["config"]:
-            easymode_config.edit_setting("MODEL_DIRECTORY", self._environment["config"])
+        if self._environment["extra_config"]:
+            easymode_config.edit_setting(
+                "MODEL_DIRECTORY", self._environment["extra_config"]
+            )
         wrap_subscribe(
             self._transport,
             self._environment["queue"] or "segmentation",
