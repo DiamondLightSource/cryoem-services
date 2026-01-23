@@ -1,0 +1,4 @@
+apiVersion: v2
+name: easymode
+description: A Helm chart for EM Easymode segmentation service
+version: 1.3.3

@@ -399,6 +399,108 @@ def mrc_to_apng(plugin_params: Callable):
     return outfile
 
 
+def mrc_to_apng_colour(plugin_params: Callable):
+    if not required_parameters(plugin_params, ["file_list", "outfile"]):
+        return False
+    file_list = plugin_params("file_list")
+    outfile = plugin_params("outfile")
+    mask = plugin_params("mask")
+    start = time.perf_counter()
+
+    # Verify that all files exist and have the same/expected dimensions
+    files_to_verify = file_list + [mask] if mask else file_list
+    if any(not Path(file).is_file() for file in files_to_verify):
+        logger.error("One or more files could not be found")
+        return False
+    try:
+        initial_data_shapes: set[tuple[int, ...]] = {
+            mrcfile.mmap(file).data.shape for file in files_to_verify
+        }
+        if len(initial_data_shapes) != 1:
+            logger.error("Volume shapes do not match")
+            return False
+        initial_data_shape = list(initial_data_shapes)[0]
+        if len(initial_data_shape) != 3:
+            logger.error("Files do not contain a 3D volume")
+            return False
+    except ValueError:
+        logger.error(
+            "One or more files could not be opened. "
+            "They may be corrupted or not in MRC format"
+        )
+        return False
+
+    # Selection of colours for image
+    rgbvals = np.array(
+        [
+            [255, 255, 255],
+            [142, 59, 70],
+            [111, 191, 170],
+            [137, 128, 245],
+            [196, 146, 177],
+        ],
+        dtype="uint8",
+    )
+    if len(file_list) > len(rgbvals):
+        # If there aren't enough colours add some
+        rgbvals = np.vstack(
+            rgbvals, np.random.randint(0, 256, (len(file_list) - len(rgbvals), 3))
+        )
+
+    # Generate a mask
+    if mask and Path(mask).is_file():
+        # Read file supplied as mask
+        with mrcfile.open(mask) as mrc:
+            mask_data = mrc.data
+        allowed_vol = mask_data < mask_data.max() / 2
+    else:
+        # Apply a bit of edge clipping if no mask
+        allowed_vol = np.ones(initial_data_shape, dtype="bool")
+        allowed_vol[:5] = False
+        allowed_vol[-5:] = False
+
+    # Read in and add the individual files to the segmentation
+    rgb_stacks = np.zeros(initial_data_shape + (3,), dtype="uint8")
+    for fid, filepath in enumerate(file_list):
+        with mrcfile.open(filepath) as mrc:
+            data: np.ndarray = mrc.data
+        # Find areas with segmented data which are not masked
+        relevant_area = np.where((data > data.max() / 2) * allowed_vol)
+        rgb_stacks[relevant_area] = np.outer(
+            np.ones(len(relevant_area[0])), rgbvals[fid]
+        )
+
+    # Save output apng of volume
+    images_to_append = []
+    for frame in range(initial_data_shape[0]):
+        im = PIL.Image.fromarray(rgb_stacks[frame])
+        im.thumbnail((512, 512))
+        images_to_append.append(im)
+    try:
+        images_to_append[0].save(
+            outfile, save_all=True, append_images=images_to_append[1:]
+        )
+    except IndexError:
+        logger.error(f"Unable to save movie to file {outfile}")
+        return False
+
+    # Make central slice image
+    central_slice_file = outfile.strip("movie.png") + "thumbnail.jpeg"
+    central_slice = initial_data_shape[0] // 2
+    try:
+        images_to_append[central_slice].save(central_slice_file)
+    except IndexError:
+        logger.error(f"Unable to save central slide to file {central_slice_file}")
+        return False
+
+    timing = time.perf_counter() - start
+    logger.info(
+        f"Converted mrc to colour apng {file_list} -> {outfile} in {timing:.1f} seconds",
+        extra={"image-processing-time": timing},
+    )
+    return outfile
+
+
 def particles_3d_in_frame(
     framedata: np.ndarray,
     framenum: int,
@@ -608,6 +710,7 @@ def tiff_to_apng(plugin_params: Callable):
 
         # Append frame and load next frame in sequence
         frames.append(frame)
+    img.close()
 
     # Save as PNG
     if not output_file.parent.exists():

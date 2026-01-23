@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Optional
 from unittest import mock
 
 import mrcfile
@@ -13,6 +14,7 @@ from cryoemservices.services.images_plugins import (
     mrc_central_slice,
     mrc_projection,
     mrc_to_apng,
+    mrc_to_apng_colour,
     mrc_to_jpeg,
     picked_particles,
     picked_particles_3d_apng,
@@ -53,6 +55,19 @@ def plugin_params_central(jpeg_path, skip_rescaling=False, jitter_edge=False):
             "file": jpeg_path.with_suffix(".mrc"),
             "skip_rescaling": skip_rescaling,
             "jitter_edge": jitter_edge,
+        }
+        return p.get(key)
+
+    return params
+
+
+def plugin_params_apng_colour(file_list: list[str], mask: Optional[str] = None):
+    def params(key):
+        p = {
+            "parameters": {"images_command": "mrc_to_apng_colour"},
+            "file_list": file_list,
+            "outfile": str(Path(file_list[0]).with_suffix("")) + "_movie.png",
+            "mask": mask,
         }
         return p.get(key)
 
@@ -331,6 +346,71 @@ def test_mrc_to_apng_rescaling(mock_pil, tmp_path):
     assert mock_pil.fromarray.call_count == 2
     assert (mock_pil.fromarray.mock_calls[0][1] == rescaled_frame * 255 / 24).any()
     mock_pil.fromarray().thumbnail.assert_called_with((512, 512))
+
+
+def test_mrc_to_apng_colour_works_with_3d_mask(tmp_path):
+    tmp_mrc_path1 = tmp_path / "tmp1.mrc"
+    tmp_mrc_path2 = tmp_path / "tmp2.mrc"
+    data_3d = np.linspace(-1000, 1000, 20, dtype=np.int16).reshape((2, 2, 5))
+    with mrcfile.new(tmp_mrc_path1, overwrite=True) as mrc:
+        mrc.set_data(data_3d)
+    with mrcfile.new(tmp_mrc_path2, overwrite=True) as mrc:
+        mrc.set_data(data_3d)
+    assert mrc_to_apng_colour(
+        plugin_params_apng_colour([str(tmp_mrc_path1)], mask=str(tmp_mrc_path2))
+    ) == str(tmp_path / "tmp1_movie.png")
+    assert (tmp_path / "tmp1_movie.png").is_file()
+    assert (tmp_path / "tmp1_thumbnail.jpeg").is_file()
+
+
+def test_mrc_to_apng_colour_withs_with_3d_no_mask(tmp_path):
+    tmp_mrc_path1 = tmp_path / "tmp1.mrc"
+    tmp_mrc_path2 = tmp_path / "tmp2.mrc"
+    data_3d = np.linspace(-1000, 1000, 80, dtype=np.int16).reshape((20, 2, 2))
+    with mrcfile.new(tmp_mrc_path1, overwrite=True) as mrc:
+        mrc.set_data(data_3d)
+    with mrcfile.new(tmp_mrc_path2, overwrite=True) as mrc:
+        mrc.set_data(data_3d)
+    assert mrc_to_apng_colour(
+        plugin_params_apng_colour([str(tmp_mrc_path1), str(tmp_mrc_path2)], mask=None)
+    ) == str(tmp_path / "tmp1_movie.png")
+    assert (tmp_path / "tmp1_movie.png").is_file()
+    assert (tmp_path / "tmp1_thumbnail.jpeg").is_file()
+
+
+def test_mrc_to_apng_colour_fail_cases(tmp_path):
+    tmp_mrc_path1 = tmp_path / "tmp1.mrc"
+    tmp_mrc_path2 = tmp_path / "tmp2.mrc"
+    data_3d = np.linspace(-1000, 1000, 20, dtype=np.int16).reshape((2, 2, 5))
+    with mrcfile.new(tmp_mrc_path2, overwrite=True) as mrc:
+        mrc.set_data(data_3d)
+    # File not found case
+    assert not mrc_to_apng_colour(
+        plugin_params_apng_colour([str(tmp_mrc_path1)], mask=str(tmp_mrc_path2))
+    )
+    # Not an mrc case
+    tmp_mrc_path1.touch()
+    assert not mrc_to_apng_colour(
+        plugin_params_apng_colour([str(tmp_mrc_path1)], mask=str(tmp_mrc_path2))
+    )
+    # Non-matching volume shapes
+    tmp_mrc_path1.unlink()
+    data_3d = np.linspace(-1000, 1000, 20, dtype=np.int16).reshape((2, 5, 2))
+    with mrcfile.new(tmp_mrc_path1, overwrite=True) as mrc:
+        mrc.set_data(data_3d)
+    assert not mrc_to_apng_colour(
+        plugin_params_apng_colour([str(tmp_mrc_path1)], mask=str(tmp_mrc_path2))
+    )
+    # 2D data case
+    tmp_mrc_path1.unlink()
+    data_2d = np.linspace(-1000, 1000, 20, dtype=np.int16).reshape((5, 4))
+    with mrcfile.new(tmp_mrc_path1, overwrite=True) as mrc:
+        mrc.set_data(data_2d)
+    with mrcfile.new(tmp_mrc_path2, overwrite=True) as mrc:
+        mrc.set_data(data_2d)
+    assert not mrc_to_apng_colour(
+        plugin_params_apng_colour([str(tmp_mrc_path1)], mask=str(tmp_mrc_path2))
+    )
 
 
 def test_picked_particles_3d_central_slice_fails_with_2d(tmp_path):
@@ -632,6 +712,7 @@ def test_tiff_to_apng(
     except EOFError:
         pass
     assert frame_counter == num_frames
+    output_img.close()
 
 
 @mock.patch("cryoemservices.services.images_plugins.ImageDraw")
