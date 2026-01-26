@@ -1,0 +1,28 @@
+FROM python:3.11
+
+ENV VIRTUAL_ENV=/venv
+RUN python3 -m venv $VIRTUAL_ENV
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+ARG groupid
+ARG userid
+ARG groupname
+
+# Install cryoem-services with topaz and membrain-seg
+RUN python -m pip install cryoemservices
+RUN python -m pip install easymode@git+https://github.com/mgflast/easymode
+
+# Get models
+RUN mkdir easymode_models
+RUN python -c 'from huggingface_hub import hf_hub_download; \
+    hf_hub_download(repo_id="mgflast/easymode", filename="ribosome.json", cache_dir="easymode_models", local_dir="easymode_models"); \
+    hf_hub_download(repo_id="mgflast/easymode", filename="ribosome.h5", cache_dir="easymode_models", local_dir="easymode_models"); \
+    hf_hub_download(repo_id="mgflast/easymode", filename="microtubule.json", cache_dir="easymode_models", local_dir="easymode_models"); \
+    hf_hub_download(repo_id="mgflast/easymode", filename="microtubule.h5", cache_dir="easymode_models", local_dir="easymode_models"); \
+    hf_hub_download(repo_id="mgflast/easymode", filename="tric.json", cache_dir="easymode_models", local_dir="easymode_models"); \
+    hf_hub_download(repo_id="mgflast/easymode", filename="tric.h5", cache_dir="easymode_models", local_dir="easymode_models"); \
+    '
+
+
+# Create EM user
+RUN groupadd -r -g "${groupid}" "${groupname}" && useradd -r -M "${groupname}" -u "${userid}" -g "${groupname}"
+USER "${userid}":"${groupid}"

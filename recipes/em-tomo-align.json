@@ -20,7 +20,7 @@
       "images": 6,
       "ispyb_connector": 4,
       "movie": 6,
-      "node_creator": 11,
+      "node_creator": 12,
       "projxy": 6,
       "projxz": 6,
       "success": 7,
@@ -64,11 +64,11 @@
   },
   "5": {
     "output": {
-      "cryolo": 9,
+      "cryolo": 10,
       "images": 6,
-      "ispyb_connector": 10,
+      "ispyb_connector": 11,
       "movie": 6,
-      "node_creator": 11,
+      "node_creator": 12,
       "segmentation": 8
     },
     "queue": "denoise",
@@ -90,25 +90,33 @@
   },
   "8": {
     "output": {
+      "easymode": 9,
       "images": 6,
-      "ispyb_connector": 10,
+      "ispyb_connector": 11,
       "movie": 6,
-      "node_creator": 11
+      "node_creator": 12
     },
     "queue": "segmentation",
     "service": "MembrainSeg"
   },
   "9": {
     "output": {
+      "images": 6
+    },
+    "queue": "easymode",
+    "service": "Easymode"
+  },
+  "10": {
+    "output": {
       "images": 6,
-      "ispyb_connector": 10,
+      "ispyb_connector": 11,
       "movie": 6,
-      "node_creator": 11
+      "node_creator": 12
     },
     "queue": "cryolo_gpu",
     "service": "CrYOLO"
   },
-  "10": {
+  "11": {
     "parameters": {
       "ispyb_command": "insert_processed_tomogram",
       "tomogram_id": "$ispyb_tomogram_id"
@@ -116,7 +124,7 @@
     "queue": "ispyb_connector",
     "service": "EMISPyB"
   },
-  "11": {
+  "12": {
     "queue": "node_creator",
     "service": "NodeCreator"
   },

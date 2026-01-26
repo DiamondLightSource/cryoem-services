@@ -32,6 +32,12 @@ def run():
         help="Config file specifying the location of other credentials to read",
     )
     parser.add_argument(
+        "--extra_config",
+        required=False,
+        default="",
+        help="Optional extra config option needed by a service",
+    )
+    parser.add_argument(
         "--slurm",
         required=False,
         default="default",
@@ -75,6 +81,7 @@ def run():
     service_instance = service_factory(
         environment={
             "config": args.config_file,
+            "extra_config": args.extra_config,
             "slurm_cluster": args.slurm,
             "queue": args.queue,
         },
