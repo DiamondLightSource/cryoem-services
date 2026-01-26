@@ -38,16 +38,23 @@ def test_easymode_service_with_mask(
         ("/path/to/void", {"apix": 10}),
     ]
     mock_load_model.side_effect = ["ribosome_model", "tric_model", "void_model"]
-    mock_segment.return_value = (np.random.random((10, 10, 5)), 1.5)
+    mock_segment.return_value = (np.random.random((20, 20, 15)), 1.5)
 
+    # Make input tomogram and membrain segmented tomogram
     input_tomogram = tmp_path / "Denoise/job007/tomograms/test_stack_aretomo.mrc"
     input_tomogram.parent.mkdir(parents=True)
     with mrcfile.new(input_tomogram) as mrc:
-        mrc.set_data(np.random.random((10, 10, 5)).astype("float16"))
-        mrc.header.cella = (15, 15, 7.5)
-        mrc.header.mx = 10
-        mrc.header.my = 10
-        mrc.header.mz = 5
+        mrc.set_data(np.random.random((20, 20, 15)).astype("float16"))
+        mrc.header.cella = (30, 30, 22.5)
+        mrc.header.mx = 20
+        mrc.header.my = 20
+        mrc.header.mz = 15
+    segmentation_tomogram = (
+        tmp_path / "Segmentation/job008/tomograms/test_stack_aretomo_segmented.mrc"
+    )
+    segmentation_tomogram.parent.mkdir(parents=True)
+    with mrcfile.new(segmentation_tomogram) as mrc:
+        mrc.set_data(np.random.random((20, 20, 15)).astype("int8"))
 
     header = {
         "message-id": mock.sentinel,
@@ -57,15 +64,15 @@ def test_easymode_service_with_mask(
         "tomogram": str(input_tomogram),
         "output_dir": f"{tmp_path}/Segmentation/job008/tomograms",
         "segmentation_apng": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo_movie.png",
-        "membrain_segmentation": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo_segmented.mrc",
+        "membrain_segmentation": str(segmentation_tomogram),
         "feature_list": ["ribosome", "tric"],
         "mask": "void",
         "pixel_size": "1.5",
         "batch_size": 1,
         "tta": "1",
+        "display_binning": 8,
         "relion_options": {},
     }
-    Path(segmentation_test_message["output_dir"]).mkdir(parents=True)
 
     # Set up the mock service and send a message to it
     service = easymode.Easymode(
@@ -125,13 +132,13 @@ def test_easymode_service_with_mask(
     ).is_file()
 
     # Check the images service request
-    assert offline_transport.send.call_count == 1
+    assert offline_transport.send.call_count == 4
     offline_transport.send.assert_any_call(
         "images",
         {
             "image_command": "mrc_to_apng_colour",
             "file_list": [
-                f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo_segmented.mrc",
+                str(segmentation_tomogram),
                 f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo_easymode_ribosome.mrc",
                 f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo_easymode_tric.mrc",
             ],
@@ -141,6 +148,34 @@ def test_easymode_service_with_mask(
             ),
         },
     )
+    mini_seg_path = (
+        tmp_path / "Segmentation/job008/tomograms/test_stack_aretomo_segmented_bin8.mrc"
+    )
+    assert (mini_seg_path).is_file()
+    offline_transport.send.assert_any_call(
+        "ispyb",
+        {
+            "ispyb_command": "insert_processed_tomogram",
+            "file_path": str(mini_seg_path),
+            "processing_type": "Feature",
+            "feature_type": "membrane",
+        },
+    )
+    for feature in ["ribosome", "tric"]:
+        mini_mrc_path = (
+            tmp_path
+            / f"Segmentation/job008/tomograms/test_stack_aretomo_easymode_{feature}_bin8.mrc"
+        )
+        assert mini_mrc_path.is_file()
+        offline_transport.send.assert_any_call(
+            "ispyb",
+            {
+                "ispyb_command": "insert_processed_tomogram",
+                "file_path": str(mini_mrc_path),
+                "processing_type": "Feature",
+                "feature_type": feature,
+            },
+        )
 
 
 @mock.patch("cryoemservices.services.easymode.segment_tomogram")
@@ -165,16 +200,16 @@ def test_easymode_service_without_mask(
         ("/path/to/tric", {"apix": 10}),
     ]
     mock_load_model.side_effect = ["ribosome_model", "microtubule_model", "tric_model"]
-    mock_segment.return_value = (np.random.random((10, 10, 5)), 1.5)
+    mock_segment.return_value = (np.random.random((20, 20, 15)), 1.5)
 
     input_tomogram = tmp_path / "Denoise/job007/tomograms/test_stack_aretomo.mrc"
     input_tomogram.parent.mkdir(parents=True)
     with mrcfile.new(input_tomogram) as mrc:
-        mrc.set_data(np.random.random((10, 10, 5)).astype("float16"))
-        mrc.header.cella = (15, 15, 7.5)
-        mrc.header.mx = 10
-        mrc.header.my = 10
-        mrc.header.mz = 5
+        mrc.set_data(np.random.random((20, 20, 15)).astype("float16"))
+        mrc.header.cella = (30, 30, 22.5)
+        mrc.header.mx = 20
+        mrc.header.my = 20
+        mrc.header.mz = 15
 
     header = {
         "message-id": mock.sentinel,
@@ -250,7 +285,7 @@ def test_easymode_service_without_mask(
     ).is_file()
 
     # Check the images service request
-    assert offline_transport.send.call_count == 1
+    assert offline_transport.send.call_count == 4
     offline_transport.send.assert_any_call(
         "images",
         {
@@ -264,6 +299,21 @@ def test_easymode_service_without_mask(
             "mask": None,
         },
     )
+    for feature in ["ribosome", "microtubule", "tric"]:
+        mini_mrc_path = (
+            tmp_path
+            / f"Segmentation/job008/tomograms/test_stack_aretomo_easymode_{feature}_bin4.mrc"
+        )
+        assert mini_mrc_path.is_file()
+        offline_transport.send.assert_any_call(
+            "ispyb",
+            {
+                "ispyb_command": "insert_processed_tomogram",
+                "file_path": str(mini_mrc_path),
+                "processing_type": "Feature",
+                "feature_type": feature,
+            },
+        )
 
 
 def test_easymode_service_fail_cases(

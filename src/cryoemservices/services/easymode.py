@@ -132,9 +132,11 @@ class Easymode(CommonService):
                 mrc.header.my = tomogram_header.my
                 mrc.header.mz = tomogram_header.mz
 
-            ispyb_tomograms[feature] = generate_binned_mrc(
-                output_tomograms[feature], easymode_params.display_binning
-            )
+            # Generate binned mrc images of segmented features
+            if feature != easymode_params.mask:
+                ispyb_tomograms[feature] = generate_binned_mrc(
+                    output_tomograms[feature], easymode_params.display_binning
+                )
 
         # Forward results to images service
         self.log.info(f"Sending to images service {easymode_params.segmentation_apng}")
