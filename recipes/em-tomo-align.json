@@ -24,7 +24,7 @@
       "projxy": 6,
       "projxz": 6,
       "success": 7,
-      "tomo_align_denoise": 12
+      "tomo_align_denoise": 13
     },
     "parameters": {
       "denoise_tilts": 1,
@@ -128,7 +128,7 @@
     "queue": "node_creator",
     "service": "NodeCreator"
   },
-  "12": {
+  "13": {
     "parameters": {
       "denoise_tilts": 2,
       "dose_per_frame": "{dose_per_frame}",
