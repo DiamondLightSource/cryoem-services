@@ -6,6 +6,7 @@ light microscope.
 from __future__ import annotations
 
 import itertools
+import json
 import logging
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -935,7 +936,7 @@ class LIFImageLoader(ImageLoader):
                 c=self.channel_num,
                 m=self.tile_num,
             )
-        )
+        ).copy()
 
 
 @dataclass(frozen=True)
@@ -1002,7 +1003,8 @@ def get_percentiles(
                 hist += result.data
             else:
                 logger.warning(
-                    f"Failed to get histogram for the following image: \n{result.error}"
+                    "Failed to get histogram for the following image: \n"
+                    f"{json.dumps(result.error, indent=2)}"
                 )
 
     # Calculate the cumulative sum
@@ -1059,7 +1061,7 @@ def resize_tile(
     tile_extent: tuple[float, float, float, float],
     parent_extent: tuple[float, float, float, float],
     parent_pixel_size: float,
-    parent_shape: tuple[int, int],
+    parent_shape: tuple[int, int],  # NumPy row-column order
     vmin: int | float,
     vmax: int | float,
 ):
@@ -1067,7 +1069,7 @@ def resize_tile(
         # Find array size in parent frame the tile corresponds to
         x0, x1, y0, y1 = tile_extent
         px0, px1, py0, py1 = parent_extent
-        parent_x_pixels, parent_y_pixels = parent_shape
+        parent_y_pixels, parent_x_pixels = parent_shape
         tile_x_pixels = int(round((x1 - x0) / parent_pixel_size))
         tile_y_pixels = int(round((y1 - y0) / parent_pixel_size))
 

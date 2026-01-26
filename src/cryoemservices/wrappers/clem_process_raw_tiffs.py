@@ -6,6 +6,7 @@ processing workflow.
 
 from __future__ import annotations
 
+import json
 import logging
 import re
 import time
@@ -264,7 +265,7 @@ def process_tiff_files(
 
         # If it's a montage, stitch the tiles together in Matplotlib
         if num_tiles > 1:
-            # Caclulate the pixel size and shape of the final tiled image
+            # Calculate the pixel size and shape of the final tiled image
             frame_x_len = x_max - x_min
             frame_y_len = y_max - y_min
             # Fit the tiled image within 2400 x 2400 pixels
@@ -312,7 +313,7 @@ def process_tiff_files(
                     else:
                         logger.warning(
                             "Failed to resize tile for the following image: \n"
-                            f"{r.error}"
+                            f"{json.dumps(r.error, indent=2)}"
                         )
 
             # Update resolution and pixel size in dimensions dictionary
@@ -352,7 +353,8 @@ def process_tiff_files(
                         arr[r.frame_num] = r.data
                     else:
                         logger.warning(
-                            f"Failed to load the following image: \n{r.error}"
+                            f"Failed to load the following image: \n"
+                            f"{json.dumps(r.error, indent=2)}"
                         )
             array_loading_end_time = time.perf_counter()
             logger.debug(
@@ -409,8 +411,8 @@ def process_tiff_files(
         )
 
     end_time = time.perf_counter()
-    logger.info(f"Completed processing of {series_name} in {end_time - start_time}s")
-    logger.debug(f"Returning the following processing results: {result}")
+    logger.debug(f"Completed processing of {series_name} in {end_time - start_time}s")
+    logger.debug(f"Returning the following processing results: \n{result}")
     return result
 
 
@@ -499,8 +501,9 @@ class ProcessRawTIFFsWrapper:
             params = ProcessRawTIFFsParameters(**params_dict)
         except (ValidationError, TypeError) as e:
             logger.error(
-                "ProcessRawTIFFsParameters validation failed for parameters: "
-                f"{params_dict} with exception: {e}"
+                "ProcessRawTIFFsParameters validation failed for the following parameters: \n"
+                f"{json.dumps(params_dict, indent=2)}\n"
+                f"with exception: {e}"
             )
             return False
 
