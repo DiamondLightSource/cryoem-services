@@ -8,10 +8,13 @@ from __future__ import annotations
 import itertools
 import logging
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import asdict, dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal, Optional, Protocol
 
+import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 import SimpleITK as sitk
@@ -909,67 +912,211 @@ def merge_images(
     return arr_new
 
 
-def get_percentiles(
-    # LIF file-specific parameters
-    lif_file: Path | None = None,
-    scene_num: int | None = None,
-    channel_num: int | None = None,
-    frame_num: int | None = None,
-    tile_num: int | None = None,
-    # TIFF file-specific parameters
-    tiff_file: Path | None = None,
-    # Common parameters
-    percentiles: tuple[float, float] = (1, 99),
-) -> tuple[int | float | None, int | float | None]:
-    """
-    Helper function that returns the values corresponding to the specified lower and
-    upper percentiles.
-    """
-    # Validate that either TIFF file or LIF file stitching parameters are present
-    if lif_file is None and tiff_file is None:
-        err_msg = "No file-specific processing parameters provided"
-        logger.error(err_msg)
-        raise ValueError(err_msg)
-    if lif_file and tiff_file:
-        err_msg = "LIF file and TIFF file processing parameters are both present"
-        logger.error(err_msg)
-        raise ValueError(err_msg)
-    if lif_file is not None:
-        if not (
-            scene_num is not None and frame_num is not None and channel_num is not None
-        ):
-            err_msg = (
-                "One or more LIF file parameters is absent: \n"
-                f"scene_num: {scene_num} \n"
-                f"channel_num: {channel_num} \n"
-                f"frame_num: {frame_num} \n"
-            )
-            logger.error(err_msg)
-            raise ValueError(err_msg)
+@dataclass(frozen=True)
+class ImageLoader(Protocol):
+    # Typing stub for MyPy for classes containing a 'load()' function that returns a NumPy array
+    def load(self) -> np.ndarray: ...
 
-    # Load the image
+
+@dataclass(frozen=True)
+class LIFImageLoader(ImageLoader):
+    lif_file: Path
+    scene_num: int
+    channel_num: int
+    frame_num: int
+    tile_num: int
+
+    def load(self) -> np.ndarray:
+        return np.asarray(
+            LifFile(self.lif_file)
+            .get_image(self.scene_num)
+            .get_frame(
+                z=self.frame_num,
+                c=self.channel_num,
+                m=self.tile_num,
+            )
+        )
+
+
+@dataclass(frozen=True)
+class TIFFImageLoader(ImageLoader):
+    tiff_file: Path
+
+    def load(self) -> np.ndarray:
+        return np.asarray(cv2.imread(self.tiff_file, flags=cv2.IMREAD_UNCHANGED))
+
+
+@dataclass(frozen=True)
+class HistogramResult:
+    data: np.ndarray | None
+    error: dict | None
+
+
+def get_histogram(
+    image_loader: ImageLoader,
+    bins: int = 65536,
+    pixel_sampling_step: int = 4,
+):
     try:
-        if lif_file is not None:
-            image = LifFile(str(lif_file)).get_image(scene_num)
-            arr = np.asarray(
-                image.get_frame(
-                    z=frame_num,
-                    c=channel_num,
-                    m=tile_num,
-                )
+        arr = image_loader.load()[::pixel_sampling_step, ::pixel_sampling_step]
+        return HistogramResult(
+            data=np.bincount(arr.ravel(), minlength=bins), error=None
+        )
+    # If it errors, return the file it errored on and why
+    except Exception as e:
+        return HistogramResult(
+            data=None,
+            error={
+                "data": asdict(image_loader),
+                "error": str(e),
+            },
+        )
+
+
+def get_percentiles(
+    image_loaders: list[ImageLoader],
+    percentiles: tuple[float, float] = (1, 99),
+    bins: int = 65536,
+    pixel_sampling_step: int = 4,
+    num_procs: int = 1,
+) -> tuple[int | float, int | float]:
+    def _percentile(p: float):
+        return np.searchsorted(cumsum, p / 100 * total)
+
+    p_lo, p_hi = percentiles
+    hist = np.zeros(bins)
+
+    with ThreadPoolExecutor(max_workers=num_procs) as pool:
+        futures = [
+            pool.submit(
+                get_histogram,
+                image_loader,
+                bins,
+                pixel_sampling_step,
             )
-        else:
-            arr = np.asarray(PILImage.open(tiff_file))
-    except Exception:
-        logger.warning(f"Unable to load frame {frame_num}-{tile_num}")
-        return (None, None)
+            for image_loader in image_loaders
+        ]
+        for future in as_completed(futures):
+            result = future.result()
+            if result.data is not None:
+                hist += result.data
+            else:
+                logger.warning(
+                    f"Failed to get histogram for the following image: \n{result.error}"
+                )
 
-    # Get the lower and upper percentile values
-    p_lo, p_hi = np.percentile(arr, percentiles)
-    return p_lo, p_hi
+    # Calculate the cumulative sum
+    cumsum = np.cumsum(hist)
+    total = cumsum[-1]
+
+    return _percentile(p_lo), _percentile(p_hi)
 
 
-def stitch_image_frames(
+@dataclass(frozen=True)
+class LoadImageResult:
+    data: np.ndarray | None
+    frame_num: int | None
+    error: dict | None
+
+
+def load_image(
+    image_loader: ImageLoader, frame_num: int, vmin: int | float, vmax: int | float
+):
+    try:
+        arr = image_loader.load()
+        scale = 255 / (vmax - vmin)  # Downscale to 8-bit
+        np.clip(arr, a_min=vmin, a_max=vmax, out=arr)
+        np.subtract(arr, vmin, out=arr, casting="unsafe")
+        np.multiply(arr, scale, out=arr, casting="unsafe")
+        return LoadImageResult(
+            data=arr.astype(np.uint8),
+            frame_num=frame_num,
+            error=None,
+        )
+    except Exception as e:
+        return LoadImageResult(
+            data=None,
+            frame_num=None,
+            error={
+                "data": asdict(image_loader),
+                "error": str(e),
+            },
+        )
+
+
+@dataclass(frozen=True)
+class ResizeTileResult:
+    data: np.ndarray | None
+    frame_num: int | None
+    pos_x: int | None
+    pos_y: int | None
+    error: dict | None
+
+
+def resize_tile(
+    image_loader: ImageLoader,
+    frame_num: int,
+    tile_extent: tuple[float, float, float, float],
+    parent_extent: tuple[float, float, float, float],
+    parent_pixel_size: float,
+    parent_shape: tuple[int, int],
+    vmin: int | float,
+    vmax: int | float,
+):
+    try:
+        # Find array size in parent frame the tile corresponds to
+        x0, x1, y0, y1 = tile_extent
+        px0, px1, py0, py1 = parent_extent
+        parent_x_pixels, parent_y_pixels = parent_shape
+        tile_x_pixels = int(round((x1 - x0) / parent_pixel_size))
+        tile_y_pixels = int(round((y1 - y0) / parent_pixel_size))
+
+        # Position on master image (Use top left as reference)
+        pos_x = int(round((x0 - px0) / (px1 - px0) * parent_x_pixels))
+        pos_y = int(round((y0 - py0) / (py1 - py0) * parent_y_pixels))
+
+        # Load image and resize
+        img = image_loader.load()
+        resized = cv2.resize(
+            img,
+            dsize=(tile_x_pixels, tile_y_pixels),
+            interpolation=cv2.INTER_AREA,
+        )
+        # Normalise to 8-bit
+        scale = 255 / (vmax - vmin)
+        np.clip(resized, vmin, vmax, out=resized)
+        np.subtract(resized, vmin, out=resized, casting="unsafe")
+        np.multiply(resized, scale, out=resized, casting="unsafe")
+        resized = resized.astype(np.uint8)
+
+        return ResizeTileResult(
+            data=resized,
+            frame_num=frame_num,
+            pos_x=pos_x,
+            pos_y=pos_y,
+            error=None,
+        )
+    except Exception as e:
+        return ResizeTileResult(
+            data=None,
+            frame_num=None,
+            pos_x=None,
+            pos_y=None,
+            error={
+                "data": asdict(image_loader),
+                "frame_num": frame_num,
+                "tile_extent": tile_extent,
+                "parent_extent": parent_extent,
+                "parent_pixel_size": parent_pixel_size,
+                "parent_shape": parent_shape,
+                "vmin": vmin,
+                "vmax": vmax,
+                "error": str(e),
+            },
+        )
+
+
+def stitch_image_frames_depr(
     # LIF file processing
     lif_file: Path | None = None,
     scene_num: int | None = None,
@@ -1123,7 +1270,7 @@ def preprocess_img_stk(
     The target dtype should belong to the "int" or "uint" groups, excluding 'int64'
     and 'uint64'. np.int64(np.float64(2**63 - 1)) and np.uint64(np.float64(2**64 - 1))
     cannot be represented exactly in np.float64 or Python's float due to the loss of
-    precision at such large values. The leads to overflow errors when trying to cast
+    precision at such large values. This leads to overflow errors when trying to cast
     to np.int64 and np.uint64. 32-bit floats and below are thus also not supported as
     input arrays, as the loss of precision occurs even earlier, leading to casting
     issues at smaller NumPy dtypes.
@@ -1238,10 +1385,6 @@ def write_stack_to_tiff(
     """
     Writes the NumPy array as a calibrated, ImageJ-compatible TIFF image stack.
     """
-
-    # Use shorter aliases and calculate what is needed
-    arr: np.ndarray = array
-
     # Get resolution
     if z_res is not None:
         z_size = (1 / z_res) if z_res > 0 else float(0)
@@ -1256,13 +1399,13 @@ def write_stack_to_tiff(
     resolution_unit = 1 if units is not None else None
 
     # Get photometric
-    valid_photometrics = [
+    valid_photometrics = (
         "minisblack",
         "miniswhite",
         "rgb",
         "ycbcr",  # Y: Luminance | Cb: Blue chrominance | Cr: Red chrominance
         "palette",
-    ]
+    )
     if photometric is not None and photometric not in valid_photometrics:
         photometric = None
         logger.warning("Incorrect photometric value provided; defaulting to 'None'")
@@ -1273,13 +1416,15 @@ def write_stack_to_tiff(
 
     # Save as a greyscale TIFF
     save_name = save_dir.joinpath(file_name + ".tiff")
-    logger.info(f"Saving {file_name} image as {save_name}")
+
+    # With 'bigtiff=True', they have to be pure Python class instances
     imwrite(
         save_name,
-        arr,
+        array,
+        bigtiff=True,
         # Array properties,
-        shape=arr.shape,
-        dtype=str(arr.dtype),
+        shape=array.shape,
+        dtype=str(array.dtype),
         resolution=resolution,
         resolutionunit=resolution_unit,
         # Colour properties
@@ -1292,11 +1437,14 @@ def write_stack_to_tiff(
             "unit": units,
             "spacing": z_size,
             "loop": False,
-            "min": round(arr.min(), 1),  # Round according to ImageJ precision
-            "max": round(arr.max(), 1),
+            # Coerce NumPy's min() and max() return values into Python floats
+            # Follow ImageJ's precision level
+            "min": round(float(array.min()), 1),
+            "max": round(float(array.max()), 1),
             "Info": extended_metadata,
             "Labels": image_labels,
         },
     )
+    logger.info(f"{file_name} image saved as {save_name}")
 
     return save_name
