@@ -23,7 +23,7 @@ from pydantic import BaseModel, ValidationError, field_validator, model_validato
 from cryoemservices.util.clem_array_functions import (
     TIFFImageLoader,
     get_percentiles,
-    load_image,
+    load_and_convert_image,
     resize_tile,
     write_stack_to_tiff,
 )
@@ -302,18 +302,20 @@ def process_tiff_files(
                     if (
                         r.data is not None
                         and r.frame_num is not None
-                        and r.pos_x is not None
-                        and r.pos_y is not None
+                        and r.x0 is not None
+                        and r.x1 is not None
+                        and r.y0 is not None
+                        and r.y1 is not None
                     ):
                         arr[
                             r.frame_num,
-                            r.pos_y : r.pos_y + r.data.shape[0],
-                            r.pos_x : r.pos_x + r.data.shape[1],
+                            r.y0 : r.y1,
+                            r.x0 : r.x1,
                         ] = r.data
                     else:
                         logger.warning(
                             "Failed to resize tile for the following image: \n"
-                            f"{json.dumps(r.error, indent=2)}"
+                            f"{json.dumps(r.error, indent=2, default=str)}"
                         )
 
             # Update resolution and pixel size in dimensions dictionary
@@ -339,7 +341,7 @@ def process_tiff_files(
             with ThreadPoolExecutor(max_workers=num_procs) as pool:
                 futures = [
                     pool.submit(
-                        load_image,
+                        load_and_convert_image,
                         TIFFImageLoader(tiff_color_subset[z]),
                         z,
                         global_vmin,
@@ -354,7 +356,7 @@ def process_tiff_files(
                     else:
                         logger.warning(
                             f"Failed to load the following image: \n"
-                            f"{json.dumps(r.error, indent=2)}"
+                            f"{json.dumps(r.error, indent=2, default=str)}"
                         )
             array_loading_end_time = time.perf_counter()
             logger.debug(
@@ -412,7 +414,10 @@ def process_tiff_files(
 
     end_time = time.perf_counter()
     logger.debug(f"Completed processing of {series_name} in {end_time - start_time}s")
-    logger.debug(f"Returning the following processing results: \n{result}")
+    logger.debug(
+        "Returning the following processing results: \n"
+        f"{json.dumps(result, indent=2, default=str)}"
+    )
     return result
 
 
@@ -502,7 +507,7 @@ class ProcessRawTIFFsWrapper:
         except (ValidationError, TypeError) as e:
             logger.error(
                 "ProcessRawTIFFsParameters validation failed for the following parameters: \n"
-                f"{json.dumps(params_dict, indent=2)}\n"
+                f"{json.dumps(params_dict, indent=2, default=str)}\n"
                 f"with exception: {e}"
             )
             return False

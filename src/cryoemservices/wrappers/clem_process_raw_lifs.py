@@ -21,7 +21,7 @@ from readlif.reader import LifFile
 from cryoemservices.util.clem_array_functions import (
     LIFImageLoader,
     get_percentiles,
-    load_image,
+    load_and_convert_image,
     resize_tile,
     write_stack_to_tiff,
 )
@@ -248,23 +248,20 @@ def process_lif_subimage(
                     if (
                         r.data is not None
                         and r.frame_num is not None
-                        and r.pos_x is not None
-                        and r.pos_y is not None
+                        and r.x0 is not None
+                        and r.x1 is not None
+                        and r.y0 is not None
+                        and r.y1 is not None
                     ):
-                        logger.debug(
-                            f"Inserting array into frame {r.frame_num}, "
-                            f"y-range [{r.pos_y}:{r.pos_y + r.data.shape[0]}], "
-                            f"x-range [{r.pos_x}:{r.pos_x + r.data.shape[1]}]"
-                        )
                         arr[
                             r.frame_num,
-                            r.pos_y : r.pos_y + r.data.shape[0],
-                            r.pos_x : r.pos_x + r.data.shape[1],
+                            r.y0 : r.y1,
+                            r.x0 : r.x1,
                         ] = r.data
                     else:
                         logger.warning(
                             "Failed to resize tile for the following image: \n"
-                            f"{json.dumps(r.error, indent=2)}"
+                            f"{json.dumps(r.error, indent=2, default=str)}"
                         )
 
             # Update resolution and pixel size in dimensions dictionary
@@ -289,7 +286,7 @@ def process_lif_subimage(
             with ThreadPoolExecutor(max_workers=num_procs) as pool:
                 futures = [
                     pool.submit(
-                        load_image,
+                        load_and_convert_image,
                         LIFImageLoader(
                             lif_file=file,
                             scene_num=scene_num,
@@ -310,7 +307,7 @@ def process_lif_subimage(
                     else:
                         logger.warning(
                             "Failed to load the following image: \n"
-                            f"{json.dumps(r.error, indent=2)}"
+                            f"{json.dumps(r.error, indent=2, default=str)}"
                         )
             array_loading_end_time = time.perf_counter()
             logger.debug(
@@ -367,7 +364,8 @@ def process_lif_subimage(
     end_time = time.perf_counter()
     logger.info(f"Completed processing of {series_name} in {end_time - start_time}s")
     logger.debug(
-        f"Returning the following processing results: \n{json.dumps(result, indent=2)}"
+        "Returning the following processing results: \n"
+        f"{json.dumps(result, indent=2, default=str)}"
     )
     return result
 
@@ -509,7 +507,7 @@ class ProcessRawLIFsWrapper:
         except (ValidationError, TypeError) as error:
             logger.error(
                 "ProcessRawLIFsParameters validation failed for the following parameters: \n"
-                f"{json.dumps(params_dict, indent=2)}\n"
+                f"{json.dumps(params_dict, indent=2, default=str)}\n"
                 f"with exception: {error}"
             )
             return False
