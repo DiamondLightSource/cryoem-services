@@ -52,7 +52,7 @@ class Easymode(CommonService):
             )
         wrap_subscribe(
             self._transport,
-            self._environment["queue"] or "segmentation",
+            self._environment["queue"] or "easymode",
             self.easymode,
             acknowledgement=True,
             allow_non_recipe_messages=True,
