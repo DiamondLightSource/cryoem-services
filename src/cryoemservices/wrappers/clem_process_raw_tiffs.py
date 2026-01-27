@@ -269,7 +269,7 @@ def process_tiff_files(
             frame_x_len = x_max - x_min
             frame_y_len = y_max - y_min
             # Fit the tiled image within 2400 x 2400 pixels
-            frame_pixel_size = min(frame_x_len / 2400, frame_y_len / 2400)
+            frame_pixel_size = max(frame_x_len / 2400, frame_y_len / 2400)
             frame_x_pixels = int(round(frame_x_len / frame_pixel_size))
             frame_y_pixels = int(round(frame_y_len / frame_pixel_size))
             frame_shape = frame_y_pixels, frame_x_pixels
