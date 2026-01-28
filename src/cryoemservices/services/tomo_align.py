@@ -79,6 +79,7 @@ class TomoParameters(BaseModel):
     interpolation_correction: Optional[int] = None
     dark_tol: Optional[float] = None
     manual_tilt_offset: Optional[float] = None
+    denoise_tilts: int = 0
     visits_for_slurm: Optional[list] = ["bi", "cm", "nr", "nt"]
     relion_options: RelionServiceOptions
 
@@ -169,6 +170,38 @@ class TomoAlign(CommonService):
                 self.tilt_offset = float(line.split()[2].strip(","))
             if line.startswith("Best tilt axis"):
                 self.alignment_quality = float(line.split()[5])
+
+    def get_denoised_tilt_name(self, tilt: str) -> str:
+        denoised_tilt = "/" + "/".join(
+            "spool" if p == "processed" else p for p in Path(tilt).parts[1:]
+        )
+        denoised_tilt = str(
+            Path(denoised_tilt).parent / (Path(denoised_tilt).stem + "_denoised.mrc")
+        )
+        Path(denoised_tilt).parent.mkdir(parents=True, exist_ok=True)
+        return denoised_tilt
+
+    def run_tilt_denoising(self, tilt_list: list[str]) -> bool:
+        for tilt in tilt_list:
+            denoised_tilt = self.get_denoised_tilt_name(tilt)
+            denoise_result = subprocess.run(
+                [
+                    "python",
+                    "run_denoiser.py",
+                    "--nimage",
+                    str(tilt),
+                    "--dimage",
+                    str(denoised_tilt),
+                ],
+                capture_output=True,
+            )
+            if denoise_result.returncode:
+                self.log.error(f"Failed to denoise tilt {tilt}")
+                self.log.error(
+                    f"Denoise reason: {denoise_result.stdout.decode('utf8')} {denoise_result.stderr.decode('utf8')}"
+                )
+                return False
+        return True
 
     def extract_from_aln(self, tomo_parameters, alignment_output_dir, plot_path):
         tomo_aln_file = None
@@ -332,6 +365,30 @@ class TomoAlign(CommonService):
         )
         for index in sorted(tilts_to_remove, reverse=True):
             self.input_file_list_of_lists.remove(self.input_file_list_of_lists[index])
+
+        # Decide whether to denoise
+        if tomo_params.denoise_tilts == 1:
+            self.log.info("Sending to tilt denoising and alignment re-run")
+            rw.send_to("tomo_align_denoise", {"denoise_tilts": 2})
+        elif tomo_params.denoise_tilts == 2:
+            self.log.info("Running tilt denoising")
+            new_input_list_of_lists = []
+            tilts_to_denoise = []
+            for tname, tangle in self.input_file_list_of_lists:
+                denoised_tilt = self.get_denoised_tilt_name(tname)
+                tilts_to_denoise.append(tname)
+                new_input_list_of_lists.append([denoised_tilt, tangle])
+            denoise_success = self.run_tilt_denoising(tilts_to_denoise)
+            if not denoise_success:
+                self.log.error("Failed to denoise tilts")
+                rw.transport.nack(header)
+                return
+            self.input_file_list_of_lists = new_input_list_of_lists
+            tomo_params.stack_file = "/" + "/".join(
+                "spool" if p == "processed" else p
+                for p in Path(tomo_params.stack_file).parts[1:]
+            )
+            Path(tomo_params.stack_file).parent.mkdir(parents=True, exist_ok=True)
 
         # Find the input image dimensions
         with mrcfile.open(self.input_file_list_of_lists[0][0]) as mrc:
@@ -555,6 +612,10 @@ class TomoAlign(CommonService):
                 "alignment_quality": str(self.alignment_quality),
             }
         ]
+
+        # Write the score somewhere
+        with open(aretomo_output_path.with_suffix(".com"), "a") as comfile:
+            comfile.write(f"\n\nAlignment quality {self.alignment_quality}")
 
         # Find the indexes of the dark images removed by AreTomo
         missing_indices = []

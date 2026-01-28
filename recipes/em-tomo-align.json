@@ -23,9 +23,11 @@
       "node_creator": 12,
       "projxy": 6,
       "projxz": 6,
-      "success": 7
+      "success": 7,
+      "tomo_align_denoise": 13
     },
     "parameters": {
+      "denoise_tilts": 1,
       "dose_per_frame": "{dose_per_frame}",
       "frame_count": "{frame_count}",
       "input_file_list": "{input_file_list}",
@@ -125,6 +127,23 @@
   "12": {
     "queue": "node_creator",
     "service": "NodeCreator"
+  },
+  "13": {
+    "parameters": {
+      "denoise_tilts": 2,
+      "dose_per_frame": "{dose_per_frame}",
+      "frame_count": "{frame_count}",
+      "input_file_list": "{input_file_list}",
+      "kv": "{kv}",
+      "manual_tilt_offset": "{manual_tilt_offset}",
+      "path_pattern": "{path_pattern}",
+      "pixel_size": "{pixel_size}",
+      "relion_options": {},
+      "stack_file": "{stack_file}",
+      "tilt_axis": "{tilt_axis}"
+    },
+    "queue": "tomo_align",
+    "service": "TomoAlign"
   },
   "start": [[1, []]]
 }
