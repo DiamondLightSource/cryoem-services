@@ -9,6 +9,7 @@ ARG groupname
 
 # Install cryoem-services with topaz and membrain-seg
 RUN python -m pip install cryoemservices
+RUN python -m pip install tensorflow[and-cuda]==2.20.0
 RUN python -m pip install easymode@git+https://github.com/mgflast/easymode
 
 # Get models
