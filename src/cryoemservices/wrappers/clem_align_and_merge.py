@@ -26,7 +26,6 @@ from defusedxml.ElementTree import parse
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 from tifffile import TiffFile, imwrite
 
-from cryoemservices.util import memory_logger as mem
 from cryoemservices.util.clem_array_functions import (
     align_image_to_reference,
     align_image_to_self,
@@ -229,7 +228,6 @@ def align_and_merge_stacks(
     colors_to_process: list[str] = []
 
     load_start_time = time.perf_counter()
-    mem.log("Before loading images")
     for c, color in enumerate(colors):
         color = colors[c]
         file_search = [file for file in files if color in file.stem]
@@ -272,7 +270,6 @@ def align_and_merge_stacks(
             resolution_list.add(tiff_file.series[0][0].resolution)
             spacing_list.add(ij_metadata.get("spacing", float(0)))
             units_list.add(ij_metadata.get("unit", ""))
-            mem.log(f"After loading image {c}")
     load_end_time = time.perf_counter()
     logger.debug(
         f"Loaded {len(arrays)} images with shape {arrays[0].shape} in "
@@ -399,7 +396,6 @@ def align_and_merge_stacks(
                 f"Flattened {len(arrays)} images in {flatten_end_time - flatten_start_time}s"
             )
             logger.debug(f"Images now have the following shape: {arrays[0].shape}")
-            mem.log("After flattening images")
         else:
             logger.info(
                 "Skipping image flattening step as no image stacks were provided"
@@ -460,7 +456,6 @@ def align_and_merge_stacks(
                 f"Aligned {len(to_align)} images of shape {reference.shape} "
                 f" in {align_across_end_time - align_across_start_time}s"
             )
-            mem.log("After aligning images")
         elif len(arrays) == 1:
             logger.info("Skipping image alignment step as there is only one image")
         else:
@@ -502,7 +497,6 @@ def align_and_merge_stacks(
             f"Converted {len(arrays)} images to RGB "
             f"in {convert_rgb_end_time - convert_rgb_start_time}s"
         )
-        mem.log("After converting images to RGB")
     else:
         logger.info("Skipping image colorisation step as they are not grayscale")
 
@@ -513,7 +507,6 @@ def align_and_merge_stacks(
     merge_end_time = time.perf_counter()
     logger.info("Successfully merged images")
     logger.debug(f"Completed merge in {merge_end_time - merge_start_time}s")
-    mem.log("After merging images")
 
     # Adjust image contrast and convert to 8-bit
     logger.info("Applying contrast correction and converting to 8-bit")
@@ -529,7 +522,6 @@ def align_and_merge_stacks(
     logger.debug(
         f"Converted image in {contrast_correction_end_time - contrast_correction_start_time}s"
     )
-    mem.log("After adjusting image contrast")
 
     # Prepare to save image as a TIFF file
     logger.info("Saving composite image")
