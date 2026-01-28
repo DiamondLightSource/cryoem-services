@@ -23,8 +23,6 @@ from pystackreg import StackReg
 from readlif.reader import LifFile
 from tifffile import imwrite
 
-from cryoemservices.util import memory_logger as mem
-
 # Create logger object to output messages with
 logger = logging.getLogger("cryoemservices.util.clem_array_functions")
 
@@ -355,7 +353,6 @@ def put_arrays_in_shared_memory(arrays: list[np.ndarray]):
                 "dtype": arr.dtype,
             }
         )
-        mem.log(f"After allocating array {i + 1}/{len(arrays)} to shared memory")
     return shm_blocks, shm_metadata
 
 
@@ -461,11 +458,9 @@ def align_image_to_reference(
     # Convert to arrays to SITK objects
     fixed_sitk = sitk.Cast(sitk.GetImageFromArray(reference_array), sitk.sitkFloat32)
     moving_sitk = sitk.Cast(sitk.GetImageFromArray(moving_array), sitk.sitkFloat32)
-    mem.log("Cast arrays to SITK float32")
 
     # Pre-allocate output NumPy array
     aligned = np.empty(moving_array.shape, dtype=dtype)
-    mem.log("Created output NumPy array")
 
     prev_transform = None
     for f in range(num_frames):
@@ -532,12 +527,10 @@ def align_image_to_reference(
             sitk.CenteredTransformInitializerFilter.GEOMETRY,
         )
         registration.SetInitialTransform(initial_transform, inPlace=False)
-        mem.log("After setting up registration")
 
         # Execute registration on downsampled images
         final_transform = registration.Execute(fixed_small, moving_small)
         prev_transform = final_transform
-        mem.log("After registration")
 
         # Apply transform to full resolution frame
         aligned_frame = sitk.GetArrayFromImage(
@@ -548,14 +541,12 @@ def align_image_to_reference(
                 outputPixelType=sitk.sitkFloat32,
             )
         )
-        mem.log("After resampling")
 
         # Clip and round to original dtype
         np.clip(aligned_frame, a_min=vmin, a_max=vmax, out=aligned_frame)
         if np.issubdtype(dtype, np.integer):
             np.rint(aligned_frame, out=aligned_frame)
         aligned[f] = aligned_frame.astype(dtype, copy=False)
-        mem.log("After appending to array")
 
     # If the image was not initially a stack, flatten it
     if not was_a_stack:
@@ -628,25 +619,20 @@ def flatten_image(
     axis = 0
     dtype = array.dtype
     out: np.ndarray
-    mem.log("Before flattening")
     if mode in ("min", "max"):
         # Pre-allocate empty output array
         out = np.empty(array.shape[1:], dtype=dtype)
-        mem.log("After creating output array")
         if mode == "min":
             np.minimum.reduce(array, axis=axis, out=out)
         else:
             np.maximum.reduce(array, axis=axis, out=out)
-        mem.log("After flattening with 'min'/'max'")
     elif mode == "mean":
         # Use float32 when calculating integer arrays to keep footprint small
         is_int_dtype = np.issubdtype(dtype, np.integer)
         out = array.mean(axis=axis, dtype=np.float32 if is_int_dtype else dtype)
-        mem.log("After computing the mean")
         if is_int_dtype:
             np.rint(out, out=out)
             out = out.astype(dtype, copy=False)
-            mem.log("After converting to np.uint8")
     # Raise error if the mode provided is incorrect
     else:
         logger.error(f"{mode} is not a valid image flattening option")
@@ -687,11 +673,9 @@ def merge_images(
         shape,
         dtype=np.float32 if is_int_dtype else dtype,
     )
-    mem.log("After creating output array")
     for arr in arrays:
         out += arr
     out /= len(arrays)
-    mem.log("After summing and averaging output values")
     if is_int_dtype:
         np.rint(out, out=out)
         out = out.astype(dtype, copy=False)
