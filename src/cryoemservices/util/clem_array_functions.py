@@ -12,16 +12,18 @@ import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass
 from enum import Enum
+from multiprocessing.shared_memory import SharedMemory
 from pathlib import Path
-from typing import Literal, Optional, Protocol
+from typing import Any, Literal, Optional, Protocol
 
 import cv2
 import numpy as np
 import SimpleITK as sitk
 from pystackreg import StackReg
 from readlif.reader import LifFile
-from SimpleITK.SimpleITK import Image as SITKImage
 from tifffile import imwrite
+
+from cryoemservices.util import memory_logger as mem
 
 # Create logger object to output messages with
 logger = logging.getLogger("cryoemservices.util.clem_array_functions")
@@ -328,6 +330,35 @@ def is_image_stack(
     raise ValueError(f"Unexpected image shape: {array.shape}")
 
 
+def put_arrays_in_shared_memory(arrays: list[np.ndarray]):
+    """
+    Copy a list of NumPy arrays into shared memory blocks and return their references
+    """
+
+    shm_blocks: list[SharedMemory] = []
+    shm_metadata: list[dict[str, Any]] = []
+
+    for i, arr in enumerate(arrays):
+        shm = SharedMemory(create=True, size=arr.nbytes)
+        shm_arr = np.ndarray(
+            shape=arr.shape,
+            dtype=arr.dtype,
+            buffer=shm.buf,
+        )
+        shm_arr[:] = arr  # Allocate array to shared memory block
+
+        shm_blocks.append(shm)
+        shm_metadata.append(
+            {
+                "name": shm.name,
+                "shape": arr.shape,
+                "dtype": arr.dtype,
+            }
+        )
+        mem.log(f"After allocating array {i + 1}/{len(arrays)} to shared memory")
+    return shm_blocks, shm_metadata
+
+
 def align_image_to_self(
     array: np.ndarray,
     start_from: Literal["beginning", "middle", "end"] = "beginning",
@@ -397,8 +428,7 @@ def align_image_to_self(
 
 
 def align_image_to_reference(
-    reference_array: np.ndarray,
-    moving_array: np.ndarray,
+    reference_array: np.ndarray, moving_array: np.ndarray, downsample_factor: int = 2
 ) -> np.ndarray:
     """
     Uses SimpleITK's image registration methods to align images to a reference.
@@ -411,59 +441,56 @@ def align_image_to_reference(
     sitk.ProcessObject_SetGlobalDefaultNumberOfThreads(1)
 
     # Get initial dtype
-    if str(reference_array.dtype) != str(moving_array.dtype):
+    if reference_array.dtype != moving_array.dtype:
         logger.error("The image stacks provided do not have the same dtype")
         raise ValueError
-    dtype = str(moving_array.dtype)
-    vmin: int | float = moving_array.min()
-    vmax: int | float = moving_array.max()
+    dtype = moving_array.dtype
+    vmin, vmax = moving_array.min(), moving_array.max()
 
-    # Check array shape
     if reference_array.shape != moving_array.shape:
-        logger.error("The image stacks provided do not have the same dimensions")
-        raise ValueError
+        logger.error("The image stacks provided are not of the same shape")
 
-    # SimpleITK's image registration prefers to work with floats
-    fixed: SITKImage = sitk.Cast(
-        sitk.GetImageFromArray(reference_array), sitk.sitkFloat64
-    )
-    moving: SITKImage = sitk.Cast(
-        sitk.GetImageFromArray(moving_array), sitk.sitkFloat64
-    )
+    # Standardise frames and stacks as stacks
+    if was_a_stack := is_image_stack(moving_array):
+        num_frames = moving_array.shape[0]
+    else:
+        num_frames = 1
+        reference_array = reference_array[np.newaxis, ...]
+        moving_array = moving_array[np.newaxis, ...]
 
-    # Check if an image or a stack has been passed to the function, and handle accordingly
-    shape: tuple[int, ...] = (
-        fixed.GetSize()
-    )  # In (x, y, z) order; SITK's Size object omits the RGB dimension, if present
-    num_frames = 1 if len(shape) == 2 else shape[-1]
+    # Convert to arrays to SITK objects
+    fixed_sitk = sitk.Cast(sitk.GetImageFromArray(reference_array), sitk.sitkFloat32)
+    moving_sitk = sitk.Cast(sitk.GetImageFromArray(moving_array), sitk.sitkFloat32)
+    mem.log("Cast arrays to SITK float32")
 
-    # Iterate through stacks, aligning corresponding frames
-    aligned_frames: list[SITKImage] = []
+    # Pre-allocate output NumPy array
+    aligned = np.empty(moving_array.shape, dtype=dtype)
+    mem.log("Created output NumPy array")
+
+    prev_transform = None
     for f in range(num_frames):
-        fixed_frame: SITKImage
-        moving_frame: SITKImage
-        if len(shape) == 2:
-            fixed_frame = fixed
-            moving_frame = moving
+        logger.debug(f"Aligning frame {f + 1}/{num_frames}")
+        # Extract frame (SITK uses x, y, z ordering)
+        fixed_frame = fixed_sitk[:, :, f]
+        moving_frame = moving_sitk[:, :, f]
+
+        # Downsample frames for registration
+        if downsample_factor > 1:
+            fixed_small = sitk.Shrink(fixed_frame, [downsample_factor] * 2)
+            moving_small = sitk.Shrink(moving_frame, [downsample_factor] * 2)
         else:
-            fixed_frame = fixed[:, :, f]
-            moving_frame = moving[:, :, f]
+            fixed_small, moving_small = fixed_frame, moving_frame
 
-        # Set up the registration parameters
+        # Set up registration method
         registration = sitk.ImageRegistrationMethod()
-
-        # Choose the metric
-        registration.SetMetricAsMattesMutualInformation(numberOfHistogramBins=64)
-
-        # Choose the type of interpolation to use
         registration.SetInterpolator(sitk.sitkLinear)
 
-        # Register over a multi-resolution pyramid
-        registration.SetShrinkFactorsPerLevel([4, 2, 1])
-        registration.SetSmoothingSigmasPerLevel([2, 1, 0])
-        # registration.SmoothingSigmasAreSpecifiedInPhysicalUnitsOn()
+        # Set the metric to use
+        registration.SetMetricAsMattesMutualInformation(numberOfHistogramBins=64)
+        registration.SetMetricSamplingPercentage(0.05)  # Sample 5% of pixels
+        registration.SetMetricSamplingStrategy(registration.RANDOM)
 
-        # Choose the type of optimiser to use
+        # Set the optimiser to use
         # registration.SetOptimizerAsGradientDescent(
         #     learningRate=0.5,
         #     numberOfIterations=300,
@@ -472,12 +499,9 @@ def align_image_to_reference(
         # )
         registration.SetOptimizerAsGradientDescentLineSearch(
             learningRate=1.0,
-            numberOfIterations=300,
+            numberOfIterations=200,
             convergenceMinimumValue=1e-6,
-            convergenceWindowSize=10,
-            lineSearchLowerLimit=0,
-            lineSearchUpperLimit=5.0,
-            lineSearchMaximumIterations=20,
+            convergenceWindowSize=5,
         )
         # registration.SetOptimizerAsAmoeba(
         #     simplexDelta=1.0,
@@ -495,40 +519,47 @@ def align_image_to_reference(
         # )
         registration.SetOptimizerScalesFromIndexShift()
 
-        # Initialise a rigid-body transform
-        initial_transform = sitk.CenteredTransformInitializer(
-            fixed_frame,
-            moving_frame,
-            sitk.Euler2DTransform(),  # Restricted to in-plane translation and rotation
+        # Register over a multi-resolution pyramid
+        registration.SetShrinkFactorsPerLevel([4, 2])
+        registration.SetSmoothingSigmasPerLevel([2, 1])
+        registration.SmoothingSigmasAreSpecifiedInPhysicalUnitsOn()
+
+        # Initilaise transform or reuse previous one, if available
+        initial_transform = prev_transform or sitk.CenteredTransformInitializer(
+            fixed_small,
+            moving_small,
+            sitk.Euler2DTransform(),
             sitk.CenteredTransformInitializerFilter.GEOMETRY,
         )
         registration.SetInitialTransform(initial_transform, inPlace=False)
+        mem.log("After setting up registration")
 
-        # Register the frame
-        final_transform = registration.Execute(fixed_frame, moving_frame)
+        # Execute registration on downsampled images
+        final_transform = registration.Execute(fixed_small, moving_small)
+        prev_transform = final_transform
+        mem.log("After registration")
 
-        # Transform the moving frame
-        aligned_frame: SITKImage = sitk.Resample(
-            moving_frame,
-            transform=final_transform,
-            interpolator=sitk.sitkLinear,
-            defaultPixelValue=0.0,
-            outputPixelType=moving_frame.GetPixelID(),
-            useNearestNeighborExtrapolator=True,
+        # Apply transform to full resolution frame
+        aligned_frame = sitk.GetArrayFromImage(
+            sitk.Resample(
+                moving_frame,
+                transform=final_transform,
+                interpolator=sitk.sitkLinear,
+                outputPixelType=sitk.sitkFloat32,
+            )
         )
-        aligned_frames.append(aligned_frame)
+        mem.log("After resampling")
 
-    # Recombine as a single image stack
-    aligned: np.ndarray = (
-        sitk.GetArrayFromImage(aligned_frames[0])
-        if len(aligned_frames) == 1
-        else sitk.GetArrayFromImage(sitk.JoinSeries(aligned_frames))
-    )
+        # Clip and round to original dtype
+        np.clip(aligned_frame, a_min=vmin, a_max=vmax, out=aligned_frame)
+        if np.issubdtype(dtype, np.integer):
+            np.rint(aligned_frame, out=aligned_frame)
+        aligned[f] = aligned_frame.astype(dtype, copy=False)
+        mem.log("After appending to array")
 
-    # Crop values that exceed initial range after transformation
-    aligned[aligned < vmin] = vmin
-    aligned[aligned > vmax] = vmax
-    aligned = aligned.astype(dtype) if str(aligned.dtype) != dtype else aligned
+    # If the image was not initially a stack, flatten it
+    if not was_a_stack:
+        aligned = aligned[0]
 
     return aligned
 
@@ -574,20 +605,19 @@ def convert_to_rgb(
     color: str,
 ) -> np.ndarray:
     # Set up variables
-    arr: np.ndarray = array
-    dtype = str(arr.dtype)
     try:
         lut = LUT[color.lower()].value
     except KeyError:
         raise KeyError(f"No lookup table found for the colour {color!r}")
 
-    # Calculate pixel values for each channel
-    arr_list: list[np.ndarray] = [arr * c for c in lut]
+    # Pre-allocate empty output array
+    out = np.empty((array.shape + (3,)), dtype=array.dtype)
 
-    # Stack arrays along last axis and preserve dtype
-    arr_new = np.stack(arr_list, axis=-1).astype(dtype)
+    # Write to channels directly
+    for c, value in enumerate(lut):
+        np.multiply(array, value, out=out[..., c], casting="unsafe")
 
-    return arr_new
+    return out
 
 
 def flatten_image(
@@ -596,22 +626,33 @@ def flatten_image(
 ) -> np.ndarray:
     # Flatten along first (outermost) axis
     axis = 0
-    if mode == "min":
-        arr_new: np.ndarray = array.min(axis=axis)
-    elif mode == "max":
-        arr_new = array.max(axis=axis)
+    dtype = array.dtype
+    out: np.ndarray
+    mem.log("Before flattening")
+    if mode in ("min", "max"):
+        # Pre-allocate empty output array
+        out = np.empty(array.shape[1:], dtype=dtype)
+        mem.log("After creating output array")
+        if mode == "min":
+            np.minimum.reduce(array, axis=axis, out=out)
+        else:
+            np.maximum.reduce(array, axis=axis, out=out)
+        mem.log("After flattening with 'min'/'max'")
     elif mode == "mean":
-        dtype = str(array.dtype)
-        arr_new = array.mean(axis=axis)
-        arr_new = arr_new.round(0) if dtype.startswith(("int", "uint")) else arr_new
-        arr_new = arr_new.astype(dtype)
-
+        # Use float32 when calculating integer arrays to keep footprint small
+        is_int_dtype = np.issubdtype(dtype, np.integer)
+        out = array.mean(axis=axis, dtype=np.float32 if is_int_dtype else dtype)
+        mem.log("After computing the mean")
+        if is_int_dtype:
+            np.rint(out, out=out)
+            out = out.astype(dtype, copy=False)
+            mem.log("After converting to np.uint8")
     # Raise error if the mode provided is incorrect
     else:
         logger.error(f"{mode} is not a valid image flattening option")
         raise ValueError
 
-    return arr_new
+    return out
 
 
 def merge_images(
@@ -622,29 +663,40 @@ def merge_images(
     the list.
     """
 
+    # Check that an array was provided
+    if not arrays:
+        raise ValueError("No input arrays provided")
+
     # Standardise to a list of arrays
     if isinstance(arrays, np.ndarray):
         arrays = [arrays]
 
     # Validate that arrays have the same shape
-    if len({arr.shape for arr in arrays}) > 1:
-        logger.error("Input arrays do not have the same shape")
-        raise ValueError
+    shape, dtype = arrays[0].shape, arrays[0].dtype
+    for arr in arrays:
+        if arr.shape != shape:
+            logger.error("Input arrays do not have the same shape")
+            raise ValueError
+        if arr.dtype != dtype:
+            logger.error("Input arrays do not have the same dtype")
+            raise ValueError
 
-    # Validate that arrays have the same dtype
-    if len({str(arr.dtype) for arr in arrays}) > 1:
-        logger.error("Input arrays do not have the same dtype")
-        raise ValueError
-    dtype = str(arrays[0].dtype)
+    is_int_dtype = np.issubdtype(dtype, np.integer)
+    # Add values in float32 for int dtypes
+    out = np.zeros(
+        shape,
+        dtype=np.float32 if is_int_dtype else dtype,
+    )
+    mem.log("After creating output array")
+    for arr in arrays:
+        out += arr
+    out /= len(arrays)
+    mem.log("After summing and averaging output values")
+    if is_int_dtype:
+        np.rint(out, out=out)
+        out = out.astype(dtype, copy=False)
 
-    # Calculate average across all arrays
-    arr_new: np.ndarray = np.mean(arrays, axis=0)
-
-    # Revert to input array dtype
-    arr_new = arr_new.round(0) if dtype.startswith(("int", "uint")) else arr_new
-    arr_new = arr_new.astype(dtype)
-
-    return arr_new
+    return out
 
 
 @dataclass(frozen=True)
@@ -703,20 +755,24 @@ def get_histogram(
     distribution. This is then used to estimate suitable values to normalise the
     images with.
 
-    :param image_loader:
+    Parameters
+    ----------
+    image_loader: ImageLoader
         ImageLoader class that returns the image as a NumPy array.
-    :type image_loader: ImageLoader
 
-    :param bins:
+    bins: int
         Number of bins to use for the histogram. The default is 65536, which is a
         16-bit channel.
-    :type bins: int
 
-    :param pixel_sampling_step:
+    pixel_sampling_step: int
         The number of pixels along each axes of the array to skip during sampling.
         Improves speed while still returning a relatively representative statistical
         sample of the image.
-    :type pixel_sampling_step: int
+
+    Returns
+    -------
+    histogram: np.ndarray
+        A one-dimensional NumPy array containing the counts
     """
     try:
         arr = image_loader.load()[::pixel_sampling_step, ::pixel_sampling_step]
@@ -750,31 +806,30 @@ def get_percentiles(
     implemented in addition pixel sampling so that relatively representative values
     can be estimated rapidly.
 
-    :param image_loaders:
+    Parameters
+    ----------
+    image_loaders: ImageLoader
         List of ImageLoader objects from which images can be extracted as NumPy arrays.
-    :type image_loaders: list[ImageLoader]
 
-    :param percentiles:
+    percentiles: tuple[float, float]
         The lower and upper percentiles to be extracted. Used to normalise the contrast
         before converting the image to an 8-bit NumPy array.
-    :type percentiles: tuple[float, float]
 
-    :param bins:
+    bins: int
         Number of bins to group the image into. The default is 65536 bins, which is a
         16-bit channel.
-    :type bins: int
 
-    :param pixel_sampling_step:
+    pixel_sampling_step: int
         Number of pixels along each of the axes to skip when sampling the images. The
         default is 4.
-    :type pixel_sampling_step: int
 
-    :param num_procs:
+    num_procs: int
         Number of threads to use when running this function
-    :type num_procs: int
 
-    :return: The pixel values corresponding to the lower and upper percentiles specified.
-    :rtype: tuple[int | float, int | float]
+    Returns
+    -------
+    values: tuple[int | float, int | float]
+        The pixel values corresponding to the lower and upper percentiles specified.
     """
 
     def _percentile(p: float):
@@ -826,25 +881,28 @@ def load_and_convert_image(
     """
     Helper function that loads images and converts them into an 8-bit NumPy array.
 
-    :param image_loader:
+    Parameters
+    ----------
+    image_loader: ImageLoader
         An ImageLoader dataclass which opens the specified image file and returns it
         as a NumPy array.
-    :type image_loader: ImageLoader
 
-    :param frame_num:
+    frame_num: int
         The frame number the image corresponds to. This is forwarded as part of the
         returned dataclass so that the array can be correctly allocated to its frame.
-    :type frame_num: int
 
-    :param vmin:
+    vmin: int | float
         The minimum pixel value to clip the array at before normalising to an 8-bit
         NumPy array.
-    :type vmin: int | float
 
-    :param vmax:
+    vmax: int | float
         The maximum pixel value to clip the array at before normalising to an 8-bit
         NumPy array.
-    :type vmax: int | float
+
+    Returns
+    -------
+    image_frame: np.ndarray
+        A single image returned as a 2D image in either grayscale or RGB.
     """
 
     try:
@@ -896,40 +954,34 @@ def resize_tile(
     to an 8-bit NumPy array, then returns it along with the coordinates for the
     space it occupies in the frame.
 
-    :param image_loader:
+    Parameters
+    ----------
+    image_loader: ImageLoader
         An ImageLoader class with a 'load()' function that will return a NumPy array.
-    :type image_loader: ImageLoader
 
-    :param frame_num:
+    frame_num: int
         The frame number the image corresponds to
-    :type frame_num: int
 
-    :param tile_extent:
+    tile_extent: tuple[float, float, float, float]
         The span in real space that the image occupies. This takes a tuple of 4 values
         in the order x0, x1, y0, y1, which correspond to the left-most, right-most,
         upper-most, and bottom-most boundary of the image
-    :type tile_extent: tuple[float, float, float, float]
 
-    :param parent_extent:
+    parent_extent: tuple[float, float, float, float]
         The extent of the parent image to which this tile belongs to. It takes a tuple
         of 4 values in the same format as the tile extent.
-    :type parent_extent: tuple[float, float, float, float]
 
-    :param parent_pixel_size:
+    parent_pixel_size: float
         The pixel size of the parent image this tile will be mapped to.
-    :type parent_pixel_size: float
 
-    :param parent_shape:
+    parent_shape: tuple[int, int]
         The shape of the parent image this tile will be mapped to.
-    :type parent_shape: tuple[int, int]
 
-    :param vmin:
+    vmin: int | float
         The minimum pixel value to clip the image to before converting to 8-bit.
-    :type vmin: int | float
 
-    :param vmax:
+    vmax: int | float
         The maximum pixel value to clip the image to before converting to 8-bit.
-    :type vmax: int | float
     """
     try:
         # Find array size in parent frame the tile corresponds to
