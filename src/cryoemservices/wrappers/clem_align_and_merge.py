@@ -118,7 +118,7 @@ def align_and_merge_stacks(
     align_self: Literal["enabled", ""] = "",
     flatten: Optional[Literal["min", "max", "mean", ""]] = "mean",
     align_across: Literal["enabled", ""] = "",
-    num_procs: int = 1,
+    num_procs: int = 4,
 ) -> dict[str, Any]:
     """
     A cryoemservices wrapper to create composite images from component image stack in
@@ -545,7 +545,7 @@ def align_and_merge_stacks(
     imwrite(
         save_name,
         composite_img,
-        bigtiff=True,
+        bigtiff=False if flatten else True,
         # Array properties
         shape=final_shape,
         dtype=str(composite_img.dtype),

@@ -1056,6 +1056,11 @@ def write_stack_to_tiff(
         resolution = None
 
     resolution_unit = 1 if units is not None else None
+    use_bigtiff = (
+        False
+        if not is_image_stack(array) or (is_image_stack(array) and array.shape[0] == 1)
+        else True
+    )
 
     # Get photometric
     valid_photometrics = (
@@ -1090,7 +1095,7 @@ def write_stack_to_tiff(
         photometric=photometric,  # Greyscale image
         colormap=color_map,
         # ImageJ compatibility
-        imagej=True,
+        imagej=use_bigtiff,
         metadata={
             "axes": axes,
             "unit": units,
