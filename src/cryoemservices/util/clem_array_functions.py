@@ -1224,7 +1224,7 @@ def write_stack_to_tiff(
     imwrite(
         save_name,
         array,
-        bigtiff=True,
+        bigtiff=use_bigtiff,
         # Array properties,
         shape=array.shape,
         dtype=str(array.dtype),
@@ -1234,7 +1234,7 @@ def write_stack_to_tiff(
         photometric=photometric,  # Greyscale image
         colormap=color_map,
         # ImageJ compatibility
-        imagej=use_bigtiff,
+        imagej=True,
         metadata={
             "axes": axes,
             "unit": units,
