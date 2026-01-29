@@ -40,7 +40,6 @@ dependencies = [
     "pillow",
     "plotly",
     "pydantic>=2",
-    "pystackreg", # CLEM workflow
     "readlif", # CLEM workflow
     "requests",
     "SimpleITK", # CLEM workflow

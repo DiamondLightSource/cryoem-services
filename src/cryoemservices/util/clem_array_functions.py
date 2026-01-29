@@ -19,7 +19,6 @@ from typing import Any, Literal, Optional, Protocol
 import cv2
 import numpy as np
 import SimpleITK as sitk
-from pystackreg import StackReg
 from readlif.reader import LifFile
 from tifffile import imwrite
 
@@ -358,70 +357,211 @@ def put_arrays_in_shared_memory(arrays: list[np.ndarray]):
 
 def align_image_to_self(
     array: np.ndarray,
-    start_from: Literal["beginning", "middle", "end"] = "beginning",
+    start_from: Literal["beginning", "middle", "end"] = "middle",
+    max_iters: int = 100,
+    eps: float = 1e-6,
+    use_mask: bool = True,
 ) -> np.ndarray:
     """
-    Use PyStackReg to correct for drift in an image stack.
-    """
-    # Record initial dtype and intensities
-    dtype = str(array.dtype)
-    vmin: int | float = array.min()
-    vmax: int | float = array.max()
+    Helper function that performs drift correction on an image stack using OpenCV's
+    Enhanced Correlation Coefficient (ECC) maximisation routine, details of which
+    can be found in the following paper (DOI: 10.1109/TPAMI.2008.113.)
+    http://xanthippi.ceid.upatras.gr/people/evangelidis/george_files/PAMI_2008.pdf
 
-    # Check if an image or a stack has been passed to the function
-    shape = array.shape
-    if len(shape) <= 2 or (
-        len(shape) == 3 and shape[-1] in (3, 4)  # Check for 2D RGB or RGBA images
+    Parameters
+    ----------
+    array: np.ndarray
+        The image stack to be aligned. This will be a grayscale or RGB image as
+        a NumPy array.
+
+    start_from: Literal["beginning", "middle", "end"] = "middle"
+        The part of the array to use as the reference. For CLEM image stacks, the
+        frames in the middle of the stack tend to be the most in focus, and are
+        best used as the starting point for registration.
+
+    max_iters: int = 100
+        The maximum number of iterations before stopping the registration attempt.
+
+    eps: float = 1e-6
+        The convergence tolerance for ECC optimisation. The registration will stop
+        when the relative improvement between iterations falls below this value.
+
+    use_mask: bool = True,
+        Applies a circular mask so that only the central part of the image is
+        considered during registration.
+
+    Returns
+    -------
+    aligned: np.ndarray
+        The aligned image stack as a NumPy array.
+    """
+
+    def _register(
+        prev: np.ndarray,
+        curr: np.ndarray,
+        warp_init: np.ndarray,
+        mask: np.ndarray | None,
     ):
+        warp = warp_init.copy()
+        cv2.findTransformECC(
+            prev,
+            curr,
+            warp,
+            motionType=cv2.MOTION_EUCLIDEAN,
+            criteria=criteria,
+            inputMask=mask,
+            gaussFiltSize=5,
+        )  # Updated in-place
+        return warp
+
+    def _warp_frame(
+        frame: np.ndarray,
+        M: np.ndarray,
+    ) -> np.ndarray:
+        def _warp(
+            frame: np.ndarray,
+            M: np.ndarray,
+        ) -> np.ndarray:
+            return cv2.warpAffine(
+                frame,
+                M,
+                (w, h),
+                flags=cv2.INTER_LINEAR,
+                borderMode=cv2.BORDER_CONSTANT,
+                borderValue=vmin,
+            )
+
+        if frame.ndim == 2:
+            return _warp(frame, M)
+        else:
+            out = np.empty_like(frame)
+            for c in range(frame.shape[-1]):
+                out[..., c] = _warp(frame[..., c], M)
+            return out
+
+    def _make_homogeneous(M: np.ndarray):
+        H = np.eye(3, dtype=np.float32)
+        H[:2] = M
+        return H
+
+    # Validate that this is a grayscale or RGB array to begin with
+    if not is_image_stack(array):
         logger.warning(
-            f"Image provided likely not an image stack (has dimensions {shape});"
+            f"Image provided likely not an image stack (has dimensions {array.shape});"
             "returning original array"
         )
         return array
 
-    # Set up StackReg object to facilitate image processing
-    sr = StackReg(StackReg.RIGID_BODY)
+    # Extract dimensions, dtype, vmin, and vmax
+    z, h, w = array.shape[:3]
+    dtype = array.dtype
+    vmin, vmax = float(array.min()), float(array.max())
+    logger.debug(
+        f"shape: {array.shape}\ndtype: {array.dtype}\nvmin: {vmin}\nvmax: {vmax}\n"
+    )
 
-    # Standard method for aligning images
-    if start_from == "beginning":
-        aligned = np.array(sr.register_transform_stack(array, reference="previous"))
-
-    # Align from the middle
-    # Useful for aligning defocus series, where the plane of focus is in the middle
-    elif start_from == "middle":
-        # Align both halves independently
-        idx = len(array) // 2  # Floor division
-        aligned_front = np.flip(
-            sr.register_transform_stack(
-                np.flip(array[: idx + 1], axis=0), reference="previous"
-            ),
-            axis=0,
-        )
-        aligned_back = np.array(
-            sr.register_transform_stack(array[idx:], reference="previous")
-        )
-
-        # Rejoin halves
-        aligned = np.concatenate((aligned_front[:idx], aligned_back), axis=0)
-
-    # Align from the end
-    elif start_from == "end":
-        aligned = np.flip(
-            sr.register_transform_stack(np.flip(array, axis=0), reference="previous"),
-            axis=0,
-        )
+    # For RGB images, create a weighted grayscale image to use for registration
+    if array.ndim == 4:
+        reg = (
+            # Luma-style weighted sum; avoids cv2.cvtColor copy
+            0.2126 * array[..., 0] + 0.7152 * array[..., 1] + 0.0722 * array[..., 2]
+        ).astype(dtype, copy=False)
     else:
-        logger.error(f"Invalid parameter {start_from!r} provided")
-        raise ValueError
+        # Use float32 precision for all other arrays
+        reg = array
+    logger.debug("Converted input array to float32")
 
-    # Crop intensities that have been shifted outside of the initial range
-    aligned[aligned < vmin] = vmin
-    aligned[aligned > vmax] = vmax
+    # Set the reference index
+    if start_from == "beginning":
+        ref_idx = 0
+    elif start_from == "middle":
+        ref_idx = z // 2
+    elif start_from == "end":
+        ref_idx = z - 1
+    else:
+        raise ValueError(f"Invalid input for 'start_from' parameter: {start_from}")
 
-    # Revert array back to initial dtype
-    aligned = aligned.astype(dtype) if str(aligned.dtype) != dtype else aligned
+    # Preallocate empty arrays
+    # Output stack with original dimensions
+    aligned = np.empty(array.shape, dtype=dtype)
+    aligned[ref_idx] = array[ref_idx]
+    # Array of transforms
+    transforms = np.zeros((z, 2, 3), dtype=np.float32)
 
-    return aligned
+    # Create identity Euclidean transform and assign to reference slice
+    I = np.array(
+        [
+            [1, 0, 0],
+            [0, 1, 0],
+        ],
+        dtype=np.float32,
+    )
+    transforms[ref_idx] = I
+    logger.debug("Allocated placeholder arrays")
+
+    # Create a mask
+    mask: np.ndarray | None = None
+    if use_mask:
+        mask = np.zeros((h, w), np.uint8)
+        cv2.circle(mask, (w // 2, h // 2), min(h, w) // 3, 255, -1)  # Updated in-place
+        logger.debug("Created mask")
+
+    # Set the conditions to use to stop the registration
+    criteria = (
+        cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT,
+        max_iters,
+        eps,
+    )
+
+    # Forward pass
+    # 'warp' maps current frame to previous aligned frame
+    for i in range(ref_idx + 1, z):
+        logger.info(f"Aligning frame {i + 1}/{z}")
+        try:
+            warp = _register(
+                reg[i - 1].astype(np.float32, copy=False),
+                reg[i].astype(np.float32, copy=False),
+                I,
+                mask,
+            )
+            logger.debug(f"Registered frame {i + 1}")
+        except cv2.error:
+            logger.warning(
+                f"Error registering frame {i}; reverting to using identity matrix"
+            )
+            warp = I
+        new_transform = _make_homogeneous(warp) @ _make_homogeneous(transforms[i - 1])
+        transforms[i] = new_transform[:2]
+        reg[i] = _warp_frame(reg[i], transforms[i]).astype(dtype, copy=False)
+        aligned[i] = _warp_frame(array[i], transforms[i]).astype(dtype, copy=False)
+        logger.debug(f"Applied transformation for frame {i + 1}")
+
+    # Backward pass
+    for i in range(ref_idx - 1, -1, -1):
+        logger.info(f"Aligning frame {i + 1}/{z}")
+        try:
+            warp = _register(
+                reg[i + 1].astype(np.float32, copy=False),
+                reg[i].astype(np.float32, copy=False),
+                I,
+                mask,
+            )
+            logger.debug(f"Registered frame {i + 1}")
+        except cv2.error:
+            logger.warning(
+                f"Error registering frame {i}; reverting to using identity matrix"
+            )
+            warp = I
+        new_transform = _make_homogeneous(warp) @ _make_homogeneous(transforms[i + 1])
+        transforms[i] = new_transform[:2]
+        reg[i] = _warp_frame(reg[i], transforms[i]).astype(dtype, copy=False)
+        aligned[i] = _warp_frame(array[i], transforms[i]).astype(dtype, copy=False)
+        logger.debug(f"Applied transformation for frame {i + 1}")
+
+    if np.issubdtype(dtype, np.integer):
+        vmin, vmax = int(vmin), int(vmax)
+    np.clip(aligned, a_min=vmin, a_max=vmax, out=aligned)
+    return aligned.astype(dtype, copy=False)
 
 
 def align_image_to_reference(
