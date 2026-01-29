@@ -295,7 +295,12 @@ def process_tiff_files(
                     for t in tile_scan_info.keys()
                     for file in tiff_color_subset
                     if f"Stage{str(t).zfill(2)}" in file.stem.split("--")
-                    and f"Z{str(f).zfill(2)}" in file.stem.split("--")
+                    and (
+                        # Add this check if dataset contains multiple frames
+                        f"Z{str(f).zfill(2)}" in file.stem.split("--")
+                        if num_frames > 1
+                        else True
+                    )
                 ]
                 for future in as_completed(futures):
                     r = future.result()
