@@ -461,15 +461,14 @@ def align_image_to_self(
     )
 
     # For RGB images, create a weighted grayscale image to use for registration
-    if array.ndim == 4:
-        reg = (
+    reg = (
+        (
             # Luma-style weighted sum; avoids cv2.cvtColor copy
             0.2126 * array[..., 0] + 0.7152 * array[..., 1] + 0.0722 * array[..., 2]
-        ).astype(dtype, copy=False)
-    else:
-        # Use float32 precision for all other arrays
-        reg = array
-    logger.debug("Converted input array to float32")
+        ).astype(dtype)
+        if array.ndim == 4
+        else array.copy()
+    )
 
     # Set the reference index
     if start_from == "beginning":
