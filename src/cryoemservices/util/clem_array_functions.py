@@ -12,7 +12,7 @@ from dataclasses import asdict, dataclass
 from enum import Enum
 from multiprocessing.shared_memory import SharedMemory
 from pathlib import Path
-from typing import Any, Literal, Optional, Protocol
+from typing import Any, Literal, Protocol
 
 import cv2
 import numpy as np
@@ -289,11 +289,26 @@ def align_image_to_reference(
     reference_array: np.ndarray, moving_array: np.ndarray, downsample_factor: int = 2
 ) -> np.ndarray:
     """
-    Uses SimpleITK's image registration methods to align images to a reference.
+    Align images to a reference using SimpleITK's image registration methods. This
+    workflow handles 2D images or image stacks in both grayscale and RGB formats.
 
     Currently, this method works poorly for defocused images, which can lead to a
     lot of jitter in the beginning and tail frames if the images being aligned are
     a defocus series.
+
+    Parameters
+    ----------
+    reference_array: np.ndarray
+        The image being used as a reference.
+
+    moving_array: np.ndarray
+        The image to align.
+
+    downsample_factor: int = 2
+        The degree of binning to apply to the image during the registration process.
+        While resizing, SITK preserves the dimensions of the image when it is first
+        converted into an SITK Image, and will adjust the pixel size associated with
+        the Image when it is subsequently resized.
     """
     # Restrict number of threads used by SimpleITK
     sitk.ProcessObject_SetGlobalDefaultNumberOfThreads(1)
@@ -456,6 +471,9 @@ def convert_to_rgb(
     array: np.ndarray,
     color: str,
 ) -> np.ndarray:
+    """
+    Converts a grayscale image into an RGB image with the desired colour format.
+    """
     # Set up variables
     try:
         lut = LUT[color.lower()].value
@@ -476,6 +494,21 @@ def flatten_image(
     array: np.ndarray,
     mode: Literal["mean", "min", "max"] = "mean",
 ) -> np.ndarray:
+    """
+    Flattens an image along its outermost axis, turning an image stack into a 2D image.
+
+    Parameters
+    ----------
+    array: np.ndarray
+        The incoming image. The input can technically be any NumPy array with 2 or more
+        dimensions, but this should be used for grayscale or RGB image stacks.
+
+    mode: Literal["mean", "min", "max"] = "mean"
+        The method with which the pixels along the axis being flattened are sampled.
+        "min" and "max" would respectively return the minimum and maximum intensity
+        projections for each pixel along that axis, while "mean" computes the average
+        pixel value along that axis.
+    """
     # Flatten along first (outermost) axis
     axis = 0
     dtype = array.dtype
@@ -506,8 +539,8 @@ def merge_images(
     arrays: np.ndarray | list[np.ndarray],
 ) -> np.ndarray:
     """
-    Takes a list of arrays and returns a composite image averaged across every image in
-    the list.
+    Takes a list of images and returns a composite image averaged across every image
+    in the list.
     """
 
     # Check that an array was provided
@@ -616,8 +649,10 @@ def get_histogram(
 
     Returns
     -------
-    histogram: np.ndarray
-        A one-dimensional NumPy array containing the counts
+    result: HistogramResult
+        Python dataclass object containing the data, which is a 1D NumPy array
+        showing the counts for each bin, and information about the error, if one
+        occurs.
     """
     try:
         arr = image_loader.load()[::pixel_sampling_step, ::pixel_sampling_step]
@@ -656,19 +691,19 @@ def get_percentiles(
     image_loaders: ImageLoader
         List of ImageLoader objects from which images can be extracted as NumPy arrays.
 
-    percentiles: tuple[float, float]
+    percentiles: tuple[float, float] = (1, 99)
         The lower and upper percentiles to be extracted. Used to normalise the contrast
         before converting the image to an 8-bit NumPy array.
 
-    bins: int
+    bins: int = 65536
         Number of bins to group the image into. The default is 65536 bins, which is a
         16-bit channel.
 
-    pixel_sampling_step: int
+    pixel_sampling_step: int = 4
         Number of pixels along each of the axes to skip when sampling the images. The
         default is 4.
 
-    num_procs: int
+    num_procs: int = 1
         Number of threads to use when running this function
 
     Returns
@@ -746,8 +781,10 @@ def load_and_convert_image(
 
     Returns
     -------
-    image_frame: np.ndarray
-        A single image returned as a 2D image in either grayscale or RGB.
+    result: LoadImageResult
+        A dataclass object containing the loaded image (2D NumPy array), the frame
+        the image corresponds to, and details about any error that occurs during
+        the process.
     """
 
     try:
@@ -827,6 +864,12 @@ def resize_tile(
 
     vmax: int | float
         The maximum pixel value to clip the image to before converting to 8-bit.
+
+    Returns
+    -------
+    result: ResizeTileResult
+        A dataclass containing the resized image and the array slicing information
+        needed to assign it to its location in the parent image stack.
     """
     try:
         # Find array size in parent frame the tile corresponds to
@@ -890,20 +933,74 @@ def write_stack_to_tiff(
     save_dir: Path,
     file_name: str,
     # Resolution information
-    x_res: Optional[float] = None,
-    y_res: Optional[float] = None,
-    z_res: Optional[float] = None,
-    units: Optional[str] = None,
+    x_res: float | None = None,
+    y_res: float | None = None,
+    z_res: float | None = None,
+    units: str | None = None,
     # Array properties
-    axes: Optional[str] = None,
-    image_labels: Optional[list[str] | str] = None,
+    axes: str | None = None,
+    image_labels: list[str] | str | None = None,
     # Colour properties
-    photometric: Optional[str] = None,  # Valid options listed below
-    color_map: Optional[np.ndarray] = None,
-    extended_metadata: Optional[str] = None,  # Stored as an extended string
+    photometric: str | None = None,  # Valid options listed below
+    color_map: np.ndarray | None = None,
+    extended_metadata: str | None = None,  # Stored as an extended string
 ) -> Path:
     """
     Writes the NumPy array as a calibrated, ImageJ-compatible TIFF image stack.
+    It will save image stacks in BigTIFF format, while 2D images will be saved
+    as conventional TIFFs.
+
+    Parameters
+    ----------
+    array: np.ndarray
+        The image to be saved.
+
+    save_dir: Path
+        The file path (absolute or relative) to where the image is to be saved.
+
+    file_name: str
+        The name (not including the file suffix) to assign to the image.
+
+    x_res: float | None = None
+        The resolution (pixels per unit length) of the x-axis. It should match
+        the SI unit used in the 'units' parameter. i.e. For a pixel size of
+        12 um, the resolution will be 83.3333... if 'mm' is used.
+
+    y_res: float | None = None
+        The resolution of the y-axis.
+
+    z_res: float | None = None
+        The resolution of the z-axis.
+
+    units: str | None = None
+        The SI unit of the resolution values that have been provided above. Most
+        conventional imaging units are accepted (e.g., m, mm, um, micron).
+
+    axes: str | None = NOne
+        A string sequence telling the TIFF writer what the axes in the incoming
+        image corespond to. They should be passed in the order TZCYXS.
+
+    image_labels: list[str] | str | None = None
+        A string (for a single frame) or list of strings (for image stacks), of
+        the labels to assign to each image.
+
+    photometric: str | None
+        Information on the colouring mode to associate the image with. The currently
+        supported options include:
+            * "minisblack",
+            * "miniswhite",
+            * "rgb",
+            * "ycbcr",
+            * "palette",
+
+    color_map: np.ndarray = None
+        The color map used to determine how the colour should be scaled according
+        to pixel value.
+
+    extended_metadata: str | None = None
+        Optional additional metadata that can be inserted into the image header as
+        a stringified object.
+
     """
     # Get resolution
     if z_res is not None:
