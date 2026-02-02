@@ -24,7 +24,7 @@ from cryoemservices.util.clem_array_functions import (
     TIFFImageLoader,
     get_percentiles,
     load_and_convert_image,
-    resize_tile,
+    load_and_resize_tile,
     write_stack_to_tiff,
 )
 from cryoemservices.util.clem_metadata import (
@@ -281,7 +281,7 @@ def process_tiff_files(
             with ThreadPoolExecutor(max_workers=num_procs) as pool:
                 futures = [
                     pool.submit(
-                        resize_tile,
+                        load_and_resize_tile,
                         TIFFImageLoader(file),
                         f,
                         tile_extents[t],

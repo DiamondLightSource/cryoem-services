@@ -30,7 +30,7 @@ def test_load_and_convert_image():
     pass
 
 
-def test_resize_tile():
+def test_load_and_resize_tile():
     pass
 
 

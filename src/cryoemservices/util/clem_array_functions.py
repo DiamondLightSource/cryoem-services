@@ -267,7 +267,7 @@ class ResizeTileResult:
     error: dict | None
 
 
-def resize_tile(
+def load_and_resize_tile(
     image_loader: ImageLoader,
     frame_num: int,
     tile_extent: tuple[float, float, float, float],
