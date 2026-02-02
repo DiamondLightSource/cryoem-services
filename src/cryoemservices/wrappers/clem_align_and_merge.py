@@ -16,7 +16,6 @@ import logging
 import time
 from ast import literal_eval
 from concurrent.futures import ThreadPoolExecutor
-from multiprocessing.shared_memory import SharedMemory
 from pathlib import Path
 from typing import Any, Literal, Optional
 
@@ -38,75 +37,6 @@ from cryoemservices.util.clem_metadata import get_channel_info
 
 # Create logger object to output messages with
 logger = logging.getLogger("cryoemservices.wrappers.clem_align_and_merge")
-
-
-def _align_image_to_self_worker(
-    shm_metadata: dict[str, Any],
-    start_from: Literal["beginning", "middle", "end"] = "beginning",
-):
-    shm = SharedMemory(name=shm_metadata["name"])
-    array = np.ndarray(
-        shape=shm_metadata["shape"],
-        dtype=shm_metadata["dtype"],
-        buffer=shm.buf,
-    )
-    result = align_image_to_self(array, start_from=start_from)
-    shm.close()
-    return result
-
-
-def _flatten_image_worker(
-    shm_metadata,
-    mode: Literal["mean", "min", "max"] = "mean",
-):
-    shm = SharedMemory(name=shm_metadata["name"])
-    array = np.ndarray(
-        shape=shm_metadata["shape"],
-        dtype=shm_metadata["dtype"],
-        buffer=shm.buf,
-    )
-    result = flatten_image(array, mode)
-    shm.close()
-    return result
-
-
-def _align_image_to_reference_worker(
-    reference_shm_metadata: dict[str, Any],
-    moving_shm_metadata: dict[str, Any],
-    downsample_factor: int = 2,
-):
-    # Load shared arrays from memory
-    ref_shm = SharedMemory(name=reference_shm_metadata["name"])
-    ref = np.ndarray(
-        shape=reference_shm_metadata["shape"],
-        dtype=reference_shm_metadata["dtype"],
-        buffer=ref_shm.buf,
-    )
-    mov_shm = SharedMemory(name=moving_shm_metadata["name"])
-    mov = np.ndarray(
-        shape=moving_shm_metadata["shape"],
-        dtype=moving_shm_metadata["dtype"],
-        buffer=mov_shm.buf,
-    )
-    result = align_image_to_reference(ref, mov, downsample_factor)
-    ref_shm.close()
-    mov_shm.close()
-    return result
-
-
-def _convert_to_rgb_worker(
-    shm_metadata: dict[str, Any],
-    color: str,
-):
-    shm = SharedMemory(name=shm_metadata["name"])
-    array = np.ndarray(
-        shape=shm_metadata["shape"],
-        dtype=shm_metadata["dtype"],
-        buffer=shm.buf,
-    )
-    result = convert_to_rgb(array, color)
-    shm.close()
-    return result
 
 
 def align_and_merge_stacks(
