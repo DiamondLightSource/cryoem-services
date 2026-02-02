@@ -15,8 +15,7 @@ import json
 import logging
 import time
 from ast import literal_eval
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
-from itertools import repeat
+from concurrent.futures import ThreadPoolExecutor
 from multiprocessing.shared_memory import SharedMemory
 from pathlib import Path
 from typing import Any, Literal, Optional
@@ -34,7 +33,6 @@ from cryoemservices.util.clem_array_functions import (
     is_grayscale_image,
     is_image_stack,
     merge_images,
-    put_arrays_in_shared_memory,
 )
 from cryoemservices.util.clem_metadata import get_channel_info
 
@@ -319,30 +317,33 @@ def align_and_merge_stacks(
             logger.info("Correcting for drift in images")
             drift_correction_start_time = time.perf_counter()
 
-            # Put current set of arrays in shared memory
-            shm_blocks, shm_metadata = put_arrays_in_shared_memory(arrays)
-            del arrays
-            try:
-                with ProcessPoolExecutor(max_workers=num_procs) as pool:
-                    arrays = list(
-                        pool.map(
-                            _align_image_to_self_worker,
-                            shm_metadata,
-                            repeat("middle"),
-                        )
+            # Determine a suitable downsampling factor to use
+            if (
+                num_pixels := np.prod(
+                    (
+                        arrays[0][0].shape[:2]
+                        if is_image_stack(arrays[0])
+                        else arrays[0].shape[:2]
                     )
-            finally:
-                for shm in shm_blocks:
-                    shm.close()
-                    shm.unlink()
+                )
+            ) > 4096**2:
+                downsample_factor = 8
+            elif num_pixels > 2048**2:
+                downsample_factor = 4
+            elif num_pixels > 1024**2:
+                downsample_factor = 2
+            else:
+                downsample_factor = 1
 
-            # with ThreadPoolExecutor(max_workers=num_procs) as pool:
-            #     arrays = list[
-            #         pool.map(
-            #             lambda p: align_image_to_self(*p),
-            #             [(arr, "middle") for arr in arrays],
-            #         )
-            #     ]
+            # Align image with multithreading
+            arrays = [
+                align_image_to_self(
+                    array,
+                    "middle",
+                    num_procs=num_procs,
+                )
+                for array in arrays
+            ]
 
             drift_correction_end_time = time.perf_counter()
             logger.info("Successfully applied drift correction")
@@ -362,23 +363,6 @@ def align_and_merge_stacks(
         if all(is_image_stack(array) for array in arrays):
             logger.info("Flattening image stacks")
             flatten_start_time = time.perf_counter()
-
-            # # Put current set of arrays in shared memory
-            # shm_blocks, shm_metadata = put_arrays_in_shared_memory(arrays)
-            # del arrays
-            # try:
-            #     with ProcessPoolExecutor(max_workers=num_procs) as pool:
-            #         arrays = list(
-            #             pool.map(
-            #                 _flatten_image_worker,
-            #                 shm_metadata,
-            #                 repeat(flatten),
-            #             )
-            #         )
-            # finally:
-            #     for shm in shm_blocks:
-            #         shm.close()
-            #         shm.unlink()
 
             with ThreadPoolExecutor(max_workers=num_procs) as pool:
                 arrays = list(
@@ -412,43 +396,57 @@ def align_and_merge_stacks(
             reference = arrays[0]  # First image in list is the reference image
             to_align = arrays[1:]
 
-            # Use ProcessPoolExecutor if arrays are large
-            if all(is_image_stack(array) for array in arrays):
-                # Put current set of arrays in shared memory
-                shm_blocks, shm_metadata = put_arrays_in_shared_memory(arrays)
-                del arrays
-                ref_metadata = shm_metadata[0]
-                to_align_metadata = shm_metadata[1:]
-                try:
-                    with ProcessPoolExecutor(max_workers=num_procs) as pool:
-                        aligned = list(
-                            pool.map(
-                                _align_image_to_reference_worker,
-                                repeat(ref_metadata),
-                                to_align_metadata,
-                                repeat(2),
-                            )
-                        )
-                    ref_shm = SharedMemory(name=ref_metadata["name"])
-                    reference = np.ndarray(
-                        shape=ref_metadata["shape"],
-                        dtype=ref_metadata["dtype"],
-                        buffer=ref_shm.buf,
+            # Determine suitable combinations of parameters to use
+            # Ensure that there are at least 8192 pixels sampled at coarsest level
+            if (
+                num_pixels := np.prod(
+                    (
+                        arrays[0][0].shape[:2]
+                        if is_image_stack(arrays[0])
+                        else arrays[0].shape[:2]
                     )
-                finally:
-                    for shm in shm_blocks:
-                        shm.close()
-                        shm.unlink()
-
-            # Use TheadPoolExecutor otherwise
+                )
+            ) > 4096**2:
+                downsample_factor = 4
+                sampling_percentage = 0.125
+                shrink_factors_per_level = [4, 2]
+            elif num_pixels > 2048**2:
+                downsample_factor = 2
+                sampling_percentage = 0.125
+                shrink_factors_per_level = [4, 2]
+            elif num_pixels > 1024**2:
+                downsample_factor = 2
+                sampling_percentage = 0.5
+                shrink_factors_per_level = [4, 2]
+            elif num_pixels > 512**2:
+                downsample_factor = 2
+                sampling_percentage = 0.5
+                shrink_factors_per_level = [2, 1]
+            elif num_pixels > 256**2:
+                downsample_factor = 2
+                sampling_percentage = 0.5
+                shrink_factors_per_level = [1]
+            # Image is small enough to sample everything
             else:
-                with ThreadPoolExecutor(max_workers=num_procs) as pool:
-                    aligned = list(
-                        pool.map(
-                            lambda p: align_image_to_reference(*p),
-                            [(reference, moving) for moving in to_align],
-                        )
-                    )
+                downsample_factor = 1
+                sampling_percentage = 1.0
+                shrink_factors_per_level = [1]
+            smoothing_sigmas_per_level = [s / 2 for s in shrink_factors_per_level]
+
+            # Align images to reference with multithreading
+            aligned = [
+                align_image_to_reference(
+                    reference_array=reference,
+                    moving_array=arr,
+                    downsample_factor=downsample_factor,
+                    sampling_percentage=sampling_percentage,
+                    shrink_factors_per_level=shrink_factors_per_level,
+                    smoothing_sigmas_per_level=smoothing_sigmas_per_level,
+                    num_procs=num_procs,
+                )
+                for arr in to_align
+            ]
+
             arrays = [reference, *aligned]
             align_across_end_time = time.perf_counter()
             logger.info(f"Successfully aligned images to {colors[0]!r} channel")
@@ -465,24 +463,6 @@ def align_and_merge_stacks(
     if all(is_grayscale_image(array) for array in arrays):
         convert_rgb_start_time = time.perf_counter()
         logger.info("Converting images from grayscale to RGB")
-
-        # # Put current set of arrays in shared memory
-        # shm_blocks, shm_metadata = put_arrays_in_shared_memory(arrays)
-        # del arrays
-        # try:
-        #     with ProcessPoolExecutor(max_workers=num_procs) as pool:
-        #         arrays = list(
-        #             pool.map(
-        #                 _convert_to_rgb_worker,
-        #                 shm_metadata,
-        #                 [color for color in colors],
-        #             )
-        #         )
-        # finally:
-        #     for shm in shm_blocks:
-        #         shm.close()
-        #         shm.unlink()
-
         with ThreadPoolExecutor(max_workers=num_procs) as pool:
             arrays = list(
                 pool.map(

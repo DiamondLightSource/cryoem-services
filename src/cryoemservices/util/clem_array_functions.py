@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass
 from enum import Enum
@@ -83,6 +84,8 @@ def align_image_to_self(
     max_iters: int = 100,
     eps: float = 1e-6,
     use_mask: bool = True,
+    downsampling_factor: int = 2,
+    num_procs: int = 1,
 ) -> np.ndarray:
     """
     Helper function that performs drift correction on an image stack using OpenCV's
@@ -112,54 +115,106 @@ def align_image_to_self(
         Applies a circular mask so that only the central part of the image is
         considered during registration.
 
+    downsampling_factor: int = 2,
+        The degree of downsampling to apply to the image.
+
     Returns
     -------
     aligned: np.ndarray
         The aligned image stack as a NumPy array.
     """
 
+    def _invert_euclidean(M: np.ndarray) -> np.ndarray:
+        """Invert a 2x3 Euclidean affine matrix."""
+        R = M[:, :2]  # 2x2 rotation part
+        t = M[:, 2:]  # translation part
+        R_inv = R.T  # inverse rotation
+        t_inv = -R_inv @ t
+        M_inv = np.eye(3, dtype=np.float32)
+        M_inv[:2, :2] = R_inv
+        M_inv[:2, 2:] = t_inv
+        return M_inv[:2]
+
     def _register(
+        frame_num: int,
         prev: np.ndarray,
         curr: np.ndarray,
         warp_init: np.ndarray,
         mask: np.ndarray | None,
+        downsampling_factor: int,
     ):
-        warp = warp_init.copy()
-        cv2.findTransformECC(
-            prev,
-            curr,
-            warp,
-            motionType=cv2.MOTION_EUCLIDEAN,
-            criteria=criteria,
-            inputMask=mask,
-            gaussFiltSize=5,
-        )  # Updated in-place
-        return warp
-
-    def _warp_frame(
-        frame: np.ndarray,
-        M: np.ndarray,
-    ) -> np.ndarray:
-        def _warp(
-            frame: np.ndarray,
-            M: np.ndarray,
-        ) -> np.ndarray:
-            return cv2.warpAffine(
-                frame,
-                M,
-                (w, h),
-                flags=cv2.INTER_LINEAR,
-                borderMode=cv2.BORDER_CONSTANT,
-                borderValue=vmin,
+        try:
+            logger.info(f"Registering frame {frame_num}")
+            # For RGB images, create a weighted grayscale image to use for registration
+            scale = 1 / downsampling_factor
+            prev_gray = (
+                (
+                    # Luma-style weighted sum; avoids cv2.cvtColor copy
+                    0.2126 * prev[..., 0]
+                    + 0.7152 * prev[..., 1]
+                    + 0.0722 * prev[..., 2]
+                ).astype(np.float32)
+                if prev.ndim == 3
+                else prev.astype(np.float32)
             )
+            curr_gray = (
+                (
+                    # Luma-style weighted sum; avoids cv2.cvtColor copy
+                    0.2126 * curr[..., 0]
+                    + 0.7152 * curr[..., 1]
+                    + 0.0722 * curr[..., 2]
+                ).astype(np.float32)
+                if curr.ndim == 3
+                else curr.astype(np.float32)
+            )
+            # Downsample arrays as needed
+            if downsampling_factor > 1:
+                prev_gray = cv2.resize(
+                    prev_gray,
+                    dsize=None,
+                    fx=scale,
+                    fy=scale,
+                    interpolation=cv2.INTER_AREA,
+                )
+                curr_gray = cv2.resize(
+                    curr_gray,
+                    dsize=None,
+                    fx=scale,
+                    fy=scale,
+                    interpolation=cv2.INTER_AREA,
+                )
+                if mask is not None:
+                    mask = cv2.resize(
+                        mask,
+                        dsize=None,
+                        fx=scale,
+                        fy=scale,
+                        interpolation=cv2.INTER_NEAREST,
+                    )
 
-        if frame.ndim == 2:
-            return _warp(frame, M)
-        else:
-            out = np.empty_like(frame)
-            for c in range(frame.shape[-1]):
-                out[..., c] = _warp(frame[..., c], M)
-            return out
+            # Compute and return the transform
+            warp = warp_init.copy()
+            cv2.findTransformECC(
+                prev_gray,
+                curr_gray,
+                warp,
+                motionType=cv2.MOTION_EUCLIDEAN,
+                criteria=(
+                    cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT,
+                    max_iters,
+                    eps,
+                ),
+                inputMask=mask,
+                gaussFiltSize=5,
+            )  # Updated in-place
+            warp[:2, 2] *= downsampling_factor
+            return _invert_euclidean(warp), frame_num
+        except cv2.error:
+            logger.warning(
+                f"Error registering fram {frame_num}. Using identity matrix",
+                exc_info=True,
+            )
+            return warp_init, frame_num
 
     def _make_homogeneous(M: np.ndarray):
         H = np.eye(3, dtype=np.float32)
@@ -174,22 +229,39 @@ def align_image_to_self(
         )
         return array
 
+    def _warp_frame(
+        frame_num: int,
+        frame: np.ndarray,
+        M: np.ndarray,
+    ):
+        try:
+            logger.info(f"Transforming frame {frame_num}")
+            out = cv2.warpAffine(
+                frame,
+                M,
+                (w, h),
+                flags=cv2.INTER_LINEAR,
+                borderMode=cv2.BORDER_CONSTANT,
+                borderValue=float(vmin),
+            )
+            np.clip(out, a_min=vmin, a_max=vmax, out=out)
+            return out, frame_num
+        except Exception:
+            logger.warning(
+                "Could not apply transformation to frame. Returning original frame"
+            )
+            return frame, frame_num
+
+    # Start of function
+    cv2.setNumThreads(1)
+    start_time = time.perf_counter()
+
     # Extract dimensions, dtype, vmin, and vmax
     z, h, w = array.shape[:3]
     dtype = array.dtype
-    vmin, vmax = float(array.min()), float(array.max())
+    vmin, vmax = array.min(), array.max()
     logger.debug(
-        f"shape: {array.shape}\ndtype: {array.dtype}\nvmin: {vmin}\nvmax: {vmax}\n"
-    )
-
-    # For RGB images, create a weighted grayscale image to use for registration
-    reg = (
-        (
-            # Luma-style weighted sum; avoids cv2.cvtColor copy
-            0.2126 * array[..., 0] + 0.7152 * array[..., 1] + 0.0722 * array[..., 2]
-        ).astype(dtype)
-        if array.ndim == 4
-        else array.copy()
+        f"shape: {array.shape}\ndtype: {array.dtype}\nvmin: {vmin}\nvmax: {vmax}"
     )
 
     # Set the reference index
@@ -203,13 +275,13 @@ def align_image_to_self(
         raise ValueError(f"Invalid input for 'start_from' parameter: {start_from}")
 
     # Preallocate empty arrays
+    placeholder_start_time = time.perf_counter()
+
     # Output stack with original dimensions
     aligned = np.empty(array.shape, dtype=dtype)
     aligned[ref_idx] = array[ref_idx]
-    # Array of transforms
-    transforms = np.zeros((z, 2, 3), dtype=np.float32)
 
-    # Create identity Euclidean transform and assign to reference slice
+    # Create identity Euclidean transform
     I = np.array(
         [
             [1, 0, 0],
@@ -217,8 +289,16 @@ def align_image_to_self(
         ],
         dtype=np.float32,
     )
+
+    # Create placeholder for the per-frame transforms
+    transforms = np.zeros((z, 2, 3), dtype=np.float32)
     transforms[ref_idx] = I
-    logger.debug("Allocated placeholder arrays")
+
+    placeholder_end_time = time.perf_counter()
+    logger.info("Allocated placeholder arrays")
+    logger.debug(
+        f"Allocated placeholder arrays in {placeholder_end_time - placeholder_start_time}s"
+    )
 
     # Create a mask
     mask: np.ndarray | None = None
@@ -227,66 +307,85 @@ def align_image_to_self(
         cv2.circle(mask, (w // 2, h // 2), min(h, w) // 3, 255, -1)  # Updated in-place
         logger.debug("Created mask")
 
-    # Set the conditions to use to stop the registration
-    criteria = (
-        cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT,
-        max_iters,
-        eps,
+    # Construct the list of current and previous frames to use for the alignment
+    frames_to_align = [
+        # Forward pass from reference frame
+        *[(i - 1, i) for i in range(ref_idx + 1, z)],
+        # Backward pass from reference frame
+        *[(i + 1, i) for i in range(ref_idx - 1, -1, -1)],
+    ]
+    # Register and collect warps relative to reference frames
+    registration_start_time = time.perf_counter()
+    logger.info("Performing image registration")
+    with ThreadPoolExecutor(max_workers=num_procs) as pool:
+        futures = [
+            pool.submit(
+                _register,
+                curr,
+                array[prev],
+                array[curr],
+                I,
+                mask,
+                downsampling_factor,
+            )
+            for prev, curr in frames_to_align
+        ]
+        for future in as_completed(futures):
+            warp, frame_num = future.result()
+            transforms[frame_num] = warp
+
+    # Update the per-frame transforms with the cumulative ones
+    logger.info("Calculating cumulative transformations")
+    for i in range(ref_idx + 1, z):
+        transforms[i] = (
+            _make_homogeneous(transforms[i - 1]) @ _make_homogeneous(transforms[i])
+        )[:2]
+    for i in range(ref_idx - 1, -1, -1):
+        transforms[i] = (
+            _make_homogeneous(transforms[i + 1]) @ _make_homogeneous(transforms[i])
+        )[:2]
+    registration_end_time = time.perf_counter()
+    logger.debug(
+        f"Registration completed in {registration_end_time - registration_start_time}s"
     )
 
-    # Forward pass
-    # 'warp' maps current frame to previous aligned frame
-    for i in range(ref_idx + 1, z):
-        logger.info(f"Aligning frame {i + 1}/{z}")
-        try:
-            warp = _register(
-                reg[i - 1].astype(np.float32, copy=False),
-                reg[i].astype(np.float32, copy=False),
-                I,
-                mask,
+    # Warp the frames and assign them to the aligned array
+    warp_start_time = time.perf_counter()
+    logger.info("Applying transformations to frames")
+    with ThreadPoolExecutor(max_workers=num_procs) as pool:
+        futures = [
+            pool.submit(
+                _warp_frame,
+                f,
+                array[f],
+                transforms[f],
             )
-            logger.debug(f"Registered frame {i + 1}")
-        except cv2.error:
-            logger.warning(
-                f"Error registering frame {i}; reverting to using identity matrix"
-            )
-            warp = I
-        new_transform = _make_homogeneous(warp) @ _make_homogeneous(transforms[i - 1])
-        transforms[i] = new_transform[:2]
-        reg[i] = _warp_frame(reg[i], transforms[i]).astype(dtype, copy=False)
-        aligned[i] = _warp_frame(array[i], transforms[i]).astype(dtype, copy=False)
-        logger.debug(f"Applied transformation for frame {i + 1}")
+            for f in range(z)
+            if f != ref_idx
+        ]
+        for future in as_completed(futures):
+            frame, frame_num = future.result()
+            aligned[frame_num] = frame.astype(dtype, copy=False)
+    warp_end_time = time.perf_counter()
+    logger.debug(
+        f"Completed transformation of frames in {warp_end_time - warp_start_time}s"
+    )
 
-    # Backward pass
-    for i in range(ref_idx - 1, -1, -1):
-        logger.info(f"Aligning frame {i + 1}/{z}")
-        try:
-            warp = _register(
-                reg[i + 1].astype(np.float32, copy=False),
-                reg[i].astype(np.float32, copy=False),
-                I,
-                mask,
-            )
-            logger.debug(f"Registered frame {i + 1}")
-        except cv2.error:
-            logger.warning(
-                f"Error registering frame {i}; reverting to using identity matrix"
-            )
-            warp = I
-        new_transform = _make_homogeneous(warp) @ _make_homogeneous(transforms[i + 1])
-        transforms[i] = new_transform[:2]
-        reg[i] = _warp_frame(reg[i], transforms[i]).astype(dtype, copy=False)
-        aligned[i] = _warp_frame(array[i], transforms[i]).astype(dtype, copy=False)
-        logger.debug(f"Applied transformation for frame {i + 1}")
-
-    if np.issubdtype(dtype, np.integer):
-        vmin, vmax = int(vmin), int(vmax)
-    np.clip(aligned, a_min=vmin, a_max=vmax, out=aligned)
+    end_time = time.perf_counter()
+    logger.debug(
+        f"Completed drift correction of current image in {end_time - start_time}s"
+    )
     return aligned.astype(dtype, copy=False)
 
 
 def align_image_to_reference(
-    reference_array: np.ndarray, moving_array: np.ndarray, downsample_factor: int = 2
+    reference_array: np.ndarray,
+    moving_array: np.ndarray,
+    downsample_factor: int = 2,
+    sampling_percentage: float = 0.5,
+    shrink_factors_per_level: list[int] = [2, 1],
+    smoothing_sigmas_per_level: list[float] = [1.0, 0.5],
+    num_procs: int = 1,
 ) -> np.ndarray:
     """
     Align images to a reference using SimpleITK's image registration methods. This
@@ -309,9 +408,126 @@ def align_image_to_reference(
         While resizing, SITK preserves the dimensions of the image when it is first
         converted into an SITK Image, and will adjust the pixel size associated with
         the Image when it is subsequently resized.
+
+    sampling_percentage: float = 0.5,
+        The fraction of pixels to sample when calculating the transformation matrix.
+
+    shrink_factors_per_level: list[int] = [2, 1]
+        The degree of shrinking to apply to the image per pyramid level, with the
+        registration being repeated to fine-tune the transformation matrix.
+
+    smoothing_sigmas_per_level: list[float] = [1.0, 0.5]
+        The intensity of the Gaussian blurring to apply at each pyramid level.
+
+    num_procs: int = 1
+        The number of threads to run this function with. The code has been optimised
+
+
+
     """
+
+    def _register_frame(frame_num: int, ref: np.ndarray, mov: np.ndarray):
+        try:
+            logger.info("Setting up SITK image objects")
+            ref_sitk = sitk.Cast(sitk.GetImageFromArray(ref), sitk.sitkFloat32)
+            mov_sitk = sitk.Cast(sitk.GetImageFromArray(mov), sitk.sitkFloat32)
+            # Downsample the frame
+            if downsample_factor > 1:
+                ref_small = sitk.Shrink(ref_sitk, [downsample_factor] * 2)
+                mov_small = sitk.Shrink(mov_sitk, [downsample_factor] * 2)
+            else:
+                ref_small, mov_small = ref_sitk, mov_sitk
+
+            # Set up registration method
+            logger.info("Setting up registration method")
+            registration = sitk.ImageRegistrationMethod()
+            registration.SetInterpolator(sitk.sitkLinear)
+
+            # Set the metric to use
+            registration.SetMetricAsMattesMutualInformation(numberOfHistogramBins=64)
+            registration.SetMetricSamplingPercentage(
+                sampling_percentage
+            )  # Sample 5% of pixels
+            registration.SetMetricSamplingStrategy(registration.RANDOM)
+
+            # Set the optimiser to use
+            # registration.SetOptimizerAsGradientDescent(
+            #     learningRate=0.5,
+            #     numberOfIterations=300,
+            #     convergenceMinimumValue=1e-6,
+            #     convergenceWindowSize=10,
+            # )
+            registration.SetOptimizerAsGradientDescentLineSearch(
+                learningRate=1.0,
+                numberOfIterations=200,
+                convergenceMinimumValue=1e-6,
+                convergenceWindowSize=5,
+            )
+            # registration.SetOptimizerAsAmoeba(
+            #     simplexDelta=1.0,
+            #     numberOfIterations=300,
+            #     parametersConvergenceTolerance=1e-8,
+            #     functionConvergenceTolerance=1e-4,
+            #     withRestarts=False,
+            # )
+            # registration.SetOptimizerAsOnePlusOneEvolutionary(
+            #     epsilon=1e-6,
+            #     initialRadius=1.0,
+            #     numberOfIterations=300,
+            #     growthFactor=-1.0,
+            #     shrinkFactor=-1.0,
+            # )
+            registration.SetOptimizerScalesFromIndexShift()
+
+            # Register over a multi-resolution pyramid
+            registration.SetShrinkFactorsPerLevel(shrink_factors_per_level)
+            registration.SetSmoothingSigmasPerLevel(smoothing_sigmas_per_level)
+            registration.SmoothingSigmasAreSpecifiedInPhysicalUnitsOn()
+
+            # Initilaise transform or reuse previous one, if available
+            initial_transform = sitk.CenteredTransformInitializer(
+                ref_small,
+                mov_small,
+                sitk.Euler2DTransform(),
+                sitk.CenteredTransformInitializerFilter.GEOMETRY,
+            )
+            registration.SetInitialTransform(initial_transform, inPlace=False)
+
+            # Execute registration on downsampled images
+            logger.info(f"Registering frame {frame_num}")
+            final_transform = registration.Execute(ref_small, mov_small)
+
+            # Apply transform to full resolution frame
+            logger.info(f"Applying transformation to frame {frame_num}")
+            aligned = sitk.GetArrayFromImage(
+                sitk.Resample(
+                    mov_sitk,
+                    transform=final_transform,
+                    interpolator=sitk.sitkLinear,
+                    outputPixelType=sitk.sitkFloat32,
+                )
+            )
+            np.clip(aligned, a_min=vmin, a_max=vmax, out=aligned)
+            if np.issubdtype(dtype, np.integer):
+                np.rint(aligned, out=aligned)
+            return aligned.astype(dtype, copy=False), frame_num
+        except Exception:
+            logger.warning(
+                f"Error registering frame {frame_num} to reference. Returning original image",
+                exc_info=True,
+            )
+            return mov, frame_num
+
     # Restrict number of threads used by SimpleITK
     sitk.ProcessObject_SetGlobalDefaultNumberOfThreads(1)
+    start_time = time.perf_counter()
+    logger.debug(
+        f"SITK image alignment settings: \n"
+        f"Downsample factor: {downsample_factor}\n"
+        f"Sampling percentage: {sampling_percentage}\n"
+        f"Shrink factors per level: {shrink_factors_per_level}\n"
+        f"Smoothing sigmas per level: {smoothing_sigmas_per_level}"
+    )
 
     # Get initial dtype
     if reference_array.dtype != moving_array.dtype:
@@ -331,103 +547,29 @@ def align_image_to_reference(
         reference_array = reference_array[np.newaxis, ...]
         moving_array = moving_array[np.newaxis, ...]
 
-    # Convert to arrays to SITK objects
-    fixed_sitk = sitk.Cast(sitk.GetImageFromArray(reference_array), sitk.sitkFloat32)
-    moving_sitk = sitk.Cast(sitk.GetImageFromArray(moving_array), sitk.sitkFloat32)
-
     # Pre-allocate output NumPy array
     aligned = np.empty(moving_array.shape, dtype=dtype)
 
-    prev_transform = None
-    for f in range(num_frames):
-        logger.debug(f"Aligning frame {f + 1}/{num_frames}")
-        # Extract frame (SITK uses x, y, z ordering)
-        fixed_frame = fixed_sitk[:, :, f]
-        moving_frame = moving_sitk[:, :, f]
-
-        # Downsample frames for registration
-        if downsample_factor > 1:
-            fixed_small = sitk.Shrink(fixed_frame, [downsample_factor] * 2)
-            moving_small = sitk.Shrink(moving_frame, [downsample_factor] * 2)
-        else:
-            fixed_small, moving_small = fixed_frame, moving_frame
-
-        # Set up registration method
-        registration = sitk.ImageRegistrationMethod()
-        registration.SetInterpolator(sitk.sitkLinear)
-
-        # Set the metric to use
-        registration.SetMetricAsMattesMutualInformation(numberOfHistogramBins=64)
-        registration.SetMetricSamplingPercentage(0.05)  # Sample 5% of pixels
-        registration.SetMetricSamplingStrategy(registration.RANDOM)
-
-        # Set the optimiser to use
-        # registration.SetOptimizerAsGradientDescent(
-        #     learningRate=0.5,
-        #     numberOfIterations=300,
-        #     convergenceMinimumValue=1e-6,
-        #     convergenceWindowSize=10,
-        # )
-        registration.SetOptimizerAsGradientDescentLineSearch(
-            learningRate=1.0,
-            numberOfIterations=200,
-            convergenceMinimumValue=1e-6,
-            convergenceWindowSize=5,
-        )
-        # registration.SetOptimizerAsAmoeba(
-        #     simplexDelta=1.0,
-        #     numberOfIterations=300,
-        #     parametersConvergenceTolerance=1e-8,
-        #     functionConvergenceTolerance=1e-4,
-        #     withRestarts=False,
-        # )
-        # registration.SetOptimizerAsOnePlusOneEvolutionary(
-        #     epsilon=1e-6,
-        #     initialRadius=1.0,
-        #     numberOfIterations=300,
-        #     growthFactor=-1.0,
-        #     shrinkFactor=-1.0,
-        # )
-        registration.SetOptimizerScalesFromIndexShift()
-
-        # Register over a multi-resolution pyramid
-        registration.SetShrinkFactorsPerLevel([4, 2])
-        registration.SetSmoothingSigmasPerLevel([2, 1])
-        registration.SmoothingSigmasAreSpecifiedInPhysicalUnitsOn()
-
-        # Initilaise transform or reuse previous one, if available
-        initial_transform = prev_transform or sitk.CenteredTransformInitializer(
-            fixed_small,
-            moving_small,
-            sitk.Euler2DTransform(),
-            sitk.CenteredTransformInitializerFilter.GEOMETRY,
-        )
-        registration.SetInitialTransform(initial_transform, inPlace=False)
-
-        # Execute registration on downsampled images
-        final_transform = registration.Execute(fixed_small, moving_small)
-        prev_transform = final_transform
-
-        # Apply transform to full resolution frame
-        aligned_frame = sitk.GetArrayFromImage(
-            sitk.Resample(
-                moving_frame,
-                transform=final_transform,
-                interpolator=sitk.sitkLinear,
-                outputPixelType=sitk.sitkFloat32,
+    with ThreadPoolExecutor(max_workers=num_procs) as pool:
+        futures = [
+            pool.submit(
+                _register_frame,
+                f,
+                reference_array[f],
+                moving_array[f],
             )
-        )
-
-        # Clip and round to original dtype
-        np.clip(aligned_frame, a_min=vmin, a_max=vmax, out=aligned_frame)
-        if np.issubdtype(dtype, np.integer):
-            np.rint(aligned_frame, out=aligned_frame)
-        aligned[f] = aligned_frame.astype(dtype, copy=False)
+            for f in range(num_frames)
+        ]
+        for future in as_completed(futures):
+            frame, frame_num = future.result()
+            aligned[frame_num] = frame
 
     # If the image was not initially a stack, flatten it
     if not was_a_stack:
         aligned = aligned[0]
 
+    end_time = time.perf_counter()
+    logger.debug(f"Completed registration of image stack in {end_time - start_time}s")
     return aligned
 
 
