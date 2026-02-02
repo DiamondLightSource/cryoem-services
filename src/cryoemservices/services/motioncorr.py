@@ -283,6 +283,13 @@ class MotionCorr(CommonService):
             rw.transport.nack(header)
             return
 
+        # Find the job number
+        job_number_search = re.search("/job[0-9]+/", mc_params.mrc_out)
+        if job_number_search:
+            job_number = int(job_number_search[0][4:7])
+        else:
+            job_number = 2
+
         # Check if the gain file exists:
         if mc_params.gain_ref and not Path(mc_params.gain_ref).is_file():
             self.log.warning(f"Gain reference {mc_params.gain_ref} does not exist")
@@ -543,8 +550,8 @@ class MotionCorr(CommonService):
             # Set up icebreaker if requested, then ctffind
             icebreaker_output = Path(
                 re.sub(
-                    "MotionCorr/job002/",
-                    "IceBreaker/job003/",
+                    f"MotionCorr/job{job_number:03}/",
+                    f"IceBreaker/job{job_number + 1:03}/",
                     mc_params.mrc_out,
                 )
             )
@@ -556,12 +563,12 @@ class MotionCorr(CommonService):
                 self.log.info(
                     f"Sending to IceBreaker micrograph analysis: {mc_params.mrc_out}"
                 )
-                icebreaker_job003_params = {
+                icebreaker_mics_params = {
                     "icebreaker_type": "micrographs",
                     "input_micrographs": mc_params.mrc_out,
                     "output_path": re.sub(
-                        "MotionCorr/job002/.+",
-                        "IceBreaker/job003/",
+                        f"MotionCorr/job{job_number:03}/.+",
+                        f"IceBreaker/job{job_number + 1:03}/",
                         mc_params.mrc_out,
                     ),
                     "mc_uuid": mc_params.mc_uuid,
@@ -570,17 +577,17 @@ class MotionCorr(CommonService):
                     "early_motion": early_motion,
                     "late_motion": late_motion,
                 }
-                rw.send_to("icebreaker", icebreaker_job003_params)
+                rw.send_to("icebreaker", icebreaker_mics_params)
 
                 self.log.info(
                     f"Sending to IceBreaker contrast enhancement: {mc_params.mrc_out}"
                 )
-                icebreaker_job004_params = {
+                icebreaker_contrast_params = {
                     "icebreaker_type": "enhancecontrast",
                     "input_micrographs": mc_params.mrc_out,
                     "output_path": re.sub(
-                        "MotionCorr/job002/.+",
-                        "IceBreaker/job004/",
+                        f"MotionCorr/job{job_number:03}/.+",
+                        f"IceBreaker/job{job_number + 2:03}/",
                         mc_params.mrc_out,
                     ),
                     "mc_uuid": mc_params.mc_uuid,
@@ -589,10 +596,10 @@ class MotionCorr(CommonService):
                     "early_motion": early_motion,
                     "late_motion": late_motion,
                 }
-                rw.send_to("icebreaker", icebreaker_job004_params)
+                rw.send_to("icebreaker", icebreaker_contrast_params)
             elif mc_params.do_icebreaker_jobs and icebreaker_output.is_file():
                 # On a rerun, skip IceBreaker jobs but mark the CtfFind job as MC+4
-                ctf_job_number = 6
+                ctf_job_number = job_number + 4
             else:
                 # No IceBreaker jobs: CtfFind job is MC+1
                 ctf_job_number = 3
@@ -613,7 +620,7 @@ class MotionCorr(CommonService):
         mc_params.ctf["output_image"] = str(
             Path(
                 mc_params.mrc_out.replace(
-                    "MotionCorr/job002", f"CtfFind/job{ctf_job_number:03}"
+                    f"MotionCorr/job{job_number:03}", f"CtfFind/job{ctf_job_number:03}"
                 )
             ).with_suffix(".ctf")
         )
@@ -641,9 +648,9 @@ class MotionCorr(CommonService):
                 return
             import_movie = (
                 project_dir
-                / "Import/job001"
+                / f"Import/job{job_number - 1:03}"
                 / Path(mc_params.mrc_out)
-                .relative_to(project_dir / "MotionCorr/job002")
+                .relative_to(project_dir / f"MotionCorr/job{job_number:03}")
                 .parent
                 / Path(mc_params.movie).name
             )

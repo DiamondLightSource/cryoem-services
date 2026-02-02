@@ -304,7 +304,7 @@ class CTFFind(CommonService):
             ctf_params.autopick["output_path"] = str(
                 Path(
                     re.sub(
-                        "MotionCorr/job002/.+",
+                        "MotionCorr/job[0-9]+/.+",
                         f"AutoPick/job{ctf_job_number + 1:03}/STAR/",
                         ctf_params.input_image,
                     )

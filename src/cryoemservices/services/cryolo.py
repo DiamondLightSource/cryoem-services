@@ -460,7 +460,7 @@ class CrYOLO(CommonService):
             "extract_file": str(
                 Path(
                     re.sub(
-                        "MotionCorr/job002/.+",
+                        "MotionCorr/job[0-9]+/.+",
                         f"Extract/job{job_number + 1:03}/Movies/",
                         cryolo_params.input_path,
                     )
