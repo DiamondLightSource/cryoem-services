@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import math
 from pathlib import Path
-from typing import Any, cast
-from unittest.mock import MagicMock
+from typing import cast
 
 import numpy as np
 import pytest
@@ -12,11 +11,6 @@ from pytest_mock import MockerFixture
 from workflows.recipe.wrapper import RecipeWrapper
 from workflows.transport.offline_transport import OfflineTransport
 
-from cryoemservices.util.clem_array_functions import (
-    get_percentiles,
-    stitch_image_frames,
-)
-from cryoemservices.util.clem_metadata import get_dimension_info, get_tile_scan_info
 from cryoemservices.wrappers.clem_process_raw_tiffs import (
     ProcessRawTIFFsParameters,
     ProcessRawTIFFsWrapper,
@@ -101,118 +95,6 @@ def processed_dir(raw_dir: Path):
     processed_dir = raw_dir.parent / processed_folder
     processed_dir.mkdir(parents=True, exist_ok=True)
     return processed_dir
-
-
-percentiles_test_matrix = (
-    (0, 100),
-    (1, 99),
-    (5, 95),
-    (10, 90),
-)
-
-
-@pytest.mark.parametrize("test_params", percentiles_test_matrix)
-def test_get_percentiles(
-    mocker: MockerFixture,
-    test_params: tuple[float, float],
-    tiff_lists: list[list[Path]],
-):
-    # Unpack test params
-    p_lo, p_hi = test_params
-
-    # Construct return values for the mocked PIL Image
-    mock_image = mocker.patch(
-        "cryoemservices.util.clem_array_functions.PILImage", autospec=True
-    )
-    arr = np.arange(256).reshape(16, 16).astype("uint8")
-    mock_image.open.return_value = arr
-
-    v_min, v_max = get_percentiles(
-        tiff_file=tiff_lists[0][0],
-        percentiles=(p_lo, p_hi),
-    )
-    expected_min, expected_max = np.percentile(arr, (p_lo, p_hi))
-    assert v_min is not None and v_max is not None
-    assert math.isclose(v_min, expected_min)
-    assert math.isclose(v_max, expected_max)
-
-
-def test_get_percentiles_fails(
-    tiff_lists: list[list[Path]],
-):
-    # It should return (None, None) if the TIFF file cannot be read
-    assert get_percentiles(tiff_file=tiff_lists[0][0]) == (None, None)
-
-
-def test_stitch_image_frames(
-    mocker: MockerFixture,
-    tiff_lists: list[list[Path]],
-):
-    dataset_num = 1  # Dataset with tiles
-    series_name = series_names[dataset_num]
-    tiff_list = tiff_lists[dataset_num]
-    metadata = create_tiff_xml_metadata(
-        series_name=series_name,
-        colors=colors,
-        bit_depth=16,
-        x_pix=num_pixels,
-        y_pix=num_pixels,
-        pixel_size=pixel_size,
-        num_frames=num_frames,
-        z_size=z_size,
-        num_tiles=num_tiles[dataset_num],
-        tile_offset=tile_offset,
-        collection_mode="grid",
-    )
-
-    # Verify that we've loaded the metadata with multiple tiles
-    assert len(metadata.findall(".//Tile")) > 1
-    tile_scan_info = get_tile_scan_info(metadata)
-    assert len(tile_scan_info) > 1
-
-    # Calculate the extent that will be covered by the test metadata
-    x_min, x_max, y_min, y_max = 1e10, 0.0, 1e10, 0.0
-    for tile_scan in tile_scan_info.values():
-        x0 = tile_scan["pos_x"] - tile_offset / 2
-        x1 = tile_scan["pos_x"] + tile_offset / 2
-        y0 = tile_scan["pos_y"] - tile_offset / 2
-        y1 = tile_scan["pos_y"] + tile_offset / 2
-        x_min = x0 if x0 < x_min else x_min
-        x_max = x1 if x1 > x_max else x_max
-        y_min = y0 if y0 < y_min else y_min
-        y_max = y1 if y1 > y_max else y_max
-
-    # Calculate the expected shape of the final image
-    width = x_max - x_min
-    height = y_max - y_min
-    if width / height > 1:
-        x_pixels = 2400
-        y_pixels = int(x_pixels / width * height)
-    else:
-        y_pixels = 2400
-        x_pixels = int(y_pixels * width / height)
-
-    # Patch the PIL Image object to return an array of ones
-    mock_image = mocker.patch(
-        "cryoemservices.util.clem_array_functions.PILImage", autospec=True
-    )
-    arr = np.ones((num_pixels, num_pixels), dtype="uint8")
-    mock_image.open.return_value = arr
-
-    # Run the function
-    frame = stitch_image_frames(
-        tiff_list=tiff_list,
-        tile_scan_info=tile_scan_info,
-        image_width=num_pixels,
-        image_height=num_pixels,
-        extent=(x_min, x_max, y_min, y_max),
-        dpi=400,
-        contrast_limits=(0, 255),
-    )
-
-    # Check that size and contents are as expected
-    assert (frame == 1).all()
-    np.testing.assert_allclose(frame.shape, (y_pixels, x_pixels), atol=2)
 
 
 def create_dummy_result(
@@ -307,10 +189,7 @@ def create_dummy_result(
     }
 
 
-tiff_dataset_to_test = [(n,) for n in range(num_datasets)]
-
-
-@pytest.mark.parametrize("test_params", tiff_dataset_to_test)
+@pytest.mark.parametrize("test_params", [(n,) for n in range(num_datasets)])
 def test_process_tiff_files(
     mocker: MockerFixture,
     processed_dir: Path,
@@ -341,18 +220,12 @@ def test_process_tiff_files(
     mock_parse = mocker.patch("cryoemservices.wrappers.clem_process_raw_tiffs.parse")
     mock_parse.return_value.getroot.return_value = xml_metadata
 
-    # Extract metadata dictionaries
-    dims = get_dimension_info(xml_metadata)
-    tile_scan_info = get_tile_scan_info(xml_metadata)
-
-    # Get width and height for a single frame
-    w = float(dims["x"]["length"])
-    h = float(dims["y"]["length"])
-
-    # Mock the result of 'Image.open()'
-    mock_image = mocker.patch("cryoemservices.wrappers.clem_process_raw_tiffs.Image")
-    mock_image.open.return_value = np.random.randint(
-        0, 255, (num_pixels, num_pixels), dtype="uint16"
+    # Mock the result of 'cv2.imread'
+    mocker.patch(
+        "cryoemservices.util.clem_array_functions.cv2.imread",
+        return_value=np.random.randint(
+            0, 65536, (num_pixels, num_pixels), dtype="uint16"
+        ),
     )
 
     # Calculate the image's extent
@@ -386,87 +259,6 @@ def test_process_tiff_files(
             actual_pixel_size = stitched_height / y_pix
             x_pix = int(stitched_width / actual_pixel_size)
 
-        # Mock the subprocess calls used for contrast measurment and image stitching
-        starmap_results: list[Any] = []
-        starmap_args: list[Any] = []
-        for c in range(num_channels):
-            tiff_color_subset = [
-                file
-                for file in tiff_list
-                if f"C{str(c).zfill(2)}" in file.stem.split("--")
-            ]
-
-            # Add results and args for percentile measurment
-            starmap_results.append(
-                [
-                    (0, 255)
-                    for z in range(num_frames)
-                    for t in range(num_tiles[test_num])
-                ]
-            )
-            starmap_args.append(
-                [
-                    get_percentiles,
-                    [
-                        (
-                            # LIF file-based parameters
-                            None,
-                            None,
-                            None,
-                            None,
-                            None,
-                            # TIFF file-based parameters
-                            file,
-                            # Common parameters
-                            (0.5, 99.5),
-                        )
-                        for file in tiff_color_subset
-                    ],
-                ]
-            )
-            # Add results and args for image stitching
-            starmap_results.append(
-                [np.ones((y_pix, x_pix), dtype="uint8") for f in range(num_frames)]
-            )
-            starmap_args.append(
-                [
-                    stitch_image_frames,
-                    [
-                        (
-                            # LIF file-based parameters
-                            None,
-                            None,
-                            None,
-                            None,
-                            # TIFF file-based parameters
-                            [
-                                file
-                                for file in tiff_color_subset
-                                if f"Z{str(z).zfill(2)}" in file.stem.split("--")
-                            ],
-                            # Common parameters
-                            tile_scan_info,
-                            w,
-                            h,
-                            extent,
-                            400,
-                            (0, 255),
-                        )
-                        for z in range(num_frames)
-                    ],
-                ]
-            )
-        pool_mocks = []
-        for result in starmap_results:
-            mock_pool = MagicMock()
-            mock_pool.__enter__.return_value = mock_pool
-            mock_pool.starmap.return_value = result
-            pool_mocks.append(mock_pool)
-        mock_pool_constructor = mocker.patch(
-            "cryoemservices.wrappers.clem_process_raw_tiffs.Pool", autospec=True
-        )
-        mock_pool_constructor.side_effect = pool_mocks
-
     # Run the function
     result = process_tiff_files(
         tiff_list=tiff_list,
@@ -474,9 +266,6 @@ def test_process_tiff_files(
         metadata_file=raw_metadata,
         number_of_processes=5,
     )
-    if num_tiles[test_num] > 1:
-        for p, pool in enumerate(pool_mocks):
-            pool.starmap.assert_called_once_with(*starmap_args[p])
     assert result  # Verify that function completed successfully
 
     # Construct the expected results
@@ -501,21 +290,25 @@ def test_process_tiff_files(
             assert math.isclose(value, result[key], abs_tol=1e-9)
         elif key == "resolution":
             assert math.isclose(value, result[key], abs_tol=1e-9)
+        # Check that image stacks were created
+        elif key == "output_files":
+            for file in result[key].values():
+                assert Path(file).exists()
         # Assert everything else exactly
         else:
             assert value == result[key]
 
 
-process_raw_tiffs_params_matrix = (
-    # Use 'tiff_list'? Build from 'tiff_file' if False | Stringify file path?
-    (True, False),
-    # Check that list of strings is converted correctly
-    (True, True),
-    (False, True),
+@pytest.mark.parametrize(
+    "test_params",
+    (
+        # Use 'tiff_list'? Build from 'tiff_file' if False | Stringify file path?
+        (True, False),
+        # Check that list of strings is converted correctly
+        (True, True),
+        (False, True),
+    ),
 )
-
-
-@pytest.mark.parametrize("test_params", process_raw_tiffs_params_matrix)
 def test_process_raw_tiffs_parameters(
     test_params: tuple[bool, bool],
     tiff_lists: list[list[Path]],
@@ -547,18 +340,18 @@ def test_process_raw_tiffs_parameters(
     assert isinstance(validated_params.metadata, Path)
 
 
-process_raw_tiffs_params_failure_matrix = (
-    # Use 'tiff_list' | Use 'tiff_file' | Garbled string
-    # tiff_list and tiff_file cannot both be populated or absent
-    (True, True, ""),
-    (False, False, ""),
-    # Cannot evaluate stringified list
-    (True, False, "[asdflkajsdlfkj]"),
-    (True, False, "[1, 2, 3, 4]"),
+@pytest.mark.parametrize(
+    "test_params",
+    (
+        # Use 'tiff_list' | Use 'tiff_file' | Garbled string
+        # tiff_list and tiff_file cannot both be populated or absent
+        (True, True, ""),
+        (False, False, ""),
+        # Cannot evaluate stringified list
+        (True, False, "[asdflkajsdlfkj]"),
+        (True, False, "[1, 2, 3, 4]"),
+    ),
 )
-
-
-@pytest.mark.parametrize("test_params", process_raw_tiffs_params_failure_matrix)
 def test_process_raw_tiffs_parameters_fail(
     test_params: tuple[bool, bool, str],
     tiff_lists: list[list[Path]],
@@ -592,7 +385,7 @@ def offline_transport(mocker):
 
 
 # Patches are matched to input parameters on a last in, first out basis
-@pytest.mark.parametrize("test_params", tiff_dataset_to_test)
+@pytest.mark.parametrize("test_params", [(n,) for n in range(num_datasets)])
 def test_process_raw_tiffs_wrapper(
     mocker: MockerFixture,
     test_params: tuple[int],
