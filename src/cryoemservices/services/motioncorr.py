@@ -288,7 +288,9 @@ class MotionCorr(CommonService):
         if job_number_search:
             job_number = int(job_number_search[0][4:7])
         else:
-            job_number = 2
+            self.log.warning(f"Could not determine job number in {mc_params.mrc_out}")
+            rw.transport.nack(header)
+            return
 
         # Check if the gain file exists:
         if mc_params.gain_ref and not Path(mc_params.gain_ref).is_file():

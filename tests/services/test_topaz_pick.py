@@ -15,6 +15,7 @@ from cryoemservices.util.relion_service_options import RelionServiceOptions
 def offline_transport(mocker):
     transport = OfflineTransport()
     mocker.spy(transport, "send")
+    mocker.spy(transport, "ack")
     mocker.spy(transport, "nack")
     return transport
 
@@ -260,6 +261,59 @@ def test_topaz_with_diameter_rerun(
             "extraction_parameters": extraction_params,
         },
     )
+
+
+@mock.patch("cryoemservices.services.topaz_pick.normalize_images")
+@mock.patch("cryoemservices.services.topaz_pick.score_images")
+@mock.patch("cryoemservices.services.topaz_pick.non_maximum_suppression")
+def test_topaz_check_symlinks(
+    mock_topaz_nms, mock_topaz_score, mock_topaz_normalise, offline_transport, tmp_path
+):
+    """
+    Send a test message to topaz picking to check the alias symlinks
+    """
+    mock_topaz_score.return_value = [["name1", 1], ["name2", 2]]
+    mock_topaz_nms.return_value = (
+        [1, 2, 3],
+        np.array([[1.1, 1.2], [2.1, 2.2], [3.1, 3.2]]),
+    )
+
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+
+    output_path = tmp_path / "AutoPick/job007/STAR/sample.star"
+    topaz_test_message = {
+        "pixel_size": 0.1,
+        "input_path": "MotionCorr/job002/sample.mrc",
+        "output_path": str(output_path),
+        "particle_diameter": 1.1,
+        "mc_uuid": 0,
+        "picker_uuid": 0,
+        "relion_options": {},
+    }
+
+    # Set up the mock service and send the message to it
+    service = topaz_pick.TopazPick(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
+
+    # Case 1: no symlink
+    service.topaz(None, header=header, message=topaz_test_message)
+    offline_transport.ack.assert_called_once()
+
+    # Case 2: ok symlink
+    assert (tmp_path / "AutoPick/Live_processing").is_symlink()
+    service.topaz(None, header=header, message=topaz_test_message)
+    assert offline_transport.ack.call_count == 2
+
+    # Case 3: bad symlink
+    (tmp_path / "AutoPick/Live_processing").unlink()
+    (tmp_path / "AutoPick/Live_processing").symlink_to(tmp_path / "AutoPick")
+    service.topaz(None, header=header, message=topaz_test_message)
+    offline_transport.nack.assert_called_once()
 
 
 reruns_matrix = (

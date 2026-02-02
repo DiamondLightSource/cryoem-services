@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import sys
 from unittest import mock
 
 import pytest
@@ -15,10 +14,11 @@ from cryoemservices.util.relion_service_options import RelionServiceOptions
 def offline_transport(mocker):
     transport = OfflineTransport()
     mocker.spy(transport, "send")
+    mocker.spy(transport, "ack")
+    mocker.spy(transport, "nack")
     return transport
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 def test_select_particles_service_complete_batch(offline_transport, tmp_path):
     """
     Send a test message to the select particles service
@@ -154,7 +154,6 @@ def test_select_particles_service_complete_batch(offline_transport, tmp_path):
     assert list(micrographs_optics.find_loop("_rlnCtfDataAreCtfPremultiplied")) == ["0"]
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 def test_select_particles_service_incomplete_batch(offline_transport, tmp_path):
     """
     Send a test message to the select particles service
@@ -245,7 +244,6 @@ def test_select_particles_service_incomplete_batch(offline_transport, tmp_path):
     assert not (output_dir / "particles_split2.star").exists()
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 def test_select_particles_service_existing_split(offline_transport, tmp_path):
     """
     Send a test message to the select particles service
@@ -352,7 +350,6 @@ def test_select_particles_service_existing_split(offline_transport, tmp_path):
     assert not (output_dir / "particles_split3.star").exists()
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 def test_select_particles_service_no_new_batch(offline_transport, tmp_path):
     """
     Send a test message to the select particles service
@@ -431,3 +428,53 @@ def test_select_particles_service_no_new_batch(offline_transport, tmp_path):
     assert (output_dir / "particles_split1.star").exists()
     assert (output_dir / "particles_split2.star").exists()
     assert not (output_dir / "particles_split3.star").exists()
+
+
+def test_select_particles_service_check_symlinks(offline_transport, tmp_path):
+    """
+    Send a test message to the select particles service
+    to test the symlink creation
+    """
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+
+    extract_file = tmp_path / "Extract/job008/Movies/sample.star"
+    extract_file.parent.mkdir(parents=True)
+    with open(extract_file, "w") as f:
+        f.write(
+            "data_particles\n\nloop_\n_rlnCoordinateX\n_rlnCoordinateY\n_rlnImageName"
+            "\n_rlnMicrographName\n_rlnOpticsGroup\n_rlnCtfMaxResolution"
+            "\n_rlnCtfFigureOfMerit\n_rlnDefocusU\n_rlnDefocusV\n_rlnDefocusAngle"
+            "\n_rlnCtfBfactor\n_rlnCtfScalefactor\n_rlnPhaseShift"
+        )
+        f.write("\n1.0 2.0 0@Extract.mrcs sample.mrc 1 10 20 1.0 2.0 0.0 0.0 1.0 0.0")
+
+    select_test_message = {
+        "input_file": str(extract_file),
+        "batch_size": 4,
+        "image_size": 64,
+        "relion_options": {},
+    }
+
+    # Set up the mock service and send the message to it
+    service = select_particles.SelectParticles(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
+
+    # Case 1: no symlink
+    service.select_particles(None, header=header, message=select_test_message)
+    offline_transport.ack.assert_called_once()
+
+    # Case 2: ok symlink
+    assert (tmp_path / "Select/Live_particle_batches").is_symlink()
+    service.select_particles(None, header=header, message=select_test_message)
+    assert offline_transport.ack.call_count == 2
+
+    # Case 3: bad symlink
+    (tmp_path / "Select/Live_particle_batches").unlink()
+    (tmp_path / "Select/Live_particle_batches").symlink_to(tmp_path / "Extract")
+    service.select_particles(None, header=header, message=select_test_message)
+    offline_transport.nack.assert_called_once()

@@ -165,7 +165,11 @@ class CTFFind(CommonService):
         if job_number_search:
             ctf_job_number = int(job_number_search[0][4:7])
         else:
-            ctf_job_number = 6
+            self.log.warning(
+                f"Could not determine job number in {ctf_params.output_image}"
+            )
+            rw.transport.nack(header)
+            return
         job_alias = Path(
             re.sub(
                 f"CtfFind/job{ctf_job_number:03}/.+",

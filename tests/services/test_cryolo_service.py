@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import copy
 import json
-import sys
 from subprocess import CompletedProcess
 from unittest import mock
 
@@ -19,11 +18,11 @@ from cryoemservices.util.relion_service_options import RelionServiceOptions
 def offline_transport(mocker):
     transport = OfflineTransport()
     mocker.spy(transport, "send")
+    mocker.spy(transport, "ack")
     mocker.spy(transport, "nack")
     return transport
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.cryolo.subprocess.run")
 @mock.patch("cryoemservices.services.cryolo.flatten_grid_bars")
 def test_cryolo_service_spa(mock_flatten, mock_subprocess, offline_transport, tmp_path):
@@ -212,7 +211,6 @@ def test_cryolo_service_spa(mock_flatten, mock_subprocess, offline_transport, tm
     )
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.cryolo.subprocess.run")
 def test_cryolo_service_tomography(mock_subprocess, offline_transport, tmp_path):
     """
@@ -357,7 +355,6 @@ def test_cryolo_service_tomography(mock_subprocess, offline_transport, tmp_path)
     )
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.cryolo.subprocess.run")
 def test_cryolo_spa_needs_uuids_and_pixel_size(
     mock_subprocess, offline_transport, tmp_path
@@ -406,6 +403,81 @@ def test_cryolo_spa_needs_uuids_and_pixel_size(
     mock_subprocess.assert_not_called()
     offline_transport.send.assert_not_called()
     assert offline_transport.nack.call_count == 3
+
+
+@mock.patch("cryoemservices.services.cryolo.subprocess.run")
+@mock.patch("cryoemservices.services.cryolo.flatten_grid_bars")
+def test_cryolo_spa_check_symlinks(
+    mock_flatten, mock_subprocess, offline_transport, tmp_path
+):
+    """
+    Send a test message to CrYOLO for testing the alias symlink
+    """
+    mock_flatten.return_value = "MotionCorr/job002/sample.mrc"
+
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+
+    output_path = tmp_path / "AutoPick/job007/STAR/sample.star"
+    ctf_test_values = {
+        "CtfMaxResolution": 0.00001,
+        "DefocusU": 0.05,
+        "DefocusV": 0.08,
+    }
+    cryolo_test_message = {
+        "pixel_size": 0.1,
+        "input_path": "MotionCorr/job002/sample.mrc",
+        "output_path": str(output_path),
+        "experiment_type": "spa",
+        "min_particles": 0,
+        "mc_uuid": 0,
+        "picker_uuid": 0,
+        "ctf_values": ctf_test_values,
+        "relion_options": {},
+    }
+
+    # Write a dummy config file expected by cryolo
+    with open(tmp_path / "config.json", "w") as f:
+        f.write('{\n"model": {\n"anchors": [160, 160]\n}\n}')
+
+    def write_cbox_file(command, cwd, capture_output):
+        # Write star co-ordinate file in the format cryolo will output
+        (cwd / "CBOX").mkdir(exist_ok=True)
+        with open(cwd / "CBOX/sample.cbox", "w") as f:
+            f.write(
+                "data_cryolo\n\nloop_\n\n_EstWidth\n_EstHeight\n_Confidence\n"
+                "_CoordinateX\n_CoordinateY\n_Width\n_Height\n"
+                "100 200 0.6 0.1 0.2 2 4\n100 200 0.5 0.3 0.4 6 8"
+            )
+        return CompletedProcess(
+            "",
+            returncode=0,
+            stdout="stdout".encode("ascii"),
+            stderr="stderr".encode("ascii"),
+        )
+
+    mock_subprocess.side_effect = write_cbox_file
+
+    # Set up the mock service
+    service = cryolo.CrYOLO(environment={"queue": ""}, transport=offline_transport)
+    service.initializing()
+
+    # Case 1: no symlink
+    service.cryolo(None, header=header, message=cryolo_test_message)
+    offline_transport.ack.assert_called_once()
+
+    # Case 2: ok symlink
+    assert (tmp_path / "AutoPick/Live_processing").is_symlink()
+    service.cryolo(None, header=header, message=cryolo_test_message)
+    assert offline_transport.ack.call_count == 2
+
+    # Case 3: bad symlink
+    (tmp_path / "AutoPick/Live_processing").unlink()
+    (tmp_path / "AutoPick/Live_processing").symlink_to(tmp_path / "AutoPick")
+    service.cryolo(None, header=header, message=cryolo_test_message)
+    offline_transport.nack.assert_called_once()
 
 
 reruns_matrix = (

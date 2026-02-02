@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 from unittest import mock
 
@@ -18,6 +17,8 @@ from cryoemservices.util.relion_service_options import RelionServiceOptions
 def offline_transport(mocker):
     transport = OfflineTransport()
     mocker.spy(transport, "send")
+    mocker.spy(transport, "ack")
+    mocker.spy(transport, "nack")
     return transport
 
 
@@ -112,7 +113,6 @@ def select_classes_common_setup(
     return select_test_message, output_relion_options
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.select_classes.subprocess.run")
 def test_select_classes_service_first_batch(
     mock_subprocess, offline_transport, tmp_path
@@ -306,7 +306,6 @@ def test_select_classes_service_first_batch(
     )
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.select_classes.subprocess.run")
 def test_select_classes_service_cryodann(mock_subprocess, offline_transport, tmp_path):
     """
@@ -373,7 +372,6 @@ def test_select_classes_service_cryodann(mock_subprocess, offline_transport, tmp
     )
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.select_classes.subprocess.run")
 def test_select_classes_service_batch_threshold(
     mock_subprocess, offline_transport, tmp_path
@@ -426,7 +424,6 @@ def test_select_classes_service_batch_threshold(
     )
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.select_classes.subprocess.run")
 def test_select_classes_service_two_thresholds(
     mock_subprocess, offline_transport, tmp_path
@@ -479,7 +476,6 @@ def test_select_classes_service_two_thresholds(
     )
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.ctffind.subprocess.run")
 def test_select_classes_service_last_threshold(
     mock_subprocess, offline_transport, tmp_path
@@ -533,7 +529,6 @@ def test_select_classes_service_last_threshold(
     )
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.select_classes.subprocess.run")
 def test_select_classes_service_not_threshold(
     mock_subprocess, offline_transport, tmp_path
@@ -574,7 +569,6 @@ def test_select_classes_service_not_threshold(
     assert len(offline_transport.send.call_args_list) == 7
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.select_classes.subprocess.run")
 def test_select_classes_service_past_maximum(
     mock_subprocess, offline_transport, tmp_path
@@ -613,6 +607,48 @@ def test_select_classes_service_past_maximum(
     # Don't bother to check the auto-selection calls here, they are checked above
     # Do check the Murfey 3D calls
     assert len(offline_transport.send.call_args_list) == 7
+
+
+@mock.patch("cryoemservices.services.select_classes.subprocess.run")
+def test_select_classes_service_check_symlinks(
+    mock_subprocess, offline_transport, tmp_path
+):
+    """
+    Send a test message to the select classes service
+    to test the symlink setup
+    """
+    mock_subprocess().returncode = 0
+    mock_subprocess().stdout = "stdout".encode("ascii")
+    mock_subprocess().stderr = "stderr".encode("ascii")
+
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+    select_test_message, relion_options = select_classes_common_setup(
+        tmp_path, initial_particle_count=0, particles_to_add=60000
+    )
+
+    # Set up the mock service and send the message to it
+    service = select_classes.SelectClasses(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
+
+    # Case 1: no symlink
+    service.select_classes(None, header=header, message=select_test_message)
+    offline_transport.ack.assert_called_once()
+
+    # Case 2: ok symlink
+    assert (tmp_path / "Select/Live_best_particles").is_symlink()
+    service.select_classes(None, header=header, message=select_test_message)
+    assert offline_transport.ack.call_count == 2
+
+    # Case 3: bad symlink
+    (tmp_path / "Select/Live_best_particles").unlink()
+    (tmp_path / "Select/Live_best_particles").symlink_to(tmp_path / "Select")
+    service.select_classes(None, header=header, message=select_test_message)
+    offline_transport.nack.assert_called_once()
 
 
 def test_parse_combiner_output(offline_transport):

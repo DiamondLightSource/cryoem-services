@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import sys
 from unittest import mock
 
 import numpy as np
@@ -16,10 +15,11 @@ from cryoemservices.util.relion_service_options import RelionServiceOptions
 def offline_transport(mocker):
     transport = OfflineTransport()
     mocker.spy(transport, "send")
+    mocker.spy(transport, "ack")
+    mocker.spy(transport, "nack")
     return transport
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.services.extract.mrcfile.open")
 def test_extract_service(mock_mrcfile, offline_transport, tmp_path):
     """
@@ -137,3 +137,58 @@ def test_extract_service(mock_mrcfile, offline_transport, tmp_path):
     assert list(particles_data.find_loop("_rlnCtfBfactor")) == ["0.0"]
     assert list(particles_data.find_loop("_rlnCtfScalefactor")) == ["1.0"]
     assert list(particles_data.find_loop("_rlnPhaseShift")) == ["0.0"]
+
+
+@mock.patch("cryoemservices.services.extract.mrcfile.open")
+def test_extract_service_check_symlinks(mock_mrcfile, offline_transport, tmp_path):
+    """
+    Send a test message to the extract service
+    to test the symlink setup
+    """
+    mock_mrcfile().__enter__().data = np.random.rand(256, 256)
+
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+
+    cryolo_file = tmp_path / "AutoPick/job007/STAR/sample.star"
+    cryolo_file.parent.mkdir(parents=True)
+    with open(cryolo_file, "w") as f:
+        f.write(
+            "data_particles\n\nloop_\n_rlnCoordinateX\n_rlnCoordinateY\n100.0 200.0"
+        )
+    output_path = tmp_path / "Extract/job008/Movies/sample.star"
+
+    extract_test_message = {
+        "pixel_size": 0.1,
+        "ctf_image": f"{tmp_path}/CtFind/job006/Movies/sample.ctf",
+        "ctf_max_resolution": "10",
+        "ctf_figure_of_merit": "20",
+        "defocus_u": "1.0",
+        "defocus_v": "2.0",
+        "defocus_angle": "0.0",
+        "micrographs_file": f"{tmp_path}/MotionCorr/job002/sample.mrc",
+        "coord_list_file": str(cryolo_file),
+        "output_file": str(output_path),
+        "relion_options": {},
+    }
+
+    # Set up the mock service and send the message to it
+    service = extract.Extract(environment={"queue": ""}, transport=offline_transport)
+    service.initializing()
+
+    # Case 1: no symlink
+    service.extract(None, header=header, message=extract_test_message)
+    offline_transport.ack.assert_called_once()
+
+    # Case 2: ok symlink
+    assert (tmp_path / "Extract/Live_all_particles").is_symlink()
+    service.extract(None, header=header, message=extract_test_message)
+    assert offline_transport.ack.call_count == 2
+
+    # Case 3: bad symlink
+    (tmp_path / "Extract/Live_all_particles").unlink()
+    (tmp_path / "Extract/Live_all_particles").symlink_to(tmp_path / "AutoPick")
+    service.extract(None, header=header, message=extract_test_message)
+    offline_transport.nack.assert_called_once()
