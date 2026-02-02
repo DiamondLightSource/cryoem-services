@@ -373,9 +373,9 @@ class NodeCreator(CommonService):
             if exit_file.name == "PIPELINER_JOB_EXIT_SUCCESS" and job_info.success:
                 job_is_continue = True
             exit_file.unlink()
-        if job_info.success:
+        if job_info.success or job_is_continue:
             (job_dir / SUCCESS_FILE).touch()
-        else:
+        elif not job_is_continue:
             (job_dir / FAIL_FILE).touch()
 
         try:
