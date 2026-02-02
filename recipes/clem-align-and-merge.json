@@ -7,14 +7,15 @@
       "crop_to_n_frames": "{crop_to_n_frames}",
       "align_self": "{align_self}",
       "flatten": "{flatten}",
-      "align_across": "{align_across}"
+      "align_across": "{align_across}",
+      "num_procs": "{num_procs}"
     },
     "output": {
       "murfey_feedback": 2,
       "images": 3
     },
     "queue": "cluster.submission",
-    "service": "ALIGN-AND-MERGE"
+    "service": "CLEM-ALIGN-AND-MERGE"
   },
   "2": {
     "parameters": {
