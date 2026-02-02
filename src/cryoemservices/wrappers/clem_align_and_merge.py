@@ -507,6 +507,7 @@ class AlignAndMergeParameters(BaseModel):
     align_self: Literal["enabled", ""] = Field(default="")
     flatten: Literal["mean", "min", "max", ""] = Field(default="mean")
     align_across: Literal["enabled", ""] = Field(default="")
+    num_procs: int = Field(default=4)
 
     @field_validator("images", mode="before")
     @classmethod
@@ -577,6 +578,7 @@ class AlignAndMergeWrapper:
                 align_self=params.align_self,
                 flatten=params.flatten,
                 align_across=params.align_across,
+                num_procs=params.num_procs,
             )
         # Log error and return False if the command fails to execute
         except Exception:

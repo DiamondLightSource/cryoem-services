@@ -328,6 +328,7 @@ def test_align_and_merge_wrapper(
     align_self = "enabled"
     flatten = "max"
     align_across = "enabled"
+    num_procs = 4
 
     message = {
         "recipe": {
@@ -341,6 +342,7 @@ def test_align_and_merge_wrapper(
                     "align_self": align_self,
                     "flatten": flatten,
                     "align_across": align_across,
+                    "num_procs": num_procs,
                 },
                 "parameters": {},
             },
@@ -364,6 +366,7 @@ def test_align_and_merge_wrapper(
         align_self=align_self,
         flatten=flatten,
         align_across=align_across,
+        num_procs=num_procs,
     )
 
     # Check that the wrapper sends the correct output message
