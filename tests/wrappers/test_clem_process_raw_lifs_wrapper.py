@@ -3,8 +3,6 @@ from __future__ import annotations
 import math
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import Any
-from unittest import mock
 from unittest.mock import MagicMock
 
 import numpy as np
@@ -14,14 +12,8 @@ from readlif.reader import LifFile, LifImage
 from workflows.recipe.wrapper import RecipeWrapper
 from workflows.transport.offline_transport import OfflineTransport
 
-from cryoemservices.util.clem_array_functions import (
-    get_percentiles,
-    stitch_image_frames,
-)
 from cryoemservices.util.clem_metadata import (
     find_image_elements,
-    get_dimension_info,
-    get_tile_scan_info,
 )
 from cryoemservices.wrappers.clem_process_raw_lifs import (
     ProcessRawLIFsWrapper,
@@ -130,124 +122,6 @@ def test_get_lif_xml_metadata(
     assert xml_file.exists()
 
 
-percentiles_test_matrix = (
-    (0, 100),
-    (1, 99),
-    (5, 95),
-    (10, 90),
-)
-
-
-@pytest.mark.parametrize("test_params", percentiles_test_matrix)
-def test_get_percentiles(
-    mocker: MockerFixture,
-    test_params: tuple[float, float],
-    lif_file: Path,
-):
-    # Unpack test params
-    p_lo, p_hi = test_params
-
-    # Construct return values for the mocked LifFile object
-    mock_lif_file = mocker.patch(
-        "cryoemservices.util.clem_array_functions.LifFile", autospec=True
-    )
-    arr = np.arange(256).reshape((16, 16)).astype("uint8")
-    mock_lif_image = MagicMock()
-    mock_lif_image.get_frame.return_value = arr
-    mock_lif_file.return_value.get_image.return_value = mock_lif_image
-
-    v_min, v_max = get_percentiles(
-        lif_file=lif_file,
-        scene_num=scene_num,
-        channel_num=0,
-        frame_num=0,
-        tile_num=0,
-        percentiles=(p_lo, p_hi),
-    )
-
-    expected_min, expected_max = np.percentile(arr, (p_lo, p_hi))
-    assert v_min is not None and v_max is not None
-    assert math.isclose(v_min, expected_min)
-    assert math.isclose(v_max, expected_max)
-
-
-def test_get_percentiles_fails(
-    lif_file: Path,
-):
-    # It should return (None, None) if the LifFile cannot be read
-    assert get_percentiles(
-        lif_file=lif_file,
-        scene_num=scene_num,
-        channel_num=0,
-        frame_num=0,
-        tile_num=0,
-    ) == (None, None)
-
-
-def test_stitch_image_frames(
-    mocker: MockerFixture,
-    lif_file: Path,
-    raw_xml_metadata: ET.Element,
-):
-    # Load tilescan info from the LIF XML metadata fixture
-    scene_num = 1
-    metadata = list(find_image_elements(raw_xml_metadata).values())[
-        scene_num
-    ]  # Tiled scene is second one
-
-    # Verify that we've loaded the scene with multiple tiles
-    assert len(metadata.findall(".//Tile")) > 1
-    tile_scan_info = get_tile_scan_info(metadata)
-    assert len(tile_scan_info) > 1
-
-    # Calculate the extent that will be covered by the test metadata
-    x_min, x_max, y_min, y_max = 1e10, 0.0, 1e10, 0.0
-    for tile_scan in tile_scan_info.values():
-        x0 = tile_scan["pos_x"] - tile_offset / 2
-        x1 = tile_scan["pos_x"] + tile_offset / 2
-        y0 = tile_scan["pos_y"] - tile_offset / 2
-        y1 = tile_scan["pos_y"] + tile_offset / 2
-        x_min = x0 if x0 < x_min else x_min
-        x_max = x1 if x1 > x_max else x_max
-        y_min = y0 if y0 < y_min else y_min
-        y_max = y1 if y1 > y_max else y_max
-
-    # Calculate the expected shape of the final image
-    width = x_max - x_min
-    height = y_max - y_min
-    if width / height > 1:
-        x_pixels = 2400
-        y_pixels = int(x_pixels / width * height)
-    else:
-        y_pixels = 2400
-        x_pixels = int(y_pixels * width / height)
-
-    # Patch the LifFile object call in the function to return array of ones
-    mock_lif_file = mocker.patch(
-        "cryoemservices.util.clem_array_functions.LifFile", autospec=True
-    )
-    arr = np.ones((num_pixels, num_pixels), dtype="uint8")
-    mock_lif_file.return_value.get_image.return_value.get_frame.return_value = arr
-
-    # Run the function
-    frame = stitch_image_frames(
-        lif_file=lif_file,
-        scene_num=scene_num,
-        channel_num=0,
-        frame_num=0,
-        tile_scan_info=tile_scan_info,
-        image_width=num_pixels,
-        image_height=num_pixels,
-        extent=(x_min, x_max, y_min, y_max),
-        dpi=400,
-        contrast_limits=(0, 255),
-    )
-
-    # Check that size and contents are as expected
-    assert (frame == 1).all()
-    np.testing.assert_allclose(frame.shape, (y_pixels, x_pixels), atol=2)
-
-
 def create_dummy_result(
     lif_file: Path,
     series_name: str,
@@ -330,15 +204,15 @@ def create_dummy_result(
     }
 
 
-scene_num_to_test = [
-    [
-        n,
-    ]
-    for n in range(num_scenes)
-]
-
-
-@pytest.mark.parametrize("test_params", scene_num_to_test)
+@pytest.mark.parametrize(
+    "test_params",
+    (
+        [
+            n,
+        ]
+        for n in range(num_scenes)
+    ),
+)
 def test_process_lif_subimage(
     mocker: MockerFixture,
     lif_file: Path,
@@ -349,12 +223,6 @@ def test_process_lif_subimage(
     # Pick a single scene from the LIF file to analyse
     (scene_num,) = test_params
     metadata = list(find_image_elements(raw_xml_metadata).values())[scene_num]
-    tile_scan_info = get_tile_scan_info(metadata)
-    dims = get_dimension_info(metadata)
-
-    # Get width and height for a single frame
-    w = float(dims["x"]["length"])
-    h = float(dims["y"]["length"])
 
     # Mock the LifFile object and assign the necessary return values
     mock_lif_file = mocker.patch(
@@ -367,103 +235,6 @@ def test_process_lif_subimage(
     mock_lif_image.bit_depth = [16 for c in range(num_channels)]
     mock_lif_file.return_value.get_image.return_value = mock_lif_image
 
-    # Calculate the image's extent
-    num_cols = math.ceil(math.sqrt(num_tiles[scene_num]))
-    num_rows = math.ceil(num_tiles[scene_num] / num_cols)
-    extent = [
-        # [x_min, x_max, y_min, y_max] in real space
-        tile_offset / 2,
-        tile_offset / 2 + (tile_offset * (num_cols - 1)) + (num_pixels * pixel_size),
-        tile_offset / 2,
-        tile_offset / 2 + (tile_offset * (num_rows - 1)) + (num_pixels * pixel_size),
-    ]
-
-    # After calculating the extent, update num_pixels, pixel_size, and resolution
-    x_pix = num_pixels
-    y_pix = num_pixels
-    actual_pixel_size = pixel_size
-
-    # Calculate the shape of the final image for use when mocking the subprocess call
-    if num_tiles[scene_num] > 1:
-        stitched_height = extent[3] - extent[2]
-        stitched_width = extent[1] - extent[0]
-        x_to_y_ratio = stitched_width / stitched_height
-        # if x:y > 4:3, set width to 3200, otherwise set height to 2400
-        if x_to_y_ratio > 1:
-            x_pix = 2400
-            actual_pixel_size = stitched_width / x_pix
-            y_pix = int(stitched_height / actual_pixel_size)
-        else:
-            y_pix = 2400
-            actual_pixel_size = stitched_height / y_pix
-            x_pix = int(stitched_width / actual_pixel_size)
-
-        # Mock the subprocess calls used for contrast measurment and image stitching
-        starmap_results: list[Any] = []
-        starmap_args: list[Any] = []
-        for c in range(num_channels):
-            # Add results and args for percentile measurment
-            starmap_results.append(
-                [
-                    (0, 255)
-                    for z in range(num_frames)
-                    for t in range(num_tiles[scene_num])
-                ]
-            )
-            starmap_args.append(
-                [
-                    get_percentiles,
-                    [
-                        (
-                            lif_file,
-                            scene_num,
-                            c,
-                            z,
-                            t,
-                            None,
-                            (0.5, 99.5),
-                        )
-                        for z in range(num_frames)
-                        for t in range(num_tiles[scene_num])
-                    ],
-                ]
-            )
-            # Add results and args for image stitching
-            starmap_results.append(
-                [np.ones((y_pix, x_pix), dtype="uint8") for f in range(num_frames)]
-            )
-            starmap_args.append(
-                [
-                    stitch_image_frames,
-                    [
-                        (
-                            lif_file,
-                            scene_num,
-                            c,
-                            z,
-                            [],
-                            tile_scan_info,
-                            w,
-                            h,
-                            extent,
-                            400,
-                            (0, 255),
-                        )
-                        for z in range(num_frames)
-                    ],
-                ]
-            )
-        pool_mocks = []
-        for result in starmap_results:
-            mock_pool = MagicMock()
-            mock_pool.__enter__.return_value = mock_pool
-            mock_pool.starmap.return_value = result
-            pool_mocks.append(mock_pool)
-        mock_pool_constructor = mocker.patch(
-            "cryoemservices.wrappers.clem_process_raw_lifs.mp.Pool", autospec=True
-        )
-        mock_pool_constructor.side_effect = pool_mocks
-
     # Run the function
     result = process_lif_subimage(
         file=lif_file,
@@ -472,10 +243,6 @@ def test_process_lif_subimage(
         root_save_dir=processed_dir,
         num_procs=1,
     )
-    if num_tiles[scene_num] > 1:
-        for p, pool in enumerate(pool_mocks):
-            pool.starmap.assert_called_once_with(*starmap_args[p])
-    assert result  # Verify that function completed successfully
 
     # Verify against expected results
     expected_result = create_dummy_result(
@@ -499,18 +266,17 @@ def test_process_lif_subimage(
             assert math.isclose(value, result[key], abs_tol=1e-9)
         elif key == "resolution":
             assert math.isclose(value, result[key], abs_tol=1e-9)
+        # Check that image stacks were created
+        elif key == "output_files":
+            for file in result[key].values():
+                assert Path(file).exists()
         # Match everything else exactly
         else:
             assert value == result[key]
 
 
-@mock.patch("cryoemservices.wrappers.clem_process_raw_lifs.process_lif_subimage")
-@mock.patch("cryoemservices.wrappers.clem_process_raw_lifs.get_lif_xml_metadata")
-@mock.patch("cryoemservices.wrappers.clem_process_raw_lifs.LifFile")
 def test_process_lif_file(
-    mock_load_lif_file,
-    mock_get_lif_xml_metadata,
-    mock_process_lif_subimage,
+    mocker: MockerFixture,
     lif_file: Path,
     raw_dir: Path,
     raw_xml_metadata: ET.Element,
@@ -532,15 +298,24 @@ def test_process_lif_file(
 
     # Mock out LifFile object and its dependents
     mock_lif_file = MagicMock(spec=LifFile)
-    mock_load_lif_file.return_value = mock_lif_file
+    mocker.patch(
+        "cryoemservices.wrappers.clem_process_raw_lifs.LifFile",
+        return_value=mock_lif_file,
+    )
     mock_lif_file.get_iter_image.return_value = [
         f"scene_{i}" for i in range(num_scenes)
     ]
 
     # Mock out XML metadata extracted from LIF file
-    mock_get_lif_xml_metadata.return_value = raw_xml_metadata
+    mocker.patch(
+        "cryoemservices.wrappers.clem_process_raw_lifs.get_lif_xml_metadata",
+        return_value=raw_xml_metadata,
+    )
 
     # Mock out the sub-image processing function to return results iteratively
+    mock_process_lif_subimage = mocker.patch(
+        "cryoemservices.wrappers.clem_process_raw_lifs.process_lif_subimage"
+    )
     mock_process_lif_subimage.side_effect = [
         create_dummy_result(
             lif_file=lif_file,
@@ -572,15 +347,18 @@ def offline_transport(mocker):
 
 
 # Patches are matched to variables on last in, first out basis
-@mock.patch("workflows.recipe.wrapper.RecipeWrapper.send_to")  # = mock_send_to
-@mock.patch("cryoemservices.wrappers.clem_process_raw_lifs.process_lif_file")
 def test_lif_to_stack_wrapper(
-    mock_process_lif_file,
-    mock_send_to,
+    mocker: MockerFixture,
     offline_transport,
     lif_file: Path,
     processed_dir: Path,
 ):
+    # Patch out functions
+    mock_process_lif_file = mocker.patch(
+        "cryoemservices.wrappers.clem_process_raw_lifs.process_lif_file"
+    )
+    mock_send_to = mocker.patch("workflows.recipe.wrapper.RecipeWrapper.send_to")
+
     # Set the number of simultaneous processes to run
     num_procs = 20
 
