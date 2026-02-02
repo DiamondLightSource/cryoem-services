@@ -11,9 +11,8 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass
 from enum import Enum
-from multiprocessing.shared_memory import SharedMemory
 from pathlib import Path
-from typing import Any, Literal, Protocol
+from typing import Literal, Protocol
 
 import cv2
 import numpy as np
@@ -23,6 +22,501 @@ from tifffile import imwrite
 
 # Create logger object to output messages with
 logger = logging.getLogger("cryoemservices.util.clem_array_functions")
+
+
+@dataclass(frozen=True)
+class ImageLoader(Protocol):
+    """
+    This a type hinting stub used by the CLEM array functions below to represent
+    the image loader classes for LIF and TIFF files. These classes will contain
+    a 'load()' function that uses the appropriate packages to load and return
+    the image as a NumPy array.
+    """
+
+    def load(self) -> np.ndarray: ...
+
+
+@dataclass(frozen=True)
+class LIFImageLoader(ImageLoader):
+    lif_file: Path
+    scene_num: int
+    channel_num: int
+    frame_num: int
+    tile_num: int
+
+    def load(self) -> np.ndarray:
+        return np.asarray(
+            LifFile(self.lif_file)
+            .get_image(self.scene_num)
+            .get_frame(
+                z=self.frame_num,
+                c=self.channel_num,
+                m=self.tile_num,
+            )
+        ).copy()
+
+
+@dataclass(frozen=True)
+class TIFFImageLoader(ImageLoader):
+    tiff_file: Path
+
+    def load(self) -> np.ndarray:
+        return np.asarray(cv2.imread(self.tiff_file, flags=cv2.IMREAD_UNCHANGED))
+
+
+@dataclass(frozen=True)
+class HistogramResult:
+    data: np.ndarray | None
+    error: dict | None
+
+
+def get_histogram(
+    image_loader: ImageLoader,
+    bins: int = 65536,
+    pixel_sampling_step: int = 4,
+):
+    """
+    Helper function that opens an image and compiles a histogram of the intensity
+    distribution. This is then used to estimate suitable values to normalise the
+    images with.
+
+    Parameters
+    ----------
+    image_loader: ImageLoader
+        ImageLoader class that returns the image as a NumPy array.
+
+    bins: int
+        Number of bins to use for the histogram. The default is 65536, which is a
+        16-bit channel.
+
+    pixel_sampling_step: int
+        The number of pixels along each axes of the array to skip during sampling.
+        Improves speed while still returning a relatively representative statistical
+        sample of the image.
+
+    Returns
+    -------
+    result: HistogramResult
+        Python dataclass object containing the data, which is a 1D NumPy array
+        showing the counts for each bin, and information about the error, if one
+        occurs.
+    """
+    try:
+        arr = image_loader.load()[::pixel_sampling_step, ::pixel_sampling_step]
+        return HistogramResult(
+            data=np.bincount(arr.ravel(), minlength=bins), error=None
+        )
+    # If it errors, return the file it errored on and why
+    except Exception as e:
+        return HistogramResult(
+            data=None,
+            error={
+                "data": asdict(image_loader),
+                "error": str(e),
+            },
+        )
+
+
+def get_percentiles(
+    image_loaders: list[ImageLoader],
+    percentiles: tuple[float, float] = (1, 99),
+    bins: int = 65536,
+    pixel_sampling_step: int = 4,
+    num_procs: int = 1,
+) -> tuple[int | float, int | float]:
+    """
+    Helper function to sample the list of images provided and globally determine lower
+    and upper percentile values to use when normalising and converting the images to
+    8-bit NumPy arrays.
+
+    Due to the I/O-heavy and statistical nature of this step, multithreading has been
+    implemented in addition pixel sampling so that relatively representative values
+    can be estimated rapidly.
+
+    Parameters
+    ----------
+    image_loaders: ImageLoader
+        List of ImageLoader objects from which images can be extracted as NumPy arrays.
+
+    percentiles: tuple[float, float] = (1, 99)
+        The lower and upper percentiles to be extracted. Used to normalise the contrast
+        before converting the image to an 8-bit NumPy array.
+
+    bins: int = 65536
+        Number of bins to group the image into. The default is 65536 bins, which is a
+        16-bit channel.
+
+    pixel_sampling_step: int = 4
+        Number of pixels along each of the axes to skip when sampling the images. The
+        default is 4.
+
+    num_procs: int = 1
+        Number of threads to use when running this function
+
+    Returns
+    -------
+    values: tuple[int | float, int | float]
+        The pixel values corresponding to the lower and upper percentiles specified.
+    """
+
+    def _percentile(p: float):
+        return np.searchsorted(cumsum, p / 100 * total)
+
+    p_lo, p_hi = percentiles
+    hist = np.zeros(bins)
+
+    with ThreadPoolExecutor(max_workers=num_procs) as pool:
+        futures = [
+            pool.submit(
+                get_histogram,
+                image_loader,
+                bins,
+                pixel_sampling_step,
+            )
+            for image_loader in image_loaders
+        ]
+        for future in as_completed(futures):
+            result = future.result()
+            if result.data is not None:
+                hist += result.data
+            else:
+                logger.warning(
+                    "Failed to get histogram for the following image: \n"
+                    f"{json.dumps(result.error, indent=2, default=str)}"
+                )
+
+    # Calculate the cumulative sum
+    cumsum = np.cumsum(hist)
+    total = cumsum[-1]
+
+    return _percentile(p_lo), _percentile(p_hi)
+
+
+@dataclass(frozen=True)
+class LoadImageResult:
+    data: np.ndarray | None
+    frame_num: int | None
+    error: dict | None
+
+
+def load_and_convert_image(
+    image_loader: ImageLoader,
+    frame_num: int,
+    vmin: int | float,
+    vmax: int | float,
+):
+    """
+    Helper function that loads images and converts them into an 8-bit NumPy array.
+
+    Parameters
+    ----------
+    image_loader: ImageLoader
+        An ImageLoader dataclass which opens the specified image file and returns it
+        as a NumPy array.
+
+    frame_num: int
+        The frame number the image corresponds to. This is forwarded as part of the
+        returned dataclass so that the array can be correctly allocated to its frame.
+
+    vmin: int | float
+        The minimum pixel value to clip the array at before normalising to an 8-bit
+        NumPy array.
+
+    vmax: int | float
+        The maximum pixel value to clip the array at before normalising to an 8-bit
+        NumPy array.
+
+    Returns
+    -------
+    result: LoadImageResult
+        A dataclass object containing the loaded image (2D NumPy array), the frame
+        the image corresponds to, and details about any error that occurs during
+        the process.
+    """
+
+    try:
+        arr = image_loader.load()
+        scale = 255 / (vmax - vmin)  # Downscale to 8-bit
+        np.clip(arr, a_min=vmin, a_max=vmax, out=arr)
+        np.subtract(arr, vmin, out=arr, casting="unsafe")
+        np.multiply(arr, scale, out=arr, casting="unsafe")
+        return LoadImageResult(
+            data=arr.astype(np.uint8),
+            frame_num=frame_num,
+            error=None,
+        )
+    except Exception as e:
+        return LoadImageResult(
+            data=None,
+            frame_num=None,
+            error={
+                "data": asdict(image_loader),
+                "error": str(e),
+            },
+        )
+
+
+@dataclass(frozen=True)
+class ResizeTileResult:
+    data: np.ndarray | None
+    frame_num: int | None
+    x0: int | None
+    x1: int | None
+    y0: int | None
+    y1: int | None
+    error: dict | None
+
+
+def resize_tile(
+    image_loader: ImageLoader,
+    frame_num: int,
+    tile_extent: tuple[float, float, float, float],
+    parent_extent: tuple[float, float, float, float],
+    parent_pixel_size: float,
+    parent_shape: tuple[int, int],  # NumPy row-column order
+    vmin: int | float,
+    vmax: int | float,
+):
+    """
+    Helper function that loads the image, uses the provided stage information to
+    calculate its size on the wider frame it belongs to, resizes and converts it
+    to an 8-bit NumPy array, then returns it along with the coordinates for the
+    space it occupies in the frame.
+
+    Parameters
+    ----------
+    image_loader: ImageLoader
+        An ImageLoader class with a 'load()' function that will return a NumPy array.
+
+    frame_num: int
+        The frame number the image corresponds to
+
+    tile_extent: tuple[float, float, float, float]
+        The span in real space that the image occupies. This takes a tuple of 4 values
+        in the order x0, x1, y0, y1, which correspond to the left-most, right-most,
+        upper-most, and bottom-most boundary of the image
+
+    parent_extent: tuple[float, float, float, float]
+        The extent of the parent image to which this tile belongs to. It takes a tuple
+        of 4 values in the same format as the tile extent.
+
+    parent_pixel_size: float
+        The pixel size of the parent image this tile will be mapped to.
+
+    parent_shape: tuple[int, int]
+        The shape of the parent image this tile will be mapped to.
+
+    vmin: int | float
+        The minimum pixel value to clip the image to before converting to 8-bit.
+
+    vmax: int | float
+        The maximum pixel value to clip the image to before converting to 8-bit.
+
+    Returns
+    -------
+    result: ResizeTileResult
+        A dataclass containing the resized image and the array slicing information
+        needed to assign it to its location in the parent image stack.
+    """
+    try:
+        # Find array size in parent frame the tile corresponds to
+        x0, x1, y0, y1 = tile_extent
+        px0, px1, py0, py1 = parent_extent
+        parent_y_pixels, parent_x_pixels = parent_shape
+        tile_x_pixels = int(round((x1 - x0) / parent_pixel_size))
+        tile_y_pixels = int(round((y1 - y0) / parent_pixel_size))
+
+        # Position on master image (Use top left as reference)
+        pos_x = int(round((x0 - px0) / (px1 - px0) * parent_x_pixels))
+        pos_y = int(round((y0 - py0) / (py1 - py0) * parent_y_pixels))
+
+        # Load image and resize
+        img = image_loader.load()
+        resized = cv2.resize(
+            img,
+            dsize=(tile_x_pixels, tile_y_pixels),
+            interpolation=cv2.INTER_AREA,
+        )
+        # Normalise to 8-bit
+        scale = 255 / (vmax - vmin)
+        np.clip(resized, vmin, vmax, out=resized)
+        np.subtract(resized, vmin, out=resized, casting="unsafe")
+        np.multiply(resized, scale, out=resized, casting="unsafe")
+        resized = resized.astype(np.uint8)
+
+        return ResizeTileResult(
+            data=resized,
+            frame_num=frame_num,
+            x0=pos_x,
+            x1=pos_x + tile_x_pixels,
+            y0=pos_y,
+            y1=pos_y + tile_y_pixels,
+            error=None,
+        )
+    except Exception as e:
+        return ResizeTileResult(
+            data=None,
+            frame_num=None,
+            x0=None,
+            x1=None,
+            y0=None,
+            y1=None,
+            error={
+                "data": asdict(image_loader),
+                "frame_num": frame_num,
+                "tile_extent": tile_extent,
+                "parent_extent": parent_extent,
+                "parent_pixel_size": parent_pixel_size,
+                "parent_shape": parent_shape,
+                "vmin": vmin,
+                "vmax": vmax,
+                "error": str(e),
+            },
+        )
+
+
+def write_stack_to_tiff(
+    array: np.ndarray,
+    save_dir: Path,
+    file_name: str,
+    # Resolution information
+    x_res: float | None = None,
+    y_res: float | None = None,
+    z_res: float | None = None,
+    units: str | None = None,
+    # Array properties
+    axes: str | None = None,
+    image_labels: list[str] | str | None = None,
+    # Colour properties
+    photometric: str | None = None,  # Valid options listed below
+    color_map: np.ndarray | None = None,
+    extended_metadata: str | None = None,  # Stored as an extended string
+) -> Path:
+    """
+    Writes the NumPy array as a calibrated, ImageJ-compatible TIFF image stack.
+    It will save image stacks in BigTIFF format, while 2D images will be saved
+    as conventional TIFFs.
+
+    Parameters
+    ----------
+    array: np.ndarray
+        The image to be saved.
+
+    save_dir: Path
+        The file path (absolute or relative) to where the image is to be saved.
+
+    file_name: str
+        The name (not including the file suffix) to assign to the image.
+
+    x_res: float | None = None
+        The resolution (pixels per unit length) of the x-axis. It should match
+        the SI unit used in the 'units' parameter. i.e. For a pixel size of
+        12 um, the resolution will be 83.3333... if 'mm' is used.
+
+    y_res: float | None = None
+        The resolution of the y-axis.
+
+    z_res: float | None = None
+        The resolution of the z-axis.
+
+    units: str | None = None
+        The SI unit of the resolution values that have been provided above. Most
+        conventional imaging units are accepted (e.g., m, mm, um, micron).
+
+    axes: str | None = NOne
+        A string sequence telling the TIFF writer what the axes in the incoming
+        image corespond to. They should be passed in the order TZCYXS.
+
+    image_labels: list[str] | str | None = None
+        A string (for a single frame) or list of strings (for image stacks), of
+        the labels to assign to each image.
+
+    photometric: str | None
+        Information on the colouring mode to associate the image with. The currently
+        supported options include:
+            * "minisblack",
+            * "miniswhite",
+            * "rgb",
+            * "ycbcr",
+            * "palette",
+
+    color_map: np.ndarray = None
+        The color map used to determine how the colour should be scaled according
+        to pixel value.
+
+    extended_metadata: str | None = None
+        Optional additional metadata that can be inserted into the image header as
+        a stringified object.
+
+    """
+    # Get resolution
+    if z_res is not None:
+        z_size = (1 / z_res) if z_res > 0 else float(0)
+    else:
+        z_size = None
+
+    if x_res is not None and y_res is not None:
+        resolution = (x_res * 10**6 / 10**6, y_res * 10**6 / 10**6)
+    else:
+        resolution = None
+
+    resolution_unit = 1 if units is not None else None
+    use_bigtiff = (
+        False
+        if not is_image_stack(array) or (is_image_stack(array) and array.shape[0] == 1)
+        else True
+    )
+
+    # Get photometric
+    valid_photometrics = (
+        "minisblack",
+        "miniswhite",
+        "rgb",
+        "ycbcr",  # Y: Luminance | Cb: Blue chrominance | Cr: Red chrominance
+        "palette",
+    )
+    if photometric is not None and photometric not in valid_photometrics:
+        photometric = None
+        logger.warning("Incorrect photometric value provided; defaulting to 'None'")
+
+    # Process extended metadata
+    if extended_metadata is None:
+        extended_metadata = ""
+
+    # Save as a greyscale TIFF
+    save_name = save_dir.joinpath(file_name + ".tiff")
+
+    # With 'bigtiff=True', they have to be pure Python class instances
+    imwrite(
+        save_name,
+        array,
+        bigtiff=use_bigtiff,
+        # Array properties,
+        shape=array.shape,
+        dtype=str(array.dtype),
+        resolution=resolution,
+        resolutionunit=resolution_unit,
+        # Colour properties
+        photometric=photometric,  # Greyscale image
+        colormap=color_map,
+        # ImageJ compatibility
+        imagej=True,
+        metadata={
+            "axes": axes,
+            "unit": units,
+            "spacing": z_size,
+            "loop": False,
+            # Coerce NumPy's min() and max() return values into Python floats
+            # Follow ImageJ's precision level
+            "min": round(float(array.min()), 1),
+            "max": round(float(array.max()), 1),
+            "Info": extended_metadata,
+            "Labels": image_labels,
+        },
+    )
+    logger.info(f"{file_name} image saved as {save_name}")
+
+    return save_name
 
 
 def is_image_stack(
@@ -48,34 +542,6 @@ def is_image_stack(
 
     # Raise exception for everything else
     raise ValueError(f"Unexpected image shape: {array.shape}")
-
-
-def put_arrays_in_shared_memory(arrays: list[np.ndarray]):
-    """
-    Copy a list of NumPy arrays into shared memory blocks and return their references
-    """
-
-    shm_blocks: list[SharedMemory] = []
-    shm_metadata: list[dict[str, Any]] = []
-
-    for i, arr in enumerate(arrays):
-        shm = SharedMemory(create=True, size=arr.nbytes)
-        shm_arr = np.ndarray(
-            shape=arr.shape,
-            dtype=arr.dtype,
-            buffer=shm.buf,
-        )
-        shm_arr[:] = arr  # Allocate array to shared memory block
-
-        shm_blocks.append(shm)
-        shm_metadata.append(
-            {
-                "name": shm.name,
-                "shape": arr.shape,
-                "dtype": arr.dtype,
-            }
-        )
-    return shm_blocks, shm_metadata
 
 
 def align_image_to_self(
@@ -721,498 +1187,3 @@ def merge_images(
         out = out.astype(dtype, copy=False)
 
     return out
-
-
-@dataclass(frozen=True)
-class ImageLoader(Protocol):
-    """
-    This a type hinting stub used by the CLEM array functions below to represent
-    the image loader classes for LIF and TIFF files. These classes will contain
-    a 'load()' function that uses the appropriate packages to load and return
-    the image as a NumPy array.
-    """
-
-    def load(self) -> np.ndarray: ...
-
-
-@dataclass(frozen=True)
-class LIFImageLoader(ImageLoader):
-    lif_file: Path
-    scene_num: int
-    channel_num: int
-    frame_num: int
-    tile_num: int
-
-    def load(self) -> np.ndarray:
-        return np.asarray(
-            LifFile(self.lif_file)
-            .get_image(self.scene_num)
-            .get_frame(
-                z=self.frame_num,
-                c=self.channel_num,
-                m=self.tile_num,
-            )
-        ).copy()
-
-
-@dataclass(frozen=True)
-class TIFFImageLoader(ImageLoader):
-    tiff_file: Path
-
-    def load(self) -> np.ndarray:
-        return np.asarray(cv2.imread(self.tiff_file, flags=cv2.IMREAD_UNCHANGED))
-
-
-@dataclass(frozen=True)
-class HistogramResult:
-    data: np.ndarray | None
-    error: dict | None
-
-
-def get_histogram(
-    image_loader: ImageLoader,
-    bins: int = 65536,
-    pixel_sampling_step: int = 4,
-):
-    """
-    Helper function that opens an image and compiles a histogram of the intensity
-    distribution. This is then used to estimate suitable values to normalise the
-    images with.
-
-    Parameters
-    ----------
-    image_loader: ImageLoader
-        ImageLoader class that returns the image as a NumPy array.
-
-    bins: int
-        Number of bins to use for the histogram. The default is 65536, which is a
-        16-bit channel.
-
-    pixel_sampling_step: int
-        The number of pixels along each axes of the array to skip during sampling.
-        Improves speed while still returning a relatively representative statistical
-        sample of the image.
-
-    Returns
-    -------
-    result: HistogramResult
-        Python dataclass object containing the data, which is a 1D NumPy array
-        showing the counts for each bin, and information about the error, if one
-        occurs.
-    """
-    try:
-        arr = image_loader.load()[::pixel_sampling_step, ::pixel_sampling_step]
-        return HistogramResult(
-            data=np.bincount(arr.ravel(), minlength=bins), error=None
-        )
-    # If it errors, return the file it errored on and why
-    except Exception as e:
-        return HistogramResult(
-            data=None,
-            error={
-                "data": asdict(image_loader),
-                "error": str(e),
-            },
-        )
-
-
-def get_percentiles(
-    image_loaders: list[ImageLoader],
-    percentiles: tuple[float, float] = (1, 99),
-    bins: int = 65536,
-    pixel_sampling_step: int = 4,
-    num_procs: int = 1,
-) -> tuple[int | float, int | float]:
-    """
-    Helper function to sample the list of images provided and globally determine lower
-    and upper percentile values to use when normalising and converting the images to
-    8-bit NumPy arrays.
-
-    Due to the I/O-heavy and statistical nature of this step, multithreading has been
-    implemented in addition pixel sampling so that relatively representative values
-    can be estimated rapidly.
-
-    Parameters
-    ----------
-    image_loaders: ImageLoader
-        List of ImageLoader objects from which images can be extracted as NumPy arrays.
-
-    percentiles: tuple[float, float] = (1, 99)
-        The lower and upper percentiles to be extracted. Used to normalise the contrast
-        before converting the image to an 8-bit NumPy array.
-
-    bins: int = 65536
-        Number of bins to group the image into. The default is 65536 bins, which is a
-        16-bit channel.
-
-    pixel_sampling_step: int = 4
-        Number of pixels along each of the axes to skip when sampling the images. The
-        default is 4.
-
-    num_procs: int = 1
-        Number of threads to use when running this function
-
-    Returns
-    -------
-    values: tuple[int | float, int | float]
-        The pixel values corresponding to the lower and upper percentiles specified.
-    """
-
-    def _percentile(p: float):
-        return np.searchsorted(cumsum, p / 100 * total)
-
-    p_lo, p_hi = percentiles
-    hist = np.zeros(bins)
-
-    with ThreadPoolExecutor(max_workers=num_procs) as pool:
-        futures = [
-            pool.submit(
-                get_histogram,
-                image_loader,
-                bins,
-                pixel_sampling_step,
-            )
-            for image_loader in image_loaders
-        ]
-        for future in as_completed(futures):
-            result = future.result()
-            if result.data is not None:
-                hist += result.data
-            else:
-                logger.warning(
-                    "Failed to get histogram for the following image: \n"
-                    f"{json.dumps(result.error, indent=2, default=str)}"
-                )
-
-    # Calculate the cumulative sum
-    cumsum = np.cumsum(hist)
-    total = cumsum[-1]
-
-    return _percentile(p_lo), _percentile(p_hi)
-
-
-@dataclass(frozen=True)
-class LoadImageResult:
-    data: np.ndarray | None
-    frame_num: int | None
-    error: dict | None
-
-
-def load_and_convert_image(
-    image_loader: ImageLoader,
-    frame_num: int,
-    vmin: int | float,
-    vmax: int | float,
-):
-    """
-    Helper function that loads images and converts them into an 8-bit NumPy array.
-
-    Parameters
-    ----------
-    image_loader: ImageLoader
-        An ImageLoader dataclass which opens the specified image file and returns it
-        as a NumPy array.
-
-    frame_num: int
-        The frame number the image corresponds to. This is forwarded as part of the
-        returned dataclass so that the array can be correctly allocated to its frame.
-
-    vmin: int | float
-        The minimum pixel value to clip the array at before normalising to an 8-bit
-        NumPy array.
-
-    vmax: int | float
-        The maximum pixel value to clip the array at before normalising to an 8-bit
-        NumPy array.
-
-    Returns
-    -------
-    result: LoadImageResult
-        A dataclass object containing the loaded image (2D NumPy array), the frame
-        the image corresponds to, and details about any error that occurs during
-        the process.
-    """
-
-    try:
-        arr = image_loader.load()
-        scale = 255 / (vmax - vmin)  # Downscale to 8-bit
-        np.clip(arr, a_min=vmin, a_max=vmax, out=arr)
-        np.subtract(arr, vmin, out=arr, casting="unsafe")
-        np.multiply(arr, scale, out=arr, casting="unsafe")
-        return LoadImageResult(
-            data=arr.astype(np.uint8),
-            frame_num=frame_num,
-            error=None,
-        )
-    except Exception as e:
-        return LoadImageResult(
-            data=None,
-            frame_num=None,
-            error={
-                "data": asdict(image_loader),
-                "error": str(e),
-            },
-        )
-
-
-@dataclass(frozen=True)
-class ResizeTileResult:
-    data: np.ndarray | None
-    frame_num: int | None
-    x0: int | None
-    x1: int | None
-    y0: int | None
-    y1: int | None
-    error: dict | None
-
-
-def resize_tile(
-    image_loader: ImageLoader,
-    frame_num: int,
-    tile_extent: tuple[float, float, float, float],
-    parent_extent: tuple[float, float, float, float],
-    parent_pixel_size: float,
-    parent_shape: tuple[int, int],  # NumPy row-column order
-    vmin: int | float,
-    vmax: int | float,
-):
-    """
-    Helper function that loads the image, uses the provided stage information to
-    calculate its size on the wider frame it belongs to, resizes and converts it
-    to an 8-bit NumPy array, then returns it along with the coordinates for the
-    space it occupies in the frame.
-
-    Parameters
-    ----------
-    image_loader: ImageLoader
-        An ImageLoader class with a 'load()' function that will return a NumPy array.
-
-    frame_num: int
-        The frame number the image corresponds to
-
-    tile_extent: tuple[float, float, float, float]
-        The span in real space that the image occupies. This takes a tuple of 4 values
-        in the order x0, x1, y0, y1, which correspond to the left-most, right-most,
-        upper-most, and bottom-most boundary of the image
-
-    parent_extent: tuple[float, float, float, float]
-        The extent of the parent image to which this tile belongs to. It takes a tuple
-        of 4 values in the same format as the tile extent.
-
-    parent_pixel_size: float
-        The pixel size of the parent image this tile will be mapped to.
-
-    parent_shape: tuple[int, int]
-        The shape of the parent image this tile will be mapped to.
-
-    vmin: int | float
-        The minimum pixel value to clip the image to before converting to 8-bit.
-
-    vmax: int | float
-        The maximum pixel value to clip the image to before converting to 8-bit.
-
-    Returns
-    -------
-    result: ResizeTileResult
-        A dataclass containing the resized image and the array slicing information
-        needed to assign it to its location in the parent image stack.
-    """
-    try:
-        # Find array size in parent frame the tile corresponds to
-        x0, x1, y0, y1 = tile_extent
-        px0, px1, py0, py1 = parent_extent
-        parent_y_pixels, parent_x_pixels = parent_shape
-        tile_x_pixels = int(round((x1 - x0) / parent_pixel_size))
-        tile_y_pixels = int(round((y1 - y0) / parent_pixel_size))
-
-        # Position on master image (Use top left as reference)
-        pos_x = int(round((x0 - px0) / (px1 - px0) * parent_x_pixels))
-        pos_y = int(round((y0 - py0) / (py1 - py0) * parent_y_pixels))
-
-        # Load image and resize
-        img = image_loader.load()
-        resized = cv2.resize(
-            img,
-            dsize=(tile_x_pixels, tile_y_pixels),
-            interpolation=cv2.INTER_AREA,
-        )
-        # Normalise to 8-bit
-        scale = 255 / (vmax - vmin)
-        np.clip(resized, vmin, vmax, out=resized)
-        np.subtract(resized, vmin, out=resized, casting="unsafe")
-        np.multiply(resized, scale, out=resized, casting="unsafe")
-        resized = resized.astype(np.uint8)
-
-        return ResizeTileResult(
-            data=resized,
-            frame_num=frame_num,
-            x0=pos_x,
-            x1=pos_x + tile_x_pixels,
-            y0=pos_y,
-            y1=pos_y + tile_y_pixels,
-            error=None,
-        )
-    except Exception as e:
-        return ResizeTileResult(
-            data=None,
-            frame_num=None,
-            x0=None,
-            x1=None,
-            y0=None,
-            y1=None,
-            error={
-                "data": asdict(image_loader),
-                "frame_num": frame_num,
-                "tile_extent": tile_extent,
-                "parent_extent": parent_extent,
-                "parent_pixel_size": parent_pixel_size,
-                "parent_shape": parent_shape,
-                "vmin": vmin,
-                "vmax": vmax,
-                "error": str(e),
-            },
-        )
-
-
-def write_stack_to_tiff(
-    array: np.ndarray,
-    save_dir: Path,
-    file_name: str,
-    # Resolution information
-    x_res: float | None = None,
-    y_res: float | None = None,
-    z_res: float | None = None,
-    units: str | None = None,
-    # Array properties
-    axes: str | None = None,
-    image_labels: list[str] | str | None = None,
-    # Colour properties
-    photometric: str | None = None,  # Valid options listed below
-    color_map: np.ndarray | None = None,
-    extended_metadata: str | None = None,  # Stored as an extended string
-) -> Path:
-    """
-    Writes the NumPy array as a calibrated, ImageJ-compatible TIFF image stack.
-    It will save image stacks in BigTIFF format, while 2D images will be saved
-    as conventional TIFFs.
-
-    Parameters
-    ----------
-    array: np.ndarray
-        The image to be saved.
-
-    save_dir: Path
-        The file path (absolute or relative) to where the image is to be saved.
-
-    file_name: str
-        The name (not including the file suffix) to assign to the image.
-
-    x_res: float | None = None
-        The resolution (pixels per unit length) of the x-axis. It should match
-        the SI unit used in the 'units' parameter. i.e. For a pixel size of
-        12 um, the resolution will be 83.3333... if 'mm' is used.
-
-    y_res: float | None = None
-        The resolution of the y-axis.
-
-    z_res: float | None = None
-        The resolution of the z-axis.
-
-    units: str | None = None
-        The SI unit of the resolution values that have been provided above. Most
-        conventional imaging units are accepted (e.g., m, mm, um, micron).
-
-    axes: str | None = NOne
-        A string sequence telling the TIFF writer what the axes in the incoming
-        image corespond to. They should be passed in the order TZCYXS.
-
-    image_labels: list[str] | str | None = None
-        A string (for a single frame) or list of strings (for image stacks), of
-        the labels to assign to each image.
-
-    photometric: str | None
-        Information on the colouring mode to associate the image with. The currently
-        supported options include:
-            * "minisblack",
-            * "miniswhite",
-            * "rgb",
-            * "ycbcr",
-            * "palette",
-
-    color_map: np.ndarray = None
-        The color map used to determine how the colour should be scaled according
-        to pixel value.
-
-    extended_metadata: str | None = None
-        Optional additional metadata that can be inserted into the image header as
-        a stringified object.
-
-    """
-    # Get resolution
-    if z_res is not None:
-        z_size = (1 / z_res) if z_res > 0 else float(0)
-    else:
-        z_size = None
-
-    if x_res is not None and y_res is not None:
-        resolution = (x_res * 10**6 / 10**6, y_res * 10**6 / 10**6)
-    else:
-        resolution = None
-
-    resolution_unit = 1 if units is not None else None
-    use_bigtiff = (
-        False
-        if not is_image_stack(array) or (is_image_stack(array) and array.shape[0] == 1)
-        else True
-    )
-
-    # Get photometric
-    valid_photometrics = (
-        "minisblack",
-        "miniswhite",
-        "rgb",
-        "ycbcr",  # Y: Luminance | Cb: Blue chrominance | Cr: Red chrominance
-        "palette",
-    )
-    if photometric is not None and photometric not in valid_photometrics:
-        photometric = None
-        logger.warning("Incorrect photometric value provided; defaulting to 'None'")
-
-    # Process extended metadata
-    if extended_metadata is None:
-        extended_metadata = ""
-
-    # Save as a greyscale TIFF
-    save_name = save_dir.joinpath(file_name + ".tiff")
-
-    # With 'bigtiff=True', they have to be pure Python class instances
-    imwrite(
-        save_name,
-        array,
-        bigtiff=use_bigtiff,
-        # Array properties,
-        shape=array.shape,
-        dtype=str(array.dtype),
-        resolution=resolution,
-        resolutionunit=resolution_unit,
-        # Colour properties
-        photometric=photometric,  # Greyscale image
-        colormap=color_map,
-        # ImageJ compatibility
-        imagej=True,
-        metadata={
-            "axes": axes,
-            "unit": units,
-            "spacing": z_size,
-            "loop": False,
-            # Coerce NumPy's min() and max() return values into Python floats
-            # Follow ImageJ's precision level
-            "min": round(float(array.min()), 1),
-            "max": round(float(array.max()), 1),
-            "Info": extended_metadata,
-            "Labels": image_labels,
-        },
-    )
-    logger.info(f"{file_name} image saved as {save_name}")
-
-    return save_name
