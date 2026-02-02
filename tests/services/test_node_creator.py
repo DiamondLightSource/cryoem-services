@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import sys
+import copy
 from pathlib import Path
 from unittest import mock
 
@@ -20,6 +20,7 @@ node_creator = pytest.importorskip(
 def offline_transport(mocker):
     transport = OfflineTransport()
     mocker.spy(transport, "send")
+    mocker.spy(transport, "nack")
     return transport
 
 
@@ -86,7 +87,6 @@ def setup_and_run_node_creation(
 
 
 # General tests
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 def test_node_creator_failed_job(offline_transport, tmp_path):
     """
     Use motion correction to test that the node creator works for failed commands.
@@ -135,7 +135,6 @@ def test_node_creator_failed_job(offline_transport, tmp_path):
     assert (tmp_path / job_dir / ".CCPEM_pipeliner_jobinfo").exists()
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 def test_node_creator_rerun_job(offline_transport, tmp_path):
     """
     Use motion correction to test that the node creator works for failed commands.
@@ -186,8 +185,66 @@ def test_node_creator_rerun_job(offline_transport, tmp_path):
     assert not (tmp_path / job_dir / ".CCPEM_pipeliner_jobinfo").exists()
 
 
+def test_node_creator_invalid_cases(offline_transport, tmp_path):
+    """Test some messages which fail"""
+    job_dir = "MotionCorr/job002"
+    input_file = tmp_path / "Import/job001/Movies/sample.mrc"
+    output_file = tmp_path / job_dir / "Movies/sample.mrc"
+    relion_options = RelionServiceOptions()
+
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+    output_file.touch()
+    test_message = {
+        "job_type": "relion.motioncorr.motioncor2",
+        "input_file": str(input_file),
+        "output_file": str(output_file),
+        "relion_options": relion_options,
+        "command": "command",
+        "stdout": "stdout",
+        "stderr": "stderr",
+        "success": True,
+    }
+
+    # set up the mock service and send the message to it
+    service = node_creator.NodeCreator(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
+
+    # Case 1: no message
+    service.node_creator(None, header=header, message=None)
+    assert offline_transport.nack.call_count == 1
+
+    # Case 2: wrong experiment type
+    wrong_exp_message = copy.deepcopy(test_message)
+    wrong_exp_message["experiment_type"] = "wrong"
+    service.node_creator(None, header=header, message=wrong_exp_message)
+    assert offline_transport.nack.call_count == 2
+
+    # Case 3: invalid message
+    no_input_message = {"experiment_type": "spa"}
+    service.node_creator(None, header=header, message=no_input_message)
+    assert offline_transport.nack.call_count == 3
+
+    # Case 4: no job number in inputs
+    no_job_message = copy.deepcopy(test_message)
+    no_job_message["input_file"] = f"{tmp_path}/MotionCorr/sample.mrc"
+    no_job_message["output_file"] = f"{tmp_path}/CtfFind/sample.ctf"
+    service.node_creator(None, header=header, message=no_job_message)
+    assert offline_transport.nack.call_count == 4
+
+    # Case 5: unknown job type
+    wrong_job_message = copy.deepcopy(test_message)
+    wrong_job_message["job_type"] = "not.a.job"
+    service.node_creator(None, header=header, message=wrong_job_message)
+    assert offline_transport.nack.call_count == 5
+
+
 # SPA tests
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 def test_node_creator_import(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
@@ -238,7 +295,6 @@ def test_node_creator_import(offline_transport, tmp_path):
     assert list(micrographs_data.find_loop("_rlnOpticsGroup")) == ["1"]
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 def test_node_creator_motioncorr(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
@@ -298,7 +354,6 @@ def test_node_creator_motioncorr(offline_transport, tmp_path):
     assert list(micrographs_data.find_loop("_rlnAccumMotionLate")) == ["6"]
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 def test_node_creator_icebreaker_micrographs(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
@@ -345,7 +400,6 @@ def test_node_creator_icebreaker_micrographs(offline_transport, tmp_path):
     assert list(micrographs_data.find_loop("_rlnAccumMotionLate")) == ["8"]
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 def test_node_creator_icebreaker_enhancecontrast(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
@@ -392,7 +446,6 @@ def test_node_creator_icebreaker_enhancecontrast(offline_transport, tmp_path):
     assert list(micrographs_data.find_loop("_rlnAccumMotionLate")) == ["8"]
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 def test_node_creator_icebreaker_summary(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
@@ -422,7 +475,6 @@ def test_node_creator_icebreaker_summary(offline_transport, tmp_path):
     )
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 def test_node_creator_ctffind(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
@@ -491,7 +543,6 @@ def test_node_creator_ctffind(offline_transport, tmp_path):
     assert list(micrographs_data.find_loop("_rlnCtfIceRingDensity")) == ["5.0"]
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 def test_node_creator_ctffind_noicerings(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
@@ -525,7 +576,6 @@ def test_node_creator_ctffind_noicerings(offline_transport, tmp_path):
     assert list(micrographs_data.find_loop("_rlnCtfIceRingDensity")) == ["0"]
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 def test_node_creator_cryolo(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
@@ -568,7 +618,6 @@ def test_node_creator_cryolo(offline_transport, tmp_path):
     ]
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 def test_node_creator_topaz_pick(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
@@ -606,7 +655,6 @@ def test_node_creator_topaz_pick(offline_transport, tmp_path):
     ]
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 def test_node_creator_extract(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
@@ -666,7 +714,6 @@ def test_node_creator_extract(offline_transport, tmp_path):
     assert list(micrographs_data.find_loop("_rlnCoordinateY")) == ["2.0"]
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 def test_node_creator_select_particles(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
@@ -700,7 +747,6 @@ def test_node_creator_select_particles(offline_transport, tmp_path):
     ).exists()
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 def test_node_creator_icebreaker_particles(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
@@ -735,7 +781,6 @@ def test_node_creator_icebreaker_particles(offline_transport, tmp_path):
     assert not (tmp_path / job_dir / "done_mics.txt").exists()
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 def test_node_creator_class2d_em(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
@@ -761,7 +806,6 @@ def test_node_creator_class2d_em(offline_transport, tmp_path):
     )
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 def test_node_creator_class2d_vdam(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
@@ -787,7 +831,6 @@ def test_node_creator_class2d_vdam(offline_transport, tmp_path):
     )
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 def test_node_creator_select_class(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
@@ -813,7 +856,6 @@ def test_node_creator_select_class(offline_transport, tmp_path):
     )
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 def test_node_creator_split_star(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
@@ -853,7 +895,6 @@ def test_node_creator_split_star(offline_transport, tmp_path):
     assert (tmp_path / job_dir / ".results_display001_pending.json").is_file()
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 def test_node_creator_initial_model(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
@@ -879,7 +920,6 @@ def test_node_creator_initial_model(offline_transport, tmp_path):
     )
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 def test_node_creator_class3d(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
@@ -908,7 +948,6 @@ def test_node_creator_class3d(offline_transport, tmp_path):
     )
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 def test_node_creator_select_value(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
@@ -934,7 +973,6 @@ def test_node_creator_select_value(offline_transport, tmp_path):
     )
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 def test_node_creator_refine3d(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
@@ -963,7 +1001,6 @@ def test_node_creator_refine3d(offline_transport, tmp_path):
     )
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 def test_node_creator_maskcreate(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
@@ -989,7 +1026,6 @@ def test_node_creator_maskcreate(offline_transport, tmp_path):
     )
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 def test_node_creator_postprocess(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
@@ -1019,7 +1055,6 @@ def test_node_creator_postprocess(offline_transport, tmp_path):
 
 
 # Tomography tests
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 def test_node_creator_import_tomo(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
@@ -1093,7 +1128,6 @@ def test_node_creator_import_tomo(offline_transport, tmp_path):
     ]
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 def test_node_creator_motioncorr_tomo(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
@@ -1162,7 +1196,6 @@ def test_node_creator_motioncorr_tomo(offline_transport, tmp_path):
     assert list(tilts_block.find_loop("_rlnAccumMotionLate")) == ["6"]
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 def test_node_creator_ctffind_tomo(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
@@ -1239,7 +1272,6 @@ def test_node_creator_ctffind_tomo(offline_transport, tmp_path):
     assert list(tilts_block.find_loop("_rlnCtfIceRingDensity")) == ["5.0"]
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 def test_node_creator_excludetilts_mc_input(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
@@ -1824,7 +1856,6 @@ def test_node_creator_aligntiltseries_linereplacement(offline_transport, tmp_pat
     assert list(tilts_block.find_loop("_rlnTomoYShiftAngst")) == ["1", "4.2"]
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 def test_node_creator_tomograms(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
@@ -1892,7 +1923,6 @@ def test_node_creator_tomograms(offline_transport, tmp_path):
     ]
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 def test_node_creator_denoisetomo(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
@@ -1963,7 +1993,6 @@ def test_node_creator_denoisetomo(offline_transport, tmp_path):
     ]
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 def test_node_creator_membrain(offline_transport, tmp_path):
     """
     Send a test message to the node creator for
