@@ -26,6 +26,7 @@ area_name = "test_area"
 
 # TIFF file settings
 num_datasets = 2  # For iterating metadata values with
+num_procs = 4
 series_names = [f"Position {n}" for n in range(num_datasets)]
 colors = [
     "gray",
@@ -329,6 +330,7 @@ def test_process_raw_tiffs_parameters(
         "tiff_file": tiff_file,
         "root_folder": raw_folder,
         "metadata": (str(metadata) if stringify else metadata),
+        "num_procs": num_procs,
     }
     validated_params = ProcessRawTIFFsParameters(**params)
 
@@ -371,6 +373,7 @@ def test_process_raw_tiffs_parameters_fail(
         "tiff_file": tiff_file,
         "root_folder": raw_folder,
         "metadata": metadata,
+        "num_procs": num_procs,
     }
     with pytest.raises(ValidationError):
         ProcessRawTIFFsParameters(**params)
@@ -416,6 +419,7 @@ def test_process_raw_tiffs_wrapper(
                     "tiff_file": None,
                     "root_folder": raw_folder,
                     "metadata": metadata,
+                    "num_procs": num_procs,
                 },
                 "parameters": {},
             },
@@ -447,7 +451,7 @@ def test_process_raw_tiffs_wrapper(
         tiff_list=tiff_list,
         root_folder=raw_folder,
         metadata_file=metadata,
-        number_of_processes=20,
+        number_of_processes=num_procs,
     )
 
     # Check that 'images' was called for each colour
