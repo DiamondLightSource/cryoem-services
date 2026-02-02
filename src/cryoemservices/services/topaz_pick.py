@@ -207,6 +207,7 @@ class TopazPick(CommonService):
             "command": " ".join(command),
             "stdout": "",
             "stderr": "",
+            "alias": "Live_processing",
             "success": True,
         }
         if not job_is_rerun:

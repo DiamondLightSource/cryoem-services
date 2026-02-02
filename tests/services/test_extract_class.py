@@ -206,6 +206,7 @@ def test_extract_class_service(mock_requests, offline_transport, tmp_path):
             "command": "",
             "stdout": "",
             "stderr": "",
+            "alias": "Live_refine_class1",
             "success": True,
         },
     )
@@ -215,13 +216,14 @@ def test_extract_class_service(mock_requests, offline_transport, tmp_path):
             "job_type": "relion.extract",
             "input_file": (
                 f"{tmp_path}/Select/job011/particles.star"
-                f":CtfFind/job003/micrographs_ctf.star"
+                f":CtfFind/Live_processing/micrographs_ctf.star"
             ),
             "output_file": f"{tmp_path}/Extract/job012/particles.star",
             "relion_options": output_relion_options,
             "command": " ".join(extract_command),
             "stdout": "",
             "stderr": "",
+            "alias": "Live_reextract_class1",
             "success": True,
         },
     )

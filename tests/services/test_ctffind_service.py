@@ -102,6 +102,12 @@ def test_ctffind4_service_spa(mock_subprocess, offline_transport, tmp_path):
         capture_output=True,
     )
 
+    # Check symlinks
+    assert (tmp_path / "CtfFind/Live_processing").is_symlink()
+    assert (tmp_path / "CtfFind/Live_processing").readlink() == (
+        tmp_path / "CtfFind/job006"
+    )
+
     # Check that the correct messages were sent
     assert offline_transport.send.call_count == 4
     offline_transport.send.assert_any_call(
@@ -165,6 +171,7 @@ def test_ctffind4_service_spa(mock_subprocess, offline_transport, tmp_path):
             "command": f"ctffind\n{' '.join(map(str, parameters_list))}",
             "stdout": "stdout",
             "stderr": "stderr",
+            "alias": "Live_processing",
             "success": True,
         },
     )
@@ -270,6 +277,7 @@ def test_ctffind5_service_tomo(mock_subprocess, offline_transport, tmp_path):
             "command": f"ctffind5\n{' '.join(map(str, parameters_list))}",
             "stdout": "stdout",
             "stderr": "stderr",
+            "alias": "Live_processing",
             "success": True,
         },
     )

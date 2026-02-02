@@ -83,6 +83,12 @@ def test_extract_service(mock_mrcfile, offline_transport, tmp_path):
 
     assert mock_mrcfile().__enter__.call_count == 2
 
+    # Check symlinks
+    assert (tmp_path / "Extract/Live_all_particles").is_symlink()
+    assert (tmp_path / "Extract/Live_all_particles").readlink() == (
+        tmp_path / "Extract/job008"
+    )
+
     # Check that the correct messages were sent
     offline_transport.send.assert_any_call(
         "select_particles",
@@ -104,6 +110,7 @@ def test_extract_service(mock_mrcfile, offline_transport, tmp_path):
             "stdout": "",
             "stderr": "",
             "results": {"box_size": 96},
+            "alias": "Live_all_particles",
         },
     )
 

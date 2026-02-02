@@ -92,7 +92,7 @@ class SelectParticles(CommonService):
         select_dir.mkdir(parents=True, exist_ok=True)
 
         # Check job alias
-        job_alias = select_dir.parent / "Live_all_particles"
+        job_alias = select_dir.parent / "Live_particle_batches"
         if not job_alias.exists():
             job_alias.symlink_to(select_dir)
         elif not (job_alias.is_symlink() and job_alias.readlink() == select_dir):
@@ -218,6 +218,7 @@ class SelectParticles(CommonService):
                 "command": "",
                 "stdout": "",
                 "stderr": "",
+                "alias": "Live_particle_batches",
             }
             rw.send_to("node_creator", node_creator_params)
 

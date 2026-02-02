@@ -83,6 +83,12 @@ def test_topaz_with_diameter(
     assert (written_coords["rlnCoordinateY"] == [10, 18, 26]).all()
     assert (written_coords["rlnAutopickFigureOfMerit"] == [1, 2, 3]).all()
 
+    # Check symlinks
+    assert (tmp_path / "AutoPick/Live_processing").is_symlink()
+    assert (tmp_path / "AutoPick/Live_processing").readlink() == (
+        tmp_path / "AutoPick/job007"
+    )
+
     # Check that the correct messages were sent
     assert offline_transport.send.call_count == 4
     extraction_params = {
@@ -138,6 +144,7 @@ def test_topaz_with_diameter(
             ),
             "stdout": "",
             "stderr": "",
+            "alias": "Live_processing",
             "success": True,
         },
     )

@@ -148,6 +148,12 @@ def test_select_classes_service_first_batch(
     assert (tmp_path / "Select/job013/particles_split2.star").is_file()
     assert (tmp_path / "Select/job013/particles_batch_50000.star").is_file()
 
+    # Check symlinks
+    assert (tmp_path / "Select/Live_best_particles").is_symlink()
+    assert (tmp_path / "Select/Live_best_particles").readlink() == (
+        tmp_path / "Select/job013"
+    )
+
     # Check the mock calls
     assert mock_subprocess.call_count == 5
     mock_subprocess.assert_any_call(
@@ -227,7 +233,7 @@ def test_select_classes_service_first_batch(
     offline_transport.send.assert_any_call(
         "node_creator",
         {
-            "alias": "Best_particles",
+            "alias": "Live_best_particles",
             "job_type": "combine_star_files_job",
             "input_file": f"{tmp_path}/Select/job012/particles.star",
             "output_file": f"{tmp_path}/Select/job013/particles_all.star",
@@ -244,7 +250,7 @@ def test_select_classes_service_first_batch(
     offline_transport.send.assert_any_call(
         "node_creator",
         {
-            "alias": "Best_particles",
+            "alias": "Live_best_particles",
             "job_type": "combine_star_files_job",
             "input_file": f"{tmp_path}/Select/job012/particles.star",
             "output_file": f"{tmp_path}/Select/job013/particles_all.star",

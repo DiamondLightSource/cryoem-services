@@ -119,6 +119,12 @@ def test_cryolo_service_spa(mock_flatten, mock_subprocess, offline_transport, tm
         capture_output=True,
     )
 
+    # Check symlinks
+    assert (tmp_path / "AutoPick/Live_processing").is_symlink()
+    assert (tmp_path / "AutoPick/Live_processing").readlink() == (
+        tmp_path / "AutoPick/job007"
+    )
+
     # Check the config file which was made
     assert (tmp_path / "AutoPick/job007/cryolo_config.json").is_file()
     with open(tmp_path / "AutoPick/job007/cryolo_config.json") as config_file:
@@ -200,6 +206,7 @@ def test_cryolo_service_spa(mock_flatten, mock_subprocess, offline_transport, tm
             "stdout": "stdout",
             "stderr": "stderr",
             "experiment_type": "spa",
+            "alias": "Live_processing",
             "success": True,
         },
     )
@@ -344,6 +351,7 @@ def test_cryolo_service_tomography(mock_subprocess, offline_transport, tmp_path)
             "stdout": "stdout",
             "stderr": "stderr",
             "experiment_type": "tomography",
+            "alias": "Live_processing",
             "success": True,
         },
     )

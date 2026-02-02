@@ -124,7 +124,7 @@ class Extract(CommonService):
         )
 
         # Check job alias
-        job_alias = job_dir.parent / "Live_particle_extraction"
+        job_alias = job_dir.parent / "Live_all_particles"
         if not job_alias.exists():
             job_alias.symlink_to(job_dir)
         elif not (job_alias.is_symlink() and job_alias.readlink() == job_dir):
@@ -407,7 +407,7 @@ class Extract(CommonService):
             "stdout": "",
             "stderr": "",
             "results": {"box_size": box_len},
-            "alias": "Live_particle_extraction",
+            "alias": "Live_all_particles",
         }
         rw.send_to("node_creator", node_creator_parameters)
 

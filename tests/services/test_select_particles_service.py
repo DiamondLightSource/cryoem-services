@@ -71,6 +71,12 @@ def test_select_particles_service_complete_batch(offline_transport, tmp_path):
     service.initializing()
     service.select_particles(None, header=header, message=select_test_message)
 
+    # Check symlinks
+    assert (tmp_path / "Select/Live_particle_batches").is_symlink()
+    assert (tmp_path / "Select/Live_particle_batches").readlink() == (
+        tmp_path / "Select/job009"
+    )
+
     # Check that the correct messages were sent
     assert offline_transport.send.call_count == 4
     offline_transport.send.assert_any_call(
@@ -83,6 +89,7 @@ def test_select_particles_service_complete_batch(offline_transport, tmp_path):
             "command": "",
             "stdout": "",
             "stderr": "",
+            "alias": "Live_particle_batches",
         },
     )
     offline_transport.send.assert_any_call(
@@ -212,6 +219,7 @@ def test_select_particles_service_incomplete_batch(offline_transport, tmp_path):
             "command": "",
             "stdout": "",
             "stderr": "",
+            "alias": "Live_particle_batches",
         },
     )
     offline_transport.send.assert_any_call(
@@ -317,6 +325,7 @@ def test_select_particles_service_existing_split(offline_transport, tmp_path):
             "command": "",
             "stdout": "",
             "stderr": "",
+            "alias": "Live_particle_batches",
         },
     )
     offline_transport.send.assert_any_call(
