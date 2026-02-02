@@ -135,7 +135,7 @@ def test_align_image_to_self(
                 shape,
                 200,
                 (48 + (f * x_offset), 48 + (f * y_offset)),
-                (2, 4),
+                (8, 12),
                 30,
                 0,
             )
@@ -143,7 +143,7 @@ def test_align_image_to_self(
                 shape,
                 150,
                 (80 + (f * x_offset), 80 + (f * y_offset)),
-                (6, 2),
+                (12, 8),
                 45,
                 0,
             )
@@ -190,16 +190,16 @@ def test_align_image_to_reference(test_params: tuple[int, int, str]):
             gaussian_2d(
                 shape,
                 200,
-                (24, 24),
-                (2, 4),
+                (48, 48),
+                (8, 12),
                 30,
                 0,
             )
             + gaussian_2d(
                 shape,
                 150,
-                (48, 48),
-                (6, 2),
+                (80, 80),
+                (12, 8),
                 45,
                 0,
             )
@@ -209,16 +209,16 @@ def test_align_image_to_reference(test_params: tuple[int, int, str]):
             gaussian_2d(
                 shape,
                 200,
-                (24 + x_offset, 24 + y_offset),
-                (2, 4),
+                (48 + x_offset, 48 + y_offset),
+                (8, 12),
                 30,
                 0,
             )
             + gaussian_2d(
                 shape,
                 150,
-                (48 + x_offset, 48 + y_offset),
-                (6, 2),
+                (80 + x_offset, 80 + y_offset),
+                (12, 8),
                 45,
                 0,
             )
