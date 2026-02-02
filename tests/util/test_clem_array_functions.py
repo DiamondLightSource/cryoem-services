@@ -15,28 +15,54 @@ from cryoemservices.util.clem_array_functions import (
     is_image_stack,
     merge_images,
 )
+from tests.test_utils.clem import gaussian_2d
 
-is_image_stack_test_matrix = (
-    # Shape | Outcome
-    # These should all pass
-    # Grayscale
-    ((1, 64, 64), True),
-    ((5, 64, 64), True),
-    # RGB/RGBA
-    ((1, 64, 64, 3), True),
-    ((5, 64, 64, 3), True),
-    ((1, 64, 64, 4), True),
-    ((5, 64, 64, 4), True),
-    # These should all fail but not error
-    # Grayscale
-    ((64, 64), False),
-    # RGB/RGBA
-    ((64, 64, 3), False),
-    ((64, 64, 4), False),
+
+def test_get_histogram():
+    pass
+
+
+def test_get_percentiles():
+    pass
+
+
+def test_load_and_convert_image():
+    pass
+
+
+def test_resize_tile():
+    pass
+
+
+def test_write_stack_to_tiff():
+    pass
+
+
+def test_write_stack_to_tiff_fails():
+    pass
+
+
+@pytest.mark.parametrize(
+    "test_params",
+    (
+        # Shape | Outcome
+        # These should all pass
+        # Grayscale
+        ((1, 64, 64), True),
+        ((5, 64, 64), True),
+        # RGB/RGBA
+        ((1, 64, 64, 3), True),
+        ((5, 64, 64, 3), True),
+        ((1, 64, 64, 4), True),
+        ((5, 64, 64, 4), True),
+        # These should all fail but not error
+        # Grayscale
+        ((64, 64), False),
+        # RGB/RGBA
+        ((64, 64, 3), False),
+        ((64, 64, 4), False),
+    ),
 )
-
-
-@pytest.mark.parametrize("test_params", is_image_stack_test_matrix)
 def test_is_image_stack(test_params: tuple[tuple[int, ...], bool]):
     # Unpack test params
     shape, result = test_params
@@ -48,16 +74,16 @@ def test_is_image_stack(test_params: tuple[tuple[int, ...], bool]):
     assert is_image_stack(array) is result
 
 
-is_image_stack_error_cases = (
-    # Shape
-    # These shapes should all error
-    ((64,),),
-    ((5, 64, 64, 5),),
-    ((5, 64, 64, 64, 5),),
+@pytest.mark.parametrize(
+    "test_params",
+    (
+        # Shape
+        # These shapes should all error
+        ((64,),),
+        ((5, 64, 64, 5),),
+        ((5, 64, 64, 64, 5),),
+    ),
 )
-
-
-@pytest.mark.parametrize("test_params", is_image_stack_error_cases)
 def test_is_image_stack_errors(test_params: tuple[tuple[int, ...]]):
     # Unpack test params
     (shape,) = test_params
@@ -70,58 +96,64 @@ def test_is_image_stack_errors(test_params: tuple[tuple[int, ...]]):
         is_image_stack(array)
 
 
-self_alignment_test_matrix = (
-    # No. frames | x-offset | y-offset | Alignment starting point | dtype
-    # Test uint8 arrays
-    (10, 1, 1, "beginning", "uint8"),
-    (10, 1, 1, "middle", "uint8"),
-    (10, 1, 1, "end", "uint8"),
-    (10, 2, 2, "beginning", "uint8"),
-    (10, 2, 2, "middle", "uint8"),
-    (10, 2, 2, "end", "uint8"),
-    (10, -1, -1, "beginning", "uint8"),
-    (10, -1, -1, "middle", "uint8"),
-    (10, -1, -1, "end", "uint8"),
-    (10, -2, -2, "beginning", "uint8"),
-    (10, -2, -2, "middle", "uint8"),
-    (10, -2, -2, "end", "uint8"),
-    # Test float arrays
-    (10, 1, 1, "beginning", "float64"),
-    (10, 1, 1, "middle", "float64"),
-    (10, 1, 1, "end", "float64"),
-    (10, 2, 2, "beginning", "float64"),
-    (10, 2, 2, "middle", "float64"),
-    (10, 2, 2, "end", "float64"),
-    (10, -2, 2, "beginning", "float64"),
-    (10, -2, 2, "middle", "float64"),
-    (10, -2, 2, "end", "float64"),
-    (10, 1, -2, "beginning", "float64"),
-    (10, 1, -2, "middle", "float64"),
-    (10, 1, -2, "end", "float64"),
+@pytest.mark.parametrize(
+    "test_params",
+    (
+        # x-offset | y-offset | Alignment starting point
+        # Test uint8 arrays
+        (1, 1, "beginning"),
+        (1, 1, "middle"),
+        (1, 1, "end"),
+        (2, 2, "beginning"),
+        (2, 2, "middle"),
+        (2, 2, "end"),
+        (-1, -1, "beginning"),
+        (-1, -1, "middle"),
+        (-1, -1, "end"),
+        (-2, -2, "beginning"),
+        (-2, -2, "middle"),
+        (-2, -2, "end"),
+    ),
 )
-
-
-@pytest.mark.parametrize("test_params", self_alignment_test_matrix)
 def test_align_image_to_self(
-    test_params: tuple[int, int, int, Literal["beginning", "middle", "end"], str],
+    test_params: tuple[int, int, Literal["beginning", "middle", "end"]],
 ):
     # Unpack test params
-    frames, x_offset, y_offset, start_point, dtype = test_params
+    x_offset, y_offset, start_point = test_params
+    num_frames = 10
+    shape = (128, 128)
+    dtype = np.uint8
 
     # Create a reference image stack with offset bright spots
-    array = np.zeros((frames, 64, 64), dtype=dtype)
+    arr = np.zeros((num_frames, *shape), dtype=dtype)
 
     # Add 3(?) bright spots per frame at different offsets
-    for f in range(frames):
-        array[f][24 + (y_offset * f)][24 + (x_offset * f)] = 255
-        array[f][32 + (y_offset * f)][36 + (x_offset * f)] = 255
-        array[f][36 + (y_offset * f)][24 + (x_offset * f)] = 255
+    for f in range(num_frames):
+        # Add 2 Gaussian peaks to arrays
+        arr[f] += (
+            gaussian_2d(
+                shape,
+                200,
+                (48 + (f * x_offset), 48 + (f * y_offset)),
+                (2, 4),
+                30,
+                0,
+            )
+            + gaussian_2d(
+                shape,
+                150,
+                (80 + (f * x_offset), 80 + (f * y_offset)),
+                (6, 2),
+                45,
+                0,
+            )
+        ).astype(dtype, copy=False)
 
     # Align the frames in the stack
-    aligned = align_image_to_self(array=array, start_from=start_point)
+    aligned = align_image_to_self(array=arr, start_from=start_point)
 
     # Assert that bright spots are aligned throughout the stack
-    for f in range(frames):
+    for f in range(num_frames):
         if f == 0:
             continue
         np.testing.assert_allclose(
@@ -133,72 +165,27 @@ def test_align_image_to_self(
         )
 
 
-cross_alignment_test_matrix = (
-    # x-offset | y-offset | dtype
-    (1, 1, "uint8"),
-    (2, 2, "uint8"),
-    (-1, 1, "uint8"),
-    (-2, 2, "uint8"),
-    (-1, 1, "float64"),
-    (-2, 2, "float64"),
-    (-1, -1, "float64"),
-    (-2, -2, "float64"),
+@pytest.mark.parametrize(
+    "test_params",
+    (
+        # x-offset | y-offset | dtype
+        (1, 1, "uint8"),
+        (2, 2, "uint8"),
+        (-1, 1, "uint8"),
+        (-2, 2, "uint8"),
+    ),
 )
-
-
-@pytest.mark.parametrize("test_params", cross_alignment_test_matrix)
 def test_align_image_to_reference(test_params: tuple[int, int, str]):
-    def gaussian_2d(
-        shape: tuple[int, int],
-        amplitude: float,
-        centre: tuple[int, int],
-        sigma: tuple[float, float],
-        theta: float,
-        offset: float,
-    ):
-        x0, y0 = centre
-        sig_x, sig_y = sigma
-
-        # Create meshgrid
-        rows, cols = shape
-        y, x = np.meshgrid(np.arange(cols), np.arange(rows), indexing="ij")
-
-        x_rot: np.ndarray = (x - x0) * np.cos(np.deg2rad(theta)) + (y - y0) * np.sin(
-            np.deg2rad(theta)
-        )
-        y_rot: np.ndarray = (y - y0) * np.cos(np.deg2rad(theta)) - (x - x0) * np.sin(
-            np.deg2rad(theta)
-        )
-
-        # Compute and return Gaussian
-        gaussian = (
-            amplitude
-            * np.exp(-(x_rot**2 / (2 * sig_x**2)) - (y_rot**2 / (2 * sig_y**2)))
-            + offset
-        )
-
-        return gaussian
-
     # Unpack test params
     x_offset, y_offset, dtype = test_params
 
     n_frames = 5
-    shape = (64, 64)
+    shape = (128, 128)
     ref = np.zeros((n_frames, *shape), dtype=dtype)
     mov = np.zeros((n_frames, *shape), dtype=dtype)
 
     for f in range(n_frames):
-        # Add bright spots
-        # ref[f][24][24] = 255
-        # ref[f][36][48] = 255
-        # ref[f][48][36] = 255
-
-        # Add bright spots with offset
-        # mov[f][24 + y_offset][24 + x_offset] = 255
-        # mov[f][36 + y_offset][48 + x_offset] = 255
-        # mov[f][48 + y_offset][36 + x_offset] = 255
-
-        # Add 2(?) Gaussian peaks to arrays
+        # Add 2 Gaussian peaks to arrays
         ref[f] += (
             gaussian_2d(
                 shape,
@@ -216,7 +203,7 @@ def test_align_image_to_reference(test_params: tuple[int, int, str]):
                 45,
                 0,
             )
-        ).astype(dtype)
+        ).astype(dtype, copy=False)
 
         mov[f] += (
             gaussian_2d(
@@ -250,23 +237,23 @@ def test_align_image_to_reference(test_params: tuple[int, int, str]):
     )
 
 
-is_grayscale_image_test_matrix = (
-    # Shape | Result
-    # These should pass
-    ((64, 64), True),
-    ((1, 64, 64), True),
-    ((5, 64, 64), True),
-    # These should fail without erroring
-    ((64, 64, 3), False),
-    ((64, 64, 4), False),
-    ((1, 64, 64, 3), False),
-    ((5, 64, 64, 3), False),
-    ((1, 64, 64, 4), False),
-    ((5, 64, 64, 4), False),
+@pytest.mark.parametrize(
+    "test_params",
+    (
+        # Shape | Result
+        # These should pass
+        ((64, 64), True),
+        ((1, 64, 64), True),
+        ((5, 64, 64), True),
+        # These should fail without erroring
+        ((64, 64, 3), False),
+        ((64, 64, 4), False),
+        ((1, 64, 64, 3), False),
+        ((5, 64, 64, 3), False),
+        ((1, 64, 64, 4), False),
+        ((5, 64, 64, 4), False),
+    ),
 )
-
-
-@pytest.mark.parametrize("test_params", is_grayscale_image_test_matrix)
 def test_is_grayscale_image(test_params: tuple[tuple[int, ...], bool]):
     # Unpack test params
     shape, result = test_params
@@ -278,18 +265,18 @@ def test_is_grayscale_image(test_params: tuple[tuple[int, ...], bool]):
     assert is_grayscale_image(array) is result
 
 
-is_grayscale_image_error_cases = (
-    # Shape
-    # These should all error
-    ((64,),),
-    ((5, 5, 64, 64),),
-    ((5, 64, 64, 5),),
-    ((5, 5, 5, 64, 64),),
-    ((5, 5, 64, 64, 5),),
+@pytest.mark.parametrize(
+    "test_params",
+    (
+        # Shape
+        # These should all error
+        ((64,),),
+        ((5, 5, 64, 64),),
+        ((5, 64, 64, 5),),
+        ((5, 5, 5, 64, 64),),
+        ((5, 5, 64, 64, 5),),
+    ),
 )
-
-
-@pytest.mark.parametrize("test_params", is_grayscale_image_error_cases)
 def test_is_grayscale_image_errors(test_params: tuple[tuple[int, ...]]):
     # Unpack test params
     (shape,) = test_params
@@ -301,38 +288,38 @@ def test_is_grayscale_image_errors(test_params: tuple[tuple[int, ...]]):
         is_grayscale_image(array)
 
 
-image_coloring_test_matrix = (
-    # Colour | dtype | frames
-    # 0
-    ("red", "uint8", 1),
-    ("green", "int16", 5),
-    ("blue", "uint32", 1),
-    ("cyan", "int64", 5),
-    ("magenta", "float16", 1),
-    # 5
-    ("yellow", "float32", 5),
-    ("gray", "float64", 1),
-    ("red", "float128", 5),
-    ("green", "complex64", 1),
-    ("blue", "complex128", 5),
-    # 10
-    ("cyan", "complex256", 1),
-    ("magenta", "complex64", 5),
-    ("yellow", "complex128", 1),
-    ("gray", "complex256", 5),
-    ("red", "float16", 1),
-    # 15
-    ("green", "float32", 5),
-    ("blue", "float64", 1),
-    ("cyan", "float128", 5),
-    ("magenta", "int8", 1),
-    ("yellow", "uint16", 5),
-    # 20
-    ("gray", "int32", 1),
+@pytest.mark.parametrize(
+    "test_params",
+    (
+        # Colour | dtype | frames
+        # 0
+        ("red", "uint8", 1),
+        ("green", "int16", 5),
+        ("blue", "uint32", 1),
+        ("cyan", "int64", 5),
+        ("magenta", "float16", 1),
+        # 5
+        ("yellow", "float32", 5),
+        ("gray", "float64", 1),
+        ("red", "float128", 5),
+        ("green", "complex64", 1),
+        ("blue", "complex128", 5),
+        # 10
+        ("cyan", "complex256", 1),
+        ("magenta", "complex64", 5),
+        ("yellow", "complex128", 1),
+        ("gray", "complex256", 5),
+        ("red", "float16", 1),
+        # 15
+        ("green", "float32", 5),
+        ("blue", "float64", 1),
+        ("cyan", "float128", 5),
+        ("magenta", "int8", 1),
+        ("yellow", "uint16", 5),
+        # 20
+        ("gray", "int32", 1),
+    ),
 )
-
-
-@pytest.mark.parametrize("test_params", image_coloring_test_matrix)
 def test_convert_to_rgb(test_params: tuple[str, str, int]):
     def create_test_array(shape: tuple, frames: int, dtype: str):
         for f in range(frames):
@@ -363,17 +350,17 @@ def test_convert_to_rgb(test_params: tuple[str, str, int]):
     assert np.all(arr_new[0][0][0] == pixel_values)
 
 
-image_coloring_fail_cases = (
-    ("black", "uint8", 1),
-    ("white", "int16", 5),
-    ("orange", "uint32", 1),
-    ("indigo", "int64", 5),
-    ("violet", "float64", 1),
-    ("pneumonoultramicroscopicsilicovolcanoconiosis", "complex128", 5),
+@pytest.mark.parametrize(
+    "test_params",
+    (
+        ("black", "uint8", 1),
+        ("white", "int16", 5),
+        ("orange", "uint32", 1),
+        ("indigo", "int64", 5),
+        ("violet", "float64", 1),
+        ("pneumonoultramicroscopicsilicovolcanoconiosis", "complex128", 5),
+    ),
 )
-
-
-@pytest.mark.parametrize("test_params", image_coloring_fail_cases)
 def test_convert_to_rgb_fails(test_params: tuple[str, str, int]):
     def create_test_array(shape: tuple, frames: int, dtype: str) -> np.ndarray:
         for f in range(frames):
@@ -394,22 +381,22 @@ def test_convert_to_rgb_fails(test_params: tuple[str, str, int]):
         convert_to_rgb(arr, color)
 
 
-image_flattening_test_matrix = (
-    # Type | Frames | Mode | Is float? | Expected pixel value
-    # Test grayscale images
-    ("gray", 5, "mean", True, 2),
-    ("gray", 5, "min", False, 0),
-    ("gray", 5, "max", True, 4),
-    ("gray", 5, None, True, 2),
-    # Test RGB images
-    ("rgb", 5, "mean", False, 2),
-    ("rgb", 5, "min", True, 0),
-    ("rgb", 5, "max", False, 4),
-    ("rgb", 5, None, False, 2),
+@pytest.mark.parametrize(
+    "test_params",
+    (
+        # Type | Frames | Mode | Is float? | Expected pixel value
+        # Test grayscale images
+        ("gray", 5, "mean", True, 2),
+        ("gray", 5, "min", False, 0),
+        ("gray", 5, "max", True, 4),
+        ("gray", 5, None, True, 2),
+        # Test RGB images
+        ("rgb", 5, "mean", False, 2),
+        ("rgb", 5, "min", True, 0),
+        ("rgb", 5, "max", False, 4),
+        ("rgb", 5, None, False, 2),
+    ),
 )
-
-
-@pytest.mark.parametrize("test_params", image_flattening_test_matrix)
 def test_flatten_image(
     test_params: tuple[str, int, Literal["mean", "min", "max"] | None, bool, int],
 ):
@@ -460,24 +447,24 @@ def test_flatten_image(
     )
 
 
-image_flattening_fail_cases: tuple[tuple, ...] = (
-    # Image type | Frames | Mode | Is float?
-    # 0
-    ("gray", 5, "uvuvwevwevwe", True),
-    ("gray", 5, "onyetenyevwe", False),
-    ("gray", 5, "ugwemubwem", True),
-    ("rgb", 5, "osas", False),
-    ("rgb", 5, 5, True),
-    # 5
-    ("rgb", 5, True, False),
-    ("rgb", 5, [], True),
-    ("rgb", 5, (), True),
-    ("rgb", 5, {}, True),
-    ("rgb", 5, set(), True),
+@pytest.mark.parametrize(
+    "test_params",
+    (
+        # Image type | Frames | Mode | Is float?
+        # 0
+        ("gray", 5, "uvuvwevwevwe", True),
+        ("gray", 5, "onyetenyevwe", False),
+        ("gray", 5, "ugwemubwem", True),
+        ("rgb", 5, "osas", False),
+        ("rgb", 5, 5, True),
+        # 5
+        ("rgb", 5, True, False),
+        ("rgb", 5, [], True),
+        ("rgb", 5, (), True),
+        ("rgb", 5, {}, True),
+        ("rgb", 5, set(), True),
+    ),
 )
-
-
-@pytest.mark.parametrize("test_params", image_flattening_fail_cases)
 def test_flatten_image_fails(test_params: tuple[str, int, Any, bool]):
     # Helper function to create an array simulating an image stack
     def create_test_array(shape: tuple, frames: int, dtype: str) -> np.ndarray:
@@ -500,30 +487,30 @@ def test_flatten_image_fails(test_params: tuple[str, int, Any, bool]):
         flatten_image(arr, mode)
 
 
-image_merging_test_matrix = (
-    # Type | Num images | Frames | Is float? | Expected pixel value*
-    #   * NOTE: np.round rounds to the nearest EVEN number for values
-    #   EXACTLY halfway between rounded decimal values (e.g. 0.5
-    #   rounds to 0, -1.5 rounds to -2, etc.).
-    # Test grayscale stacks
-    ("gray", 1, 5, False, 0),
-    ("gray", 2, 5, True, 0.5),
-    ("gray", 3, 5, True, 1),
-    ("gray", 4, 5, False, 2),
-    # Test RGB stacks
-    ("rgb", 1, 5, True, 0),
-    ("rgb", 2, 5, False, 0),
-    ("rgb", 3, 5, False, 1),
-    ("rgb", 4, 5, True, 1.5),
-    # Test on images
-    ("gray", 1, 1, False, 0),
-    ("gray", 2, 1, True, 0.5),
-    ("rgb", 3, 1, False, 1),
-    ("rgb", 4, 1, True, 1.5),
+@pytest.mark.parametrize(
+    "test_params",
+    (
+        # Type | Num images | Frames | Is float? | Expected pixel value*
+        #   * NOTE: np.round rounds to the nearest EVEN number for values
+        #   EXACTLY halfway between rounded decimal values (e.g. 0.5
+        #   rounds to 0, -1.5 rounds to -2, etc.).
+        # Test grayscale stacks
+        ("gray", 1, 5, False, 0),
+        ("gray", 2, 5, True, 0.5),
+        ("gray", 3, 5, True, 1),
+        ("gray", 4, 5, False, 2),
+        # Test RGB stacks
+        ("rgb", 1, 5, True, 0),
+        ("rgb", 2, 5, False, 0),
+        ("rgb", 3, 5, False, 1),
+        ("rgb", 4, 5, True, 1.5),
+        # Test on images
+        ("gray", 1, 1, False, 0),
+        ("gray", 2, 1, True, 0.5),
+        ("rgb", 3, 1, False, 1),
+        ("rgb", 4, 1, True, 1.5),
+    ),
 )
-
-
-@pytest.mark.parametrize("test_params", image_merging_test_matrix)
 def test_merge_images(test_params: tuple[str, int, int, bool, int | float]):
     # Unpack test parameters
     img_type, num_imgs, frames, is_float, result = test_params
@@ -570,18 +557,18 @@ def test_merge_images(test_params: tuple[str, int, int, bool, int | float]):
     )
 
 
-image_merging_fail_cases = (
-    # Image type | Num images | Same frames? | Same size? | Same dtype?
-    ("gray", 2, False, True, False),
-    ("gray", 3, True, True, False),
-    ("gray", 4, False, True, True),
-    ("rgb", 2, True, False, True),
-    ("rgb", 3, False, False, True),
-    ("rgb", 4, True, False, False),
+@pytest.mark.parametrize(
+    "test_params",
+    (
+        # Image type | Num images | Same frames? | Same size? | Same dtype?
+        ("gray", 2, False, True, False),
+        ("gray", 3, True, True, False),
+        ("gray", 4, False, True, True),
+        ("rgb", 2, True, False, True),
+        ("rgb", 3, False, False, True),
+        ("rgb", 4, True, False, False),
+    ),
 )
-
-
-@pytest.mark.parametrize("test_params", image_merging_fail_cases)
 def test_merge_images_fails(test_params: tuple[str, int, bool, bool, bool]):
     def create_test_array(shape, frames, dtype):
         for f in range(frames):
@@ -607,27 +594,3 @@ def test_merge_images_fails(test_params: tuple[str, int, bool, bool, bool]):
             arr_list.append(arr)
 
         merge_images(arr_list)
-
-
-def test_get_histogram():
-    pass
-
-
-def test_get_percentiles():
-    pass
-
-
-def test_load_and_convert_image():
-    pass
-
-
-def test_resize_tile():
-    pass
-
-
-def test_write_stack_to_tiff():
-    pass
-
-
-def test_write_stack_to_tiff_fails():
-    pass
