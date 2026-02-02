@@ -65,7 +65,7 @@ def process_lif_subimage(
     metadata: ET.Element,
     root_save_dir: Path,
     save_path: str = "",
-    num_procs: int = 1,
+    num_procs: int = 4,
 ) -> dict:
     """
     Takes the LIF file and its corresponding metadata and loads the relevant subimage.

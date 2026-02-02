@@ -442,7 +442,7 @@ class ProcessRawTIFFsParameters(BaseModel):
     tiff_file: Optional[Path]
     root_folder: str
     metadata: Path
-    num_procs: int = 20
+    num_procs: int = 4
 
     @field_validator("tiff_list", mode="before")
     @classmethod
