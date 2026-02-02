@@ -685,13 +685,17 @@ def merge_images(
     in the list.
     """
 
+    # Standardise inputs as a list
+    if not isinstance(arrays, list):
+        arrays = [arrays]
+
     # Check that an array was provided
     if not arrays:
         raise ValueError("No input arrays provided")
 
-    # Standardise to a list of arrays
-    if isinstance(arrays, np.ndarray):
-        arrays = [arrays]
+    # Raise error if any of the list inputs aren't an array
+    if any(not isinstance(arr, np.ndarray) for arr in arrays):
+        raise ValueError("One or more of the provided inputs is not a NumPy array")
 
     # Validate that arrays have the same shape
     shape, dtype = arrays[0].shape, arrays[0].dtype
