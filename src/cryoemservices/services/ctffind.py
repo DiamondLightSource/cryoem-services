@@ -160,6 +160,29 @@ class CTFFind(CommonService):
             Path(ctf_params.output_image).parent.mkdir(parents=True, exist_ok=True)
             Path(ctf_params.output_image).with_suffix(".tmp").touch(exist_ok=True)
 
+        # Check job alias
+        job_number_search = re.search("/job[0-9]+/", ctf_params.output_image)
+        if job_number_search:
+            ctf_job_number = int(job_number_search[0][4:7])
+        else:
+            ctf_job_number = 6
+        job_alias = Path(
+            re.sub(
+                f"CtfFind/job{ctf_job_number:03}/.+",
+                "CtfFind/Live_processing/",
+                ctf_params.output_image,
+            )
+        )
+        if not job_alias.exists():
+            job_alias.symlink_to(job_alias.parent / f"job{ctf_job_number:03}")
+        elif not (
+            job_alias.is_symlink()
+            and job_alias.readlink() == job_alias.parent / f"job{ctf_job_number:03}"
+        ):
+            self.log.error(f"Symlink {job_alias} already exists")
+            rw.transport.nack(header)
+            return
+
         parameters_list = [
             ctf_params.input_image,
             ctf_params.output_image,
@@ -227,6 +250,7 @@ class CTFFind(CommonService):
                 ),
                 "stdout": result.stdout.decode("utf8", "replace"),
                 "stderr": result.stderr.decode("utf8", "replace"),
+                "alias": "Live_processing",
             }
             if result.returncode:
                 node_creator_parameters["success"] = False
@@ -296,11 +320,6 @@ class CTFFind(CommonService):
             # Forward results to particle picking
             self.log.info(f"Sending to autopicking: {ctf_params.input_image}")
             ctf_params.autopick["input_path"] = ctf_params.input_image
-            job_number_search = re.search("/job[0-9]+/", ctf_params.output_image)
-            if job_number_search:
-                ctf_job_number = int(job_number_search[0][4:7])
-            else:
-                ctf_job_number = 6
             ctf_params.autopick["output_path"] = str(
                 Path(
                     re.sub(

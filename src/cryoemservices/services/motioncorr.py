@@ -310,6 +310,24 @@ class MotionCorr(CommonService):
             Path(mc_params.mrc_out).parent.mkdir(parents=True, exist_ok=True)
             Path(mc_params.mrc_out).with_suffix(".tmp").touch(exist_ok=True)
 
+        # Check job alias
+        job_alias = Path(
+            re.sub(
+                f"MotionCorr/job{job_number:03}/.+",
+                "MotionCorr/Live_processing/",
+                mc_params.mrc_out,
+            )
+        )
+        if not job_alias.exists():
+            job_alias.symlink_to(job_alias.parent / f"job{job_number:03}")
+        elif not (
+            job_alias.is_symlink()
+            and job_alias.readlink() == job_alias.parent / f"job{job_number:03}"
+        ):
+            self.log.error(f"Symlink {job_alias} already exists")
+            rw.transport.nack(header)
+            return
+
         # Get the eer grouping out of the fractionation file
         eer_grouping = 0
         if (
@@ -506,6 +524,7 @@ class MotionCorr(CommonService):
                 "stdout": result.stdout.decode("utf8", "replace"),
                 "stderr": result.stderr.decode("utf8", "replace"),
                 "success": False,
+                "alias": "Live_processing",
             }
             rw.send_to("node_creator", node_creator_parameters)
             rw.transport.nack(header)
@@ -656,6 +675,10 @@ class MotionCorr(CommonService):
             )
             if not import_movie.parent.is_dir():
                 import_movie.parent.mkdir(parents=True)
+            if not (project_dir / "Import/Live_processing").exists():
+                (project_dir / "Import/Live_processing").symlink_to(
+                    project_dir / f"Import/job{job_number - 1:03}"
+                )
             import_movie.unlink(missing_ok=True)
             import_movie.symlink_to(mc_params.movie)
             if mc_params.experiment_type == "spa":
@@ -668,6 +691,7 @@ class MotionCorr(CommonService):
                     "command": "",
                     "stdout": "",
                     "stderr": "",
+                    "alias": "Live_processing",
                 }
             else:
                 import_parameters = {
@@ -679,6 +703,7 @@ class MotionCorr(CommonService):
                     "command": "",
                     "stdout": "",
                     "stderr": "",
+                    "alias": "Live_processing",
                 }
             rw.send_to("node_creator", import_parameters)
 
@@ -698,6 +723,7 @@ class MotionCorr(CommonService):
                     "early_motion": early_motion,
                     "late_motion": late_motion,
                 },
+                "alias": "Live_processing",
             }
             rw.send_to("node_creator", node_creator_parameters)
             # Remove tmp file after requesting node creation

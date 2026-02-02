@@ -163,6 +163,15 @@ class CrYOLO(CommonService):
             rw.transport.nack(header)
             return
 
+        # Check job alias
+        job_alias = job_dir.parent / "Live_processing"
+        if not job_alias.exists():
+            job_alias.symlink_to(job_dir)
+        elif not (job_alias.is_symlink() and job_alias.readlink() == job_dir):
+            self.log.error(f"Symlink {job_alias} already exists")
+            rw.transport.nack(header)
+            return
+
         Path(cryolo_params.output_path).unlink(missing_ok=True)
         (
             job_dir
@@ -267,6 +276,7 @@ class CrYOLO(CommonService):
             "stdout": result.stdout.decode("utf8", "replace"),
             "stderr": result.stderr.decode("utf8", "replace"),
             "experiment_type": cryolo_params.experiment_type,
+            "alias": "Live_processing",
         }
         if (
             result.returncode

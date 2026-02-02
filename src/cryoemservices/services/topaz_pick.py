@@ -109,6 +109,24 @@ class TopazPick(CommonService):
             rw.transport.nack(header)
             return
 
+        # Check job alias
+        job_alias = Path(
+            re.sub(
+                f"AutoPick/job{job_number:03}/.+",
+                "AutoPick/Live_processing/",
+                topaz_params.output_path,
+            )
+        )
+        if not job_alias.exists():
+            job_alias.symlink_to(job_alias.parent / f"job{job_number:03}")
+        elif not (
+            job_alias.is_symlink()
+            and job_alias.readlink() == job_alias.parent / f"job{job_number:03}"
+        ):
+            self.log.error(f"Symlink {job_alias} already exists")
+            rw.transport.nack(header)
+            return
+
         # Construct a command to run topaz with the given parameters
         self.log.info(
             f"Input: {topaz_params.input_path} Output: {topaz_params.output_path}"
@@ -224,7 +242,7 @@ class TopazPick(CommonService):
             "extract_file": str(
                 Path(
                     re.sub(
-                        "MotionCorr/job002/.+",
+                        "MotionCorr/job[0-9]+/.+",
                         f"Extract/job{job_number + 1:03}/Movies/",
                         topaz_params.input_path,
                     )

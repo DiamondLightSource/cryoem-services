@@ -91,6 +91,15 @@ class SelectParticles(CommonService):
         select_dir = project_dir / f"Select/job{select_job_num:03}"
         select_dir.mkdir(parents=True, exist_ok=True)
 
+        # Check job alias
+        job_alias = select_dir.parent / "Live_all_particles"
+        if not job_alias.exists():
+            job_alias.symlink_to(select_dir)
+        elif not (job_alias.is_symlink() and job_alias.readlink() == select_dir):
+            self.log.error(f"Symlink {job_alias} already exists")
+            rw.transport.nack(header)
+            return
+
         extracted_parts_file = cif.read_file(select_params.input_file)
         extracted_parts_block = extracted_parts_file.sole_block()
         extracted_parts_loop = extracted_parts_block.find_loop(

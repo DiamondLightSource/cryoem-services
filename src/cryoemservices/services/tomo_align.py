@@ -589,7 +589,7 @@ class TomoAlign(CommonService):
         ).is_symlink():
             (
                 project_dir / f"ExcludeTiltImages/job{job_number - 2:03}/tilts"
-            ).symlink_to(project_dir / "MotionCorr/job002/Movies")
+            ).symlink_to(project_dir / "MotionCorr/Live_processing/Movies")
         (project_dir / f"AlignTiltSeries/job{job_number - 1:03}").mkdir(
             parents=True, exist_ok=True
         )
@@ -619,7 +619,7 @@ class TomoAlign(CommonService):
                             "job_type": "relion.excludetilts",
                             "experiment_type": "tomography",
                             "input_file": movie[0].replace(
-                                "MotionCorr/job002", "CtfFind/job003"
+                                "MotionCorr/Live_processing", "CtfFind/Live_processing"
                             ),
                             "output_file": str(
                                 project_dir
