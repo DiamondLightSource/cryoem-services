@@ -12,11 +12,8 @@ from typing import Any, Optional
 import mrcfile
 import numpy as np
 import starfile
-import torch
 from gemmi import cif
 from pydantic import BaseModel, Field, ValidationError
-from torch.autograd import Variable
-from torchvision import transforms
 from workflows.recipe import wrap_subscribe
 
 from cryoemservices.pipeliner_plugins.combine_star_files import (
@@ -24,9 +21,6 @@ from cryoemservices.pipeliner_plugins.combine_star_files import (
     split_star_file,
 )
 from cryoemservices.services.common_service import CommonService
-from cryoemservices.util.embeddings import distance_augmented_sort, distance_matrix
-from cryoemservices.util.embeddings_dataset import ClassDataset
-from cryoemservices.util.embeddings_model import EIAE
 from cryoemservices.util.models import MockRW
 from cryoemservices.util.relion_service_options import RelionServiceOptions
 
@@ -191,6 +185,18 @@ class SelectClasses(CommonService):
         class_index_map = {}
         if autoselect_params.embed_class_images:
             # Run DAE to provide latent space embedding of class images
+
+            import torch
+            from torch.autograd import Variable
+            from torchvision import transforms
+
+            from cryoemservices.util.embeddings import (
+                distance_augmented_sort,
+                distance_matrix,
+            )
+            from cryoemservices.util.embeddings_dataset import ClassDataset
+            from cryoemservices.util.embeddings_model import EIAE
+
             device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
             impaths = list(
                 Path(autoselect_params.input_file).parent.parent.glob(
