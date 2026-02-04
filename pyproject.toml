@@ -61,6 +61,7 @@ dev = [
 torch = [
     "easymode@git+https://github.com/mgflast/easymode",
     "membrain-seg",
+    "tensorflow==2.8.0",
     "topaz-em",
 ]
 [project.urls]
