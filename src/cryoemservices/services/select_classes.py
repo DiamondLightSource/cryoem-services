@@ -226,11 +226,19 @@ class SelectClasses(CommonService):
                     .value_counts()
                     .to_dict()
                 )
-                input_particle_data["particles"] = (
-                    input_particle_data["particles"]
-                    .sort_values("rlnParticleScore", ascending=False)
-                    .head(len(input_particle_data["particles"]) // 2)
+                input_particle_data["particles"] = input_particle_data[
+                    "particles"
+                ].sort_values("rlnParticleScore", ascending=False)
+
+                starfile.write(
+                    input_particle_data,
+                    select_dir / f"all_{autoselect_params.particles_file}",
+                    overwrite=True,
                 )
+
+                input_particle_data["particles"] = input_particle_data[
+                    "particles"
+                ].head(len(input_particle_data["particles"]) // 2)
                 micrograph_particle_counts_after = (
                     input_particle_data["particles"]["rlnMicrographName"]
                     .value_counts()
@@ -334,8 +342,14 @@ class SelectClasses(CommonService):
             project_dir / f"Select/job{autoselect_params.combine_star_job_number:03}"
         )
         files_to_combine = [select_dir / autoselect_params.particles_file]
+        files_to_combine_all_particles = [
+            select_dir / f"all_{autoselect_params.particles_file}"
+        ]
         if (combine_star_dir / "particles_all.star").exists():
             files_to_combine.append(combine_star_dir / "particles_all.star")
+            files_to_combine_all_particles.append(
+                combine_star_dir / "particles_all_unfiltered.star"
+            )
         else:
             combine_star_dir.mkdir(parents=True, exist_ok=True)
             Path(project_dir / "Select/Best_particles").symlink_to(combine_star_dir)
@@ -372,6 +386,8 @@ class SelectClasses(CommonService):
                 except (IndexError, KeyError):
                     combine_node_creator_params["success"] = False
             self.parse_combiner_output(combine_result.getvalue())
+
+            combine_star_files(files_to_combine_all_particles, combine_star_dir)
 
             # Send combination job to node creator
             self.log.info("Sending combine_star_files_job (combine) to node creator")
