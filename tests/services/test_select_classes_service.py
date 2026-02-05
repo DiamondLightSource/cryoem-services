@@ -70,8 +70,13 @@ def select_classes_common_setup(
                     f"MotionCorr/job002/Movies/movie.mrc\n"
                 )
 
+    else:
+        (job_dir / "Select/job013").mkdir(exist_ok=True)
+        (job_dir / "Select/job013/particles_all.star").touch()
+        (job_dir / "Select/job013/particles_all_unfiltered.star").touch()
+
     scores = np.random.rand(initial_particle_count + particles_to_add)
-    np.save(job_dir / "Select" / "job013" / "particle_scores.npy", scores)
+    np.save(job_dir / "Select/job013/particle_scores.npy", scores)
 
     Path(job_dir / "MotionCorr/job002/Movies").mkdir(parents=True, exist_ok=True)
     with mrcfile.new(job_dir / "MotionCorr/job002/Movies/movie.mrc") as mrc:
