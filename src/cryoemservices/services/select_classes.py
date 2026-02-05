@@ -18,6 +18,7 @@ from workflows.recipe import wrap_subscribe
 
 from cryoemservices.pipeliner_plugins.combine_star_files import (
     combine_star_files,
+    filter_star_file,
     split_star_file,
 )
 from cryoemservices.services.common_service import CommonService
@@ -181,6 +182,10 @@ class SelectClasses(CommonService):
             autoselect_command, cwd=str(project_dir), capture_output=True
         )
 
+        combine_star_dir = Path(
+            project_dir / f"Select/job{autoselect_params.combine_star_job_number:03}"
+        )
+
         particle_data_starfile = autoselect_params.input_file.replace(
             "_optimiser", "_data"
         )
@@ -235,6 +240,18 @@ class SelectClasses(CommonService):
                     select_dir / f"all_{autoselect_params.particles_file}",
                     overwrite=True,
                 )
+
+                all_particle_scores = np.array(
+                    input_particle_data["particles"]["rlnParticleScore"]
+                )
+                if (combine_star_dir / "particle_scores.npy").is_file():
+                    previous_particle_scores = np.load(
+                        combine_star_dir / "particle_scores.npy"
+                    )
+                    all_particle_scores = np.append(
+                        previous_particle_scores, all_particle_scores
+                    )
+                np.save(combine_star_dir / "particle_scores.npy", all_particle_scores)
 
                 input_particle_data["particles"] = input_particle_data[
                     "particles"
@@ -338,15 +355,10 @@ class SelectClasses(CommonService):
 
         # Run the combine star files job to combine the files into particles_all.star
         self.log.info("Running star file combination and splitting")
-        combine_star_dir = Path(
-            project_dir / f"Select/job{autoselect_params.combine_star_job_number:03}"
-        )
-        files_to_combine = [select_dir / autoselect_params.particles_file]
         files_to_combine_all_particles = [
             select_dir / f"all_{autoselect_params.particles_file}"
         ]
         if (combine_star_dir / "particles_all.star").exists():
-            files_to_combine.append(combine_star_dir / "particles_all.star")
             files_to_combine_all_particles.append(
                 combine_star_dir / "particles_all_unfiltered.star"
             )
@@ -366,7 +378,7 @@ class SelectClasses(CommonService):
                 "relion_options": dict(autoselect_params.relion_options),
                 "command": (
                     "combine_star_files "
-                    + " ".join([str(i) for i in files_to_combine])
+                    + " ".join([str(i) for i in files_to_combine_all_particles])
                     + f" --output_dir {combine_star_dir}"
                 ),
                 "stdout": "",
@@ -378,7 +390,12 @@ class SelectClasses(CommonService):
             combine_result = io.StringIO()
             with redirect_stdout(combine_result):
                 try:
-                    combine_star_files(files_to_combine, combine_star_dir)
+                    # make a list of all particles in the combine job so that they can be filtered together
+                    combine_star_files(
+                        files_to_combine_all_particles,
+                        combine_star_dir,
+                        output_name="particles_all_unfiltered.star",
+                    )
                     (
                         combine_star_dir / f".done_{autoselect_params.particles_file}"
                     ).touch()
@@ -387,7 +404,12 @@ class SelectClasses(CommonService):
                     combine_node_creator_params["success"] = False
             self.parse_combiner_output(combine_result.getvalue())
 
-            combine_star_files(files_to_combine_all_particles, combine_star_dir)
+            # find top half of all particles (slow)
+            filter_star_file(
+                combine_star_dir / "particles_all_unfiltered.star",
+                combine_star_dir / "particles_all.star",
+                all_particle_scores,
+            )
 
             # Send combination job to node creator
             self.log.info("Sending combine_star_files_job (combine) to node creator")

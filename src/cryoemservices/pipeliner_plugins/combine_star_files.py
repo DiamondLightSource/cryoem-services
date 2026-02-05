@@ -5,6 +5,7 @@ from math import ceil
 from pathlib import Path
 from typing import List, Optional
 
+import numpy as np
 import starfile
 
 
@@ -22,7 +23,11 @@ def write_empty_particles_file(file_to_write, optics_dataframe, particles_datafr
             optics_file.write(f"_{particles_loop_tag}\n")
 
 
-def combine_star_files(files_to_process: List[Path], output_dir: Path):
+def combine_star_files(
+    files_to_process: List[Path],
+    output_dir: Path,
+    output_name: str = "particles_all.star",
+):
     """Combines any number of particle star files into a single file.
 
     Parameters:
@@ -32,7 +37,7 @@ def combine_star_files(files_to_process: List[Path], output_dir: Path):
     total_particles = 0
 
     # Never read particles_all.star first as it will be big
-    if files_to_process[0].name == "particles_all.star":
+    if files_to_process[0].name == output_name:
         files_to_process.append(files_to_process[0])
         files_to_process = files_to_process[1:]
 
@@ -113,11 +118,36 @@ def combine_star_files(files_to_process: List[Path], output_dir: Path):
         print(f"Adding {split_file} with {file_particles_count} particles")
         number_of_star_files += 1
 
-    (output_dir / ".particles_all_tmp.star").rename(output_dir / "particles_all.star")
+    (output_dir / ".particles_all_tmp.star").rename(output_dir / output_name)
     print(
-        f"Combined {number_of_star_files} files into particles_all.star "
+        f"Combined {number_of_star_files} files into {output_name} "
         f"with {total_particles} particles"
     )
+
+
+def filter_star_file(
+    file_to_process: Path, output_file: Path, scores: np.array, quantile: float = 0.5
+):
+    quantile_value = np.quantile(scores, quantile)
+    accepted_indices = np.argwhere(scores > quantile_value).flatten()
+    with (
+        open(file_to_process, "r") as ifile,
+        open(output_file, "w") as ofile,
+    ):
+        index: int | None = None
+        accepted_position = 0
+        while True:
+            iline = ifile.readline()
+            if index is None:
+                if iline[0].isdigit():
+                    index = 0
+                else:
+                    ofile.write(iline)
+                    continue
+            if index == accepted_indices[accepted_position]:
+                accepted_position += 1
+                ofile.write(iline)
+            index += 1
 
 
 def split_star_file(
