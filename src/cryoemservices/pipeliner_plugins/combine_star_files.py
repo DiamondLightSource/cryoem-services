@@ -132,7 +132,7 @@ def filter_star_file(
     accepted_indices = np.argwhere(scores > quantile_value).flatten()
     with (
         open(file_to_process, "r") as ifile,
-        open(output_file, "w") as ofile,
+        open(output_file.parent / f".tmp_{output_file.name}", "w") as ofile,
     ):
         index: int | None = None
         accepted_position = 0
@@ -148,6 +148,7 @@ def filter_star_file(
                 accepted_position += 1
                 ofile.write(iline)
             index += 1
+    (output_file.parent / f".tmp_{output_file.name}").rename(output_file)
 
 
 def split_star_file(
