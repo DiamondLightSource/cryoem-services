@@ -190,6 +190,7 @@ class SelectClasses(CommonService):
             "_optimiser", "_data"
         )
         input_particle_data = None
+        all_particle_scores = None
         if Path(particle_data_starfile).is_file():
             input_particle_data = starfile.read(particle_data_starfile)
         if not autoselect_result.returncode:
@@ -405,11 +406,12 @@ class SelectClasses(CommonService):
             self.parse_combiner_output(combine_result.getvalue())
 
             # find top half of all particles (slow)
-            filter_star_file(
-                combine_star_dir / "particles_all_unfiltered.star",
-                combine_star_dir / "particles_all.star",
-                all_particle_scores,
-            )
+            if all_particle_scores is not None:
+                filter_star_file(
+                    combine_star_dir / "particles_all_unfiltered.star",
+                    combine_star_dir / "particles_all.star",
+                    all_particle_scores,
+                )
 
             # Send combination job to node creator
             self.log.info("Sending combine_star_files_job (combine) to node creator")

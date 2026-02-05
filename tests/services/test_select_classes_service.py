@@ -58,6 +58,21 @@ def select_classes_common_setup(
                     f"MotionCorr/job002/Movies/movie.mrc\n"
                 )
 
+        particles_file_unfiltered = (
+            job_dir / "Select/job013/particles_all_unfiltered.star"
+        )
+        with open(particles_file_unfiltered, "w") as f:
+            f.write("data_optics\n\nloop_\n_group\nopticsGroup1\n\n")
+            f.write("data_particles\n\nloop_\n_x\n_y\n_particle\n_movie\n")
+            for i in range(initial_particle_count):
+                f.write(
+                    f"{i / 100} {i / 100} {i}@Extract/job008/classes.mrcs "
+                    f"MotionCorr/job002/Movies/movie.mrc\n"
+                )
+
+    scores = np.random.rand(initial_particle_count + particles_to_add)
+    np.save(job_dir / "Select" / "job013" / "particle_scores.npy", scores)
+
     Path(job_dir / "MotionCorr/job002/Movies").mkdir(parents=True, exist_ok=True)
     with mrcfile.new(job_dir / "MotionCorr/job002/Movies/movie.mrc") as mrc:
         mrc.set_data(np.random.random((64, 64)).astype(np.float32))
