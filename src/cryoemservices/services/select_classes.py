@@ -75,12 +75,14 @@ class SelectClasses(CommonService):
             allow_non_recipe_messages=True,
         )
 
-    def parse_combiner_output(self, combiner_stdout: str):
+    def parse_combiner_output(
+        self, combiner_stdout: str, star_file_name: str = "particles_all.star"
+    ):
         """
         Read the output logs of the star file combination
         """
         for line in combiner_stdout.split("\n"):
-            if line.startswith("Adding") and "particles_all.star" in line:
+            if line.startswith("Adding") and star_file_name in line:
                 line_split = line.split()
                 self.previous_total_count = int(line_split[3])
 
@@ -359,7 +361,7 @@ class SelectClasses(CommonService):
         files_to_combine_all_particles = [
             select_dir / f"all_{autoselect_params.particles_file}"
         ]
-        if (combine_star_dir / "particles_all.star").exists():
+        if (combine_star_dir / "particles_all_unfiltered.star").exists():
             files_to_combine_all_particles.append(
                 combine_star_dir / "particles_all_unfiltered.star"
             )
@@ -403,7 +405,10 @@ class SelectClasses(CommonService):
                     combine_node_creator_params["success"] = True
                 except (IndexError, KeyError):
                     combine_node_creator_params["success"] = False
-            self.parse_combiner_output(combine_result.getvalue())
+            self.parse_combiner_output(
+                combine_result.getvalue(),
+                star_file_name="particles_all_unfiltered.star",
+            )
 
             # find top half of all particles (slow)
             if all_particle_scores is not None:
