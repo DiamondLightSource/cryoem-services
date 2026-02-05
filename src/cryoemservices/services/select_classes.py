@@ -76,7 +76,10 @@ class SelectClasses(CommonService):
         )
 
     def parse_combiner_output(
-        self, combiner_stdout: str, star_file_name: str = "particles_all.star"
+        self,
+        combiner_stdout: str,
+        star_file_name: str = "particles_all.star",
+        acceptance: float = 1,
     ):
         """
         Read the output logs of the star file combination
@@ -89,6 +92,8 @@ class SelectClasses(CommonService):
             if line.startswith("Combined"):
                 line_split = line.split()
                 self.total_count = int(line_split[6])
+
+        self.total_count = int(acceptance * self.total_count)
 
     def select_classes(self, rw, header: dict, message: dict):
         """Main function which interprets and processes received messages"""
@@ -408,6 +413,7 @@ class SelectClasses(CommonService):
             self.parse_combiner_output(
                 combine_result.getvalue(),
                 star_file_name="particles_all_unfiltered.star",
+                acceptance=0.5,
             )
 
             # find top half of all particles (slow)
