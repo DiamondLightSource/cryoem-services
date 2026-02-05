@@ -36,6 +36,16 @@ def select_classes_common_setup(
                 f"MotionCorr/job002/Movies/movie.mrc\n"
             )
 
+    all_particles_file = job_dir / "Select/job012/all_particles.star"
+    with open(all_particles_file, "w") as f:
+        f.write("data_optics\n\nloop_\n_group\nopticsGroup1\n\n")
+        f.write("data_particles\n\nloop_\n_x\n_y\n_particle\n_movie\n")
+        for i in range(particles_to_add):
+            f.write(
+                f"{i / 100} {i / 100} {i}@Extract/job008/classes.mrcs "
+                f"MotionCorr/job002/Movies/movie.mrc\n"
+            )
+
     if initial_particle_count:
         particles_file = job_dir / "Select/job013/particles_all.star"
         particles_file.parent.mkdir(parents=True)
