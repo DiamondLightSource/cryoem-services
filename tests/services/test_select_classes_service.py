@@ -13,6 +13,8 @@ from workflows.transport.offline_transport import OfflineTransport
 from cryoemservices.services import select_classes
 from cryoemservices.util.relion_service_options import RelionServiceOptions
 
+np.random.seed(0)
+
 
 @pytest.fixture
 def offline_transport(mocker):
@@ -204,7 +206,7 @@ def test_select_classes_service_first_batch(
             "--pipeline_control",
             "Select/job012/",
             "--min_score",
-            "0.006",
+            "0.45550476447432925",
         ],
         cwd=str(tmp_path),
         capture_output=True,
@@ -249,7 +251,7 @@ def test_select_classes_service_first_batch(
                 "--do_granularity_features --fn_sel_parts particles.star "
                 "--fn_sel_classavgs class_averages.star --python python "
                 "--select_min_nr_particles 500 "
-                "--pipeline_control Select/job012/ --min_score 0.006"
+                "--pipeline_control Select/job012/ --min_score 0.45550476447432925"
             ),
             "stdout": "stdout",
             "stderr": "stderr",
@@ -261,11 +263,11 @@ def test_select_classes_service_first_batch(
         {
             "alias": "Best_particles",
             "job_type": "combine_star_files_job",
-            "input_file": f"{tmp_path}/Select/job012/particles.star",
-            "output_file": f"{tmp_path}/Select/job013/particles_all.star",
+            "input_file": f"{tmp_path}/Select/job012/all_particles.star",
+            "output_file": f"{tmp_path}/Select/job013/particles_all_unfiltered.star",
             "relion_options": relion_options,
             "command": (
-                f"combine_star_files {tmp_path}/Select/job012/particles.star "
+                f"combine_star_files {tmp_path}/Select/job012/all_particles.star "
                 f"--output_dir {tmp_path}/Select/job013"
             ),
             "stdout": "",
@@ -290,15 +292,15 @@ def test_select_classes_service_first_batch(
             "success": True,
         },
     )
+    with open(tmp_path / "Select/job013/Movies/classes.star", "r") as selected_file:
+        selected_coords = [line.split() for line in selected_file]
     offline_transport.send.assert_any_call(
         "images",
         {
             "image_command": "picked_particles",
             "file": f"{tmp_path}/MotionCorr/job002/Movies/movie.mrc",
             "coordinates": [],
-            "selected_coordinates": [
-                [str(i / 100), str(i / 100)] for i in range(60000)
-            ],
+            "selected_coordinates": selected_coords,
             "pixel_size": 0.5,
             "diameter": 100.0,
             "outfile": f"{tmp_path}/AutoPick/job007/STAR/movie.jpeg",
@@ -310,7 +312,7 @@ def test_select_classes_service_first_batch(
         "murfey_feedback",
         {
             "register": "save_class_selection_score",
-            "class_selection_score": 0.006,
+            "class_selection_score": 0.45550476447432925,
         },
     )
     offline_transport.send.assert_any_call(
@@ -352,7 +354,7 @@ def test_select_classes_service_cryodann(mock_subprocess, offline_transport, tmp
     )
 
     # Write the required particles file from cryodann
-    (tmp_path / "Class2D/job010").mkdir(parents=True)
+    (tmp_path / "Class2D/job010").mkdir(parents=True, exist_ok=True)
     with open(tmp_path / "Class2D/job010/run_it020_data.star", "w") as data_star:
         data_star.write("data_optics\n\nloop_\n_group\nopticsGroup1\n\n")
         data_star.write(

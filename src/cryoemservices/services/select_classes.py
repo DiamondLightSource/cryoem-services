@@ -88,12 +88,12 @@ class SelectClasses(CommonService):
             if line.startswith("Adding") and star_file_name in line:
                 line_split = line.split()
                 self.previous_total_count = int(line_split[3])
+                self.previous_total_count = int(acceptance * self.previous_total_count)
 
             if line.startswith("Combined"):
                 line_split = line.split()
                 self.total_count = int(line_split[6])
-
-        self.total_count = int(acceptance * self.total_count)
+                self.total_count = int(acceptance * self.total_count)
 
     def select_classes(self, rw, header: dict, message: dict):
         """Main function which interprets and processes received messages"""
@@ -294,7 +294,7 @@ class SelectClasses(CommonService):
                             },
                         )
 
-            elif not autoselect_params.autoselect_min_score:
+            if not autoselect_params.autoselect_min_score:
                 # Re-run the class selection if a score was not given
                 self.log.info(
                     f"Re-running class selection with new threshold {quantile_threshold}"
@@ -387,8 +387,8 @@ class SelectClasses(CommonService):
             # Only run this if the particles file has not been added before
             combine_node_creator_params: dict[str, Any] = {
                 "job_type": "combine_star_files_job",
-                "input_file": f"{select_dir}/{autoselect_params.particles_file}",
-                "output_file": f"{combine_star_dir}/particles_all.star",
+                "input_file": f"{select_dir}/all_{autoselect_params.particles_file}",
+                "output_file": f"{combine_star_dir}/particles_all_unfiltered.star",
                 "relion_options": dict(autoselect_params.relion_options),
                 "command": (
                     "combine_star_files "
