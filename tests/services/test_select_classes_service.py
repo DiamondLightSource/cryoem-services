@@ -13,8 +13,6 @@ from workflows.transport.offline_transport import OfflineTransport
 from cryoemservices.services import select_classes
 from cryoemservices.util.relion_service_options import RelionServiceOptions
 
-np.random.seed(0)
-
 
 @pytest.fixture
 def offline_transport(mocker):
@@ -27,6 +25,7 @@ def select_classes_common_setup(
     job_dir: Path, initial_particle_count: int, particles_to_add: int
 ):
     """Setup for the tests below: create the message for and output of autoselection"""
+    np.random.seed(0)
     particles_file = job_dir / "Select/job012/particles.star"
     particles_file.parent.mkdir(parents=True)
     scores = np.random.rand(particles_to_add)
