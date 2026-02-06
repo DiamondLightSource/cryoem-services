@@ -29,7 +29,8 @@ def select_classes_common_setup(
     """Setup for the tests below: create the message for and output of autoselection"""
     particles_file = job_dir / "Select/job012/particles.star"
     particles_file.parent.mkdir(parents=True)
-    scores = np.random.rand(2 * (initial_particle_count + particles_to_add))
+    scores = np.random.rand(particles_to_add)
+    initial_scores = np.random.rand(2 * initial_particle_count)
     with open(particles_file, "w") as f:
         f.write("data_optics\n\nloop_\n_group\nopticsGroup1\n\n")
         f.write(
@@ -41,9 +42,10 @@ def select_classes_common_setup(
                 f"MotionCorr/job002/Movies/movie.mrc {scores[i]}\n"
             )
 
+    (job_dir / "Select/job013").mkdir(parents=True, exist_ok=True)
+
     if initial_particle_count:
         particles_file = job_dir / "Select/job013/particles_all.star"
-        particles_file.parent.mkdir(parents=True)
         with open(particles_file, "w") as f:
             f.write("data_optics\n\nloop_\n_group\nopticsGroup1\n\n")
             f.write(
@@ -52,7 +54,7 @@ def select_classes_common_setup(
             for i in range(initial_particle_count):
                 f.write(
                     f"{i / 100} {i / 100} {i}@Extract/job008/classes.mrcs "
-                    f"MotionCorr/job002/Movies/movie.mrc {scores[i]}\n"
+                    f"MotionCorr/job002/Movies/movie.mrc {initial_scores[i]}\n"
                 )
 
         particles_file_unfiltered = (
@@ -66,10 +68,9 @@ def select_classes_common_setup(
             for i in range(2 * initial_particle_count):
                 f.write(
                     f"{i / 100} {i / 100} {i}@Extract/job008/classes.mrcs "
-                    f"MotionCorr/job002/Movies/movie.mrc {scores[i]}\n"
+                    f"MotionCorr/job002/Movies/movie.mrc {initial_scores[i]}\n"
                 )
-
-    (job_dir / "Select/job013").mkdir(parents=True, exist_ok=True)
+        np.save(job_dir / "Select/job013/particle_scores.npy", initial_scores)
 
     Path(job_dir / "Class2D/job010").mkdir(parents=True, exist_ok=True)
     with open(job_dir / "Class2D/job010/run_it020_data.star", "w") as f:
@@ -206,7 +207,7 @@ def test_select_classes_service_first_batch(
             "--pipeline_control",
             "Select/job012/",
             "--min_score",
-            "0.45550476447432925",
+            "0.49353830121204195",
         ],
         cwd=str(tmp_path),
         capture_output=True,
@@ -251,7 +252,7 @@ def test_select_classes_service_first_batch(
                 "--do_granularity_features --fn_sel_parts particles.star "
                 "--fn_sel_classavgs class_averages.star --python python "
                 "--select_min_nr_particles 500 "
-                "--pipeline_control Select/job012/ --min_score 0.45550476447432925"
+                "--pipeline_control Select/job012/ --min_score 0.49353830121204195"
             ),
             "stdout": "stdout",
             "stderr": "stderr",
@@ -312,7 +313,7 @@ def test_select_classes_service_first_batch(
         "murfey_feedback",
         {
             "register": "save_class_selection_score",
-            "class_selection_score": 0.45550476447432925,
+            "class_selection_score": 0.49353830121204195,
         },
     )
     offline_transport.send.assert_any_call(
@@ -378,7 +379,7 @@ def test_select_classes_service_cryodann(mock_subprocess, offline_transport, tmp
     service.select_classes(None, header=header, message=select_test_message)
 
     # Check the mock calls
-    assert mock_subprocess.call_count == 4
+    assert mock_subprocess.call_count == 5
 
     # Check cryodann scores selection happened
     output_data_star = starfile.read(tmp_path / "Select/job012/particles.star")
