@@ -101,6 +101,7 @@ def test_align_and_merge_service(
 
     # Unpack test params
     use_recwrap, crop_to_n_frames, align_self, flatten, align_across = test_params
+    num_procs = 4
 
     # Set up the parameters
     header = {
@@ -115,6 +116,7 @@ def test_align_and_merge_service(
         "align_self": align_self,
         "flatten": flatten,
         "align_across": align_across,
+        "num_procs": num_procs,
     }
 
     # Set up expected return values
@@ -172,6 +174,7 @@ def test_align_and_merge_service(
         align_self=align_self,
         flatten=flatten,
         align_across=align_across,
+        num_procs=num_procs,
     )
     # 'images' service should be called
     offline_transport.send.assert_any_call(

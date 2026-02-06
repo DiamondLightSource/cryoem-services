@@ -2,14 +2,15 @@
   "1": {
     "parameters": {
       "lif_file": "{lif_file}",
-      "root_folder": "{root_folder}"
+      "root_folder": "{root_folder}",
+      "num_procs": "{num_procs}"
     },
     "output": {
       "murfey_feedback": 2,
       "images": 3
     },
     "queue": "cluster.submission",
-    "service": "LIF2STACK"
+    "service": "CLEM-PROCESS-LIFS"
   },
   "2": {
     "parameters": {

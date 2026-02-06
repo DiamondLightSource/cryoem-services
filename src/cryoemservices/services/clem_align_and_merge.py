@@ -73,6 +73,7 @@ class AlignAndMergeService(CommonService):
                 align_self=params.align_self,
                 flatten=params.flatten,
                 align_across=params.align_across,
+                num_procs=params.num_procs,
             )
         # Log error and nack message if the command fails to execute
         except Exception:

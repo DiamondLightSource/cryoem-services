@@ -5,564 +5,518 @@ light microscope.
 
 from __future__ import annotations
 
-import itertools
+import json
 import logging
-import re
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from dataclasses import asdict, dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Literal, Optional
+from typing import Literal, Protocol
 
-import matplotlib.pyplot as plt
+import cv2
 import numpy as np
 import SimpleITK as sitk
-from PIL import Image as PILImage
-from pystackreg import StackReg
 from readlif.reader import LifFile
-from SimpleITK.SimpleITK import Image as SITKImage
 from tifffile import imwrite
 
 # Create logger object to output messages with
 logger = logging.getLogger("cryoemservices.util.clem_array_functions")
 
 
-"""
-HELPER CLASSES AND FUNCTIONS
-"""
+@dataclass(frozen=True)
+class ImageLoader(Protocol):
+    """
+    This a type hinting stub used by the CLEM array functions below to represent
+    the image loader classes for LIF and TIFF files. These classes will contain
+    a 'load()' function that uses the appropriate packages to load and return
+    the image as a NumPy array.
+    """
+
+    def load(self) -> np.ndarray: ...
 
 
-def get_valid_dtypes() -> tuple[str, ...]:
-    """
-    Use NumPy's in-built dtype dictionary to get list of available, valid dtypes.
-    Major dtype groups are "int", "uint", "float", and "complex"
-    """
-    # Extract list of NumPy dtype classes
-    dtype_class_list = list(
-        itertools.chain.from_iterable(
-            (
-                (str(value) for value in np.sctypes[key])
-                for key in np.sctypes.keys()
-                if key not in ("others",)
+@dataclass(frozen=True)
+class LIFImageLoader(ImageLoader):
+    lif_file: Path
+    scene_num: int
+    channel_num: int
+    frame_num: int
+    tile_num: int
+
+    def load(self) -> np.ndarray:
+        return np.asarray(
+            LifFile(self.lif_file)
+            .get_image(self.scene_num)
+            .get_frame(
+                z=self.frame_num,
+                c=self.channel_num,
+                m=self.tile_num,
             )
+        ).copy()
+
+
+@dataclass(frozen=True)
+class TIFFImageLoader(ImageLoader):
+    tiff_file: Path
+
+    def load(self) -> np.ndarray:
+        return np.asarray(cv2.imread(self.tiff_file, flags=cv2.IMREAD_UNCHANGED))
+
+
+@dataclass(frozen=True)
+class HistogramResult:
+    data: np.ndarray | None
+    error: dict | None
+
+
+def get_histogram(
+    image_loader: ImageLoader,
+    bins: int = 65536,
+    pixel_sampling_step: int = 4,
+):
+    """
+    Helper function that opens an image and compiles a histogram of the intensity
+    distribution. This is then used to estimate suitable values to normalise the
+    images with.
+
+    Parameters
+    ----------
+    image_loader: ImageLoader
+        ImageLoader class that returns the image as a NumPy array.
+
+    bins: int
+        Number of bins to use for the histogram. The default is 65536, which is a
+        16-bit channel.
+
+    pixel_sampling_step: int
+        The number of pixels along each axes of the array to skip during sampling.
+        Improves speed while still returning a relatively representative statistical
+        sample of the image.
+
+    Returns
+    -------
+    result: HistogramResult
+        Python dataclass object containing the data, which is a 1D NumPy array
+        showing the counts for each bin, and information about the error, if one
+        occurs.
+    """
+    try:
+        arr = image_loader.load()[::pixel_sampling_step, ::pixel_sampling_step]
+        return HistogramResult(
+            data=np.bincount(arr.ravel(), minlength=bins), error=None
         )
-    )
-    # Use regex matching to get just the dtype portion of the class
-    valid_dtypes: list[str] = []
-    pattern = r"<[a-z]+ '[a-z]+\.([a-z0-9]+)'>"
-    for dtype_class in dtype_class_list:
-        match = re.fullmatch(pattern, dtype_class)
-        if match is not None:
-            dtype = str(np.dtype(match.group(1)))
-            valid_dtypes.append(dtype)
-    if len(valid_dtypes) == 0:
-        logger.error("Unable to get list of NumPy dtypes from NumPy module")
-        raise Exception
-
-    return tuple(valid_dtypes)
+    # If it errors, return the file it errored on and why
+    except Exception as e:
+        return HistogramResult(
+            data=None,
+            error={
+                "data": asdict(image_loader),
+                "error": str(e),
+            },
+        )
 
 
-# Load valid dtypes for future use
-valid_dtypes = get_valid_dtypes()
-additional_dtype_keywords = (
-    "int",
-    "uint",
-    "float",
-    "complex",
-    "longdouble",
-    "clongdouble",
-)
-
-
-def get_dtype_info(dtype: str):
+def get_percentiles(
+    image_loaders: list[ImageLoader],
+    percentiles: tuple[float, float] = (1, 99),
+    bins: int = 65536,
+    pixel_sampling_step: int = 4,
+    num_procs: int = 1,
+) -> tuple[int | float, int | float]:
     """
-    Returns NumPy's built-in dtype info object.
+    Helper function to sample the list of images provided and globally determine lower
+    and upper percentile values to use when normalising and converting the images to
+    8-bit NumPy arrays.
 
-    See the docs for:
-    numpy.finfo - https://numpy.org/doc/stable/reference/generated/numpy.finfo.html
-    numpy.iinfo = https://numpy.org/doc/stable/reference/generated/numpy.iinfo.html
-    """
+    Due to the I/O-heavy and statistical nature of this step, multithreading has been
+    implemented in addition pixel sampling so that relatively representative values
+    can be estimated rapidly.
 
-    # Validate input
-    if dtype not in valid_dtypes and not any(
-        # dtypes without numbers should also be accepted
-        dtype == key
-        for key in additional_dtype_keywords
-    ):
-        logger.error(f"{dtype} is not a valid NumPy dtype")
-        raise ValueError
+    Parameters
+    ----------
+    image_loaders: ImageLoader
+        List of ImageLoader objects from which images can be extracted as NumPy arrays.
 
-    # Load corresponding dictionary from NumPy
-    dtype_info = (
-        np.iinfo(dtype) if dtype.startswith(("int", "uint")) else np.finfo(dtype)
-    )
-    return dtype_info
+    percentiles: tuple[float, float] = (1, 99)
+        The lower and upper percentiles to be extracted. Used to normalise the contrast
+        before converting the image to an 8-bit NumPy array.
 
+    bins: int = 65536
+        Number of bins to group the image into. The default is 65536 bins, which is a
+        16-bit channel.
 
-def estimate_int_dtype(array: np.ndarray, bit_depth: Optional[int] = None) -> str:
-    """
-    Finds the smallest NumPy integer dtype that can contain the range of values
-    present in a particular image.
+    pixel_sampling_step: int = 4
+        Number of pixels along each of the axes to skip when sampling the images. The
+        default is 4.
+
+    num_procs: int = 1
+        Number of threads to use when running this function
+
+    Returns
+    -------
+    values: tuple[int | float, int | float]
+        The pixel values corresponding to the lower and upper percentiles specified.
     """
 
-    # Define helper sub-functions
-    def _round_from_zero(x: float) -> int:
-        """
-        Round values AWAY from zero.
-        """
-        x_round = int(np.sign(x) * np.ceil(abs(x)))
-        return x_round
+    def _percentile(p: float):
+        return np.searchsorted(cumsum, p / 100 * total)
 
-    def _by_bit_depth(
-        array: np.ndarray,
-        dtype_group: str,
-        bit_depth: int,
-    ) -> Optional[str]:
-        # Set up variables
-        arr = array
-        dtype_subset = [
-            dtype for dtype in valid_dtypes if dtype.startswith(dtype_group)
+    p_lo, p_hi = percentiles
+    hist = np.zeros(bins)
+
+    with ThreadPoolExecutor(max_workers=num_procs) as pool:
+        futures = [
+            pool.submit(
+                get_histogram,
+                image_loader,
+                bins,
+                pixel_sampling_step,
+            )
+            for image_loader in image_loaders
         ]
-
-        # Get dtypes with bit values greater than the provided one
-        bit_list: list[int] = []
-        for dtype in dtype_subset:
-            match = re.fullmatch("[a-z]+([0-9]+)", dtype)
-            if match is not None:
-                value = int(match.group(1))
-                if value >= bit_depth:
-                    bit_list.append(value)
+        for future in as_completed(futures):
+            result = future.result()
+            if result.data is not None:
+                hist += result.data
             else:
-                continue
-        if len(bit_list) == 0:
-            logger.error("No suitable dtypes found based on provided bit depth")
-            return None
-
-        # Use the minimum viable dtype
-        dtype_final = f"{dtype_group}{min(bit_list)}"
-
-        # Raise error if dtype calculated using provided bit depth can't accommodate array
-        dtype_info = get_dtype_info(dtype_final)
-        vmin = int(dtype_info.min)
-        vmax = int(dtype_info.max)
-        # Use the rounded, int values of the array to ensure no rounding errors
-        arr_min = _round_from_zero(arr.min())
-        arr_max = _round_from_zero(arr.max())
-        if (arr_max > vmax) or (arr_min < vmin):
-            logger.warning(
-                "Array values still exceed those supported by the estimated dtype"
-            )
-            return None
-
-        # Return estimated dtype otherwise
-        return dtype_final
-
-    def _by_array_values(array: np.ndarray, dtype_group: str) -> Optional[str]:
-        # Set up variables
-        arr = array
-
-        # Get the list of dtypes that can accommodate the array's contents
-        dtype_subset = []
-        for dtype in valid_dtypes:
-            if dtype.startswith(dtype_group):
-                dtype_info = get_dtype_info(dtype)
-                vmin = int(dtype_info.min)
-                vmax = int(dtype_info.max)
-                arr_min = (
-                    int(arr.min())
-                    if str(arr.dtype).startswith(("int", "uint"))
-                    else _round_from_zero(arr.min())
+                logger.warning(
+                    "Failed to get histogram for the following image: \n"
+                    f"{json.dumps(result.error, indent=2, default=str)}"
                 )
-                arr_max = (
-                    int(arr.max())
-                    if str(arr.dtype).startswith(("int", "uint"))
-                    else _round_from_zero(arr.max())
-                )
-                if vmax >= arr_max and vmin <= arr_min:
-                    dtype_subset.append(dtype)
-                else:
-                    continue
-        # Get the numerical portion of the suitable dtypes
-        bit_list: list[int] = []
-        for dtype in dtype_subset:
-            match = re.fullmatch("[a-z]+([0-9]+)", dtype)
-            if match is not None:
-                value = int(match.group(1))
-                bit_list.append(value)
-            else:
-                continue
-        if len(bit_list) == 0:
-            logger.error(
-                "No suitable dtypes found that can accommodate the array's values"
-            )
-            return None
-        # Use the smallest value
-        dtype_final = f"{dtype_group}{min(bit_list)}"
 
-        return dtype_final
+    # Calculate the cumulative sum
+    cumsum = np.cumsum(hist)
+    total = cumsum[-1]
 
-    # Set up variables
-    arr = array
-    dtype = str(arr.dtype)
+    return _percentile(p_lo), _percentile(p_hi)
 
-    # Validate initial dtype (this should never be triggered, in principle)
-    if dtype not in valid_dtypes:
-        logger.error(f"{dtype} is not a valid NumPy dtype")
-        raise ValueError
 
-    # Reject complex numbers with imaginary components
-    if dtype.startswith("complex") and np.any(arr.imag != 0):
-        logger.error(
-            "Complex numbers with imaginary components not currently supported"
+@dataclass(frozen=True)
+class LoadImageResult:
+    data: np.ndarray | None
+    frame_num: int | None
+    error: dict | None
+
+
+def load_and_convert_image(
+    image_loader: ImageLoader,
+    frame_num: int,
+    vmin: int | float,
+    vmax: int | float,
+):
+    """
+    Helper function that loads images and converts them into an 8-bit NumPy array.
+
+    Parameters
+    ----------
+    image_loader: ImageLoader
+        An ImageLoader dataclass which opens the specified image file and returns it
+        as a NumPy array.
+
+    frame_num: int
+        The frame number the image corresponds to. This is forwarded as part of the
+        returned dataclass so that the array can be correctly allocated to its frame.
+
+    vmin: int | float
+        The minimum pixel value to clip the array at before normalising to an 8-bit
+        NumPy array.
+
+    vmax: int | float
+        The maximum pixel value to clip the array at before normalising to an 8-bit
+        NumPy array.
+
+    Returns
+    -------
+    result: LoadImageResult
+        A dataclass object containing the loaded image (2D NumPy array), the frame
+        the image corresponds to, and details about any error that occurs during
+        the process.
+    """
+
+    try:
+        arr = image_loader.load()
+        scale = 255 / (vmax - vmin)  # Downscale to 8-bit
+        np.clip(arr, a_min=vmin, a_max=vmax, out=arr)
+        np.subtract(arr, vmin, out=arr, casting="unsafe")
+        np.multiply(arr, scale, out=arr, casting="unsafe")
+        return LoadImageResult(
+            data=arr.astype(np.uint8),
+            frame_num=frame_num,
+            error=None,
         )
-        raise NotImplementedError
+    except Exception as e:
+        return LoadImageResult(
+            data=None,
+            frame_num=None,
+            error={
+                "data": asdict(image_loader),
+                "error": str(e),
+            },
+        )
+
+
+@dataclass(frozen=True)
+class ResizeTileResult:
+    data: np.ndarray | None
+    frame_num: int | None
+    x0: int | None
+    x1: int | None
+    y0: int | None
+    y1: int | None
+    error: dict | None
+
+
+def load_and_resize_tile(
+    image_loader: ImageLoader,
+    frame_num: int,
+    tile_extent: tuple[float, float, float, float],
+    parent_extent: tuple[float, float, float, float],
+    parent_pixel_size: float,
+    parent_shape: tuple[int, int],  # NumPy row-column order
+    vmin: int | float,
+    vmax: int | float,
+):
+    """
+    Helper function that loads the image, uses the provided stage information to
+    calculate its size on the wider frame it belongs to, resizes and converts it
+    to an 8-bit NumPy array, then returns it along with the coordinates for the
+    space it occupies in the frame.
+
+    Parameters
+    ----------
+    image_loader: ImageLoader
+        An ImageLoader class with a 'load()' function that will return a NumPy array.
+
+    frame_num: int
+        The frame number the image corresponds to
+
+    tile_extent: tuple[float, float, float, float]
+        The span in real space that the image occupies. This takes a tuple of 4 values
+        in the order x0, x1, y0, y1, which correspond to the left-most, right-most,
+        upper-most, and bottom-most boundary of the image
+
+    parent_extent: tuple[float, float, float, float]
+        The extent of the parent image to which this tile belongs to. It takes a tuple
+        of 4 values in the same format as the tile extent.
+
+    parent_pixel_size: float
+        The pixel size of the parent image this tile will be mapped to.
+
+    parent_shape: tuple[int, int]
+        The shape of the parent image this tile will be mapped to.
+
+    vmin: int | float
+        The minimum pixel value to clip the image to before converting to 8-bit.
+
+    vmax: int | float
+        The maximum pixel value to clip the image to before converting to 8-bit.
+
+    Returns
+    -------
+    result: ResizeTileResult
+        A dataclass containing the resized image and the array slicing information
+        needed to assign it to its location in the parent image stack.
+    """
+    try:
+        # Find array size in parent frame the tile corresponds to
+        x0, x1, y0, y1 = tile_extent
+        px0, px1, py0, py1 = parent_extent
+        parent_y_pixels, parent_x_pixels = parent_shape
+        tile_x_pixels = int(round((x1 - x0) / parent_pixel_size))
+        tile_y_pixels = int(round((y1 - y0) / parent_pixel_size))
+
+        # Position on master image (Use top left as reference)
+        pos_x = int(round((x0 - px0) / (px1 - px0) * parent_x_pixels))
+        pos_y = int(round((y0 - py0) / (py1 - py0) * parent_y_pixels))
+
+        # Load image and resize
+        img = image_loader.load()
+        resized = cv2.resize(
+            img,
+            dsize=(tile_x_pixels, tile_y_pixels),
+            interpolation=cv2.INTER_AREA,
+        )
+        # Normalise to 8-bit
+        scale = 255 / (vmax - vmin)
+        np.clip(resized, vmin, vmax, out=resized)
+        np.subtract(resized, vmin, out=resized, casting="unsafe")
+        np.multiply(resized, scale, out=resized, casting="unsafe")
+        resized = resized.astype(np.uint8)
+
+        return ResizeTileResult(
+            data=resized,
+            frame_num=frame_num,
+            x0=pos_x,
+            x1=pos_x + tile_x_pixels,
+            y0=pos_y,
+            y1=pos_y + tile_y_pixels,
+            error=None,
+        )
+    except Exception as e:
+        return ResizeTileResult(
+            data=None,
+            frame_num=None,
+            x0=None,
+            x1=None,
+            y0=None,
+            y1=None,
+            error={
+                "data": asdict(image_loader),
+                "frame_num": frame_num,
+                "tile_extent": tile_extent,
+                "parent_extent": parent_extent,
+                "parent_pixel_size": parent_pixel_size,
+                "parent_shape": parent_shape,
+                "vmin": vmin,
+                "vmax": vmax,
+                "error": str(e),
+            },
+        )
+
+
+def write_stack_to_tiff(
+    array: np.ndarray,
+    save_dir: Path,
+    file_name: str,
+    # Resolution information
+    x_res: float | None = None,
+    y_res: float | None = None,
+    z_res: float | None = None,
+    units: str | None = None,
+    # Array properties
+    axes: str | None = None,
+    image_labels: list[str] | str | None = None,
+    # Colour properties
+    photometric: str | None = None,  # Valid options listed below
+    color_map: np.ndarray | None = None,
+    extended_metadata: str | None = None,  # Stored as an extended string
+) -> Path:
+    """
+    Writes the NumPy array as a calibrated, ImageJ-compatible TIFF image stack.
+    It will save image stacks in BigTIFF format, while 2D images will be saved
+    as conventional TIFFs.
+
+    Parameters
+    ----------
+    array: np.ndarray
+        The image to be saved.
+
+    save_dir: Path
+        The file path (absolute or relative) to where the image is to be saved.
+
+    file_name: str
+        The name (not including the file suffix) to assign to the image.
+
+    x_res: float | None = None
+        The resolution (pixels per unit length) of the x-axis. It should match
+        the SI unit used in the 'units' parameter. i.e. For a pixel size of
+        12 um, the resolution will be 83.3333... if 'mm' is used.
+
+    y_res: float | None = None
+        The resolution of the y-axis.
+
+    z_res: float | None = None
+        The resolution of the z-axis.
+
+    units: str | None = None
+        The SI unit of the resolution values that have been provided above. Most
+        conventional imaging units are accepted (e.g., m, mm, um, micron).
+
+    axes: str | None = NOne
+        A string sequence telling the TIFF writer what the axes in the incoming
+        image corespond to. They should be passed in the order TZCYXS.
+
+    image_labels: list[str] | str | None = None
+        A string (for a single frame) or list of strings (for image stacks), of
+        the labels to assign to each image.
+
+    photometric: str | None
+        Information on the colouring mode to associate the image with. The currently
+        supported options include:
+            * "minisblack",
+            * "miniswhite",
+            * "rgb",
+            * "ycbcr",
+            * "palette",
+
+    color_map: np.ndarray = None
+        The color map used to determine how the colour should be scaled according
+        to pixel value.
+
+    extended_metadata: str | None = None
+        Optional additional metadata that can be inserted into the image header as
+        a stringified object.
+
+    """
+    # Get resolution
+    if z_res is not None:
+        z_size = (1 / z_res) if z_res > 0 else float(0)
     else:
-        arr = arr.real
+        z_size = None
 
-    # Use "int" if negative values are present, and "uint" if not
-    dtype_group = "uint" if arr.min() >= 0 else "int"
+    if x_res is not None and y_res is not None:
+        resolution = (x_res * 10**6 / 10**6, y_res * 10**6 / 10**6)
+    else:
+        resolution = None
 
-    estimate: Optional[str] = None
-    # Make an estimate using the provided bit depth if set
-    estimate = (
-        _by_bit_depth(
-            array=arr,
-            dtype_group=dtype_group,
-            bit_depth=bit_depth,
-        )
-        if bit_depth is not None
-        else None
+    resolution_unit = 1 if units is not None else None
+    use_bigtiff = (
+        False
+        if not is_image_stack(array) or (is_image_stack(array) and array.shape[0] == 1)
+        else True
     )
 
-    # Estimate using array depth instead
-    estimate = (
-        _by_array_values(array=arr, dtype_group=dtype_group)
-        if estimate is None
-        else estimate
+    # Get photometric
+    valid_photometrics = (
+        "minisblack",
+        "miniswhite",
+        "rgb",
+        "ycbcr",  # Y: Luminance | Cb: Blue chrominance | Cr: Red chrominance
+        "palette",
     )
+    if photometric is not None and photometric not in valid_photometrics:
+        photometric = None
+        logger.warning("Incorrect photometric value provided; defaulting to 'None'")
 
-    if estimate is None:
-        raise ValueError("Unable to find an appropriate dtype for the array")
-    else:
-        return estimate
+    # Process extended metadata
+    if extended_metadata is None:
+        extended_metadata = ""
 
+    # Save as a greyscale TIFF
+    save_name = save_dir.joinpath(file_name + ".tiff")
 
-def convert_array_dtype(
-    array: np.ndarray,
-    target_dtype: str,
-    initial_dtype: Optional[str] = None,
-) -> np.ndarray:
-    """
-    Rescales the pixel values of the array to fit within the allowed range of the
-    desired array dtype while preserving the existing contrast.
+    # With 'bigtiff=True', they have to be pure Python class instances
+    imwrite(
+        save_name,
+        array,
+        bigtiff=use_bigtiff,
+        # Array properties,
+        shape=array.shape,
+        dtype=str(array.dtype),
+        resolution=resolution,
+        resolutionunit=resolution_unit,
+        # Colour properties
+        photometric=photometric,  # Greyscale image
+        colormap=color_map,
+        # ImageJ compatibility
+        imagej=True,
+        metadata={
+            "axes": axes,
+            "unit": units,
+            "spacing": z_size,
+            "loop": False,
+            # Coerce NumPy's min() and max() return values into Python floats
+            # Follow ImageJ's precision level
+            "min": round(float(array.min()), 1),
+            "max": round(float(array.max()), 1),
+            "Info": extended_metadata,
+            "Labels": image_labels,
+        },
+    )
+    logger.info(f"{file_name} image saved as {save_name}")
 
-    The target dtype should belong to the "int" or "uint" groups, excluding 'int64'
-    and 'uint64'. np.int64(np.float64(2**63 - 1)) and np.uint64(np.float64(2**64 - 1))
-    cannot be represented exactly in np.float64 or Python's float due to the loss of
-    precision at such large values. The leads to overflow errors when trying to cast
-    to np.int64 and np.uint64. 32-bit floats and below are thus also not supported as
-    input arrays, as the loss of precision occurs even earlier, leading to casting
-    issues at smaller NumPy dtypes.
-    """
-
-    # Use shorter names for variables
-    arr: np.ndarray = array
-    dtype_final = target_dtype
-    dtype_init = initial_dtype
-
-    # Parse target dtype provided
-    if dtype_final not in valid_dtypes and not any(
-        dtype_final == key for key in additional_dtype_keywords
-    ):
-        logger.error(f"{dtype_final} is not a valid NumPy dtype")
-        raise ValueError
-
-    # Reject float, complex, and int64/uint64 as target dtypes
-    if dtype_final.startswith(("float", "complex")) or dtype_final in (
-        "int64",
-        "uint64",
-    ):
-        logger.error(f"{dtype_final} output array not currently supported")
-        raise NotImplementedError
-
-    # Parse initial dtype estimate provided
-    # Estimate initial corresponding integer dtype if None provided
-    if dtype_init is None:
-        dtype_init = estimate_int_dtype(arr)
-
-    # Estimate dtype if invalid one provided
-    if dtype_init not in valid_dtypes and dtype_init not in additional_dtype_keywords:
-        logger.warning(
-            f"{dtype_init} is not a valid NumPy dtype; estimating dtype from the array"
-        )
-        dtype_init = estimate_int_dtype(arr)
-
-    # Find closest equivalent integer dtype that encompasses floats
-    if dtype_init.startswith(("float", "complex")):
-        logger.warning(
-            "Unsupported dtype estimate provided; estimating dtype from the array"
-        )
-        dtype_init = estimate_int_dtype(arr)
-
-    # Validate that the initial array is supported
-    # Reject float16, float32, complex64 input arrays
-    if str(arr.dtype) in ("float16", "float32", "complex64"):
-        logger.error(f"{arr.dtype} input array not currently supported")
-        raise NotImplementedError
-
-    # Accept 'complex' dtypes if no imaginary component
-    if str(arr.dtype).startswith("complex") and np.any(arr.imag != 0):
-        logger.error(
-            "Complex numbers with imaginary components not currently supported"
-        )
-        raise NotImplementedError
-    else:
-        arr = arr.real
-        dtype_init = estimate_int_dtype(arr)
-
-    # Get max supported values of initial and final arrays
-    dtype_info_init = get_dtype_info(dtype_init)
-    min_init = int(dtype_info_init.min)
-    max_init = int(dtype_info_init.max)
-    range_init = max_init - min_init
-
-    dtype_info_final = get_dtype_info(dtype_final)
-    min_final = int(dtype_info_final.min)
-    max_final = int(dtype_info_final.max)
-    range_final = max_final - min_final
-
-    # Rescale
-    for f in range(arr.shape[0]):
-        # Map from old range to new range without exceeding maximum bit depth
-        frame: np.ndarray = (
-            ((arr[f] / range_init) - (min_init / range_init)) * range_final
-        ) + min_final
-
-        # Catch numbers exceeding thresholds when going between dtypes
-        if frame.min() < min_final:
-            logger.warning(
-                f"{np.sum(frame < min_final)} values below allowed target minimum value"
-            )
-            frame[frame < min_final] = min_final
-        if frame.max() > max_final:
-            logger.warning(
-                f"{np.sum(frame > max_final)} values above allowed target maximum value"
-            )
-            frame[frame > max_final] = max_final
-
-        # Preserve dtype and round values if dtype is integer-based
-        frame = frame.round(0) if dtype_final.startswith(("int", "uint")) else frame
-        frame = frame.astype(dtype_final)
-
-        # Append to array
-        if f == 0:
-            arr_new = np.array([frame])
-        else:
-            arr_new = np.append(arr_new, [frame], axis=0)
-
-    return arr_new
-
-
-def stretch_image_contrast(
-    array: np.ndarray,
-    percentile_range: tuple[float, float] = (0.5, 99.5),  # Lower and upper percentiles
-    target_dtype: Optional[str] = None,
-    debug: bool = False,
-) -> np.ndarray:
-    """
-    Changes the range of pixel values occupied by the data, rescaling it across the
-    entirety of the array's bit depth.
-
-    The target dtype should belong to the "int" or "uint" groups, excluding 'int64'
-    and 'uint64'. np.int64(np.float64(2**63 - 1)) and np.uint64(np.float64(2**64 - 1))
-    cannot be represented exactly in np.float64 or Python's float due to the loss of
-    precision at such large values. The leads to overflow errors when trying to cast
-    to np.int64 and np.uint64. 32-bit floats and below are thus also not supported as
-    input arrays, as the loss of precision occurs even earlier, leading to casting
-    issues at smaller NumPy dtypes.
-    """
-
-    # Use shorter variable names
-    arr: np.ndarray = array
-
-    # Check that input array dtype is supported by NumPy
-    dtype = str(arr.dtype)
-    if dtype not in valid_dtypes:
-        logger.error(f"{dtype} is not a valid NumPy dtype")
-        raise ValueError
-
-    # Reject 'float16', 'float32', and 'complex64' input arrays
-    if dtype in ("float16", "float32", "complex64"):
-        logger.error(f"{dtype} input array not currently supported")
-        raise NotImplementedError
-
-    # Handle 'complex' dtypes
-    if dtype.startswith("complex"):
-        # Accept 'complex' dtypes with no imaginary component
-        if np.all(arr.imag == 0):
-            dtype = "float64"  # Overwrite initial dtype
-            arr = arr.real.astype(dtype)
-        # Reject otherwise
-        else:
-            logger.error(
-                "Complex numbers with imaginary components not currently supported"
-            )
-            raise NotImplementedError
-
-    # Parse target dtype
-    if target_dtype is None:
-        target_dtype = dtype
-
-    # Validate target_dtype
-    if (
-        target_dtype not in valid_dtypes
-        and target_dtype not in additional_dtype_keywords
-    ):
-        logger.warning("Invalid target dtype provided; using array's own dtype")
-        target_dtype = dtype
-
-    # Reject float, complex, and int64/uint64 target dtypes
-    if target_dtype.startswith(("float", "complex")) or target_dtype in (
-        "int64",
-        "uint64",
-    ):
-        logger.error(f"{target_dtype} output array not currently supported")
-        raise NotImplementedError
-
-    # Get key values
-    b_lo: float | int = np.percentile(arr, percentile_range[0])
-    b_up: float | int = np.percentile(arr, percentile_range[1])
-    diff: float | int = b_up - b_lo
-    dtype_info = get_dtype_info(target_dtype)
-    vmin = int(dtype_info.min)
-    vmax = int(dtype_info.max)
-
-    if debug:
-        logger.debug(f"Using {vmax} as maximum array value")
-
-    for f in range(arr.shape[0]):
-        # Overwrite outliers and normalise to new range
-        frame: np.ndarray = arr[f]
-        frame[frame <= b_lo] = b_lo
-        frame[frame >= b_up] = b_up
-
-        # DEBUG: Check array properties immediately after truncation
-        if debug:
-            # Calculate positions of mins and maxes in array
-            coords_max = np.unravel_index(np.argmax(frame), frame.shape)
-            coords_min = np.unravel_index(np.argmin(frame), frame.shape)
-
-            logger.debug(
-                "Frame properties after truncation: \n"
-                f"dtype: {frame.dtype} \n"
-                f"Shape: {frame.shape} \n"
-                f"Min: {frame.min()} \n"
-                f"Min coords: {coords_min} \n"
-                f"Max: {frame.max()} \n"
-                f"Max coords: {coords_max} \n"
-            )
-
-        # Normalise differently depending on whether dtype supports negative values
-        frame = (
-            # Scale between 0 and max positive value if no negative values are present
-            (((frame / diff) - (b_lo / diff)) * vmax)
-            if (vmin == 0 or b_lo >= 0)
-            # Keep 0 as center; scale values by largest scalar present
-            else (frame / max(abs(b_lo), abs(b_up)) * vmax)
-        )
-
-        # DEBUG: Check array properties immediately after calculation
-        if debug:
-            # Calculate positions of mins and maxes in array
-            coords_max = np.unravel_index(np.argmax(frame), frame.shape)
-            coords_min = np.unravel_index(np.argmin(frame), frame.shape)
-
-            logger.debug(
-                "Frame properties after contrast stretching: \n"
-                f"dtype: {frame.dtype} \n"
-                f"Shape: {frame.shape} \n"
-                f"Min: {frame.min()} \n"
-                f"Min coords: {coords_min} \n"
-                f"Max: {frame.max()} \n"
-                f"Max coords: {coords_max} \n"
-            )
-
-        # Catch negative numbers after contrast stretching
-        #   NOTE: For some reason (maybe NumPy inaccuracies when rounding), it's still
-        #   possible for some pixel values to go negative
-        if vmin == 0 or b_lo >= 0:
-            frame[frame <= 0] = 0
-        # Catch floats that potentially exceed limits of target dtype
-        frame[frame >= vmax] = vmax
-        frame[frame <= vmin] = vmin
-
-        if debug:
-            # Calculate positions of mins and maxes in array
-            coords_max = np.unravel_index(np.argmax(frame), frame.shape)
-            coords_min = np.unravel_index(np.argmin(frame), frame.shape)
-
-            logger.debug(
-                "Frame properties after catching negative numbers: \n"
-                f"dtype: {frame.dtype} \n"
-                f"Shape: {frame.shape} \n"
-                f"Min: {frame.min()} \n"
-                f"Min coords: {coords_min} \n"
-                f"Max: {frame.max()} \n"
-                f"Max coords: {coords_max} \n"
-            )
-
-        # Round values if dtype is integer-based
-        #   NOTE: np.round() rounds values that are exactly halfway towards the nearest
-        #   even number (e.g. 0.5 -> 0)
-        frame = frame.round(0) if dtype.startswith(("int", "uint")) else frame
-
-        if debug:
-            # Calculate positions of mins and maxes in array
-            coords_max = np.unravel_index(np.argmax(frame), frame.shape)
-            coords_min = np.unravel_index(np.argmin(frame), frame.shape)
-
-            logger.debug(
-                "Frame properties after rounding: \n"
-                f"dtype: {frame.dtype} \n"
-                f"Shape: {frame.shape} \n"
-                f"Min: {frame.min()} \n"
-                f"Min coords: {coords_min} \n"
-                f"Max: {frame.max()} \n"
-                f"Max coords: {coords_max} \n"
-            )
-
-        # Restore original dtype
-        frame = frame.astype(target_dtype)
-
-        if debug:
-            # Calculate positions of mins and maxes in array
-            coords_max = np.unravel_index(np.argmax(frame), frame.shape)
-            coords_min = np.unravel_index(np.argmin(frame), frame.shape)
-
-            logger.debug(
-                "Frame properties after resetting dtype: \n"
-                f"dtype: {frame.dtype} \n"
-                f"Shape: {frame.shape} \n"
-                f"Min: {frame.min()} \n"
-                f"Min coords: {coords_min} \n"
-                f"Max: {frame.max()} \n"
-                f"Max coords: {coords_max} \n"
-            )
-
-        # DEBUG: Check array properties after rounding
-        if debug:
-            if frame.min() <= vmin:
-                logger.debug(
-                    "There are values below the minimum bit range for this dtype"
-                )
-            if frame.max() >= vmax:
-                logger.debug("There are values above the max bit range for this dtype")
-
-        # Append to array
-        if f == 0:
-            arr_new = np.array([frame])
-        else:
-            arr_new = np.append(arr_new, [frame], axis=0)
-
-    return arr_new
+    return save_name
 
 
 def is_image_stack(
@@ -592,206 +546,496 @@ def is_image_stack(
 
 def align_image_to_self(
     array: np.ndarray,
-    start_from: Literal["beginning", "middle", "end"] = "beginning",
+    start_from: Literal["beginning", "middle", "end"] = "middle",
+    max_iters: int = 100,
+    eps: float = 1e-6,
+    use_mask: bool = True,
+    downsampling_factor: int = 2,
+    num_procs: int = 1,
 ) -> np.ndarray:
     """
-    Use PyStackReg to correct for drift in an image stack.
-    """
-    # Record initial dtype and intensities
-    dtype = str(array.dtype)
-    vmin: int | float = array.min()
-    vmax: int | float = array.max()
+    Helper function that performs drift correction on an image stack using OpenCV's
+    Enhanced Correlation Coefficient (ECC) maximisation routine, details of which
+    can be found in the following paper (DOI: 10.1109/TPAMI.2008.113.)
+    http://xanthippi.ceid.upatras.gr/people/evangelidis/george_files/PAMI_2008.pdf
 
-    # Check if an image or a stack has been passed to the function
-    shape = array.shape
-    if len(shape) <= 2 or (
-        len(shape) == 3 and shape[-1] in (3, 4)  # Check for 2D RGB or RGBA images
+    Parameters
+    ----------
+    array: np.ndarray
+        The image stack to be aligned. This will be a grayscale or RGB image as
+        a NumPy array.
+
+    start_from: Literal["beginning", "middle", "end"] = "middle"
+        The part of the array to use as the reference. For CLEM image stacks, the
+        frames in the middle of the stack tend to be the most in focus, and are
+        best used as the starting point for registration.
+
+    max_iters: int = 100
+        The maximum number of iterations before stopping the registration attempt.
+
+    eps: float = 1e-6
+        The convergence tolerance for ECC optimisation. The registration will stop
+        when the relative improvement between iterations falls below this value.
+
+    use_mask: bool = True,
+        Applies a circular mask so that only the central part of the image is
+        considered during registration.
+
+    downsampling_factor: int = 2,
+        The degree of downsampling to apply to the image.
+
+    Returns
+    -------
+    aligned: np.ndarray
+        The aligned image stack as a NumPy array.
+    """
+
+    def _invert_euclidean(M: np.ndarray) -> np.ndarray:
+        """Invert a 2x3 Euclidean affine matrix."""
+        R = M[:, :2]  # 2x2 rotation part
+        t = M[:, 2:]  # translation part
+        R_inv = R.T  # inverse rotation
+        t_inv = -R_inv @ t
+        M_inv = np.eye(3, dtype=np.float32)
+        M_inv[:2, :2] = R_inv
+        M_inv[:2, 2:] = t_inv
+        return M_inv[:2]
+
+    def _register(
+        frame_num: int,
+        prev: np.ndarray,
+        curr: np.ndarray,
+        warp_init: np.ndarray,
+        mask: np.ndarray | None,
+        downsampling_factor: int,
     ):
+        try:
+            logger.info(f"Registering frame {frame_num}")
+            # For RGB images, create a weighted grayscale image to use for registration
+            scale = 1 / downsampling_factor
+            prev_gray = (
+                (
+                    # Luma-style weighted sum; avoids cv2.cvtColor copy
+                    0.2126 * prev[..., 0]
+                    + 0.7152 * prev[..., 1]
+                    + 0.0722 * prev[..., 2]
+                ).astype(np.float32)
+                if prev.ndim == 3
+                else prev.astype(np.float32)
+            )
+            curr_gray = (
+                (
+                    # Luma-style weighted sum; avoids cv2.cvtColor copy
+                    0.2126 * curr[..., 0]
+                    + 0.7152 * curr[..., 1]
+                    + 0.0722 * curr[..., 2]
+                ).astype(np.float32)
+                if curr.ndim == 3
+                else curr.astype(np.float32)
+            )
+            # Downsample arrays as needed
+            if downsampling_factor > 1:
+                prev_gray = cv2.resize(
+                    prev_gray,
+                    dsize=None,
+                    fx=scale,
+                    fy=scale,
+                    interpolation=cv2.INTER_AREA,
+                )
+                curr_gray = cv2.resize(
+                    curr_gray,
+                    dsize=None,
+                    fx=scale,
+                    fy=scale,
+                    interpolation=cv2.INTER_AREA,
+                )
+                if mask is not None:
+                    mask = cv2.resize(
+                        mask,
+                        dsize=None,
+                        fx=scale,
+                        fy=scale,
+                        interpolation=cv2.INTER_NEAREST,
+                    )
+
+            # Compute and return the transform
+            warp = warp_init.copy()
+            cv2.findTransformECC(
+                prev_gray,
+                curr_gray,
+                warp,
+                motionType=cv2.MOTION_EUCLIDEAN,
+                criteria=(
+                    cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT,
+                    max_iters,
+                    eps,
+                ),
+                inputMask=mask,
+                gaussFiltSize=5,
+            )  # Updated in-place
+            warp[:2, 2] *= downsampling_factor
+            return _invert_euclidean(warp), frame_num
+        except cv2.error:
+            logger.warning(
+                f"Error registering fram {frame_num}. Using identity matrix",
+                exc_info=True,
+            )
+            return warp_init, frame_num
+
+    def _make_homogeneous(M: np.ndarray):
+        H = np.eye(3, dtype=np.float32)
+        H[:2] = M
+        return H
+
+    # Validate that this is a grayscale or RGB array to begin with
+    if not is_image_stack(array):
         logger.warning(
-            f"Image provided likely not an image stack (has dimensions {shape});"
+            f"Image provided likely not an image stack (has dimensions {array.shape});"
             "returning original array"
         )
         return array
 
-    # Set up StackReg object to facilitate image processing
-    sr = StackReg(StackReg.RIGID_BODY)
+    def _warp_frame(
+        frame_num: int,
+        frame: np.ndarray,
+        M: np.ndarray,
+    ):
+        try:
+            logger.info(f"Transforming frame {frame_num}")
+            out = cv2.warpAffine(
+                frame,
+                M,
+                (w, h),
+                flags=cv2.INTER_LINEAR,
+                borderMode=cv2.BORDER_CONSTANT,
+                borderValue=float(vmin),
+            )
+            np.clip(out, a_min=vmin, a_max=vmax, out=out)
+            return out, frame_num
+        except Exception:
+            logger.warning(
+                "Could not apply transformation to frame. Returning original frame"
+            )
+            return frame, frame_num
 
-    # Standard method for aligning images
+    # Start of function
+    cv2.setNumThreads(1)
+    start_time = time.perf_counter()
+
+    # Extract dimensions, dtype, vmin, and vmax
+    z, h, w = array.shape[:3]
+    dtype = array.dtype
+    vmin, vmax = array.min(), array.max()
+    logger.debug(
+        f"shape: {array.shape}\ndtype: {array.dtype}\nvmin: {vmin}\nvmax: {vmax}"
+    )
+
+    # Set the reference index
     if start_from == "beginning":
-        aligned = np.array(sr.register_transform_stack(array, reference="previous"))
-
-    # Align from the middle
-    # Useful for aligning defocus series, where the plane of focus is in the middle
+        ref_idx = 0
     elif start_from == "middle":
-        # Align both halves independently
-        idx = len(array) // 2  # Floor division
-        aligned_front = np.flip(
-            sr.register_transform_stack(
-                np.flip(array[: idx + 1], axis=0), reference="previous"
-            ),
-            axis=0,
-        )
-        aligned_back = np.array(
-            sr.register_transform_stack(array[idx:], reference="previous")
-        )
-
-        # Rejoin halves
-        aligned = np.concatenate((aligned_front[:idx], aligned_back), axis=0)
-
-    # Align from the end
+        ref_idx = z // 2
     elif start_from == "end":
-        aligned = np.flip(
-            sr.register_transform_stack(np.flip(array, axis=0), reference="previous"),
-            axis=0,
-        )
+        ref_idx = z - 1
     else:
-        logger.error(f"Invalid parameter {start_from!r} provided")
-        raise ValueError
+        raise ValueError(f"Invalid input for 'start_from' parameter: {start_from}")
 
-    # Crop intensities that have been shifted outside of the initial range
-    aligned[aligned < vmin] = vmin
-    aligned[aligned > vmax] = vmax
+    # Preallocate empty arrays
+    placeholder_start_time = time.perf_counter()
 
-    # Revert array back to initial dtype
-    aligned = aligned.astype(dtype) if str(aligned.dtype) != dtype else aligned
+    # Output stack with original dimensions
+    aligned = np.empty(array.shape, dtype=dtype)
+    aligned[ref_idx] = array[ref_idx]
 
-    return aligned
+    # Create identity Euclidean transform
+    I = np.array(
+        [
+            [1, 0, 0],
+            [0, 1, 0],
+        ],
+        dtype=np.float32,
+    )
+
+    # Create placeholder for the per-frame transforms
+    transforms = np.zeros((z, 2, 3), dtype=np.float32)
+    transforms[ref_idx] = I
+
+    placeholder_end_time = time.perf_counter()
+    logger.info("Allocated placeholder arrays")
+    logger.debug(
+        f"Allocated placeholder arrays in {placeholder_end_time - placeholder_start_time}s"
+    )
+
+    # Create a mask
+    mask: np.ndarray | None = None
+    if use_mask:
+        mask = np.zeros((h, w), np.uint8)
+        cv2.circle(mask, (w // 2, h // 2), min(h, w) // 3, 255, -1)  # Updated in-place
+        logger.debug("Created mask")
+
+    # Construct the list of current and previous frames to use for the alignment
+    frames_to_align = [
+        # Forward pass from reference frame
+        *[(i - 1, i) for i in range(ref_idx + 1, z)],
+        # Backward pass from reference frame
+        *[(i + 1, i) for i in range(ref_idx - 1, -1, -1)],
+    ]
+    # Register and collect warps relative to reference frames
+    registration_start_time = time.perf_counter()
+    logger.info("Performing image registration")
+    with ThreadPoolExecutor(max_workers=num_procs) as pool:
+        futures = [
+            pool.submit(
+                _register,
+                curr,
+                array[prev],
+                array[curr],
+                I,
+                mask,
+                downsampling_factor,
+            )
+            for prev, curr in frames_to_align
+        ]
+        for future in as_completed(futures):
+            warp, frame_num = future.result()
+            transforms[frame_num] = warp
+
+    # Update the per-frame transforms with the cumulative ones
+    logger.info("Calculating cumulative transformations")
+    for i in range(ref_idx + 1, z):
+        transforms[i] = (
+            _make_homogeneous(transforms[i - 1]) @ _make_homogeneous(transforms[i])
+        )[:2]
+    for i in range(ref_idx - 1, -1, -1):
+        transforms[i] = (
+            _make_homogeneous(transforms[i + 1]) @ _make_homogeneous(transforms[i])
+        )[:2]
+    registration_end_time = time.perf_counter()
+    logger.debug(
+        f"Registration completed in {registration_end_time - registration_start_time}s"
+    )
+
+    # Warp the frames and assign them to the aligned array
+    warp_start_time = time.perf_counter()
+    logger.info("Applying transformations to frames")
+    with ThreadPoolExecutor(max_workers=num_procs) as pool:
+        futures = [
+            pool.submit(
+                _warp_frame,
+                f,
+                array[f],
+                transforms[f],
+            )
+            for f in range(z)
+            if f != ref_idx
+        ]
+        for future in as_completed(futures):
+            frame, frame_num = future.result()
+            aligned[frame_num] = frame.astype(dtype, copy=False)
+    warp_end_time = time.perf_counter()
+    logger.debug(
+        f"Completed transformation of frames in {warp_end_time - warp_start_time}s"
+    )
+
+    end_time = time.perf_counter()
+    logger.debug(
+        f"Completed drift correction of current image in {end_time - start_time}s"
+    )
+    return aligned.astype(dtype, copy=False)
 
 
 def align_image_to_reference(
     reference_array: np.ndarray,
     moving_array: np.ndarray,
+    downsample_factor: int = 2,
+    sampling_percentage: float = 0.5,
+    shrink_factors_per_level: list[int] = [2, 1],
+    smoothing_sigmas_per_level: list[float] = [1.0, 0.5],
+    num_procs: int = 1,
 ) -> np.ndarray:
     """
-    Uses SimpleITK's image registration methods to align images to a reference.
+    Align images to a reference using SimpleITK's image registration methods. This
+    workflow handles 2D images or image stacks in both grayscale and RGB formats.
 
     Currently, this method works poorly for defocused images, which can lead to a
     lot of jitter in the beginning and tail frames if the images being aligned are
     a defocus series.
+
+    Parameters
+    ----------
+    reference_array: np.ndarray
+        The image being used as a reference.
+
+    moving_array: np.ndarray
+        The image to align.
+
+    downsample_factor: int = 2
+        The degree of binning to apply to the image during the registration process.
+        While resizing, SITK preserves the dimensions of the image when it is first
+        converted into an SITK Image, and will adjust the pixel size associated with
+        the Image when it is subsequently resized.
+
+    sampling_percentage: float = 0.5,
+        The fraction of pixels to sample when calculating the transformation matrix.
+
+    shrink_factors_per_level: list[int] = [2, 1]
+        The degree of shrinking to apply to the image per pyramid level, with the
+        registration being repeated to fine-tune the transformation matrix.
+
+    smoothing_sigmas_per_level: list[float] = [1.0, 0.5]
+        The intensity of the Gaussian blurring to apply at each pyramid level.
+
+    num_procs: int = 1
+        The number of threads to run this function with. The code has been optimised
+
+
+
     """
+
+    def _register_frame(frame_num: int, ref: np.ndarray, mov: np.ndarray):
+        try:
+            logger.info("Setting up SITK image objects")
+            ref_sitk = sitk.Cast(sitk.GetImageFromArray(ref), sitk.sitkFloat32)
+            mov_sitk = sitk.Cast(sitk.GetImageFromArray(mov), sitk.sitkFloat32)
+            # Downsample the frame
+            if downsample_factor > 1:
+                ref_small = sitk.Shrink(ref_sitk, [downsample_factor] * 2)
+                mov_small = sitk.Shrink(mov_sitk, [downsample_factor] * 2)
+            else:
+                ref_small, mov_small = ref_sitk, mov_sitk
+
+            # Set up registration method
+            logger.info("Setting up registration method")
+            registration = sitk.ImageRegistrationMethod()
+            registration.SetInterpolator(sitk.sitkLinear)
+
+            # Set the metric to use
+            registration.SetMetricAsMattesMutualInformation(numberOfHistogramBins=64)
+            registration.SetMetricSamplingPercentage(
+                sampling_percentage
+            )  # Sample 5% of pixels
+            registration.SetMetricSamplingStrategy(registration.RANDOM)
+
+            # Set the optimiser to use
+            # registration.SetOptimizerAsGradientDescent(
+            #     learningRate=0.5,
+            #     numberOfIterations=300,
+            #     convergenceMinimumValue=1e-6,
+            #     convergenceWindowSize=10,
+            # )
+            registration.SetOptimizerAsGradientDescentLineSearch(
+                learningRate=1.0,
+                numberOfIterations=200,
+                convergenceMinimumValue=1e-6,
+                convergenceWindowSize=5,
+            )
+            # registration.SetOptimizerAsAmoeba(
+            #     simplexDelta=1.0,
+            #     numberOfIterations=300,
+            #     parametersConvergenceTolerance=1e-8,
+            #     functionConvergenceTolerance=1e-4,
+            #     withRestarts=False,
+            # )
+            # registration.SetOptimizerAsOnePlusOneEvolutionary(
+            #     epsilon=1e-6,
+            #     initialRadius=1.0,
+            #     numberOfIterations=300,
+            #     growthFactor=-1.0,
+            #     shrinkFactor=-1.0,
+            # )
+            registration.SetOptimizerScalesFromIndexShift()
+
+            # Register over a multi-resolution pyramid
+            registration.SetShrinkFactorsPerLevel(shrink_factors_per_level)
+            registration.SetSmoothingSigmasPerLevel(smoothing_sigmas_per_level)
+            registration.SmoothingSigmasAreSpecifiedInPhysicalUnitsOn()
+
+            # Initilaise transform or reuse previous one, if available
+            initial_transform = sitk.CenteredTransformInitializer(
+                ref_small,
+                mov_small,
+                sitk.Euler2DTransform(),
+                sitk.CenteredTransformInitializerFilter.GEOMETRY,
+            )
+            registration.SetInitialTransform(initial_transform, inPlace=False)
+
+            # Execute registration on downsampled images
+            logger.info(f"Registering frame {frame_num}")
+            final_transform = registration.Execute(ref_small, mov_small)
+
+            # Apply transform to full resolution frame
+            logger.info(f"Applying transformation to frame {frame_num}")
+            aligned = sitk.GetArrayFromImage(
+                sitk.Resample(
+                    mov_sitk,
+                    transform=final_transform,
+                    interpolator=sitk.sitkLinear,
+                    outputPixelType=sitk.sitkFloat32,
+                )
+            )
+            np.clip(aligned, a_min=vmin, a_max=vmax, out=aligned)
+            if np.issubdtype(dtype, np.integer):
+                np.rint(aligned, out=aligned)
+            return aligned.astype(dtype, copy=False), frame_num
+        except Exception:
+            logger.warning(
+                f"Error registering frame {frame_num} to reference. Returning original image",
+                exc_info=True,
+            )
+            return mov, frame_num
+
     # Restrict number of threads used by SimpleITK
     sitk.ProcessObject_SetGlobalDefaultNumberOfThreads(1)
+    start_time = time.perf_counter()
+    logger.debug(
+        f"SITK image alignment settings: \n"
+        f"Downsample factor: {downsample_factor}\n"
+        f"Sampling percentage: {sampling_percentage}\n"
+        f"Shrink factors per level: {shrink_factors_per_level}\n"
+        f"Smoothing sigmas per level: {smoothing_sigmas_per_level}"
+    )
 
     # Get initial dtype
-    if str(reference_array.dtype) != str(moving_array.dtype):
+    if reference_array.dtype != moving_array.dtype:
         logger.error("The image stacks provided do not have the same dtype")
         raise ValueError
-    dtype = str(moving_array.dtype)
-    vmin: int | float = moving_array.min()
-    vmax: int | float = moving_array.max()
+    dtype = moving_array.dtype
+    vmin, vmax = moving_array.min(), moving_array.max()
 
-    # Check array shape
     if reference_array.shape != moving_array.shape:
-        logger.error("The image stacks provided do not have the same dimensions")
-        raise ValueError
+        logger.error("The image stacks provided are not of the same shape")
 
-    # SimpleITK's image registration prefers to work with floats
-    fixed: SITKImage = sitk.Cast(
-        sitk.GetImageFromArray(reference_array), sitk.sitkFloat64
-    )
-    moving: SITKImage = sitk.Cast(
-        sitk.GetImageFromArray(moving_array), sitk.sitkFloat64
-    )
+    # Standardise frames and stacks as stacks
+    if was_a_stack := is_image_stack(moving_array):
+        num_frames = moving_array.shape[0]
+    else:
+        num_frames = 1
+        reference_array = reference_array[np.newaxis, ...]
+        moving_array = moving_array[np.newaxis, ...]
 
-    # Check if an image or a stack has been passed to the function, and handle accordingly
-    shape: tuple[int, ...] = (
-        fixed.GetSize()
-    )  # In (x, y, z) order; SITK's Size object omits the RGB dimension, if present
-    num_frames = 1 if len(shape) == 2 else shape[-1]
+    # Pre-allocate output NumPy array
+    aligned = np.empty(moving_array.shape, dtype=dtype)
 
-    # Iterate through stacks, aligning corresponding frames
-    aligned_frames: list[SITKImage] = []
-    for f in range(num_frames):
-        fixed_frame: SITKImage
-        moving_frame: SITKImage
-        if len(shape) == 2:
-            fixed_frame = fixed
-            moving_frame = moving
-        else:
-            fixed_frame = fixed[:, :, f]
-            moving_frame = moving[:, :, f]
+    with ThreadPoolExecutor(max_workers=num_procs) as pool:
+        futures = [
+            pool.submit(
+                _register_frame,
+                f,
+                reference_array[f],
+                moving_array[f],
+            )
+            for f in range(num_frames)
+        ]
+        for future in as_completed(futures):
+            frame, frame_num = future.result()
+            aligned[frame_num] = frame
 
-        # Set up the registration parameters
-        registration = sitk.ImageRegistrationMethod()
+    # If the image was not initially a stack, flatten it
+    if not was_a_stack:
+        aligned = aligned[0]
 
-        # Choose the metric
-        registration.SetMetricAsMattesMutualInformation(numberOfHistogramBins=64)
-
-        # Choose the type of interpolation to use
-        registration.SetInterpolator(sitk.sitkLinear)
-
-        # Register over a multi-resolution pyramid
-        registration.SetShrinkFactorsPerLevel([4, 2, 1])
-        registration.SetSmoothingSigmasPerLevel([2, 1, 0])
-        # registration.SmoothingSigmasAreSpecifiedInPhysicalUnitsOn()
-
-        # Choose the type of optimiser to use
-        # registration.SetOptimizerAsGradientDescent(
-        #     learningRate=0.5,
-        #     numberOfIterations=300,
-        #     convergenceMinimumValue=1e-6,
-        #     convergenceWindowSize=10,
-        # )
-        registration.SetOptimizerAsGradientDescentLineSearch(
-            learningRate=1.0,
-            numberOfIterations=300,
-            convergenceMinimumValue=1e-6,
-            convergenceWindowSize=10,
-            lineSearchLowerLimit=0,
-            lineSearchUpperLimit=5.0,
-            lineSearchMaximumIterations=20,
-        )
-        # registration.SetOptimizerAsAmoeba(
-        #     simplexDelta=1.0,
-        #     numberOfIterations=300,
-        #     parametersConvergenceTolerance=1e-8,
-        #     functionConvergenceTolerance=1e-4,
-        #     withRestarts=False,
-        # )
-        # registration.SetOptimizerAsOnePlusOneEvolutionary(
-        #     epsilon=1e-6,
-        #     initialRadius=1.0,
-        #     numberOfIterations=300,
-        #     growthFactor=-1.0,
-        #     shrinkFactor=-1.0,
-        # )
-        registration.SetOptimizerScalesFromIndexShift()
-
-        # Initialise a rigid-body transform
-        initial_transform = sitk.CenteredTransformInitializer(
-            fixed_frame,
-            moving_frame,
-            sitk.Euler2DTransform(),  # Restricted to in-plane translation and rotation
-            sitk.CenteredTransformInitializerFilter.GEOMETRY,
-        )
-        registration.SetInitialTransform(initial_transform, inPlace=False)
-
-        # Register the frame
-        final_transform = registration.Execute(fixed_frame, moving_frame)
-
-        # Transform the moving frame
-        aligned_frame: SITKImage = sitk.Resample(
-            moving_frame,
-            transform=final_transform,
-            interpolator=sitk.sitkLinear,
-            defaultPixelValue=0.0,
-            outputPixelType=moving_frame.GetPixelID(),
-            useNearestNeighborExtrapolator=True,
-        )
-        aligned_frames.append(aligned_frame)
-
-    # Recombine as a single image stack
-    aligned: np.ndarray = (
-        sitk.GetArrayFromImage(aligned_frames[0])
-        if len(aligned_frames) == 1
-        else sitk.GetArrayFromImage(sitk.JoinSeries(aligned_frames))
-    )
-
-    # Crop values that exceed initial range after transformation
-    aligned[aligned < vmin] = vmin
-    aligned[aligned > vmax] = vmax
-    aligned = aligned.astype(dtype) if str(aligned.dtype) != dtype else aligned
-
+    end_time = time.perf_counter()
+    logger.debug(f"Completed registration of image stack in {end_time - start_time}s")
     return aligned
 
 
@@ -835,468 +1079,111 @@ def convert_to_rgb(
     array: np.ndarray,
     color: str,
 ) -> np.ndarray:
+    """
+    Converts a grayscale image into an RGB image with the desired colour format.
+    """
     # Set up variables
-    arr: np.ndarray = array
-    dtype = str(arr.dtype)
     try:
         lut = LUT[color.lower()].value
     except KeyError:
         raise KeyError(f"No lookup table found for the colour {color!r}")
 
-    # Calculate pixel values for each channel
-    arr_list: list[np.ndarray] = [arr * c for c in lut]
+    # Pre-allocate empty output array
+    out = np.empty((array.shape + (3,)), dtype=array.dtype)
 
-    # Stack arrays along last axis and preserve dtype
-    arr_new = np.stack(arr_list, axis=-1).astype(dtype)
+    # Write to channels directly
+    for c, value in enumerate(lut):
+        np.multiply(array, value, out=out[..., c], casting="unsafe")
 
-    return arr_new
+    return out
 
 
 def flatten_image(
     array: np.ndarray,
     mode: Literal["mean", "min", "max"] = "mean",
 ) -> np.ndarray:
+    """
+    Flattens an image along its outermost axis, turning an image stack into a 2D image.
+
+    Parameters
+    ----------
+    array: np.ndarray
+        The incoming image. The input can technically be any NumPy array with 2 or more
+        dimensions, but this should be used for grayscale or RGB image stacks.
+
+    mode: Literal["mean", "min", "max"] = "mean"
+        The method with which the pixels along the axis being flattened are sampled.
+        "min" and "max" would respectively return the minimum and maximum intensity
+        projections for each pixel along that axis, while "mean" computes the average
+        pixel value along that axis.
+    """
     # Flatten along first (outermost) axis
     axis = 0
-    if mode == "min":
-        arr_new: np.ndarray = array.min(axis=axis)
-    elif mode == "max":
-        arr_new = array.max(axis=axis)
+    dtype = array.dtype
+    out: np.ndarray
+    if mode in ("min", "max"):
+        # Pre-allocate empty output array
+        out = np.empty(array.shape[1:], dtype=dtype)
+        if mode == "min":
+            np.minimum.reduce(array, axis=axis, out=out)
+        else:
+            np.maximum.reduce(array, axis=axis, out=out)
     elif mode == "mean":
-        dtype = str(array.dtype)
-        arr_new = array.mean(axis=axis)
-        arr_new = arr_new.round(0) if dtype.startswith(("int", "uint")) else arr_new
-        arr_new = arr_new.astype(dtype)
-
+        # Use float32 when calculating integer arrays to keep footprint small
+        is_int_dtype = np.issubdtype(dtype, np.integer)
+        out = array.mean(axis=axis, dtype=np.float32 if is_int_dtype else dtype)
+        if is_int_dtype:
+            np.rint(out, out=out)
+            out = out.astype(dtype, copy=False)
     # Raise error if the mode provided is incorrect
     else:
         logger.error(f"{mode} is not a valid image flattening option")
         raise ValueError
 
-    return arr_new
+    return out
 
 
 def merge_images(
     arrays: np.ndarray | list[np.ndarray],
 ) -> np.ndarray:
     """
-    Takes a list of arrays and returns a composite image averaged across every image in
-    the list.
+    Takes a list of images and returns a composite image averaged across every image
+    in the list.
     """
 
-    # Standardise to a list of arrays
-    if isinstance(arrays, np.ndarray):
+    # Standardise inputs as a list
+    if not isinstance(arrays, list):
         arrays = [arrays]
 
+    # Check that an array was provided
+    if not arrays:
+        raise ValueError("No input arrays provided")
+
+    # Raise error if any of the list inputs aren't an array
+    if any(not isinstance(arr, np.ndarray) for arr in arrays):
+        raise ValueError("One or more of the provided inputs is not a NumPy array")
+
     # Validate that arrays have the same shape
-    if len({arr.shape for arr in arrays}) > 1:
-        logger.error("Input arrays do not have the same shape")
-        raise ValueError
-
-    # Validate that arrays have the same dtype
-    if len({str(arr.dtype) for arr in arrays}) > 1:
-        logger.error("Input arrays do not have the same dtype")
-        raise ValueError
-    dtype = str(arrays[0].dtype)
-
-    # Calculate average across all arrays
-    arr_new: np.ndarray = np.mean(arrays, axis=0)
-
-    # Revert to input array dtype
-    arr_new = arr_new.round(0) if dtype.startswith(("int", "uint")) else arr_new
-    arr_new = arr_new.astype(dtype)
-
-    return arr_new
-
-
-def get_percentiles(
-    # LIF file-specific parameters
-    lif_file: Path | None = None,
-    scene_num: int | None = None,
-    channel_num: int | None = None,
-    frame_num: int | None = None,
-    tile_num: int | None = None,
-    # TIFF file-specific parameters
-    tiff_file: Path | None = None,
-    # Common parameters
-    percentiles: tuple[float, float] = (1, 99),
-) -> tuple[int | float | None, int | float | None]:
-    """
-    Helper function that returns the values corresponding to the specified lower and
-    upper percentiles.
-    """
-    # Validate that either TIFF file or LIF file stitching parameters are present
-    if lif_file is None and tiff_file is None:
-        err_msg = "No file-specific processing parameters provided"
-        logger.error(err_msg)
-        raise ValueError(err_msg)
-    if lif_file and tiff_file:
-        err_msg = "LIF file and TIFF file processing parameters are both present"
-        logger.error(err_msg)
-        raise ValueError(err_msg)
-    if lif_file is not None:
-        if not (
-            scene_num is not None and frame_num is not None and channel_num is not None
-        ):
-            err_msg = (
-                "One or more LIF file parameters is absent: \n"
-                f"scene_num: {scene_num} \n"
-                f"channel_num: {channel_num} \n"
-                f"frame_num: {frame_num} \n"
-            )
-            logger.error(err_msg)
-            raise ValueError(err_msg)
-
-    # Load the image
-    try:
-        if lif_file is not None:
-            image = LifFile(str(lif_file)).get_image(scene_num)
-            arr = np.asarray(
-                image.get_frame(
-                    z=frame_num,
-                    c=channel_num,
-                    m=tile_num,
-                )
-            )
-        else:
-            arr = np.asarray(PILImage.open(tiff_file))
-    except Exception:
-        logger.warning(f"Unable to load frame {frame_num}-{tile_num}")
-        return (None, None)
-
-    # Get the lower and upper percentile values
-    p_lo, p_hi = np.percentile(arr, percentiles)
-    return p_lo, p_hi
-
-
-def stitch_image_frames(
-    # LIF file processing
-    lif_file: Path | None = None,
-    scene_num: int | None = None,
-    channel_num: int | None = None,
-    frame_num: int | None = None,
-    # TIFF file processing
-    tiff_list: list[Path] = [],
-    # Common fields
-    tile_scan_info: dict[int, dict] = {},
-    image_width: float | None = None,
-    image_height: float | None = None,
-    extent: tuple[float, ...] = (),
-    dpi: int | float = 300,
-    contrast_limits: tuple[float | None, float | None] = (None, None),
-):
-    """
-    Helper function to stitch together tiles from a single frame.
-
-    Makes use of Matplotlib's 'imshow()' to overlay the tiles on the canvas using
-    their real-space coordinates. Upon rendering all the tiles, the canvas can be
-    converted into a NumPy array to be used in the rest of the workflow.
-    """
-
-    # Validate that either TIFF file or LIF file stitching parameters are present
-    if lif_file is None and not tiff_list:
-        err_msg = "No file-specific processing parameters provided"
-        logger.error(err_msg)
-        raise ValueError(err_msg)
-    if lif_file and tiff_list:
-        err_msg = "LIF file and TIFF file processing parameters are both present"
-        logger.error(err_msg)
-        raise ValueError(err_msg)
-    if lif_file is not None:
-        if not (
-            scene_num is not None and frame_num is not None and channel_num is not None
-        ):
-            err_msg = (
-                "One or more LIF file parameters is absent: \n"
-                f"scene_num: {scene_num} \n"
-                f"channel_num: {channel_num} \n"
-                f"frame_num: {frame_num} \n"
-            )
-            logger.error(err_msg)
-            raise ValueError(err_msg)
-    # Sort into TIFF files into dictionary for more effective lookup later
-    tiff_dict = {}
-    if tiff_list:
-        for file in tiff_list:
-            tile_num = (
-                int(m.group(1))
-                if (m := re.search(r"--Stage(\d+)", file.stem))
-                else None
-            )
-            if tile_num is None:
-                continue
-            tiff_dict[tile_num] = file
-    # Validate common parameters
-    if len(extent) != 4:
-        err_msg = "'extent' must be a tuple of length 4"
-        logger.error(err_msg)
-        raise ValueError(err_msg)
-    if not (image_width is not None and image_height is not None):
-        err_msg = (
-            "One or more essential parameters is None: \n"
-            f"image_width: {image_width} \n"
-            f"image_height: {image_height} \n"
-        )
-        logger.error(err_msg)
-        raise ValueError(err_msg)
-
-    # Create the figure to stitch the tiles in
-    fig, ax = plt.subplots(facecolor="black", figsize=(6, 6))
-    fig.subplots_adjust(left=0, right=1, top=1, bottom=0)
-    fig.set_dpi(dpi)
-    ax.set_xlim(extent[0], extent[1])
-    ax.set_ylim(extent[2], extent[3])
-    ax.invert_yaxis()  # Set origin to top left of figure
-    ax.set_aspect("equal")  # Ensure same scales on x- and y-axis
-    ax.axis("off")
-    ax.set_facecolor("black")
-
-    # Unpack min and max values
-    vmin, vmax = contrast_limits
-
-    for tile_num, tile_info in tile_scan_info.items():
-        logger.info(f"Loading tile {tile_num}")
-        try:
-            # Get extent of current tile
-            x = float(tile_info["pos_x"])
-            y = float(tile_info["pos_y"])
-            tile_extent = [
-                x - image_width / 2,
-                x + image_width / 2,
-                y - image_height / 2,
-                y + image_height / 2,
-            ]
-
-            # Add tile to the montage
-            if lif_file is not None:
-                arr = (
-                    LifFile(lif_file)
-                    .get_image(scene_num)
-                    .get_frame(z=frame_num, c=channel_num, m=tile_num)
-                )
-            else:
-                arr = np.array(PILImage.open(tiff_dict[tile_num]))
-            ax.imshow(
-                arr,
-                extent=tile_extent,
-                origin="lower",
-                cmap="gray",
-                vmin=vmin,
-                vmax=vmax,
-            )
-        except Exception:
-            logger.warning(
-                f"Unable to add tile {tile_num} to the montage",
-                exc_info=True,
-            )
-            continue
-
-    # Extract the stitched image as an array
-    fig.canvas.draw()  # Render the figure using Matplotlib's engine
-    canvas = np.frombuffer(fig.canvas.buffer_rgba(), dtype=np.uint8)
-    canvas_width, canvas_height = fig.canvas.get_width_height()
-    canvas = canvas.reshape(canvas_height, canvas_width, 4)
-    logger.debug(f"Rendered canvas has shape {canvas.shape}")
-
-    # Find the extent of the stitched image on the rendered canvas
-    bbox = ax.get_window_extent().transformed(fig.dpi_scale_trans.inverted())
-    x0, y0, x1, y1 = [int(coord * fig.dpi) for coord in bbox.extents]
-    logger.debug(f"Image extents on canvas are {[x0, x1, y0, y1]}")
-
-    # Extract and return the stitched image as an array
-    frame = np.array(canvas[y0:y1, x0:x1, :3].mean(axis=-1), dtype=np.uint8)
-    plt.close()
-    logger.debug(f"Image frame has shape {frame.shape}")
-    return frame
-
-
-def preprocess_img_stk(
-    array: np.ndarray,
-    target_dtype: str = "uint8",
-    initial_dtype: Optional[str] = None,
-    adjust_contrast: Optional[str] = None,
-) -> np.ndarray:
-    """
-    Preprocessing routine for the image stacks extracted from raw data, rescaling
-    intensities and converting the arrays to the desired dtypes as needed.
-
-    The target dtype should belong to the "int" or "uint" groups, excluding 'int64'
-    and 'uint64'. np.int64(np.float64(2**63 - 1)) and np.uint64(np.float64(2**64 - 1))
-    cannot be represented exactly in np.float64 or Python's float due to the loss of
-    precision at such large values. The leads to overflow errors when trying to cast
-    to np.int64 and np.uint64. 32-bit floats and below are thus also not supported as
-    input arrays, as the loss of precision occurs even earlier, leading to casting
-    issues at smaller NumPy dtypes.
-
-    """
-
-    # Use shorter aliases in function
-    arr: np.ndarray = array
-    dtype_init = initial_dtype
-    dtype_final = target_dtype
-
-    # Validate target dtype
-    if dtype_final not in valid_dtypes:
-        logger.error(f"{dtype_final} is not a valid NumPy dtype")
-        raise ValueError
-
-    # Reject float, complex, and int64/uint64 output dtypes
-    if dtype_final.startswith(("float", "complex")) or dtype_final in (
-        "int64",
-        "uint64",
-    ):
-        logger.error(f"{dtype_final} output dtype not currently supported")
-        raise NotImplementedError
-
-    # Check that input array dtype is supported
-    if str(arr.dtype) in ("float16", "float32", "complex64"):
-        logger.error(f"{arr.dtype} input array not currently supported")
-        raise NotImplementedError
-
-    # Reject "complex" arrays with imaginary values
-    if str(arr.dtype).startswith("complex"):
-        if not np.all(arr.imag == 0):
-            logger.error(f"{str(arr.dtype)} not supported by this workflow")
+    shape, dtype = arrays[0].shape, arrays[0].dtype
+    for arr in arrays:
+        if arr.shape != shape:
+            logger.error("Input arrays do not have the same shape")
             raise ValueError
-        else:
-            arr = arr.real
+        if arr.dtype != dtype:
+            logger.error("Input arrays do not have the same dtype")
+            raise ValueError
 
-    # Estimate initial dtype if none provided
-    if dtype_init is None or not dtype_init.startswith(("int", "uint")):
-        if dtype_init is None:
-            pass  # No warning needed for None
-        elif dtype_init not in valid_dtypes:
-            logger.warning(
-                f"{dtype_init} is not a valid NumPy dtype; converting to most appropriate dtype"
-            )
-        elif not dtype_init.startswith(("int", "uint")):
-            logger.warning(
-                f"{dtype_init} is not supported by this workflow; converting to most appropriate dtype"
-            )
-        # Convert to suitable dtype
-        dtype_init = estimate_int_dtype(arr)
-        arr = (
-            convert_array_dtype(
-                array=arr,
-                target_dtype=dtype_final,
-                initial_dtype=dtype_init,
-            )
-            if not np.all(arr == 0)
-            else arr.astype(dtype_final)
-        )
-        dtype_init = dtype_final
-
-    # Rescale intensity values
-    # List of currently implemented methods (can add more as needed)
-    contrast_adustment_methods = ("stretch",)
-
-    if adjust_contrast is not None and adjust_contrast in contrast_adustment_methods:
-        if adjust_contrast == "stretch":
-            logger.info("Stretching image contrast across channel range")
-            arr = (
-                stretch_image_contrast(
-                    array=arr,
-                    percentile_range=(0.5, 99.5),
-                )
-                if not np.all(arr == 0)
-                else arr
-            )
-
-    # Convert to desired bit depth
-    if dtype_init != dtype_final:
-        logger.info(f"Converting to {dtype_final} array")
-        arr = (
-            convert_array_dtype(
-                array=arr,
-                target_dtype=dtype_final,
-                initial_dtype=dtype_init,
-            )
-            if not np.all(arr == 0)
-            else arr.astype(dtype_final)
-        )
-
-    return arr
-
-
-def write_stack_to_tiff(
-    array: np.ndarray,
-    save_dir: Path,
-    file_name: str,
-    # Resolution information
-    x_res: Optional[float] = None,
-    y_res: Optional[float] = None,
-    z_res: Optional[float] = None,
-    units: Optional[str] = None,
-    # Array properties
-    axes: Optional[str] = None,
-    image_labels: Optional[list[str] | str] = None,
-    # Colour properties
-    photometric: Optional[str] = None,  # Valid options listed below
-    color_map: Optional[np.ndarray] = None,
-    extended_metadata: Optional[str] = None,  # Stored as an extended string
-) -> Path:
-    """
-    Writes the NumPy array as a calibrated, ImageJ-compatible TIFF image stack.
-    """
-
-    # Use shorter aliases and calculate what is needed
-    arr: np.ndarray = array
-
-    # Get resolution
-    if z_res is not None:
-        z_size = (1 / z_res) if z_res > 0 else float(0)
-    else:
-        z_size = None
-
-    if x_res is not None and y_res is not None:
-        resolution = (x_res * 10**6 / 10**6, y_res * 10**6 / 10**6)
-    else:
-        resolution = None
-
-    resolution_unit = 1 if units is not None else None
-
-    # Get photometric
-    valid_photometrics = [
-        "minisblack",
-        "miniswhite",
-        "rgb",
-        "ycbcr",  # Y: Luminance | Cb: Blue chrominance | Cr: Red chrominance
-        "palette",
-    ]
-    if photometric is not None and photometric not in valid_photometrics:
-        photometric = None
-        logger.warning("Incorrect photometric value provided; defaulting to 'None'")
-
-    # Process extended metadata
-    if extended_metadata is None:
-        extended_metadata = ""
-
-    # Save as a greyscale TIFF
-    save_name = save_dir.joinpath(file_name + ".tiff")
-    logger.info(f"Saving {file_name} image as {save_name}")
-    imwrite(
-        save_name,
-        arr,
-        # Array properties,
-        shape=arr.shape,
-        dtype=str(arr.dtype),
-        resolution=resolution,
-        resolutionunit=resolution_unit,
-        # Colour properties
-        photometric=photometric,  # Greyscale image
-        colormap=color_map,
-        # ImageJ compatibility
-        imagej=True,
-        metadata={
-            "axes": axes,
-            "unit": units,
-            "spacing": z_size,
-            "loop": False,
-            "min": round(arr.min(), 1),  # Round according to ImageJ precision
-            "max": round(arr.max(), 1),
-            "Info": extended_metadata,
-            "Labels": image_labels,
-        },
+    is_int_dtype = np.issubdtype(dtype, np.integer)
+    # Add values in float32 for int dtypes
+    out = np.zeros(
+        shape,
+        dtype=np.float32 if is_int_dtype else dtype,
     )
+    for arr in arrays:
+        out += arr
+    out /= len(arrays)
+    if is_int_dtype:
+        np.rint(out, out=out)
+        out = out.astype(dtype, copy=False)
 
-    return save_name
+    return out
