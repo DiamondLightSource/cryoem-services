@@ -27,23 +27,16 @@ def select_classes_common_setup(
     """Setup for the tests below: create the message for and output of autoselection"""
     particles_file = job_dir / "Select/job012/particles.star"
     particles_file.parent.mkdir(parents=True)
+    scores = np.random.rand(2 * (initial_particle_count + particles_to_add))
     with open(particles_file, "w") as f:
         f.write("data_optics\n\nloop_\n_group\nopticsGroup1\n\n")
-        f.write("data_particles\n\nloop_\n_x\n_y\n_particle\n_movie\n")
+        f.write(
+            "data_particles\n\nloop_\n_x\n_y\n_particle\n_rlnMicrographName\n_rlnParticleScore\n"
+        )
         for i in range(particles_to_add):
             f.write(
                 f"{i / 100} {i / 100} {i}@Extract/job008/classes.mrcs "
-                f"MotionCorr/job002/Movies/movie.mrc\n"
-            )
-
-    all_particles_file = job_dir / "Select/job012/all_particles.star"
-    with open(all_particles_file, "w") as f:
-        f.write("data_optics\n\nloop_\n_group\nopticsGroup1\n\n")
-        f.write("data_particles\n\nloop_\n_x\n_y\n_particle\n_movie\n")
-        for i in range(particles_to_add):
-            f.write(
-                f"{i / 100} {i / 100} {i}@Extract/job008/classes.mrcs "
-                f"MotionCorr/job002/Movies/movie.mrc\n"
+                f"MotionCorr/job002/Movies/movie.mrc {scores[i]}\n"
             )
 
     if initial_particle_count:
@@ -51,11 +44,13 @@ def select_classes_common_setup(
         particles_file.parent.mkdir(parents=True)
         with open(particles_file, "w") as f:
             f.write("data_optics\n\nloop_\n_group\nopticsGroup1\n\n")
-            f.write("data_particles\n\nloop_\n_x\n_y\n_particle\n_movie\n")
+            f.write(
+                "data_particles\n\nloop_\n_x\n_y\n_particle\n_rlnMicrographName\n_rlnParticleScore\n"
+            )
             for i in range(initial_particle_count):
                 f.write(
                     f"{i / 100} {i / 100} {i}@Extract/job008/classes.mrcs "
-                    f"MotionCorr/job002/Movies/movie.mrc\n"
+                    f"MotionCorr/job002/Movies/movie.mrc {scores[i]}\n"
                 )
 
         particles_file_unfiltered = (
@@ -63,20 +58,28 @@ def select_classes_common_setup(
         )
         with open(particles_file_unfiltered, "w") as f:
             f.write("data_optics\n\nloop_\n_group\nopticsGroup1\n\n")
-            f.write("data_particles\n\nloop_\n_x\n_y\n_particle\n_movie\n")
-            for i in range(initial_particle_count):
+            f.write(
+                "data_particles\n\nloop_\n_x\n_y\n_particle\n_rlnMicrographName\n_rlnParticleScore\n"
+            )
+            for i in range(2 * initial_particle_count):
                 f.write(
                     f"{i / 100} {i / 100} {i}@Extract/job008/classes.mrcs "
-                    f"MotionCorr/job002/Movies/movie.mrc\n"
+                    f"MotionCorr/job002/Movies/movie.mrc {scores[i]}\n"
                 )
 
-    else:
-        (job_dir / "Select/job013").mkdir(exist_ok=True)
-        (job_dir / "Select/job013/particles_all.star").touch()
-        (job_dir / "Select/job013/particles_all_unfiltered.star").touch()
+    (job_dir / "Select/job013").mkdir(parents=True, exist_ok=True)
 
-    scores = np.random.rand(initial_particle_count + particles_to_add)
-    np.save(job_dir / "Select/job013/particle_scores.npy", scores)
+    Path(job_dir / "Class2D/job010").mkdir(parents=True, exist_ok=True)
+    with open(job_dir / "Class2D/job010/run_it020_data.star", "w") as f:
+        f.write("data_optics\n\nloop_\n_group\nopticsGroup1\n\n")
+        f.write(
+            "data_particles\n\nloop_\n_x\n_y\n_particle\n_rlnMicrographName\n_rlnClassNumber\n"
+        )
+        for i in range(2 * particles_to_add):
+            f.write(
+                f"{i / 100} {i / 100} {i}@Extract/job008/classes.mrcs "
+                f"MotionCorr/job002/Movies/movie.mrc {np.random.randint(50)}\n"
+            )
 
     Path(job_dir / "MotionCorr/job002/Movies").mkdir(parents=True, exist_ok=True)
     with mrcfile.new(job_dir / "MotionCorr/job002/Movies/movie.mrc") as mrc:
@@ -97,12 +100,11 @@ def select_classes_common_setup(
             "_rlnEstimatedResolution\n_rlnOverallFourierCompleteness\n"
             "_rlnClassPriorOffsetX\n_rlnClassPriorOffsetY"
         )
-        f.write(
-            "\n000001@Class2D/job010/run_it020_classes.mrcs "
-            "0.004 0.035 3.100 1.416 16.183 1.000 -0.133 -0.001"
-            "\n000002@Class2D/job010/run_it020_classes.mrcs "
-            "0.008 0.035 3.100 1.416 16.183 1.000 -0.133 -0.001"
-        )
+        for i in range(50):
+            f.write(
+                f"\n{i}@Class2D/job010/run_it020_classes.mrcs "
+                f"{np.random.rand()} 0.035 3.100 1.416 16.183 1.000 -0.133 -0.001"
+            )
 
     classes_file = job_dir / "Select/job012/class_averages.star"
     with open(classes_file, "w") as f:

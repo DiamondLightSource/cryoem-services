@@ -200,6 +200,7 @@ class SelectClasses(CommonService):
         all_particle_scores = None
         if Path(particle_data_starfile).is_file():
             input_particle_data = starfile.read(particle_data_starfile)
+
         if not autoselect_result.returncode:
             quantile_threshold = autoselect_params.autoselect_min_score
             if not autoselect_params.autoselect_min_score:
@@ -221,19 +222,24 @@ class SelectClasses(CommonService):
                 }
                 rw.send_to("murfey_feedback", murfey_params)
 
-            if (
-                input_particle_data
-                and "rlnCryodannScore" in input_particle_data["particles"].columns
-            ):
+            if input_particle_data:
                 model_score_data = starfile.read(select_dir / "rank_model.star")
                 class_scores = list(model_score_data["rlnClassScore"])
-                input_particle_data["particles"]["rlnParticleScore"] = (
-                    input_particle_data["particles"].apply(
-                        lambda r: r["rlnCryodannScore"]
-                        * class_scores[r["rlnClassNumber"] - 1],
-                        axis=1,
+                if "rlnCryodannScore" in input_particle_data["particles"].columns:
+                    input_particle_data["particles"]["rlnParticleScore"] = (
+                        input_particle_data["particles"].apply(
+                            lambda r: r["rlnCryodannScore"]
+                            * class_scores[r["rlnClassNumber"] - 1],
+                            axis=1,
+                        )
                     )
-                )
+                else:
+                    input_particle_data["particles"]["rlnParticleScore"] = (
+                        input_particle_data["particles"].apply(
+                            lambda r: class_scores[r["rlnClassNumber"] - 1],
+                            axis=1,
+                        )
+                    )
                 micrograph_particle_counts_before = (
                     input_particle_data["particles"]["rlnMicrographName"]
                     .value_counts()
@@ -408,7 +414,8 @@ class SelectClasses(CommonService):
                         combine_star_dir / f".done_{autoselect_params.particles_file}"
                     ).touch()
                     combine_node_creator_params["success"] = True
-                except (IndexError, KeyError):
+                except (IndexError, KeyError) as e:
+                    self.log.error(e)
                     combine_node_creator_params["success"] = False
             self.parse_combiner_output(
                 combine_result.getvalue(),

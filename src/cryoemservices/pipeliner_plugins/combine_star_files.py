@@ -129,7 +129,8 @@ def filter_star_file(
     file_to_process: Path, output_file: Path, scores: np.array, quantile: float = 0.5
 ):
     quantile_value = np.quantile(scores, quantile)
-    accepted_indices = np.argwhere(scores > quantile_value).flatten()
+    accepted_indices = np.argwhere(scores >= quantile_value).flatten()
+    accepted_indices = accepted_indices[: int(len(scores) * quantile)]
     with (
         open(file_to_process, "r") as ifile,
         open(output_file.parent / f".tmp_{output_file.name}", "w") as ofile,
@@ -138,7 +139,7 @@ def filter_star_file(
         accepted_position = 0
         while True:
             iline = ifile.readline()
-            if not iline:
+            if not iline or accepted_position == len(accepted_indices):
                 break
             if index is None:
                 if iline[0].isdigit():
