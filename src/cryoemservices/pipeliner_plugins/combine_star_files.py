@@ -139,7 +139,7 @@ def filter_star_file(
         while True:
             iline = ifile.readline()
             if index is None:
-                if iline[0].isdigit():
+                if len(iline) and iline[0].isdigit():
                     index = 0
                 else:
                     ofile.write(iline)
