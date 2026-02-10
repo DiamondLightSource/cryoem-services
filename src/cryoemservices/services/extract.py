@@ -123,6 +123,15 @@ class Extract(CommonService):
             / Path(extract_params.micrographs_file).with_suffix(".mrcs").name
         )
 
+        # Check job alias
+        job_alias = job_dir.parent / "Live_all_particles"
+        if not job_alias.exists():
+            job_alias.symlink_to(job_dir)
+        elif not (job_alias.is_symlink() and job_alias.readlink() == job_dir):
+            self.log.error(f"Symlink {job_alias} already exists")
+            rw.transport.nack(header)
+            return
+
         # If no background radius set diameter as 75% of box
         if extract_params.bg_radius == -1:
             extract_params.bg_radius = round(
@@ -398,6 +407,7 @@ class Extract(CommonService):
             "stdout": "",
             "stderr": "",
             "results": {"box_size": box_len},
+            "alias": "Live_all_particles",
         }
         rw.send_to("node_creator", node_creator_parameters)
 

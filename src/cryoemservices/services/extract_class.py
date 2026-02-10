@@ -107,9 +107,7 @@ class ExtractClass(CommonService):
             rw.transport.nack(header)
             return
         original_dir = Path(extract_params.class3d_dir).parent.parent
-        ctf_micrographs_file = list(
-            project_dir.glob("CtfFind/job00*/micrographs_ctf.star")
-        )[0].relative_to(project_dir)
+        ctf_micrographs_file = "CtfFind/Live_processing/micrographs_ctf.star"
 
         # Link the required files and pull out necessary parameters
         particles_data = (
@@ -177,7 +175,7 @@ class ExtractClass(CommonService):
         Path(select_job_dir).mkdir(parents=True, exist_ok=True)
 
         refine_selection_link = Path(
-            project_dir / f"Select/Refine_class{extract_params.refine_class_nr}"
+            project_dir / f"Select/Live_refine_class{extract_params.refine_class_nr}"
         )
         refine_selection_link.unlink(missing_ok=True)
         refine_selection_link.symlink_to(f"job{job_num_refine - 2:03}")
@@ -213,6 +211,7 @@ class ExtractClass(CommonService):
             "command": "",
             "stdout": "",
             "stderr": "",
+            "alias": f"Live_refine_class{extract_params.refine_class_nr}",
             "success": True,
         }
         rw.send_to("node_creator", node_creator_select)
@@ -222,7 +221,8 @@ class ExtractClass(CommonService):
         self.log.info(f"Running {self.extract_job_type} in {extract_job_dir}")
 
         refine_extraction_link = Path(
-            project_dir / f"Extract/Reextract_class{extract_params.refine_class_nr}"
+            project_dir
+            / f"Extract/Live_reextract_class{extract_params.refine_class_nr}"
         )
         refine_extraction_link.unlink(missing_ok=True)
         refine_extraction_link.symlink_to(f"job{job_num_refine - 1:03}")
@@ -278,6 +278,7 @@ class ExtractClass(CommonService):
             "command": " ".join(command),
             "stdout": result.stdout.decode("utf8", "replace"),
             "stderr": result.stderr.decode("utf8", "replace"),
+            "alias": f"Live_reextract_class{extract_params.refine_class_nr}",
         }
         if result.returncode:
             node_creator_extract["success"] = False

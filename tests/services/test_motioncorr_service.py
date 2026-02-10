@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import json
 import os
 from pathlib import Path
@@ -18,6 +19,8 @@ from tests.test_utils.config import cluster_submission_configuration
 def offline_transport(mocker):
     transport = OfflineTransport()
     mocker.spy(transport, "send")
+    mocker.spy(transport, "ack")
+    mocker.spy(transport, "nack")
     return transport
 
 
@@ -193,6 +196,16 @@ def test_motioncor2_service_spa(mock_subprocess, offline_transport, tmp_path):
     assert mock_subprocess.call_count == 4
     mock_subprocess.assert_called_with(mc_command, capture_output=True)
 
+    # Check symlinks
+    assert (tmp_path / "MotionCorr/Live_processing").is_symlink()
+    assert (tmp_path / "MotionCorr/Live_processing").readlink() == (
+        tmp_path / "MotionCorr/job002"
+    )
+    assert (tmp_path / "Import/Live_processing").is_symlink()
+    assert (tmp_path / "Import/Live_processing").readlink() == (
+        tmp_path / "Import/job001"
+    )
+
     # Check plotly file creation
     assert (tmp_path / "MotionCorr/job002/Movies/sample_drift_plot.json").is_file()
     with open(
@@ -281,6 +294,7 @@ def test_motioncor2_service_spa(mock_subprocess, offline_transport, tmp_path):
             "command": "",
             "stdout": "",
             "stderr": "",
+            "alias": "Live_processing",
         },
     )
     offline_transport.send.assert_any_call(
@@ -299,6 +313,7 @@ def test_motioncor2_service_spa(mock_subprocess, offline_transport, tmp_path):
                 "early_motion": early_motion,
                 "late_motion": late_motion,
             },
+            "alias": "Live_processing",
         },
     )
 
@@ -539,6 +554,7 @@ def test_motioncor_relion_service_spa(mock_subprocess, offline_transport, tmp_pa
             "command": "",
             "stdout": "",
             "stderr": "",
+            "alias": "Live_processing",
         },
     )
     offline_transport.send.assert_any_call(
@@ -557,6 +573,7 @@ def test_motioncor_relion_service_spa(mock_subprocess, offline_transport, tmp_pa
                 "early_motion": early_motion,
                 "late_motion": late_motion,
             },
+            "alias": "Live_processing",
         },
     )
 
@@ -737,6 +754,7 @@ def test_motioncor2_service_tomo(mock_subprocess, offline_transport, tmp_path):
             "command": "",
             "stdout": "",
             "stderr": "",
+            "alias": "Live_processing",
         },
     )
     offline_transport.send.assert_any_call(
@@ -755,6 +773,7 @@ def test_motioncor2_service_tomo(mock_subprocess, offline_transport, tmp_path):
                 "early_motion": early_motion,
                 "late_motion": late_motion,
             },
+            "alias": "Live_processing",
         },
     )
 
@@ -950,6 +969,7 @@ def test_motioncor_relion_service_tomo(mock_subprocess, offline_transport, tmp_p
             "command": "",
             "stdout": "",
             "stderr": "",
+            "alias": "Live_processing",
         },
     )
     offline_transport.send.assert_any_call(
@@ -968,6 +988,7 @@ def test_motioncor_relion_service_tomo(mock_subprocess, offline_transport, tmp_p
                 "early_motion": early_motion,
                 "late_motion": late_motion,
             },
+            "alias": "Live_processing",
         },
     )
 
@@ -1124,6 +1145,7 @@ def test_motioncor2_slurm_service_spa(mock_requests, offline_transport, tmp_path
                 "early_motion": early_motion,
                 "late_motion": late_motion,
             },
+            "alias": "Live_processing",
         },
     )
 
@@ -1264,6 +1286,7 @@ def test_motioncor_superres_does_slurm(mock_requests, offline_transport, tmp_pat
             "command": " ".join(mc_command),
             "stdout": "cluster job submission",
             "stderr": "failed to submit job",
+            "alias": "Live_processing",
             "success": False,
         },
     )
@@ -1472,6 +1495,130 @@ def test_motioncor_relion_slurm_parameters(mock_slurm, offline_transport, tmp_pa
     )
 
     assert offline_transport.send.call_count == 7
+
+
+@mock.patch("cryoemservices.services.motioncorr.subprocess.run")
+def test_motioncor_check_symlink(mock_subprocess, offline_transport, tmp_path):
+    """
+    Send a test message to MotionCorr to check the alias symlink
+    """
+    mock_subprocess().returncode = 0
+    mock_subprocess().stdout = "stdout".encode("ascii")
+    mock_subprocess().stderr = "stderr".encode("ascii")
+
+    (tmp_path / "gain.mrc").touch()
+    (tmp_path / "gain.gain").touch()
+    movie = Path(f"{tmp_path}/Movies/sample.tiff")
+    movie.parent.mkdir(parents=True)
+    movie.touch()
+
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+    motioncorr_test_message = {
+        "experiment_type": "spa",
+        "pixel_size": 0.1,
+        "movie": str(movie),
+        "mrc_out": f"{tmp_path}/MotionCorr/job002/Movies/sample.mrc",
+        "gain_ref": f"{tmp_path}/gain.mrc",
+        "mc_uuid": 0,
+        "picker_uuid": 0,
+        "dose_per_frame": 1,
+        "use_motioncor2": True,
+        "relion_options": {},
+    }
+
+    # Set up the mock service
+    service = motioncorr.MotionCorr(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
+
+    # Case 1: no symlink
+    service.x_shift_list = [-3.0, 3.0]
+    service.y_shift_list = [4.0, -4.0]
+    service.motion_correction(None, header=header, message=motioncorr_test_message)
+    offline_transport.ack.assert_called_once()
+
+    # Case 2: ok symlink
+    service.x_shift_list = [-3.0, 3.0]
+    service.y_shift_list = [4.0, -4.0]
+    assert (tmp_path / "MotionCorr/Live_processing").is_symlink()
+    service.motion_correction(None, header=header, message=motioncorr_test_message)
+    assert offline_transport.ack.call_count == 2
+
+    # Case 3: bad symlink
+    service.x_shift_list = [-3.0, 3.0]
+    service.y_shift_list = [4.0, -4.0]
+    (tmp_path / "MotionCorr/Live_processing").unlink()
+    (tmp_path / "MotionCorr/Live_processing").symlink_to(tmp_path / "Movies")
+    service.motion_correction(None, header=header, message=motioncorr_test_message)
+    offline_transport.nack.assert_called_once()
+
+
+@mock.patch("cryoemservices.services.motioncorr.subprocess.run")
+def test_motioncorr_service_fail_cases(mock_subprocess, offline_transport, tmp_path):
+    """
+    Send a test message to MotionCorr to check the alias symlink
+    """
+    mock_subprocess().returncode = 0
+    mock_subprocess().stdout = "stdout".encode("ascii")
+    mock_subprocess().stderr = "stderr".encode("ascii")
+
+    (tmp_path / "gain.mrc").touch()
+    (tmp_path / "gain.gain").touch()
+    movie = Path(f"{tmp_path}/Movies/sample.tiff")
+
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+    motioncorr_test_message = {
+        "experiment_type": "spa",
+        "pixel_size": 0.1,
+        "movie": str(movie),
+        "mrc_out": f"{tmp_path}/MotionCorr/job002/Movies/sample.mrc",
+        "gain_ref": f"{tmp_path}/gain.mrc",
+        "mc_uuid": 0,
+        "picker_uuid": 0,
+        "dose_per_frame": 1,
+        "use_motioncor2": True,
+        "relion_options": {},
+    }
+
+    # Set up the mock service
+    service = motioncorr.MotionCorr(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
+
+    # Case 1: no message
+    service.motion_correction(None, header=header, message=None)
+    offline_transport.nack.assert_called_once()
+
+    # Case 2: bad experiment_type
+    wrong_exp_message = copy.deepcopy(motioncorr_test_message)
+    wrong_exp_message["experiment_type"] = "wrong"
+    service.motion_correction(None, header=header, message=wrong_exp_message)
+    assert offline_transport.nack.call_count == 2
+
+    # Case 3: invalid message
+    no_input_message = {"experiment_type": "spa"}
+    service.motion_correction(None, header=header, message=no_input_message)
+    assert offline_transport.nack.call_count == 3
+
+    # Case 4: no movie exists
+    service.motion_correction(None, header=header, message=motioncorr_test_message)
+    assert offline_transport.nack.call_count == 4
+
+    # Case 5: no job number in inputs
+    movie.parent.mkdir(parents=True)
+    movie.touch()
+    no_job_message = copy.deepcopy(motioncorr_test_message)
+    no_job_message["mrc_out"] = f"{tmp_path}/MotionCorr/sample.mrc"
+    service.motion_correction(None, header=header, message=no_job_message)
+    assert offline_transport.nack.call_count == 5
 
 
 reruns_matrix = (

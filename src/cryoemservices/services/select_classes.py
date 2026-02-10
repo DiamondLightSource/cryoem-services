@@ -338,8 +338,16 @@ class SelectClasses(CommonService):
             files_to_combine.append(combine_star_dir / "particles_all.star")
         else:
             combine_star_dir.mkdir(parents=True, exist_ok=True)
-            Path(project_dir / "Select/Best_particles").symlink_to(combine_star_dir)
             self.previous_total_count = 0
+
+        # Check job alias
+        job_alias = Path(project_dir / "Select/Live_best_particles")
+        if not job_alias.exists():
+            job_alias.symlink_to(combine_star_dir)
+        elif not (job_alias.is_symlink() and job_alias.readlink() == combine_star_dir):
+            self.log.error(f"Symlink {job_alias} already exists")
+            rw.transport.nack(header)
+            return
 
         if not (
             combine_star_dir / f".done_{autoselect_params.particles_file}"
@@ -357,7 +365,7 @@ class SelectClasses(CommonService):
                 ),
                 "stdout": "",
                 "stderr": "",
-                "alias": "Best_particles",
+                "alias": "Live_best_particles",
             }
 
             # Call the combining function and redirect prints to an io object
@@ -469,7 +477,7 @@ class SelectClasses(CommonService):
             ),
             "stdout": "",
             "stderr": "",
-            "alias": "Best_particles",
+            "alias": "Live_best_particles",
         }
 
         # Call the combining function and redirect prints to an io object
@@ -550,7 +558,7 @@ class SelectClasses(CommonService):
             cryolo_output_path = (
                 Path(
                     re.sub(
-                        "MotionCorr/job002/.+",
+                        "MotionCorr/job[0-9]+/.+",
                         f"AutoPick/job{extract_job_number - 1:03}/STAR/",
                         str(motioncorr_file),
                     )

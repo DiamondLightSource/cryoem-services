@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 from unittest import mock
 
 import pytest
@@ -13,6 +14,8 @@ from cryoemservices.util.relion_service_options import RelionServiceOptions
 def offline_transport(mocker):
     transport = OfflineTransport()
     mocker.spy(transport, "send")
+    mocker.spy(transport, "ack")
+    mocker.spy(transport, "nack")
     return transport
 
 
@@ -102,6 +105,12 @@ def test_ctffind4_service_spa(mock_subprocess, offline_transport, tmp_path):
         capture_output=True,
     )
 
+    # Check symlinks
+    assert (tmp_path / "CtfFind/Live_processing").is_symlink()
+    assert (tmp_path / "CtfFind/Live_processing").readlink() == (
+        tmp_path / "CtfFind/job006"
+    )
+
     # Check that the correct messages were sent
     assert offline_transport.send.call_count == 4
     offline_transport.send.assert_any_call(
@@ -165,6 +174,7 @@ def test_ctffind4_service_spa(mock_subprocess, offline_transport, tmp_path):
             "command": f"ctffind\n{' '.join(map(str, parameters_list))}",
             "stdout": "stdout",
             "stderr": "stderr",
+            "alias": "Live_processing",
             "success": True,
         },
     )
@@ -270,6 +280,7 @@ def test_ctffind5_service_tomo(mock_subprocess, offline_transport, tmp_path):
             "command": f"ctffind5\n{' '.join(map(str, parameters_list))}",
             "stdout": "stdout",
             "stderr": "stderr",
+            "alias": "Live_processing",
             "success": True,
         },
     )
@@ -365,6 +376,155 @@ def test_ctffind5_service_nothickness(mock_subprocess, offline_transport, tmp_pa
             "register": "motion_corrected",
             "movie": f"{tmp_path}/sample.tiff",
             "mrc_out": f"{tmp_path}/MotionCorr/job002/sample.mrc",
+        },
+    )
+
+
+@mock.patch("cryoemservices.services.ctffind.subprocess.run")
+def test_ctffind5_service_check_symlinks(mock_subprocess, offline_transport, tmp_path):
+    """
+    Send a test message to CTFFind version 5 to test the alias symlinks
+    """
+    mock_subprocess().returncode = 0
+    mock_subprocess().stdout = "stdout".encode("utf8")
+    mock_subprocess().stderr = "stderr".encode("utf8")
+
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+    ctffind_test_message = {
+        "experiment_type": "tomography",
+        "pixel_size": 0.2,
+        "determine_tilt": "yes",
+        "ctffind_version": 5,
+        "movie": f"{tmp_path}/sample.tiff",
+        "input_image": f"{tmp_path}/MotionCorr/job002/sample.mrc",
+        "output_image": f"{tmp_path}/CtfFind/job006/sample.ctf",
+        "mc_uuid": 0,
+        "picker_uuid": 0,
+        "relion_options": {},
+    }
+    output_relion_options = dict(RelionServiceOptions())
+    output_relion_options.update(ctffind_test_message["relion_options"])
+
+    # Write expected angular values output file
+    (tmp_path / "CtfFind/job006").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "CtfFind/job006/sample_avrot.txt").touch()
+
+    # Set up the mock service
+    service = ctffind.CTFFind(environment={"queue": ""}, transport=offline_transport)
+    service.initializing()
+
+    # Set some parameters then send a message to the service
+    service.defocus1 = 1
+    service.defocus2 = 2
+    service.astigmatism_angle = 3
+    service.cc_value = 4
+    service.estimated_resolution = 5
+
+    # Case 1: no symlink
+    service.ctf_find(None, header=header, message=ctffind_test_message)
+    offline_transport.ack.assert_called_once()
+
+    # Case 2: ok symlink
+    assert (tmp_path / "CtfFind/Live_processing").is_symlink()
+    service.ctf_find(None, header=header, message=ctffind_test_message)
+    assert offline_transport.ack.call_count == 2
+
+    # Case 3: bad symlink
+    (tmp_path / "CtfFind/Live_processing").unlink()
+    (tmp_path / "CtfFind/Live_processing").symlink_to(tmp_path / "CtfFind")
+    service.ctf_find(None, header=header, message=ctffind_test_message)
+    offline_transport.nack.assert_called_once()
+
+
+@mock.patch("cryoemservices.services.ctffind.subprocess.run")
+def test_ctffind5_service_fail_cases(mock_subprocess, offline_transport, tmp_path):
+    """
+    Send a test message to CTFFind version 5 for invalid setups
+    """
+    mock_subprocess().returncode = 0
+    mock_subprocess().stdout = "stdout".encode("utf8")
+    mock_subprocess().stderr = "stderr".encode("utf8")
+
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+    ctffind_test_message = {
+        "experiment_type": "tomography",
+        "pixel_size": 0.2,
+        "determine_tilt": "yes",
+        "ctffind_version": 5,
+        "movie": f"{tmp_path}/sample.tiff",
+        "input_image": f"{tmp_path}/MotionCorr/job002/sample.mrc",
+        "output_image": f"{tmp_path}/CtfFind/job006/sample.ctf",
+        "mc_uuid": 0,
+        "picker_uuid": 0,
+        "relion_options": {},
+    }
+
+    # Write expected angular values output file
+    (tmp_path / "CtfFind/job006").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "CtfFind/job006/sample_avrot.txt").touch()
+
+    # Set up the mock service
+    service = ctffind.CTFFind(environment={"queue": ""}, transport=offline_transport)
+    service.initializing()
+
+    # Set some parameters then send a message to the service
+    service.defocus1 = 1
+    service.defocus2 = 2
+    service.astigmatism_angle = 3
+    service.cc_value = 4
+    service.estimated_resolution = 5
+
+    # Case 1: no message
+    service.ctf_find(None, header=header, message=None)
+    offline_transport.nack.assert_called_once()
+
+    # Case 2: bad experiment_type
+    wrong_exp_message = copy.deepcopy(ctffind_test_message)
+    wrong_exp_message["experiment_type"] = "wrong"
+    service.ctf_find(None, header=header, message=wrong_exp_message)
+    assert offline_transport.nack.call_count == 2
+
+    # Case 3: invalid message
+    no_input_message = {"experiment_type": "spa"}
+    service.ctf_find(None, header=header, message=no_input_message)
+    assert offline_transport.nack.call_count == 3
+
+    # Case 4: wrong ctffind version
+    version_message = copy.deepcopy(ctffind_test_message)
+    version_message["ctffind_version"] = 3
+    service.ctf_find(None, header=header, message=version_message)
+    assert offline_transport.nack.call_count == 4
+
+    # Case 5: no job number in inputs
+    no_job_message = copy.deepcopy(ctffind_test_message)
+    no_job_message["input_image"] = f"{tmp_path}/MotionCorr/sample.mrc"
+    no_job_message["output_image"] = f"{tmp_path}/CtfFind/sample.ctf"
+    service.ctf_find(None, header=header, message=no_job_message)
+    assert offline_transport.nack.call_count == 5
+
+    # Case 6: failed subprocess call
+    offline_transport.send.assert_not_called()
+    mock_subprocess().returncode = 1
+    service.ctf_find(None, header=header, message=ctffind_test_message)
+    offline_transport.send.assert_called_once_with(
+        "node_creator",
+        {
+            "experiment_type": "tomography",
+            "job_type": "relion.ctffind.ctffind4",
+            "input_file": f"{tmp_path}/MotionCorr/job002/sample.mrc",
+            "output_file": f"{tmp_path}/CtfFind/job006/sample.ctf",
+            "relion_options": mock.ANY,
+            "command": mock.ANY,
+            "stdout": "stdout",
+            "stderr": "stderr",
+            "alias": "Live_processing",
+            "success": False,
         },
     )
 
