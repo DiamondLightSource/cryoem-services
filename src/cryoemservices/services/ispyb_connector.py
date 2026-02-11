@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from typing import Callable, Optional
 
 import ispyb.sqlalchemy
 import sqlalchemy.orm
@@ -19,14 +20,13 @@ class EMISPyB(CommonService):
     _logger_name = "cryoemservices.services.ispyb_connector"
 
     # ispyb connection details
-    ispyb = None
-    _ispyb_sessionmaker = None
+    _database_session_maker: Optional[Callable] = None
 
     def initializing(self):
         """Subscribe the ISPyB connector queue. Received messages must be
         acknowledged. Prepare ISPyB database connection."""
         service_config = config_from_file(self._environment["config"])
-        self._ispyb_sessionmaker = sqlalchemy.orm.sessionmaker(
+        self._database_session_maker = sqlalchemy.orm.sessionmaker(
             bind=sqlalchemy.create_engine(
                 ispyb.sqlalchemy.url(credentials=service_config.ispyb_credentials),
                 connect_args={"use_pure": True},
@@ -40,6 +40,10 @@ class EMISPyB(CommonService):
             acknowledgement=True,
             allow_non_recipe_messages=True,
         )
+
+    @staticmethod
+    def get_command(command):
+        return getattr(ispyb_commands, command, None)
 
     def insert_into_ispyb(self, rw, header, message):
         """Do something with ISPyB."""
@@ -99,7 +103,7 @@ class EMISPyB(CommonService):
             self.log.error("Received message is not a valid ISPyB command")
             rw.transport.nack(header)
             return
-        command_function = getattr(ispyb_commands, command, None)
+        command_function = self.get_command(command)
         if not command_function:
             self.log.error("Received unknown ISPyB command (%s)", command)
             rw.transport.nack(header)
@@ -111,7 +115,7 @@ class EMISPyB(CommonService):
 
         self.log.info("Running ISPyB call %s", command)
         try:
-            with self._ispyb_sessionmaker() as session:
+            with self._database_session_maker() as session:
                 result = command_function(
                     message=message,
                     parameters=parameters,
