@@ -139,8 +139,10 @@ def process_tiff_files(
     logger.info(f"Created save directory for images and metadata for {series_name}")
 
     # Load relevant metadata
-    metadata_dict = find_image_elements(parse(metadata_file).getroot())
-    if len(metadata_dict) < 1:
+    if (metadata_xml := parse(metadata_file).getroot()) is None:
+        logger.error("Could not parse metadata file")
+        return {}
+    if len((metadata_dict := find_image_elements(metadata_xml))) < 1:
         logger.error(f"No image metadata found in file {metadata_file}")
         return {}
     elif len(metadata_dict) > 1:
@@ -475,24 +477,23 @@ class ProcessRawTIFFsParameters(BaseModel):
         return value
 
     @model_validator(mode="after")
-    @classmethod
-    def construct_tiff_list(cls, model: ProcessRawTIFFsParameters):
-        if model.tiff_list and model.tiff_file:
+    def construct_tiff_list(self):
+        if self.tiff_list and self.tiff_file:
             raise ValueError(
                 "Only one of 'tiff_list' or 'tiff_file' should be provided, not both"
             )
-        if not model.tiff_list and not model.tiff_file:
+        if not self.tiff_list and not self.tiff_file:
             raise ValueError("One of 'tiff_list' or 'tiff_file' has to be provided")
-        if not model.tiff_list and model.tiff_file:
-            series_name = model.tiff_file.stem.split("--")[0]
-            model.tiff_list = [
+        if not self.tiff_list and self.tiff_file:
+            series_name = self.tiff_file.stem.split("--")[0]
+            self.tiff_list = [
                 f.resolve()
-                for f in model.tiff_file.parent.glob("./*")
+                for f in self.tiff_file.parent.glob("./*")
                 if f.suffix in (".tif", ".tiff")
                 and f.stem.startswith(f"{series_name}--")
             ]
         # Return updated model
-        return model
+        return self
 
 
 class ProcessRawTIFFsWrapper:
