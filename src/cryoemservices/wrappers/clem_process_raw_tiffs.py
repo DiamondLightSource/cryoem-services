@@ -270,8 +270,8 @@ def process_tiff_files(
             # Calculate the pixel size and shape of the final tiled image
             frame_x_len = x_max - x_min
             frame_y_len = y_max - y_min
-            # Fit the tiled image within 2400 x 2400 pixels
-            frame_pixel_size = max(frame_x_len / 2400, frame_y_len / 2400)
+            # Fit the tiled image within 4096 x 4096 pixels
+            frame_pixel_size = max(frame_x_len / 4096, frame_y_len / 4096)
             frame_x_pixels = int(round(frame_x_len / frame_pixel_size))
             frame_y_pixels = int(round(frame_y_len / frame_pixel_size))
             frame_shape = frame_y_pixels, frame_x_pixels
@@ -344,6 +344,25 @@ def process_tiff_files(
         else:
             logger.info("Constructing image stack")
             array_loading_start_time = time.perf_counter()
+
+            # If the image is larger than 4096 x 4096 pixels, forcibly resize it
+            # to fit within 4096 x 4096 pixels
+            new_shape: tuple[int, int] | None = None
+            if c == 0:
+                if x_pixels * y_pixels > 4096**2:
+                    pixel_size = max(x_len / 4096, y_len / 4096)
+                    x_pixels = int(round(x_len / pixel_size))
+                    y_pixels = int(round(y_len / pixel_size))
+                    new_shape = y_pixels, x_pixels
+
+                    # Overwrite the dimensions dictionary upon rescaling
+                    dims["x"]["num_pixels"] = x_pixels
+                    dims["x"]["pixel_size"] = pixel_size
+                    dims["x"]["resolution"] = 1 / pixel_size
+                    dims["y"]["num_pixels"] = y_pixels
+                    dims["y"]["pixel_size"] = pixel_size
+                    dims["y"]["resolution"] = 1 / pixel_size
+
             arr = np.zeros((num_frames, y_pixels, x_pixels), dtype=np.uint8)
             with ThreadPoolExecutor(max_workers=num_procs) as pool:
                 futures = [
@@ -353,6 +372,7 @@ def process_tiff_files(
                         z,
                         global_vmin,
                         global_vmax,
+                        new_shape,
                     )
                     for z in range(num_frames)
                 ]
