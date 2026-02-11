@@ -4,14 +4,15 @@
       "tiff_list": "{tiff_list}",
       "tiff_file": "{tiff_file}",
       "root_folder": "{root_folder}",
-      "metadata": "{metadata}"
+      "metadata": "{metadata}",
+      "num_procs": "{num_procs}"
     },
     "output": {
       "murfey_feedback": 2,
       "images": 3
     },
     "queue": "cluster.submission",
-    "service": "TIFF2STACK"
+    "service": "CLEM-PROCESS-TIFFS"
   },
   "2": {
     "parameters": {
