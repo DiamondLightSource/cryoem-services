@@ -204,6 +204,7 @@ def load_and_convert_image(
     frame_num: int,
     vmin: int | float,
     vmax: int | float,
+    new_shape: tuple[int, int] | None = None,
 ):
     """
     Helper function that loads images and converts them into an 8-bit NumPy array.
@@ -226,6 +227,10 @@ def load_and_convert_image(
         The maximum pixel value to clip the array at before normalising to an 8-bit
         NumPy array.
 
+    new_shape: tuple[int, int] | None
+        The target shape to resize the image to. This is a tuple of integers in NumPy
+        row-first array shape order. If it is None, resizing will not occur.
+
     Returns
     -------
     result: LoadImageResult
@@ -236,6 +241,13 @@ def load_and_convert_image(
 
     try:
         arr = image_loader.load()
+        if new_shape is not None:
+            y_size, x_size = new_shape
+            arr = cv2.resize(
+                arr,
+                dsize=(x_size, y_size),
+                interpolation=cv2.INTER_AREA,
+            )
         scale = 255 / (vmax - vmin)  # Downscale to 8-bit
         np.clip(arr, a_min=vmin, a_max=vmax, out=arr)
         np.subtract(arr, vmin, out=arr, casting="unsafe")
