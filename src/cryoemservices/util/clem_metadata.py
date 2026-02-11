@@ -15,14 +15,15 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Optional
 from xml.etree import ElementTree as ET
 
 logger = logging.getLogger("cryoemservice.util.clem_raw_metadata")
 
 
 def find_image_elements(
-    node: ET.Element, path: str = "", result: Optional[dict] = None
+    node: ET.Element,
+    path: str = "",
+    result: dict | None = None,
 ) -> dict[str, ET.Element]:
     """
     Searches the XML metadata recursively to find the nodes tagged as "Element" that
@@ -30,8 +31,7 @@ def find_image_elements(
     recursive approach is needed to avoid certain datasets breaking it.
     """
 
-    if result is None:
-        result = {}
+    result = result or {}
 
     # Look for Element nodes
     if node.tag == "Element":
@@ -51,7 +51,7 @@ def find_image_elements(
 
     # Run function recursively until no more child nodes are found
     for child in node:
-        find_image_elements(child, path, result)
+        result = find_image_elements(child, path, result)
     return result
 
 
