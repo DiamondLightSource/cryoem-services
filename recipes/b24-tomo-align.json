@@ -1,0 +1,100 @@
+{
+  "1": {
+    "output": 2,
+    "parameters": {
+      "dcid": "{dcid}",
+      "ispyb_command": "insert_tomogram",
+      "program_id": "{appid}",
+      "store_result": "ispyb_tomogram_id"
+    },
+    "queue": "ispyb_connector",
+    "service": "EMISPyB"
+  },
+  "2": {
+    "output": {
+      "denoise": 5,
+      "failure": 3,
+      "images": 6,
+      "ispyb_connector": 4,
+      "movie": 6,
+      "projxy": 6,
+      "projxz": 6,
+      "success": 7
+    },
+    "parameters": {
+      "dark_tol": 0,
+      "manual_tilt_offset": 0,
+      "out_bin": 1,
+      "pixel_size": 100,
+      "relion_options": {},
+      "stack_file": "{stack_file}",
+      "tilt_axis": 0,
+      "txrm_file": "{txrm_file}",
+      "wbp": 1
+    },
+    "queue": "tomo_align",
+    "service": "TomoAlign"
+  },
+  "3": {
+    "parameters": {
+      "ispyb_command": "update_processing_status",
+      "status_message": "processing failure",
+      "program_id": "{appid}",
+      "status": "failure"
+    },
+    "queue": "ispyb_connector",
+    "service": "EMISPyB"
+  },
+  "4": {
+    "parameters": {
+      "dcid": "{dcid}",
+      "ispyb_command": "multipart_message",
+      "program_id": "{appid}",
+      "tomogram_id": "$ispyb_tomogram_id"
+    },
+    "queue": "ispyb_connector",
+    "service": "EMISPyB"
+  },
+  "5": {
+    "output": {
+      "images": 6,
+      "ispyb_connector": 9,
+      "movie": 6,
+      "segmentation": 8
+    },
+    "queue": "denoise",
+    "service": "Denoise"
+  },
+  "6": {
+    "queue": "images",
+    "service": "Images"
+  },
+  "7": {
+    "parameters": {
+      "ispyb_command": "update_processing_status",
+      "status_message": "processing successful",
+      "program_id": "{appid}",
+      "status": "success"
+    },
+    "queue": "ispyb_connector",
+    "service": "EMISPyB"
+  },
+  "8": {
+    "output": {
+      "images": 6,
+      "ispyb_connector": 9,
+      "movie": 6
+    },
+    "queue": "segmentation",
+    "service": "MembrainSeg"
+  },
+  "9": {
+    "parameters": {
+      "ispyb_command": "insert_processed_tomogram",
+      "tomogram_id": "$ispyb_tomogram_id"
+    },
+    "queue": "ispyb_connector",
+    "service": "EMISPyB"
+  },
+  "start": [[1, []]]
+}
