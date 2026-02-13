@@ -5,6 +5,8 @@ import subprocess
 from pathlib import Path
 from typing import Any, Optional
 
+import mrcfile
+import numpy as np
 from pydantic import BaseModel, Field, ValidationError, field_validator
 from workflows.recipe import wrap_subscribe
 
@@ -356,3 +358,60 @@ class CTFFind(CommonService):
 
         self.log.info(f"Done {self.job_type} for {ctf_params.input_image}.")
         rw.transport.ack(header)
+
+
+def ctf(
+    num_pixels_x: int, num_pixels_y: int, pixel_size: float, defocus: float
+) -> np.array:
+    C_s: float = 2.7e7
+    wavelength: float = 0.0196
+    grid = np.meshgrid(
+        np.fft.fftfreq(num_pixels_x, pixel_size),
+        np.fft.fftfreq(num_pixels_y, pixel_size),
+    )
+    grid = np.fft.fftshift(grid)
+    ksq = grid[0] ** 2 + grid[1] ** 2
+    w = -defocus * wavelength * ksq / 2 + C_s * wavelength**3 + ksq**2 / 4
+    return np.sin(2 * np.pi * w)
+
+
+def ctf_micrograph(mic_file, output_file, defocus_u, defocus_v):
+    with mrcfile.open(mic_file) as mrc:
+        im = mrc.data
+        num_pixels_x = int(mrc.header.mx)
+        num_pixels_y = int(mrc.header.my)
+        pixel_size = mrc.header.cella.x / mrc.header.mx
+    dtype = im.dtype
+
+    fft = np.fft.fft2(im)
+    fft = np.fft.fftshift(fft)
+
+    ctf_mask = ctf(
+        num_pixels_x, num_pixels_y, pixel_size, np.sqrt(defocus_u**2 + defocus_v**2)
+    )
+    ctf_mask[ctf_mask < 0] = -1
+    ctf_mask[ctf_mask >= 0] = 1
+
+    fft = fft * ctf_mask
+
+    fft_shifted = np.fft.ifftshift(fft)
+    corrected_im = np.real(np.fft.ifft2(fft_shifted))
+    corrected_im = corrected_im.astype(dtype)
+    mrcfile.write(output_file, corrected_im, overwrite=True)
+
+
+def ctf_of_tomo_star(root_dir, tomo_star, output_dir):
+    from gemmi import cif
+
+    data = cif.read_file(str(Path(root_dir) / tomo_star))
+    mics = list(data.sole_block().find_loop("_rlnMicrographName"))
+    defocus_u = list(data.sole_block().find_loop("_rlnDefocusU"))
+    defocus_v = list(data.sole_block().find_loop("_rlnDefocusV"))
+
+    for i, mic in enumerate(mics):
+        ctf_micrograph(
+            Path(root_dir) / mic,
+            Path(root_dir) / output_dir / Path(mic).name,
+            float(defocus_u[i]),
+            float(defocus_v[i]),
+        )
