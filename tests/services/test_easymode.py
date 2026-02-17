@@ -158,7 +158,7 @@ def test_easymode_service_with_mask(
             "ispyb_command": "insert_processed_tomogram",
             "file_path": str(mini_seg_path),
             "processing_type": "Feature",
-            "feature_type": "membrane",
+            "feature": "membrane",
         },
     )
     for feature in ["ribosome", "tric"]:
@@ -173,7 +173,7 @@ def test_easymode_service_with_mask(
                 "ispyb_command": "insert_processed_tomogram",
                 "file_path": str(mini_mrc_path),
                 "processing_type": "Feature",
-                "feature_type": feature,
+                "feature": feature,
             },
         )
 
@@ -311,7 +311,7 @@ def test_easymode_service_without_mask(
                 "ispyb_command": "insert_processed_tomogram",
                 "file_path": str(mini_mrc_path),
                 "processing_type": "Feature",
-                "feature_type": feature,
+                "feature": feature,
             },
         )
 

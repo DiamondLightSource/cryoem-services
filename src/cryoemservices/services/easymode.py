@@ -174,7 +174,7 @@ class Easymode(CommonService):
                     "ispyb_command": "insert_processed_tomogram",
                     "file_path": str(mini_membrain_mrc),
                     "processing_type": "Feature",
-                    "feature_type": "membrane",
+                    "feature": "membrane",
                 },
             )
         for feature, tomogram in ispyb_tomograms.items():
@@ -184,7 +184,7 @@ class Easymode(CommonService):
                     "ispyb_command": "insert_processed_tomogram",
                     "file_path": str(tomogram),
                     "processing_type": "Feature",
-                    "feature_type": feature,
+                    "feature": feature,
                 },
             )
 
