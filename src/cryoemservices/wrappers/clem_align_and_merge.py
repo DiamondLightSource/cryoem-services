@@ -11,12 +11,13 @@ generated from CLEM data. This service will include:
 
 from __future__ import annotations
 
+import json
 import logging
+import time
 from ast import literal_eval
-from multiprocessing import Pool
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any, Literal, Optional
-from xml.etree import ElementTree as ET
 
 import numpy as np
 from defusedxml.ElementTree import parse
@@ -31,8 +32,8 @@ from cryoemservices.util.clem_array_functions import (
     is_grayscale_image,
     is_image_stack,
     merge_images,
-    stretch_image_contrast,
 )
+from cryoemservices.util.clem_metadata import get_channel_info
 
 # Create logger object to output messages with
 logger = logging.getLogger("cryoemservices.wrappers.clem_align_and_merge")
@@ -45,6 +46,7 @@ def align_and_merge_stacks(
     align_self: Literal["enabled", ""] = "",
     flatten: Optional[Literal["min", "max", "mean", ""]] = "mean",
     align_across: Literal["enabled", ""] = "",
+    num_procs: int = 4,
 ) -> dict[str, Any]:
     """
     A cryoemservices wrapper to create composite images from component image stack in
@@ -62,6 +64,8 @@ def align_and_merge_stacks(
     - Colourise the image stacks
     - Merge them together to create a composite image/stack
     """
+
+    start_time = time.perf_counter()
 
     # Validate inputs before proceeding further
     if crop_to_n_frames is not None and not isinstance(crop_to_n_frames, int):
@@ -84,20 +88,14 @@ def align_and_merge_stacks(
         logger.error(message)
         raise ValueError(message)
 
-    # Use shorter inputs in function
-    files = images
-
-    # Turn single entry into a list
-    if isinstance(files, (Path, str)):
-        files = [files]
+    # Standardise into a list of Paths
+    files = [images] if isinstance(images, (Path, str)) else images
+    files = [Path(file) if isinstance(file, str) else file for file in files]
 
     # Check that a value has been provided
     if len(files) == 0:
         logger.error("No image stack file paths have been provided")
         raise ValueError
-
-    # Convert to Path object if a string was provided
-    files = [Path(file) if isinstance(file, str) else file for file in files]
 
     # Check that files have the same parent directories
     if len({file.parents[0] for file in files}) > 1:
@@ -108,40 +106,43 @@ def align_and_merge_stacks(
         raise ValueError
 
     # Get parent directory
-    parent_dir = list({file.parents[0] for file in files})[0]
+    parent_dir = files[0].parent
     # Validate parent directory
     logger.info(f"Setting {str(parent_dir)!r} as the working directory")
 
     # Find metadata file if none was provided
     if metadata is None:
         # Raise error if no files found
-        if len(list((parent_dir / "metadata").glob("*.xml"))) == 0:
+        if (
+            len(
+                (
+                    metadata_search_result := list(
+                        (parent_dir / "metadata").glob("*.xml")
+                    )
+                )
+            )
+            == 0
+        ):
             logger.error("No metadata file was found at the default directory")
             raise FileNotFoundError
         # Raise error if too many files found
-        if len(list((parent_dir / "metadata").glob("*.xml"))) > 1:
+        if len(metadata_search_result) > 1:
             logger.error(
                 "More than one metadata file was found at the default directory"
             )
             raise Exception
         # Load metadata file
-        metadata = list((parent_dir / "metadata").glob("*.xml"))[0]
+        metadata = metadata_search_result[0]
         logger.info(f"Using metadata from {str(metadata)!r}")
 
-    # Load metadata for series from XML file
-    xml_metadata: ET.ElementTree = parse(metadata).getroot()
+    # Load color channel information
+    channels = get_channel_info(parse(metadata))
 
-    # Get order of colors as shown in metadata
-    channels = xml_metadata.findall(
-        "Data/Image/ImageDescription/Channels/ChannelDescription"
-    )
-    colors: list[str] = [
-        channels[c].attrib["LUTName"].lower() for c in range(len(channels))
-    ]
     # Use grey image as reference and put that first in the list
     # If a grey image is not present, the first image will be used as reference
     colors = sorted(
-        colors, key=lambda c: (0, c) if c.lower() in ("gray", "grey") else (1, c)
+        channels.keys(),
+        key=lambda c: (0, c) if c.lower() in ("gray", "grey") else (1, c),
     )
     logger.info(f"Successfully loaded metadata from {str(metadata)!r}")
 
@@ -149,11 +150,13 @@ def align_and_merge_stacks(
     arrays: list[np.ndarray] = []
 
     # ImageJ metadata to load and pass on
-    resolution_list: list[tuple[float, float]] = []
-    spacing_list: list[float] = []
-    units_list: list[str] = []
+    resolution_list: set[tuple[float, float]] = set()
+    spacing_list: set[float] = set()
+    units_list: set[str] = set()
     colors_to_process: list[str] = []
-    for c in range(len(colors)):
+
+    load_start_time = time.perf_counter()
+    for c, color in enumerate(colors):
         color = colors[c]
         file_search = [file for file in files if color in file.stem]
         # Handle exceptions in search results
@@ -180,13 +183,10 @@ def align_and_merge_stacks(
             if is_image_stack(array) and isinstance(crop_to_n_frames, int):
                 m = len(array) // 2
                 n1 = crop_to_n_frames // 2
-                n2 = n1 + 1 if crop_to_n_frames % 2 == 1 else n1
+                n2 = n1 + crop_to_n_frames % 2
                 f1 = m - n1 if (m - n1) >= 0 else 0
                 f2 = m + n2 if (m + n2) <= len(array) else len(array)
                 array = array[f1:f2]
-                logger.debug(
-                    f"Image stack cropped to central {crop_to_n_frames} frames"
-                )
 
             # Append array and its corresponding colour
             arrays.append(array)
@@ -195,10 +195,14 @@ def align_and_merge_stacks(
 
             # Load and append ImageJ metadata
             ij_metadata = tiff_file.imagej_metadata
-
-            resolution_list.append(tiff_file.series[0][0].resolution)
-            spacing_list.append(ij_metadata.get("spacing", float(0)))
-            units_list.append(ij_metadata.get("unit", ""))
+            resolution_list.add(tiff_file.series[0][0].resolution)
+            spacing_list.add(ij_metadata.get("spacing", float(0)))
+            units_list.add(ij_metadata.get("unit", ""))
+    load_end_time = time.perf_counter()
+    logger.debug(
+        f"Loaded {len(arrays)} images with shape {arrays[0].shape} in "
+        f"{load_end_time - load_start_time}s"
+    )
 
     # Use shortened list for subsequent processing
     if len(colors_to_process) == 0:
@@ -214,15 +218,15 @@ def align_and_merge_stacks(
         img_type = "FL"
 
     # Check that images have the same pixel calibration
-    if len(set(resolution_list)) > 1:
+    if len(resolution_list) > 1:
         logger.error("The image stacks provided do not have the same resolution")
         raise ValueError
 
-    if len(set(spacing_list)) > 1:
+    if len(spacing_list) > 1:
         logger.error("The image stacks provided do not have the same z-spacing")
         raise ValueError
 
-    if len(set(units_list)) > 1:
+    if len(units_list) > 1:
         logger.error("The image stacks provided do not have the same units")
         raise ValueError
 
@@ -236,26 +240,48 @@ def align_and_merge_stacks(
         logger.error("The image stacks provided do not have the same dtype")
         raise ValueError
 
-    # Debug
-    logger.debug(
-        "Initial properties of image stacks: \n",
-        f"Shape: {arrays[0].shape} \n",
-        f"dtype: {arrays[0].dtype} \n",
-        f"Min: {np.min(arrays)} \n",
-        f"Max: {np.max(arrays)} \n",
-    )
-
     # Align frames within each image stack
     if align_self:
         # Perform drift correction only if they are image stacks
         if all(is_image_stack(array) for array in arrays):
             logger.info("Correcting for drift in images")
-            with Pool(len(arrays)) as pool:
-                arrays = pool.starmap(
-                    align_image_to_self,
-                    [(arr, "middle") for arr in arrays],
+            drift_correction_start_time = time.perf_counter()
+
+            # Determine a suitable downsampling factor to use
+            if (
+                num_pixels := np.prod(
+                    (
+                        arrays[0][0].shape[:2]
+                        if is_image_stack(arrays[0])
+                        else arrays[0].shape[:2]
+                    )
                 )
+            ) > 4096**2:
+                downsample_factor = 8
+            elif num_pixels > 2048**2:
+                downsample_factor = 4
+            elif num_pixels > 1024**2:
+                downsample_factor = 2
+            else:
+                downsample_factor = 1
+
+            # Align image with multithreading
+            arrays = [
+                align_image_to_self(
+                    array,
+                    "middle",
+                    num_procs=num_procs,
+                )
+                for array in arrays
+            ]
+
+            drift_correction_end_time = time.perf_counter()
             logger.info("Successfully applied drift correction")
+            logger.debug(
+                f"Applied drift correction to {len(arrays)} images "
+                f"of shape {arrays[0].shape} "
+                f"in {drift_correction_end_time - drift_correction_start_time}s"
+            )
         else:
             logger.info(
                 "Skipping drift correction step as no image stacks were provided"
@@ -266,25 +292,24 @@ def align_and_merge_stacks(
         # Only flatten if they are image stacks
         if all(is_image_stack(array) for array in arrays):
             logger.info("Flattening image stacks")
-            with Pool(len(arrays)) as pool:
-                arrays = pool.starmap(
-                    flatten_image,
-                    [(arr, flatten) for arr in arrays],
+            flatten_start_time = time.perf_counter()
+
+            with ThreadPoolExecutor(max_workers=num_procs) as pool:
+                arrays = list(
+                    pool.map(
+                        lambda p: flatten_image(*p),
+                        [(arr, flatten) for arr in arrays],
+                    )
                 )
-            # Validate that image flattening was done correctly
             if len({arr.shape for arr in arrays}) > 1:
                 logger.error("The flattened arrays do not have the same shape")
                 raise ValueError
+            flatten_end_time = time.perf_counter()
             logger.info("Successfully flattened images")
-
-            # Debug
             logger.debug(
-                "Properties of array after flattening: \n",
-                f"Shape: {arrays[0].shape} \n",
-                f"dtype: {arrays[0].dtype} \n",
-                f"Min: {np.min(arrays)} \n",
-                f"Max: {np.max(arrays)} \n",
+                f"Flattened {len(arrays)} images in {flatten_end_time - flatten_start_time}s"
             )
+            logger.debug(f"Images now have the following shape: {arrays[0].shape}")
         else:
             logger.info(
                 "Skipping image flattening step as no image stacks were provided"
@@ -293,18 +318,72 @@ def align_and_merge_stacks(
     # Align other stacks to reference stack
     if align_across:
         if len(arrays) > 1:
-            reference = arrays[0]  # First image in list is the reference image
-            to_align = arrays[1:]
             logger.info(
                 f"Aligning images using {colors[0]!r} channel as the reference image"
             )
-            with Pool(len(to_align)) as pool:
-                aligned = pool.starmap(
-                    align_image_to_reference,
-                    [(reference, moving) for moving in to_align],
+            align_across_start_time = time.perf_counter()
+
+            reference = arrays[0]  # First image in list is the reference image
+            to_align = arrays[1:]
+
+            # Determine suitable combinations of parameters to use
+            # Ensure that there are at least 8192 pixels sampled at coarsest level
+            if (
+                num_pixels := np.prod(
+                    (
+                        arrays[0][0].shape[:2]
+                        if is_image_stack(arrays[0])
+                        else arrays[0].shape[:2]
+                    )
                 )
+            ) > 4096**2:
+                downsample_factor = 4
+                sampling_percentage = 0.125
+                shrink_factors_per_level = [4, 2]
+            elif num_pixels > 2048**2:
+                downsample_factor = 2
+                sampling_percentage = 0.125
+                shrink_factors_per_level = [4, 2]
+            elif num_pixels > 1024**2:
+                downsample_factor = 2
+                sampling_percentage = 0.5
+                shrink_factors_per_level = [4, 2]
+            elif num_pixels > 512**2:
+                downsample_factor = 2
+                sampling_percentage = 0.5
+                shrink_factors_per_level = [2, 1]
+            elif num_pixels > 256**2:
+                downsample_factor = 2
+                sampling_percentage = 0.5
+                shrink_factors_per_level = [1]
+            # Image is small enough to sample everything
+            else:
+                downsample_factor = 1
+                sampling_percentage = 1.0
+                shrink_factors_per_level = [1]
+            smoothing_sigmas_per_level = [s / 2 for s in shrink_factors_per_level]
+
+            # Align images to reference with multithreading
+            aligned = [
+                align_image_to_reference(
+                    reference_array=reference,
+                    moving_array=arr,
+                    downsample_factor=downsample_factor,
+                    sampling_percentage=sampling_percentage,
+                    shrink_factors_per_level=shrink_factors_per_level,
+                    smoothing_sigmas_per_level=smoothing_sigmas_per_level,
+                    num_procs=num_procs,
+                )
+                for arr in to_align
+            ]
+
             arrays = [reference, *aligned]
+            align_across_end_time = time.perf_counter()
             logger.info(f"Successfully aligned images to {colors[0]!r} channel")
+            logger.debug(
+                f"Aligned {len(to_align)} images of shape {reference.shape} "
+                f" in {align_across_end_time - align_across_start_time}s"
+            )
         elif len(arrays) == 1:
             logger.info("Skipping image alignment step as there is only one image")
         else:
@@ -312,53 +391,46 @@ def align_and_merge_stacks(
 
     # Colourise images
     if all(is_grayscale_image(array) for array in arrays):
+        convert_rgb_start_time = time.perf_counter()
         logger.info("Converting images from grayscale to RGB")
-        with Pool(len(arrays)) as pool:
-            arrays = pool.starmap(
-                convert_to_rgb, [(arrays[c], colors[c]) for c in range(len(colors))]
+        with ThreadPoolExecutor(max_workers=num_procs) as pool:
+            arrays = list(
+                pool.map(
+                    lambda p: convert_to_rgb(*p),
+                    [(arrays[c], color) for c, color in enumerate(colors)],
+                )
             )
-        print("Successfully colorised images")
+
+        convert_rgb_end_time = time.perf_counter()
+        logger.info("Successfully colorised images")
+        logger.debug(
+            f"Converted {len(arrays)} images to RGB "
+            f"in {convert_rgb_end_time - convert_rgb_start_time}s"
+        )
     else:
         logger.info("Skipping image colorisation step as they are not grayscale")
 
-    # Debug
-    logger.debug(
-        "Properties of array after colourising: \n",
-        f"Shape: {[arr.shape for arr in arrays]} \n",
-        f"dtype: {[arr.dtype for arr in arrays]} \n",
-        f"Min: {[np.min(arr) for arr in arrays]} \n",
-        f"Max: {[np.max(arr) for arr in arrays]} \n",
-    )
-
     # Convert to a composite image
     logger.info("Creating a composite image")
+    merge_start_time = time.perf_counter()
     composite_img = merge_images(arrays)
+    merge_end_time = time.perf_counter()
     logger.info("Successfully merged images")
+    logger.debug(f"Completed merge in {merge_end_time - merge_start_time}s")
 
-    # # Debug
-    logger.debug(
-        "Properties of array after merging: \n",
-        f"Shape: {arrays[0].shape} \n",
-        f"dtype: {arrays[0].dtype} \n",
-        f"Min: {np.min(arrays)} \n",
-        f"Max: {np.max(arrays)} \n",
-    )
-
-    # Adjust image contrast after merging images
-    logger.info("Applying contrast correction")
-    composite_img = stretch_image_contrast(
-        composite_img,
-        percentile_range=(0, 100),
-    )
+    # Adjust image contrast and convert to 8-bit
+    logger.info("Applying contrast correction and converting to 8-bit")
+    contrast_correction_start_time = time.perf_counter()
+    vmin, vmax = composite_img.min(), composite_img.max()
+    scale = 255 / (vmax - vmin)
+    np.clip(composite_img, a_min=vmin, a_max=vmax, out=composite_img)
+    np.subtract(composite_img, vmin, out=composite_img)
+    np.multiply(composite_img, scale, out=composite_img, casting="unsafe")
+    composite_img = composite_img.astype(dtype=np.uint8, copy=False)
+    contrast_correction_end_time = time.perf_counter()
     logger.info("Successfully adjusted image contrast")
-
-    # Debug
     logger.debug(
-        "Properties of array after adjusting contrast: \n",
-        f"Shape: {composite_img.shape} \n",
-        f"dtype: {composite_img.dtype} \n",
-        f"Min: {np.min(composite_img)} \n",
-        f"Max: {np.max(composite_img)} \n",
+        f"Converted image in {contrast_correction_end_time - contrast_correction_start_time}s"
     )
 
     # Prepare to save image as a TIFF file
@@ -366,23 +438,24 @@ def align_and_merge_stacks(
 
     # Set up metadata properties
     final_shape = composite_img.shape
-    resolution = resolution_list[0]
-    units = units_list[0]
+    resolution = list(resolution_list)[0]
+    units = list(units_list)[0]
     extended_metadata = ""
-    # image_labels = None
+    image_labels = [str(f) for f in range((1 if flatten else composite_img.shape[0]))]
 
     if flatten:
         axes = "YXS"
         z_size = None
     else:
         axes = "ZYXS"
-        z_size = spacing_list[0]
+        z_size = list(spacing_list)[0]
 
     # Save image as a TIFF file
     save_name = (parent_dir / f"composite_{img_type}.tiff").resolve()
     imwrite(
         save_name,
         composite_img,
+        bigtiff=False if flatten else True,
         # Array properties
         shape=final_shape,
         dtype=str(composite_img.dtype),
@@ -398,10 +471,10 @@ def align_and_merge_stacks(
             "unit": units,
             "spacing": z_size,
             "loop": False,
-            "min": round(composite_img.min(), 1),
-            "max": round(composite_img.max(), 1),
+            "min": round(float(composite_img.min()), 1),
+            "max": round(float(composite_img.max()), 1),
             "Info": extended_metadata,
-            # "Labels": image_labels,
+            "Labels": image_labels,
         },
     )
     logger.info(f"Composite image saved as {str(save_name)!r}")
@@ -416,6 +489,13 @@ def align_and_merge_stacks(
         "thumbnail": str(save_name.parent / ".thumbnails" / f"{save_name.stem}.png"),
         "thumbnail_size": (512, 512),  # height, row
     }
+    logger.debug(
+        "Will return the following result: \n"
+        f"{json.dumps(result, indent=2, default=str)}"
+    )
+
+    end_time = time.perf_counter()
+    logger.debug(f"Completed align and merge job in {end_time - start_time}s")
     return result
 
 
@@ -427,6 +507,7 @@ class AlignAndMergeParameters(BaseModel):
     align_self: Literal["enabled", ""] = Field(default="")
     flatten: Literal["mean", "min", "max", ""] = Field(default="mean")
     align_across: Literal["enabled", ""] = Field(default="")
+    num_procs: int = Field(default=4)
 
     @field_validator("images", mode="before")
     @classmethod
@@ -497,6 +578,7 @@ class AlignAndMergeWrapper:
                 align_self=params.align_self,
                 flatten=params.flatten,
                 align_across=params.align_across,
+                num_procs=params.num_procs,
             )
         # Log error and return False if the command fails to execute
         except Exception:

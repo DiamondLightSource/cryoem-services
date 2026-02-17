@@ -139,6 +139,7 @@ def test_membrain_seg_service_local_memseg(
         {
             "tomogram": f"{tmp_path}/Denoise/job007/tomograms/test_stack_aretomo.denoised.mrc",
             "output_dir": f"{tmp_path}/Segmentation/job008/tomograms",
+            "membrain_segmentation": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented.mrc",
             "segmentation_apng": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented_movie.png",
             "pixel_size": 1.0,
             "relion_options": output_relion_options,
@@ -260,6 +261,7 @@ def test_membrain_seg_service_local_subprocess(
         {
             "tomogram": f"{tmp_path}/Denoise/job007/tomograms/test_stack_aretomo.denoised.mrc",
             "output_dir": f"{tmp_path}/Segmentation/job008/tomograms",
+            "membrain_segmentation": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented.mrc",
             "segmentation_apng": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented_movie.png",
             "pixel_size": 1.0,
             "relion_options": output_relion_options,
@@ -443,6 +445,7 @@ def test_membrain_seg_service_slurm(
         {
             "tomogram": f"{tmp_path}/Denoise/job007/tomograms/test_stack_aretomo.denoised.mrc",
             "output_dir": f"{tmp_path}/Segmentation/job008/tomograms",
+            "membrain_segmentation": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented.mrc",
             "segmentation_apng": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented_movie.png",
             "pixel_size": 1.0,
             "relion_options": output_relion_options,
@@ -527,6 +530,7 @@ def test_membrain_seg_service_local_memseg_rerun(
         {
             "tomogram": f"{tmp_path}/Denoise/job007/tomograms/test_stack_aretomo.denoised.mrc",
             "output_dir": f"{tmp_path}/Segmentation/job008/tomograms",
+            "membrain_segmentation": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented.mrc",
             "segmentation_apng": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented_movie.png",
             "pixel_size": 1.0,
             "relion_options": output_relion_options,

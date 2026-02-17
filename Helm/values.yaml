@@ -35,9 +35,9 @@ clem_align_and_merge:
   replicas: 0
   image: gcr.io/image/path
   command: cryoemservices.service -s CLEMAlignAndMerge -c /cryoemservices/config/cryoemservices_config.yaml
-  cpuRequest: "2"
-  cpuLimit: "8"
-  memoryLimit: 64Gi
+  cpuRequest: "4"
+  cpuLimit: "4"
+  memoryLimit: 96Gi
   scaleOnQueueLength: true
   queueLengthTrigger: "4"
   minReplicaCount: 0
@@ -47,9 +47,9 @@ clem_process_raw_lifs:
   replicas: 0
   image: gcr.io/image/path
   command: cryoemservices.service -s CLEMProcessRawLIFs -c /cryoemservices/config/cryoemservices_config.yaml
-  cpuRequest: "8"
-  cpuLimit: "8"
-  memoryLimit: 64Gi
+  cpuRequest: "4"
+  cpuLimit: "4"
+  memoryLimit: 24Gi
   scaleOnQueueLength: true
   queueLengthTrigger: "4"
   minReplicaCount: 0
@@ -59,9 +59,9 @@ clem_process_raw_tiffs:
   replicas: 0
   image: gcr.io/image/path
   command: cryoemservices.service -s CLEMProcessRawTIFFs -c /cryoemservices/config/cryoemservices_config.yaml
-  cpuRequest: "8"
-  cpuLimit: "8"
-  memoryLimit: 64Gi
+  cpuRequest: "4"
+  cpuLimit: "4"
+  memoryLimit: 24Gi
   scaleOnQueueLength: true
   queueLengthTrigger: "4"
   minReplicaCount: 0
@@ -134,11 +134,12 @@ denoise_slurm:
 easymode:
   replicas: 0
   image: gcr.io/image/path
-  command: cryoemservices.services -s Easymode -c /cryoemservices/config/cryoemservices.config.yaml --extra_config /easymode_models
+  command: cryoemservices.service -s Easymode -c /cryoemservices/config/cryoemservices_config.yaml --extra_config /easymode_models
   cpuRequest: "1"
   cpuLimit: "1"
-  memoryLimit: 25Gi
+  memoryLimit: 50Gi
   scaleOnQueueLength: true
+  queueLengthTrigger: "5"
   minReplicaCount: 0
   maxReplicaCount: 1
 

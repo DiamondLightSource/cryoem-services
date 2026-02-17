@@ -74,8 +74,8 @@ def create_grayscale_image(
                 # Adjust the peak offset per frame
                 centre: tuple[int, int] = peak["centre"]
                 x, y = centre
-                peak["centre"] = (x + (f * x_shift), y + (f * y_shift))
-                peak["offset"] += f * c_off
+                peak["centre"] = (x + x_shift, y + y_shift)
+                peak["offset"] += c_off
                 arr[f] += gaussian_2d(**peak).astype(dtype)
 
     arr = arr.astype(dtype)
