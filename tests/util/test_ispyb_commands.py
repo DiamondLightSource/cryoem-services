@@ -879,6 +879,7 @@ def test_insert_processed_tomogram(mock_models):
             "tomogram_id": 801,
             "file_path": "/path/to/processed/tomogram",
             "processing_type": "Denoised",
+            "feature": "nuclear_envelope",
         }
         return tomogram_parameters[p]
 
@@ -893,6 +894,7 @@ def test_insert_processed_tomogram(mock_models):
         tomogramId=801,
         filePath="/path/to/processed/tomogram",
         processingType="Denoised",
+        feature="Nuclear envelope",
     )
     mock_session.add.assert_called()
     mock_session.commit.assert_called()

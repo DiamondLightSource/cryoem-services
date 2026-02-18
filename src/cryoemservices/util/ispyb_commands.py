@@ -662,6 +662,7 @@ def insert_processed_tomogram(
             tomogramId=full_parameters("tomogram_id"),
             filePath=full_parameters("file_path"),
             processingType=full_parameters("processing_type"),
+            feature=full_parameters("feature").capitalize().replace("_", " "),
         )
         session.add(values)
         session.commit()
