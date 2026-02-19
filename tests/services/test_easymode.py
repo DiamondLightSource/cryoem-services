@@ -153,7 +153,7 @@ def test_easymode_service_with_mask(
     )
     assert (mini_seg_path).is_file()
     offline_transport.send.assert_any_call(
-        "ispyb",
+        "ispyb_connector",
         {
             "ispyb_command": "insert_processed_tomogram",
             "file_path": str(mini_seg_path),
@@ -168,7 +168,7 @@ def test_easymode_service_with_mask(
         )
         assert mini_mrc_path.is_file()
         offline_transport.send.assert_any_call(
-            "ispyb",
+            "ispyb_connector",
             {
                 "ispyb_command": "insert_processed_tomogram",
                 "file_path": str(mini_mrc_path),
@@ -306,7 +306,7 @@ def test_easymode_service_without_mask(
         )
         assert mini_mrc_path.is_file()
         offline_transport.send.assert_any_call(
-            "ispyb",
+            "ispyb_connector",
             {
                 "ispyb_command": "insert_processed_tomogram",
                 "file_path": str(mini_mrc_path),
