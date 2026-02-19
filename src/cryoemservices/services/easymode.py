@@ -169,7 +169,7 @@ class Easymode(CommonService):
                 easymode_params.display_binning,
             )
             rw.send_to(
-                "ispyb",
+                "ispyb_connector",
                 {
                     "ispyb_command": "insert_processed_tomogram",
                     "file_path": str(mini_membrain_mrc),
@@ -179,7 +179,7 @@ class Easymode(CommonService):
             )
         for feature, tomogram in ispyb_tomograms.items():
             rw.send_to(
-                "ispyb",
+                "ispyb_connector",
                 {
                     "ispyb_command": "insert_processed_tomogram",
                     "file_path": str(tomogram),

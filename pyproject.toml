@@ -7,7 +7,7 @@ requires = [
 
 [project]
 name = "cryoemservices"
-version = "1.3.3"
+version = "1.3.4"
 description = "Services for CryoEM processing"
 readme = "README.md"
 keywords = [
@@ -58,7 +58,7 @@ dev = [
     "pytest-mock",
 ]
 torch = [
-    "easymode@git+https://github.com/mgflast/easymode@126163fcb22e469f8fc8791d10ab5c6f0b8b9070",
+    # "easymode@git+https://github.com/mgflast/easymode@126163fcb22e469f8fc8791d10ab5c6f0b8b9070",
     "membrain-seg",
     "topaz-em",
 ]
