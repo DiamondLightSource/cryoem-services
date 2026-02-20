@@ -618,7 +618,7 @@ def test_node_creator_cryolo(offline_transport, tmp_path):
     )
     assert (
         option_values[option_names == "input_file"][0]
-        == "MotionCorr/job002/micrographs_ctf.star"
+        == "MotionCorr/job002/corrected_micrographs.star"
     )
 
     # Check the output file structure
@@ -666,7 +666,7 @@ def test_node_creator_topaz_pick(offline_transport, tmp_path):
     )
     assert (
         option_values[option_names == "fn_input_autopick"][0]
-        == "MotionCorr/job002/micrographs_ctf.star"
+        == "MotionCorr/job002/corrected_micrographs.star"
     )
 
     # Check the output file structure
