@@ -689,8 +689,9 @@ def test_node_creator_extract(offline_transport, tmp_path):
     """
     job_dir = "Extract/job008"
     input_file = (
-        f"{tmp_path}/AutoPick/job007/STAR/sample.star"
-        f":{tmp_path}/CtfFind/job006/Movies/sample.ctf"
+        f"{tmp_path}/CtfFind/job006/Movies/sample.ctf"
+        f":{tmp_path}/AutoPick/job007/STAR/sample.star"
+        ":"
     )
     output_file = tmp_path / job_dir / "Movies/sample.star"
     relion_options = RelionServiceOptions()
@@ -724,6 +725,7 @@ def test_node_creator_extract(offline_transport, tmp_path):
         option_values[option_names == "coords_suffix"][0]
         == "AutoPick/job007/autopick.star"
     )
+    assert option_values[option_names == "fndata_reextract"][0] == '""'
 
     # Check the output file structure
     assert (tmp_path / job_dir / "particles.star").exists()
@@ -1119,6 +1121,48 @@ def test_node_creator_select_value(offline_transport, tmp_path):
         option_values[option_names == "fn_data"][0]
         == "Class3D/job015/run_it025_optimiser.star"
     )
+
+
+def test_node_creator_extract_reextract(offline_transport, tmp_path):
+    """
+    Send a test message to the node creator for
+    relion.extract in reextraction form
+    """
+    job_dir = "Extract/job020"
+    input_file = (
+        f"{tmp_path}/CtfFind/job006/Movies/sample.ctf"
+        ":"
+        f":{tmp_path}/Select/job019/particles_split1.star"
+    )
+    output_file = tmp_path / job_dir / "particles.star"
+    relion_options = RelionServiceOptions()
+
+    setup_and_run_node_creation(
+        relion_options,
+        offline_transport,
+        tmp_path,
+        job_dir,
+        "relion.extract",
+        input_file,
+        output_file,
+    )
+    job_star = cif.read_file(f"{job_dir}/job.star")
+    option_names = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionVariable")
+    )
+    option_values = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionValue")
+    )
+    assert (
+        option_values[option_names == "star_mics"][0]
+        == "CtfFind/job006/micrographs_ctf.star"
+    )
+    assert option_values[option_names == "coords_suffix"][0] == '""'
+    assert (
+        option_values[option_names == "fndata_reextract"][0]
+        == "Select/job019/particles_split1.star"
+    )
+    assert output_file.is_file()
 
 
 def test_node_creator_refine3d(offline_transport, tmp_path):

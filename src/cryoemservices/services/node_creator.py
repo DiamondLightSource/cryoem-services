@@ -121,8 +121,9 @@ pipeline_jobs: dict[str, dict] = {
     "relion.extract": {
         "folder": "Extract",
         "spa_input": {
-            "coords_suffix": "autopick.star",
             "star_mics": "micrographs_ctf.star",
+            "coords_suffix": "autopick.star",
+            "fndata_reextract": "",
         },
     },
     "relion.select.split": {
@@ -310,11 +311,14 @@ class NodeCreator(CommonService):
 
         # Work out the name of the input star file and add this to the job.star
         if job_dir.parent.name != "Import":
-            ii = 0
-            for label, star in pipeline_jobs[job_info.job_type][
-                job_info.experiment_type + "_input"
-            ].items():
+            for ii, (label, star) in enumerate(
+                pipeline_jobs[job_info.job_type][
+                    job_info.experiment_type + "_input"
+                ].items()
+            ):
                 added_file = job_info.input_file.split(":")[ii]
+                if not added_file:
+                    continue
                 input_job_in_project = re.search(".+/job[0-9]+", added_file)
                 if input_job_in_project:
                     input_job_dir = Path(input_job_in_project[0])
@@ -332,7 +336,6 @@ class NodeCreator(CommonService):
                 else:
                     self.log.warning(f"WARNING: {added_file} is not in a job")
                     pipeline_options[label] = Path(added_file)
-                ii += 1
         elif job_info.job_type == "relion.import.movies":
             pipeline_options["fn_in_raw"] = job_info.input_file
         elif job_info.job_type == "relion.importtomo":
