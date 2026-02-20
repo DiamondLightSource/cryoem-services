@@ -243,7 +243,7 @@ def test_tomo_align_service_file_list_aretomo3(
         {
             "experiment_type": "tomography",
             "job_type": "relion.reconstructtomograms",
-            "input_file": f"{tmp_path}/MotionCorr/job002/Movies/Position_1_001_0.0.mrc",
+            "input_file": f"{tmp_path}/AlignTiltSeries/job005/tilts/Position_1_001_0.0.mrc",
             "output_file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.mrc",
             "relion_options": output_relion_options | {"tilt_axis_angle": 85.0},
             "command": " ".join(aretomo_command),
@@ -572,7 +572,7 @@ def test_tomo_align_service_file_list_aretomo2(
         {
             "experiment_type": "tomography",
             "job_type": "relion.reconstructtomograms",
-            "input_file": f"{tmp_path}/MotionCorr/job002/Movies/Position_1_001_0.0.mrc",
+            "input_file": f"{tmp_path}/AlignTiltSeries/job005/tilts/Position_1_001_0.0.mrc",
             "output_file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.mrc",
             "relion_options": output_relion_options | {"tilt_axis_angle": 85.0},
             "command": " ".join(aretomo_command),
@@ -1507,7 +1507,7 @@ def test_tomo_align_service_path_pattern(
         {
             "experiment_type": "tomography",
             "job_type": "relion.reconstructtomograms",
-            "input_file": f"{tmp_path}/MotionCorr/job002/Movies/Position_1_001_1.00.mrc",
+            "input_file": f"{tmp_path}/AlignTiltSeries/job005/tilts/Position_1_001_1.00.mrc",
             "output_file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.mrc",
             "relion_options": output_relion_options,
             "command": " ".join(aretomo_command),
@@ -2009,7 +2009,7 @@ def test_tomo_align_service_fail_case(
         {
             "experiment_type": "tomography",
             "job_type": "relion.reconstructtomograms",
-            "input_file": f"{tmp_path}/MotionCorr/job002/Movies/Position_1_001_0.0.mrc",
+            "input_file": f"{tmp_path}/AlignTiltSeries/job005/tilts/Position_1_001_0.0.mrc",
             "output_file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.mrc",
             "relion_options": output_relion_options | {"tilt_axis_angle": 85},
             "command": " ".join(aretomo_command),

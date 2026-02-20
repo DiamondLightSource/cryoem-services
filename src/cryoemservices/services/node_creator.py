@@ -112,11 +112,11 @@ pipeline_jobs: dict[str, dict] = {
     },
     "cryolo.autopick": {
         "folder": "AutoPick",
-        "spa_input": {"input_file": "corrected_micrographs.star"},
+        "spa_input": {"input_file": "micrographs_ctf.star"},
     },
     "relion.autopick.topaz.pick": {
         "folder": "AutoPick",
-        "spa_input": {"fn_input_autopick": "corrected_micrographs.star"},
+        "spa_input": {"fn_input_autopick": "micrographs_ctf.star"},
     },
     "relion.extract": {
         "folder": "Extract",
@@ -133,57 +133,27 @@ pipeline_jobs: dict[str, dict] = {
         "folder": "IceBreaker",
         "spa_input": {
             "in_mics": "grouped_micrographs.star",
-            "in_parts": "particles_split1.star",
+            "in_parts": "",
         },
     },
-    "relion.class2d.em": {
-        "folder": "Class2D",
-        "spa_input": {"fn_img": "particles_split1.star"},
-    },
-    "relion.class2d.vdam": {
-        "folder": "Class2D",
-        "spa_input": {"fn_img": "particles_split1.star"},
-    },
-    "relion.select.class2dauto": {
-        "folder": "Select",
-        "spa_input": {"fn_model": "run_it020_optimiser.star"},
-    },
+    "relion.class2d.em": {"folder": "Class2D", "spa_input": {"fn_img": ""}},
+    "relion.class2d.vdam": {"folder": "Class2D", "spa_input": {"fn_img": ""}},
+    "relion.select.class2dauto": {"folder": "Select", "spa_input": {"fn_model": ""}},
     "combine_star_files_job": {
         "folder": "Select",
-        "spa_input": {"files_to_process": "particles.star"},
+        "spa_input": {"files_to_process": ""},
     },
-    "relion.initialmodel": {
-        "folder": "InitialModel",
-        "spa_input": {"fn_img": "particles_split1.star"},
-    },
-    "relion.class3d": {
-        "folder": "Class3D",
-        "spa_input": {
-            "fn_img": "particles_split1.star",
-            "fn_ref": "initial_model.mrc",
-        },
-    },
-    "relion.select.onvalue": {
-        "folder": "Select",
-        "spa_input": {"fn_data": "run_it025_data.star"},
-    },
+    "relion.initialmodel": {"folder": "InitialModel", "spa_input": {"fn_img": ""}},
+    "relion.class3d": {"folder": "Class3D", "spa_input": {"fn_img": "", "fn_ref": ""}},
+    "relion.select.onvalue": {"folder": "Select", "spa_input": {"fn_data": ""}},
     "relion.refine3d": {
         "folder": "Refine3D",
-        "spa_input": {
-            "fn_img": "particles.star",
-            "fn_ref": "refinement_reference_class00X.mrc",
-        },
+        "spa_input": {"fn_img": "", "fn_ref": ""},
     },
-    "relion.maskcreate": {
-        "folder": "MaskCreate",
-        "spa_input": {"fn_in": "run_class001.star"},
-    },
+    "relion.maskcreate": {"folder": "MaskCreate", "spa_input": {"fn_in": ""}},
     "relion.postprocess": {
         "folder": "PostProcess",
-        "spa_input": {
-            "fn_in": "run_half1_class001_unfil.mrc",
-            "fn_mask": "mask.mrc",
-        },
+        "spa_input": {"fn_in": "", "fn_mask": ""},
     },
     "relion.excludetilts": {
         "folder": "ExcludeTiltImages",
@@ -349,14 +319,16 @@ class NodeCreator(CommonService):
                 if input_job_in_project:
                     input_job_dir = Path(input_job_in_project[0])
                     try:
-                        pipeline_options[label] = (
-                            input_job_dir.relative_to(project_dir) / star
-                        )
+                        pipeline_options[label] = input_job_dir.relative_to(
+                            project_dir
+                        ) / (star or Path(added_file).name)
                     except ValueError:
                         self.log.warning(
                             f"WARNING: {input_job_dir} is not relative to {project_dir}"
                         )
-                        pipeline_options[label] = input_job_dir / star
+                        pipeline_options[label] = input_job_dir / (
+                            star or Path(added_file).name
+                        )
                 else:
                     self.log.warning(f"WARNING: {added_file} is not in a job")
                     pipeline_options[label] = Path(added_file)
