@@ -22,6 +22,9 @@ from cryoemservices.services.select_particles import SelectParticlesParameters
 from cryoemservices.services.tomo_align import TomoParameters
 from cryoemservices.wrappers.class2d_wrapper import Class2DParameters
 from cryoemservices.wrappers.class3d_wrapper import Class3DParameters
+from cryoemservices.wrappers.clem_align_and_merge import AlignAndMergeParameters
+from cryoemservices.wrappers.clem_process_raw_lifs import ProcessRawLIFsParameters
+from cryoemservices.wrappers.clem_process_raw_tiffs import ProcessRawTIFFsParameters
 from cryoemservices.wrappers.refine3d_wrapper import RefineParameters
 
 try:
@@ -60,8 +63,13 @@ class MurfeyParameters(BaseModel):
 FIXTURE_DIR = Path(__file__).parent.parent.parent.resolve()
 known_services = {
     "BFactor": BFactorParameters,
+    "Class2D": Class2DParameters,
+    "Class3D": Class3DParameters,
     "Class2DWrapper": Class2DParameters,
     "Class3DWrapper": Class3DParameters,
+    "CLEM-ALIGN-AND-MERGE": AlignAndMergeParameters,
+    "CLEM-PROCESS-LIFS": ProcessRawLIFsParameters,
+    "CLEM-PROCESS-TIFFS": ProcessRawTIFFsParameters,
     "CrYOLO": CryoloParameters,
     "CTFFind": CTFParameters,
     "Denoise": DenoiseParameters,
@@ -76,6 +84,7 @@ known_services = {
     "Murfey": MurfeyParameters,
     "NodeCreator": NodeCreatorParameters,
     "PostProcess": PostProcessParameters,
+    "Refine3D": RefineParameters,
     "RefineWrapper": RefineParameters,
     "SelectClasses": SelectClassesParameters,
     "SelectParticles": SelectParticlesParameters,
@@ -84,12 +93,22 @@ known_services = {
 
 
 @pytest.mark.datafiles(
+    FIXTURE_DIR / "recipes/clem-align-and-merge.json",
+    FIXTURE_DIR / "recipes/clem-align-and-merge-wrapper.json",
+    FIXTURE_DIR / "recipes/clem-lif-to-stack.json",
+    FIXTURE_DIR / "recipes/clem-lif-to-stack-wrapper.json",
+    FIXTURE_DIR / "recipes/clem-tiff-to-stack.json",
+    FIXTURE_DIR / "recipes/clem-tiff-to-stack-wrapper.json",
     FIXTURE_DIR / "recipes/em-spa-bfactor.json",
+    FIXTURE_DIR / "recipes/em-spa-bfactor-wrapper.json",
     FIXTURE_DIR / "recipes/em-spa-class2d.json",
+    FIXTURE_DIR / "recipes/em-spa-class2d-wrapper.json",
     FIXTURE_DIR / "recipes/em-spa-class3d.json",
+    FIXTURE_DIR / "recipes/em-spa-class3d-wrapper.json",
     FIXTURE_DIR / "recipes/em-spa-extract.json",
     FIXTURE_DIR / "recipes/em-spa-preprocess.json",
     FIXTURE_DIR / "recipes/em-spa-refine.json",
+    FIXTURE_DIR / "recipes/em-spa-refine-wrapper.json",
     FIXTURE_DIR / "recipes/em-tomo-align.json",
     FIXTURE_DIR / "recipes/em-tomo-preprocess.json",
 )
