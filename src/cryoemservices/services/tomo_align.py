@@ -753,7 +753,6 @@ class TomoAlign(CommonService):
                     self.thickness_pixels * tomo_params.pixel_size
                 )
             rw.send_to("images", images_call_params)
-            print(images_call_params)
 
         # Forward results to denoise service
         self.log.info(f"Sending to denoise service {aretomo_output_path}")

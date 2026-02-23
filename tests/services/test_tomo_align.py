@@ -701,9 +701,11 @@ def test_tomo_align_service_file_list_aretomo2(
 
 @mock.patch("cryoemservices.services.tomo_align.subprocess.run")
 @mock.patch("cryoemservices.services.tomo_align.mrcfile")
+@mock.patch("cryoemservices.services.tomo_align.resize_tomogram")
 @mock.patch("cryoemservices.services.tomo_align.rotate_tomogram")
 def test_tomo_align_service_file_list_repeated_tilt(
     mock_rotate,
+    mock_resize,
     mock_mrcfile,
     mock_subprocess,
     offline_transport,
@@ -787,6 +789,9 @@ def test_tomo_align_service_file_list_repeated_tilt(
     assert mock_subprocess.call_count == 2
 
     # This one runs the post-reconstruction volume flip
+    mock_resize.assert_called_once_with(
+        tmp_path / "Tomograms/job006/tomograms/test_stack_Vol.mrc", int(1530 / 4)
+    )
     mock_rotate.assert_called_once_with(
         tmp_path / "Tomograms/job006/tomograms/test_stack_Vol.mrc", 85.1
     )
@@ -841,9 +846,11 @@ def test_tomo_align_service_file_list_repeated_tilt(
 
 @mock.patch("cryoemservices.services.tomo_align.subprocess.run")
 @mock.patch("cryoemservices.services.tomo_align.mrcfile")
+@mock.patch("cryoemservices.services.tomo_align.resize_tomogram")
 @mock.patch("cryoemservices.services.tomo_align.rotate_tomogram")
 def test_tomo_align_service_file_list_zero_rotation(
     mock_rotate,
+    mock_resize,
     mock_mrcfile,
     mock_subprocess,
     offline_transport,
@@ -913,7 +920,10 @@ def test_tomo_align_service_file_list_zero_rotation(
     assert mock_subprocess.call_count == 2
     assert offline_transport.send.call_count == 13
 
-    # Check tomogram rotation
+    # Check tomogram rotation and resizing
+    mock_resize.assert_called_once_with(
+        tmp_path / "Tomograms/job006/tomograms/test_stack_Vol.mrc", int(1530 / 4)
+    )
     mock_rotate.assert_called_once_with(
         tmp_path / "Tomograms/job006/tomograms/test_stack_Vol.mrc", 0
     )
@@ -1104,9 +1114,11 @@ def test_tomo_align_service_file_list_bad_tilts(
 
 @mock.patch("cryoemservices.services.tomo_align.subprocess.run")
 @mock.patch("cryoemservices.services.tomo_align.mrcfile")
+@mock.patch("cryoemservices.services.tomo_align.resize_tomogram")
 @mock.patch("cryoemservices.services.tomo_align.rotate_tomogram")
 def test_tomo_align_service_file_list_rerun(
     mock_rotate,
+    mock_resize,
     mock_mrcfile,
     mock_subprocess,
     offline_transport,
@@ -1191,7 +1203,10 @@ def test_tomo_align_service_file_list_rerun(
     # Check the expected calls were made
     assert mock_subprocess.call_count == 2
 
-    # Check tomogram rotation
+    # Check tomogram rotation and resizing
+    mock_resize.assert_called_once_with(
+        tmp_path / "Tomograms/job006/tomograms/test_stack_Vol.mrc", int(1530 / 4)
+    )
     mock_rotate.assert_called_once_with(
         tmp_path / "Tomograms/job006/tomograms/test_stack_Vol.mrc", 86.0
     )
@@ -1524,7 +1539,9 @@ def test_tomo_align_service_path_pattern(
 
 @mock.patch("cryoemservices.services.tomo_align.subprocess.run")
 @mock.patch("cryoemservices.services.tomo_align.mrcfile")
+@mock.patch("cryoemservices.services.tomo_align.resize_tomogram")
 def test_tomo_align_service_dark_images(
+    mock_resize,
     mock_mrcfile,
     mock_subprocess,
     offline_transport,
@@ -1651,6 +1668,11 @@ def test_tomo_align_service_dark_images(
     mock_subprocess.assert_any_call(
         aretomo_command,
         capture_output=True,
+    )
+
+    # Check resizing
+    mock_resize.assert_called_once_with(
+        tmp_path / "Tomograms/job006/tomograms/test_stack_Vol.mrc", int(1530 / 4)
     )
 
     # Check the angle file
@@ -2048,6 +2070,7 @@ def test_parse_tomo_align_output(offline_transport):
 
 
 def test_resize_tomogram(tmp_path):
+    """Test the reshaping of a XZY tomogram"""
     with mrcfile.new(tmp_path / "test.mrc") as mrc:
         mrc.set_data(np.reshape(np.arange(64, dtype=np.float32), (4, 4, 4)))
         mrc.header.mx = 4
@@ -2068,3 +2091,51 @@ def test_resize_tomogram(tmp_path):
     assert header.cella.x == 100
     assert header.cella.y == 25
     assert header.cella.z == 20
+
+
+def test_rotate_tomogram_axis90(tmp_path):
+    """Test the rotation from XZY to XYZ for the 90 degree axis"""
+    with mrcfile.new(tmp_path / "test.mrc") as mrc:
+        mrc.set_data(np.reshape(np.arange(64, dtype=np.float32), (8, 4, 2)))
+        mrc.header.mx = 2
+        mrc.header.my = 4
+        mrc.header.mz = 8
+        mrc.header.cella = (100, 50, 20)
+
+    tomo_align.rotate_tomogram(tmp_path / "test.mrc", 85)
+
+    with mrcfile.open(tmp_path / "test.mrc") as mrc:
+        data = mrc.data
+        header = mrc.header
+
+    assert data.shape == (4, 2, 8)
+    assert header.mx == 8
+    assert header.my == 2
+    assert header.mz == 4
+    assert header.cella.x == 20
+    assert header.cella.y == 100
+    assert header.cella.z == 50
+
+
+def test_rotate_tomogram_axis0(tmp_path):
+    """Test the rotation from XZY to XYZ for the 0 degree axis"""
+    with mrcfile.new(tmp_path / "test.mrc") as mrc:
+        mrc.set_data(np.reshape(np.arange(64, dtype=np.float32), (8, 4, 2)))
+        mrc.header.mx = 2
+        mrc.header.my = 4
+        mrc.header.mz = 8
+        mrc.header.cella = (100, 50, 20)
+
+    tomo_align.rotate_tomogram(tmp_path / "test.mrc", 5)
+
+    with mrcfile.open(tmp_path / "test.mrc") as mrc:
+        data = mrc.data
+        header = mrc.header
+
+    assert data.shape == (4, 8, 2)
+    assert header.mx == 2
+    assert header.my == 8
+    assert header.mz == 4
+    assert header.cella.x == 100
+    assert header.cella.y == 20
+    assert header.cella.z == 50
