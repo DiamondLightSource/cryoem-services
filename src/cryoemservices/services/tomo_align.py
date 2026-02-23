@@ -70,6 +70,32 @@ def rotate_tomogram(tomogram: Path, tilt_axis: float):
             mrc.header.cella.z = start_cella[1]
 
 
+def create_tilt_stack(input_file_list_of_lists: List[Any], stack_file: Path):
+    """
+    Construct stack file of all tilt images
+    """
+    # Find the size of the data
+    with mrcfile.open(input_file_list_of_lists[0][0]) as mrc:
+        header = mrc.header
+
+    # Create and populate array of input data
+    data_stack = np.zeros(
+        (len(input_file_list_of_lists), header.ny, header.nx), dtype=np.float32
+    )
+    for i, input_file in enumerate(input_file_list_of_lists):
+        with mrcfile.open(input_file[0]) as mrc:
+            data_stack[i] = mrc.data
+
+    # Write output stack and set header values
+    with mrcfile.new(stack_file, overwrite=True) as mrc:
+        mrc.set_data(data_stack)
+        mrc.header.mx = header.nx
+        mrc.header.my = header.ny
+        mrc.header.mz = len(input_file_list_of_lists)
+        mrc.header.cella = header.cella
+        mrc.header.cella.z *= len(input_file_list_of_lists)
+
+
 class TomoParameters(BaseModel):
     aretomo_version: Literal[2, 3] = 3
     stack_file: str = Field(..., min_length=1)
@@ -363,8 +389,8 @@ class TomoAlign(CommonService):
         with mrcfile.open(self.input_file_list_of_lists[0][0]) as mrc:
             mrc_header = mrc.header
         # x and y get flipped on tomogram creation
-        tomo_params.relion_options.tomo_size_x = int(mrc_header["nx"])
-        tomo_params.relion_options.tomo_size_y = int(mrc_header["ny"])
+        tomo_params.relion_options.tomo_size_x = int(mrc_header.nx)
+        tomo_params.relion_options.tomo_size_y = int(mrc_header.ny)
         scaled_x_size = tomo_params.relion_options.tomo_size_x / int(
             tomo_params.out_bin
         )
@@ -387,14 +413,13 @@ class TomoAlign(CommonService):
             rw.transport.nack(header)
             return
 
-        # Stack the tilts with newstack
-        newstack_path = alignment_output_dir / f"{stack_name}_newstack.txt"
-        newstack_result = self.newstack(tomo_params, newstack_path)
-        if newstack_result.returncode:
-            self.log.error(
-                f"Newstack failed with exitcode {newstack_result.returncode}:\n"
-                + newstack_result.stderr.decode("utf8", "replace")
+        # Stack the tilts
+        try:
+            create_tilt_stack(
+                self.input_file_list_of_lists, Path(tomo_params.stack_file)
             )
+        except (FileNotFoundError, ValueError) as e:
+            self.log.error(f"Creating stack file failed: {e}")
             rw.transport.nack(header)
             return
 
@@ -785,30 +810,6 @@ class TomoAlign(CommonService):
         rw.send_to("success", {})
         self.log.info(f"Done tomogram alignment for {tomo_params.stack_file}")
         rw.transport.ack(header)
-
-    def newstack(self, tomo_parameters: TomoParameters, newstack_path: Path):
-        """
-        Construct file containing a list of files
-        Run newstack
-        """
-
-        # Write a file with a list of .mrcs for input to Newstack
-        with open(newstack_path, "w") as f:
-            f.write(f"{len(self.input_file_list_of_lists)}\n")
-            f.write("\n0\n".join(i[0] for i in self.input_file_list_of_lists))
-            f.write("\n0\n")
-
-        newstack_cmd = [
-            "newstack",
-            "-fileinlist",
-            str(newstack_path),
-            "-output",
-            tomo_parameters.stack_file,
-            "-quiet",
-        ]
-        self.log.info("Running Newstack")
-        result = subprocess.run(newstack_cmd, capture_output=True)
-        return result
 
     def assemble_aretomo3_command(
         self,
