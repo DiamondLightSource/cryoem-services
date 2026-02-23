@@ -1544,13 +1544,6 @@ def test_tomo_align_service_path_pattern(
     offline_transport.send.assert_any_call("success", {})
 
 
-# Check tilt stack creation
-# mock_tilt_stack.assert_called_once_with(
-#    [input_file_list[3], input_file_list[1], input_file_list[0], input_file_list[2], input_file_list[4]],
-#    Path(tomo_align_test_message["stack_file"]),
-# )
-
-
 @mock.patch("cryoemservices.services.tomo_align.subprocess.run")
 @mock.patch("cryoemservices.services.tomo_align.mrcfile")
 @mock.patch("cryoemservices.services.tomo_align.create_tilt_stack")
