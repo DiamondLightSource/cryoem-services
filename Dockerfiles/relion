@@ -1,0 +1,25 @@
+# Common Dockerfile to build relion
+# Used for motion correction and class selection
+FROM rockylinux:8
+
+# Get required build packages and libraries
+RUN yum install gcc gcc-c++ cmake openmpi -y
+RUN yum install fftw-devel libtiff-devel libpng-devel libjpeg-devel zlib-devel -y
+
+# Build Relion - need to be on the ver5.0-mc-devolve branch
+RUN mkdir -p /install/relion5.0
+RUN curl -L -o relion.tar.gz https://github.com/d-j-hatton/relion/archive/ver5.0-mc-devolve.tar.gz
+RUN tar -C /install -xf relion.tar.gz
+RUN mkdir /install/relion-ver5.0-mc-devolve/build
+
+RUN mkdir /torch_home
+
+RUN cmake -DCMAKE_INSTALL_PREFIX=/install/relion5.0 -DCMAKE_C_COMPILER=/usr/bin/gcc \
+    -DCMAKE_CXX_COMPILER=/usr/bin/g++ -DMPI_C_COMPILER=/usr/lib64/openmpi/bin/mpicc \
+    -DMPI_CXX_COMPILER=/usr/lib64/openmpi/bin/mpicxx \
+    -DMPI_C_LIBRARIES=/usr/lib64/openmpi/lib/libmpi.so \
+    -DMPI_CXX_LIBRARIES=/usr/lib64/openmpi/lib/libmpi.so \
+    -DGUI=OFF -DALTCPU=ON -DDoublePrec_CPU=OFF -DFORCE_OWN_FFTW=ON -DAMDFFTW=ON \
+    -DPYTHON_EXE_PATH=/install/venv/bin/python -DTORCH_HOME_PATH=/torch_home \
+    -B/install/relion-ver5.0-mc-devolve/build -S/install/relion-ver5.0-mc-devolve
+RUN make --directory=/install/relion-ver5.0-mc-devolve/build/ install

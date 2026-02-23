@@ -170,8 +170,8 @@ pipeline_jobs: dict[str, dict] = {
     "relion.refine3d": {
         "folder": "Refine3D",
         "spa_input": {
-            "fn_img": "particles_split1.star",
-            "fn_ref": "run_it025_class.mrc",
+            "fn_img": "particles.star",
+            "fn_ref": "refinement_reference_class00X.mrc",
         },
     },
     "relion.maskcreate": {

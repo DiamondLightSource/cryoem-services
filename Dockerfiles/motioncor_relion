@@ -1,35 +1,19 @@
 # This Dockerfile is used for Relion's own motion correction and Relion postprocessing
-# First stage builds relion
-FROM rockylinux:8 AS relion-build
-
-# Get required build packages and libraries
-RUN yum install gcc gcc-c++ cmake openmpi -y
-RUN yum install fftw-devel libtiff-devel libpng-devel libjpeg-devel zlib-devel -y
-
-# Build Relion - need to be on the ver5.0-mc-devolve branch
-RUN mkdir -p /install/relion5.0
-RUN curl -L -o relion.tar.gz https://github.com/d-j-hatton/relion/archive/ver5.0-mc-devolve.tar.gz
-RUN tar -C /install -xf relion.tar.gz
-RUN mkdir /install/relion-ver5.0-mc-devolve/build
-
-RUN cmake -DCMAKE_INSTALL_PREFIX=/install/relion5.0 -DCMAKE_C_COMPILER=/usr/bin/gcc -DCMAKE_CXX_COMPILER=/usr/bin/g++ -DMPI_C_COMPILER=/usr/lib64/openmpi/bin/mpicc -DMPI_CXX_COMPILER=/usr/lib64/openmpi/bin/mpicxx -DMPI_C_LIBRARIES=/usr/lib64/openmpi/lib/libmpi.so -DMPI_CXX_LIBRARIES=/usr/lib64/openmpi/lib/libmpi.so -DGUI=OFF -DALTCPU=ON -DDoublePrec_CPU=OFF -DFORCE_OWN_FFTW=ON -DAMDFFTW=ON -B/install/relion-ver5.0-mc-devolve/build -S/install/relion-ver5.0-mc-devolve
-RUN make --directory=/install/relion-ver5.0-mc-devolve/build/ install
-
-
-# Second stage combines the Relion build with a python environment
+# Needs to be built on an image built with the common Relion Dockerfile
 FROM rockylinux:8
 
 # Create EM user
 ARG groupid
 ARG userid
 ARG groupname
+ARG relionbuild
 RUN groupadd -r -g "${groupid}" "${groupname}" && useradd -r -M "${groupname}" -u "${userid}" -g "${groupname}"
 
 # Install libraries for Relion
 RUN yum install openmpi fftw-devel libtiff-devel libpng-devel libjpeg-devel python3.11 zlib-devel -y
 
 # Copy Relion
-COPY --from=relion-build --chown="${userid}":"${groupid}" /install/relion5.0 /install/relion5.0
+COPY --from="${relionbuild}" --chown="${userid}":"${groupid}" /install/relion5.0 /install/relion5.0
 ENV PATH="/install/relion5.0/bin:${PATH}"
 
 # Make the python virtual environment and install cryoem-services

@@ -42,7 +42,7 @@ def set_up_logging(debug: bool):
     Helper function to configure the 'cryoemservices' logger to log to console when
     running CLIs
     """
-    root_logger = logging.getLogger()
+    root_logger = logging.getLogger("cryoemservices")
     root_logger.setLevel(logging.INFO)
     if debug:
         root_logger.setLevel(logging.DEBUG)

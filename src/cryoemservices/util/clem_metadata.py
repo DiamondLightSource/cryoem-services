@@ -132,7 +132,7 @@ def get_dimension_info(node: ET.Element) -> dict[str, dict]:
 
             # Get the end-to-end length of the axis
             # 'Length' is midpoint-to-midpoint length
-            end_to_end_length = (length - origin) * num_elements / (num_elements - 1)
+            end_to_end_length = length * num_elements / (num_elements - 1)
 
             # Calculate resolution and pixel size
             resolution = num_elements / end_to_end_length  # Pixels per unit
@@ -150,6 +150,7 @@ def get_dimension_info(node: ET.Element) -> dict[str, dict]:
             )
             dims_info[dim_name].update(
                 {
+                    "origin": origin,
                     "length": end_to_end_length,
                     "units": units,
                     "resolution": resolution,

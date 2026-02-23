@@ -22,7 +22,7 @@ from cryoemservices.util.relion_service_options import (
     RelionServiceOptions,
     update_relion_options,
 )
-from cryoemservices.util.tomo_output_files import _get_tilt_number_v5_12
+from cryoemservices.util.tomo_output_files import get_tilt_number_v5_12
 
 
 def resize_tomogram(tomogram: Path, new_thickness: int):
@@ -80,6 +80,7 @@ class TomoParameters(BaseModel):
     input_file_list: Optional[str] = None
     vol_z: Optional[int] = None
     max_vol: int = 1800
+    min_vol: int = 800
     extra_vol: int = 400
     out_bin: int = 4
     second_bin: Optional[int] = None
@@ -353,7 +354,7 @@ class TomoAlign(CommonService):
                         )
         removed_tilt_numbers = np.array(
             [
-                _get_tilt_number_v5_12(Path(self.input_file_list_of_lists[index][0]))
+                get_tilt_number_v5_12(Path(self.input_file_list_of_lists[index][0]))
                 for index in tilts_to_remove
             ]
         )
@@ -406,7 +407,7 @@ class TomoAlign(CommonService):
         )
         tilt_angles = {}
         for i in range(len(self.input_file_list_of_lists)):
-            tilt_index = _get_tilt_number_v5_12(
+            tilt_index = get_tilt_number_v5_12(
                 Path(self.input_file_list_of_lists[i][0])
             )
             tilt_index -= len(np.where(removed_tilt_numbers < tilt_index)[0])
@@ -455,7 +456,10 @@ class TomoAlign(CommonService):
             self.thickness_pixels
             and self.thickness_pixels + tomo_params.extra_vol < tomo_params.max_vol
         ):
-            tomo_params.vol_z = self.thickness_pixels + tomo_params.extra_vol
+            if self.thickness_pixels + tomo_params.extra_vol > tomo_params.min_vol:
+                tomo_params.vol_z = self.thickness_pixels + tomo_params.extra_vol
+            else:
+                tomo_params.vol_z = tomo_params.min_vol
             tomo_params.relion_options.vol_z = tomo_params.vol_z
 
         if not job_is_rerun:
@@ -734,14 +738,19 @@ class TomoAlign(CommonService):
         )
 
         self.log.info("Sending to images service for XY and XZ projections")
-        for projection_type in ["XY", "XZ"]:
+        side_projection = (
+            "YZ"
+            if tomo_params.tilt_axis is not None and -45 < tomo_params.tilt_axis < 45
+            else "XZ"
+        )
+        for projection_type in ["XY", side_projection]:
             images_call_params: dict[str, str | float] = {
                 "image_command": "mrc_projection",
                 "file": str(aretomo_output_path),
                 "projection": projection_type,
                 "pixel_spacing": float(pixel_spacing),
             }
-            if projection_type == "XZ" and self.thickness_pixels:
+            if projection_type in ["XZ", "YZ"] and self.thickness_pixels:
                 images_call_params["thickness_ang"] = (
                     self.thickness_pixels * tomo_params.pixel_size
                 )

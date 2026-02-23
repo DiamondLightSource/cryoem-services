@@ -35,6 +35,8 @@ def test_align_and_merge_with_optional_args(mocker: MockerFixture, tmp_path: Pat
         "min",
         "--align-across",
         "enabled",
+        "--num-procs",
+        "4",
         "--debug",
     ]
     clem_align_and_merge.run()
@@ -47,6 +49,7 @@ def test_align_and_merge_with_optional_args(mocker: MockerFixture, tmp_path: Pat
         align_self="enabled",
         flatten="min",
         align_across="enabled",
+        num_procs=4,
     )
 
 
@@ -75,6 +78,7 @@ def test_align_and_merge_with_default_args(mocker: MockerFixture, tmp_path: Path
         align_self="",
         flatten="mean",
         align_across="",
+        num_procs=1,
     )
 
 
@@ -102,6 +106,7 @@ def test_align_and_merge_string_list(mocker: MockerFixture, tmp_path):
         align_self="",
         flatten="mean",
         align_across="",
+        num_procs=1,
     )
 
 
@@ -124,5 +129,6 @@ def test_align_and_merge_exists():
     assert cleaned_help_line == (
         "usage:clem.align_and_merge[-h][--metadataMETADATA]"
         "[--crop-to-n-framesCROP_TO_N_FRAMES][--align-selfALIGN_SELF]"
-        "[--flattenFLATTEN][--align-acrossALIGN_ACROSS][--debug]images[images...]"
+        "[--flattenFLATTEN][--align-acrossALIGN_ACROSS]"
+        "[--num-procsNUM_PROCS][--debug]images[images...]"
     )

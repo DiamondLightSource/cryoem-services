@@ -20,6 +20,7 @@ from cryoemservices.util.relion_service_options import (
     update_relion_options,
 )
 from cryoemservices.util.slurm_submission import slurm_submission_for_services
+from cryoemservices.util.tomo_output_files import get_tilt_number_v5_12
 
 
 class MotionCorrParameters(BaseModel):
@@ -62,6 +63,7 @@ class MotionCorrParameters(BaseModel):
     split_sum: Optional[int] = None
     dose_motionstats_cutoff: float = 4.0
     do_icebreaker_jobs: bool = True
+    slurm_memory: int = 20000
     mc_uuid: int
     app_id: Optional[int] = None
     picker_uuid: int
@@ -173,7 +175,7 @@ class MotionCorr(CommonService):
         self.parse_mc2_stdout(result.stdout.decode("utf8", "replace"))
         return result
 
-    def motioncor2_slurm(self, command: List[str], mrc_out: Path):
+    def motioncor2_slurm(self, command: List[str], mrc_out: Path, memory: int):
         """Submit MotionCor2 jobs to a slurm cluster via the RestAPI"""
         slurm_outcome = slurm_submission_for_services(
             log=self.log,
@@ -187,6 +189,7 @@ class MotionCorr(CommonService):
             use_gpu=True,
             use_singularity=True,
             cif_name=os.environ["MOTIONCOR2_SIF"],
+            memory_request=memory,
             extra_singularity_directories=["/lib64"],
         )
 
@@ -218,7 +221,7 @@ class MotionCorr(CommonService):
             result.returncode = 1
         return result
 
-    def relion_motioncorr_slurm(self, command: List[str], mrc_out: Path):
+    def relion_motioncorr_slurm(self, command: List[str], mrc_out: Path, memory: int):
         """Submit Relion's own motion correction to a slurm cluster via the RestAPI"""
         result = slurm_submission_for_services(
             log=self.log,
@@ -231,6 +234,7 @@ class MotionCorr(CommonService):
             cpus=4,
             use_gpu=False,
             use_singularity=False,
+            memory_request=memory,
             script_extras="module load EM/relion/motioncorr",
         )
         if Path(mrc_out).with_suffix(".star").exists():
@@ -313,10 +317,33 @@ class MotionCorr(CommonService):
                 except ValueError:
                     self.log.warning("Cannot read eer grouping")
 
+        # Relion's motion correction behaves differently for eer with .mrc gain
+        # In that case switch it to use .gain file if possible
+        if (
+            mc_params.movie.endswith(".eer")
+            and mc_params.gain_ref
+            and mc_params.gain_ref.endswith(".mrc")
+            and not mc_params.use_motioncor2
+            and Path(mc_params.gain_ref).with_suffix(".gain").is_file()
+        ):
+            mc_params.gain_ref = str(Path(mc_params.gain_ref).with_suffix(".gain"))
+
         # Submit all super-resolution jobs to slurm using MotionCor2
         if mc_params.motion_corr_binning == 2:
             mc_params.use_motioncor2 = True
             mc_params.submit_to_slurm = True
+
+        # Work out pre-exposure dose for tomography if not provided
+        if (
+            mc_params.experiment_type == "tomography"
+            and mc_params.frame_count
+            and not mc_params.init_dose
+        ):
+            tilt_number = get_tilt_number_v5_12(Path(mc_params.movie))
+            if tilt_number:
+                mc_params.init_dose = (
+                    mc_params.dose_per_frame * mc_params.frame_count * (tilt_number - 1)
+                )
 
         # Update the relion options
         mc_params.relion_options = update_relion_options(
@@ -389,7 +416,9 @@ class MotionCorr(CommonService):
                         command.extend((mc2_flags[k], str(v)))
             # Run MotionCor2
             if mc_params.submit_to_slurm:
-                result = self.motioncor2_slurm(command, Path(mc_params.mrc_out))
+                result = self.motioncor2_slurm(
+                    command, Path(mc_params.mrc_out), mc_params.slurm_memory
+                )
             else:
                 result = self.motioncor2(command, Path(mc_params.mrc_out))
 
@@ -440,7 +469,9 @@ class MotionCorr(CommonService):
             command.extend(("--dose_weighting", "--i", "dummy"))
             # Run Relion motion correction
             if mc_params.submit_to_slurm:
-                result = self.relion_motioncorr_slurm(command, Path(mc_params.mrc_out))
+                result = self.relion_motioncorr_slurm(
+                    command, Path(mc_params.mrc_out), mc_params.slurm_memory
+                )
             else:
                 result = self.relion_motioncorr(command, Path(mc_params.mrc_out))
 

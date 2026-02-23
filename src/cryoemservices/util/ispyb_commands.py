@@ -343,6 +343,7 @@ def insert_ctf(message: dict, parameters: Callable, session: sqlalchemy.orm.Sess
             ccValue=full_parameters("cc_value"),
             fftTheoreticalFullPath=full_parameters("fft_theoretical_full_path"),
             comments=full_parameters("comments"),
+            iceRingDensity=full_parameters("ice_ring_density"),
         )
         session.add(values)
         session.commit()
@@ -661,6 +662,7 @@ def insert_processed_tomogram(
             tomogramId=full_parameters("tomogram_id"),
             filePath=full_parameters("file_path"),
             processingType=full_parameters("processing_type"),
+            feature=full_parameters("feature").capitalize().replace("_", " "),
         )
         session.add(values)
         session.commit()

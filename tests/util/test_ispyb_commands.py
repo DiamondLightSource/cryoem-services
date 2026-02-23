@@ -311,6 +311,7 @@ def test_insert_ctf(mock_models):
             "cc_value": 10000,
             "fft_theoretical_full_path": "/path/to/fft",
             "comments": "comment",
+            "ice_ring_density": 1.2,
         }
         return ctf_parameters[p]
 
@@ -338,6 +339,7 @@ def test_insert_ctf(mock_models):
         ccValue=10000,
         fftTheoreticalFullPath="/path/to/fft",
         comments="comment",
+        iceRingDensity=1.2,
     )
     mock_session.add.assert_called()
     mock_session.commit.assert_called()
@@ -877,6 +879,7 @@ def test_insert_processed_tomogram(mock_models):
             "tomogram_id": 801,
             "file_path": "/path/to/processed/tomogram",
             "processing_type": "Denoised",
+            "feature": "nuclear_envelope",
         }
         return tomogram_parameters[p]
 
@@ -891,6 +894,7 @@ def test_insert_processed_tomogram(mock_models):
         tomogramId=801,
         filePath="/path/to/processed/tomogram",
         processingType="Denoised",
+        feature="Nuclear envelope",
     )
     mock_session.add.assert_called()
     mock_session.commit.assert_called()
