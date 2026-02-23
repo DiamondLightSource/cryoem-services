@@ -27,8 +27,7 @@ from cryoemservices.util.tomo_output_files import get_tilt_number_v5_12
 
 def resize_tomogram(tomogram: Path, new_thickness: int):
     """Change the Z size of an XZY tomogram"""
-    with mrcfile.mmap(tomogram, mode="r+") as mrc:
-        # Open tomogram in memmap mode
+    with mrcfile.open(tomogram, mode="r+") as mrc:
         z_size = mrc.data.shape[1]
         start_location = np.copy([mrc.header.mx, mrc.header.my, mrc.header.mz])
         # Slice and set new data
@@ -46,8 +45,7 @@ def resize_tomogram(tomogram: Path, new_thickness: int):
 
 def rotate_tomogram(tomogram: Path, tilt_axis: float):
     """Rotate an XZY tomogram into XYZ"""
-
-    with mrcfile.mmap(tomogram, mode="r+") as mrc:
+    with mrcfile.open(tomogram, mode="r+") as mrc:
         start_location = np.copy([mrc.header.mx, mrc.header.my, mrc.header.mz])
         start_cella = np.copy(
             [mrc.header.cella.x, mrc.header.cella.y, mrc.header.cella.z]
