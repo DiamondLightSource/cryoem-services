@@ -22,17 +22,41 @@
     "service": "NodeCreator"
   },
   "3": {
+    "job_parameters": {
+      "mask_diameter": "{mask_diameter}",
+      "particle_diameter": "{particle_diameter}",
+      "relion_options": {}
+    },
     "output": {
       "node_creator": 2,
       "postprocess": 4
     },
     "parameters": {
-      "mask_diameter": "{mask_diameter}",
-      "particle_diameter": "{particle_diameter}",
-      "relion_options": {}
+      "cluster": {
+        "commands": [
+          "source /etc/profile.d/modules.sh",
+          "module load EM/cryoem-services",
+          "cryoemservices.wrap -w Refine3D -r \"$RECIPEWRAP\" -c {config_file} >runinfo 2>&1"
+        ],
+        "cpus_per_task": 8,
+        "environment": {
+          "PATH": "/bin/:/usr/bin/:/usr/local/bin/",
+          "USER": "{user}"
+        },
+        "gpus": 4,
+        "job_name": "BFactor-EM",
+        "memory_per_node": 96000,
+        "nodes": 1,
+        "partition": "{partition}",
+        "prefer": "{partition_preference}",
+        "tasks": 5,
+        "time_limit": "12:00:00"
+      },
+      "wrapper": "{bfactor_directory}/.recipewrap",
+      "workingdir": "{bfactor_directory}/"
     },
-    "queue": "refine3d",
-    "service": "Refine3D"
+    "queue": "cluster.submission",
+    "service": "RefineWrapper"
   },
   "4": {
     "output": {
