@@ -2175,4 +2175,28 @@ def test_rotate_tomogram_axis0(tmp_path):
 
 
 def test_create_stack_file(tmp_path):
-    pass
+    """Test stacking of multiple mrc files"""
+    input_file_list_of_lists = []
+    for i in range(3):
+        input_file_list_of_lists.append([f"{tmp_path}/test_{i}.mrc", i])
+        with mrcfile.new(tmp_path / f"test_{i}.mrc") as mrc:
+            mrc.set_data(np.reshape(np.arange(32, dtype=np.float32), (4, 8)))
+            mrc.header.mx = 4
+            mrc.header.my = 8
+            mrc.header.mz = 1
+            mrc.header.cella = (100, 50, 20)
+
+    tomo_align.create_tilt_stack(input_file_list_of_lists, tmp_path / "output_file.mrc")
+
+    assert (tmp_path / "output_file.mrc").is_file()
+    with mrcfile.open(tmp_path / "output_file.mrc") as mrc:
+        data = mrc.data
+        header = mrc.header
+
+    assert data.shape == (3, 4, 8)
+    assert header.mx == 8
+    assert header.my == 4
+    assert header.mz == 3
+    assert header.cella.x == 100
+    assert header.cella.y == 50
+    assert header.cella.z == 60
