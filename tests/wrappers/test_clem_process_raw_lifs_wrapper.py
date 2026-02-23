@@ -159,11 +159,11 @@ def create_dummy_result(
         x_to_y_ratio = stitched_width / stitched_height
         # if x:y > 4:3, set width to 3200, otherwise set height to 2400
         if x_to_y_ratio > 1:
-            x_pix = 2400
+            x_pix = 4096
             actual_pixel_size = stitched_width / x_pix
             y_pix = int(stitched_height / actual_pixel_size)
         else:
-            y_pix = 2400
+            y_pix = 4096
             actual_pixel_size = stitched_height / y_pix
             x_pix = int(stitched_width / actual_pixel_size)
 
