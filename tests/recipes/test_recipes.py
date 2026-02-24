@@ -82,6 +82,7 @@ known_services = {
     "MembrainSeg": MembrainSegParameters,
     "MotionCorr": MotionCorrParameters,
     "Murfey": MurfeyParameters,
+    "MurfeyDBConnector": ISPyBParameters,
     "NodeCreator": NodeCreatorParameters,
     "PostProcess": PostProcessParameters,
     "Refine3D": RefineParameters,
@@ -92,29 +93,10 @@ known_services = {
 }
 
 
-@pytest.mark.datafiles(
-    FIXTURE_DIR / "recipes/clem-align-and-merge.json",
-    FIXTURE_DIR / "recipes/clem-align-and-merge-wrapper.json",
-    FIXTURE_DIR / "recipes/clem-lif-to-stack.json",
-    FIXTURE_DIR / "recipes/clem-lif-to-stack-wrapper.json",
-    FIXTURE_DIR / "recipes/clem-tiff-to-stack.json",
-    FIXTURE_DIR / "recipes/clem-tiff-to-stack-wrapper.json",
-    FIXTURE_DIR / "recipes/em-spa-bfactor.json",
-    FIXTURE_DIR / "recipes/em-spa-bfactor-wrapper.json",
-    FIXTURE_DIR / "recipes/em-spa-class2d.json",
-    FIXTURE_DIR / "recipes/em-spa-class2d-wrapper.json",
-    FIXTURE_DIR / "recipes/em-spa-class3d.json",
-    FIXTURE_DIR / "recipes/em-spa-class3d-wrapper.json",
-    FIXTURE_DIR / "recipes/em-spa-extract.json",
-    FIXTURE_DIR / "recipes/em-spa-preprocess.json",
-    FIXTURE_DIR / "recipes/em-spa-refine.json",
-    FIXTURE_DIR / "recipes/em-spa-refine-wrapper.json",
-    FIXTURE_DIR / "recipes/em-tomo-align.json",
-    FIXTURE_DIR / "recipes/em-tomo-preprocess.json",
-)
+@pytest.mark.datafiles(FIXTURE_DIR / "recipes")
 def test_em_recipes(datafiles):
     """Test for the service names and parameter keys in the recipes"""
-    for recipe_name in datafiles.glob("em-*"):
+    for recipe_name in datafiles.glob("*/*.json"):
         with open(recipe_name, "r") as json_data:
             spa_preprocess_recipe = json.load(json_data)
 
