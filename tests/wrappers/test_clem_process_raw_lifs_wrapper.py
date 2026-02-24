@@ -31,7 +31,6 @@ processed_folder = "processed"
 # Default LIF file metadata to mock
 series_name = "Position"
 num_scenes = 2
-scene_num = 0
 colors = [
     "gray",
     "green",
