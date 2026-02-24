@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from unittest import mock
 
 import pytest
@@ -11,6 +12,12 @@ from cryoemservices.services import tomo_align_slurm
 from tests.test_utils.config import cluster_submission_configuration
 
 
+class MrcFileHeader:
+    def __init__(self, nx, ny):
+        self.nx = nx
+        self.ny = ny
+
+
 @pytest.fixture
 def offline_transport(mocker):
     transport = OfflineTransport()
@@ -19,9 +26,11 @@ def offline_transport(mocker):
     return transport
 
 
-@mock.patch("cryoemservices.util.slurm_submission.subprocess.run")
 @mock.patch("cryoemservices.util.slurm_submission.requests")
 @mock.patch("cryoemservices.services.tomo_align.mrcfile")
+@mock.patch("cryoemservices.services.tomo_align.create_tilt_stack")
+@mock.patch("cryoemservices.services.tomo_align.resize_tomogram")
+@mock.patch("cryoemservices.services.tomo_align.rotate_tomogram")
 @mock.patch("cryoemservices.services.tomo_align_slurm.transfer_files")
 @mock.patch("cryoemservices.services.tomo_align_slurm.retrieve_files")
 @mock.patch("cryoemservices.services.tomo_align_slurm.get_iris_state")
@@ -29,18 +38,19 @@ def test_tomo_align_slurm_service_aretomo3(
     mock_iris_state,
     mock_retrieve,
     mock_transfer,
+    mock_rotate,
+    mock_resize,
+    mock_tilt_stack,
     mock_mrcfile,
     mock_requests,
-    mock_subprocess,
     offline_transport,
     tmp_path,
 ):
     """
     Send a test message to TomoAlign for the slurm submission version (AreTomo3)
-    This should call the mock subprocess then send messages on to
+    This should call the tilt stacking then send messages on to
     the denoising, ispyb_connector and images services.
     """
-    mock_subprocess().returncode = 0
     # Set up the returned job number
     response_object = Response()
     response_object._content = (
@@ -50,7 +60,7 @@ def test_tomo_align_slurm_service_aretomo3(
     mock_requests.Session().post.return_value = response_object
     mock_requests.Session().get.return_value = response_object
 
-    mock_mrcfile.open().__enter__().header = {"nx": 2000, "ny": 3000}
+    mock_mrcfile.open().__enter__().header = MrcFileHeader(2000, 3000)
 
     mock_transfer.return_value = ["test_stack.mrc", "angles.txt"]
 
@@ -138,17 +148,10 @@ def test_tomo_align_slurm_service_aretomo3(
     # Send a message to the service
     service.tomo_align(None, header=header, message=tomo_align_test_message)
 
-    # Check the newstack was run
-    mock_subprocess.assert_any_call(
-        [
-            "newstack",
-            "-fileinlist",
-            f"{tmp_path}/cm12345-6/Tomograms/job006/tomograms/test_stack_newstack.txt",
-            "-output",
-            f"{tmp_path}/cm12345-6/Tomograms/job006/tomograms/test_stack.mrc",
-            "-quiet",
-        ],
-        capture_output=True,
+    # Check tilt stack creation
+    mock_tilt_stack.assert_called_once_with(
+        [[f"{tmp_path}/cm12345-6/MotionCorr/job002/Movies/input_file_1.mrc", "1.00"]],
+        Path(tomo_align_test_message["stack_file"]),
     )
 
     # Check the angle file
@@ -246,12 +249,18 @@ def test_tomo_align_slurm_service_aretomo3(
         ],
         basepath="test_stack",
     )
-    assert mock_subprocess.call_count == 2
+
+    # Check resizing and rotating at min vol
+    mock_resize.assert_called_once_with(
+        tmp_path / "cm12345-6/Tomograms/job006/tomograms/test_stack_Vol.mrc",
+        int(800 / 4),
+    )
+    mock_rotate.assert_not_called()
 
 
-@mock.patch("cryoemservices.util.slurm_submission.subprocess.run")
 @mock.patch("cryoemservices.util.slurm_submission.requests")
 @mock.patch("cryoemservices.services.tomo_align.mrcfile")
+@mock.patch("cryoemservices.services.tomo_align.create_tilt_stack")
 @mock.patch("cryoemservices.services.tomo_align_slurm.transfer_files")
 @mock.patch("cryoemservices.services.tomo_align_slurm.retrieve_files")
 @mock.patch("cryoemservices.services.tomo_align_slurm.get_iris_state")
@@ -259,18 +268,17 @@ def test_tomo_align_slurm_service_aretomo2(
     mock_iris_state,
     mock_retrieve,
     mock_transfer,
+    mock_tilt_stack,
     mock_mrcfile,
     mock_requests,
-    mock_subprocess,
     offline_transport,
     tmp_path,
 ):
     """
     Send a test message to TomoAlign for the slurm submission version (AreTomo2)
-    This should call the mock subprocess then send messages on to
+    This should call the tilt stacking then send messages on to
     the denoising, ispyb_connector and images services.
     """
-    mock_subprocess().returncode = 0
     # Set up the returned job number
     response_object = Response()
     response_object._content = (
@@ -280,7 +288,7 @@ def test_tomo_align_slurm_service_aretomo2(
     mock_requests.Session().post.return_value = response_object
     mock_requests.Session().get.return_value = response_object
 
-    mock_mrcfile.open().__enter__().header = {"nx": 2000, "ny": 3000}
+    mock_mrcfile.open().__enter__().header = MrcFileHeader(2000, 3000)
 
     mock_transfer.return_value = ["test_stack.mrc", "angles.txt"]
 
@@ -346,7 +354,7 @@ def test_tomo_align_slurm_service_aretomo2(
     with open(
         tmp_path / "cm12345-6/Tomograms/job006/tomograms/test_stack.aln", "w"
     ) as aln_file:
-        aln_file.write("# Thickness = 130\ndummy 0 1000 1.2 2.3 5 6 7 8 4.5")
+        aln_file.write("dummy 0 1000 1.2 2.3 5 6 7 8 4.5")
 
     # Touch the expected output files
     (tmp_path / "cm12345-6/Tomograms/job006/tomograms/test_stack_Vol.mrc").touch()
@@ -356,17 +364,10 @@ def test_tomo_align_slurm_service_aretomo2(
     # Send a message to the service
     service.tomo_align(None, header=header, message=tomo_align_test_message)
 
-    # Check the newstack was run
-    mock_subprocess.assert_any_call(
-        [
-            "newstack",
-            "-fileinlist",
-            f"{tmp_path}/cm12345-6/Tomograms/job006/tomograms/test_stack_newstack.txt",
-            "-output",
-            f"{tmp_path}/cm12345-6/Tomograms/job006/tomograms/test_stack.mrc",
-            "-quiet",
-        ],
-        capture_output=True,
+    # Check tilt stack creation
+    mock_tilt_stack.assert_called_once_with(
+        [[f"{tmp_path}/cm12345-6/MotionCorr/job002/Movies/input_file_1.mrc", "1.00"]],
+        Path(tomo_align_test_message["stack_file"]),
     )
 
     # Check the angle file
@@ -461,7 +462,6 @@ def test_tomo_align_slurm_service_aretomo2(
         ],
         basepath="test_stack",
     )
-    assert mock_subprocess.call_count == 2
 
 
 visit_validation_matrix = (
