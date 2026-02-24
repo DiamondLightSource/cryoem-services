@@ -1,9 +1,8 @@
 {
   "1": {
     "output": {
-      "icebreaker": 5,
-      "images": 7,
-      "ispyb_connector": 6,
+      "images": 6,
+      "ispyb_connector": 5,
       "murfey_feedback": 4,
       "node_creator": 2,
       "select_classes": 3
@@ -16,7 +15,7 @@
       "class2d_nr_classes": "{nr_classes}",
       "class2d_nr_iter": "{nr_iter}",
       "class_uuids": "{class_uuids}",
-      "do_icebreaker_jobs": "{do_icebreaker_jobs}",
+      "do_icebreaker_jobs": "False",
       "mask_diameter": "{mask_diameter}",
       "mpi_run_command": "srun -n 5",
       "particle_diameter": "{particle_diameter}",
@@ -34,8 +33,8 @@
   },
   "3": {
     "output": {
-      "images": 7,
-      "ispyb_connector": 6,
+      "images": 6,
+      "ispyb_connector": 5,
       "murfey_feedback": 4,
       "node_creator": 2
     },
@@ -58,23 +57,14 @@
     "service": "Murfey"
   },
   "5": {
-    "output": {
-      "ispyb_connector": 6,
-      "node_creator": 2
-    },
-    "queue": "icebreaker",
-    "service": "IceBreaker"
-  },
-  "6": {
     "parameters": {
       "dcid": "{dcid}",
-      "ispyb_command": "multipart_message",
       "program_id": "{autoproc_program_id}"
     },
     "queue": "ispyb_connector",
-    "service": "EMISPyB"
+    "service": "MurfeyDBConnector"
   },
-  "7": {
+  "6": {
     "queue": "images",
     "service": "Images"
   },

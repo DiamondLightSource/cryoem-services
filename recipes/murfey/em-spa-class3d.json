@@ -42,11 +42,10 @@
   "4": {
     "parameters": {
       "dcid": "{dcid}",
-      "ispyb_command": "multipart_message",
       "program_id": "{autoproc_program_id}"
     },
     "queue": "ispyb_connector",
-    "service": "EMISPyB"
+    "service": "MurfeyDBConnector"
   },
   "start": [[1, []]]
 }
