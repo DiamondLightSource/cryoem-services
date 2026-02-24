@@ -266,18 +266,18 @@ def process_tiff_files(
         # If it's a montage, stitch the tiles together in Matplotlib
         if num_tiles > 1:
             # Calculate the pixel size and shape of the final tiled image
-            frame_x_len = x_max - x_min
-            frame_y_len = y_max - y_min
+            x_len_new = x_max - x_min
+            y_len_new = y_max - y_min
             # Fit the tiled image within 4096 x 4096 pixels
-            frame_pixel_size = max(frame_x_len / 4096, frame_y_len / 4096)
-            frame_x_pixels = int(round(frame_x_len / frame_pixel_size))
-            frame_y_pixels = int(round(frame_y_len / frame_pixel_size))
-            frame_shape = frame_y_pixels, frame_x_pixels
+            pixel_size_new = max(x_len_new / 4096, y_len_new / 4096)
+            x_pixels_new = int(round(x_len_new / pixel_size_new))
+            y_pixels_new = int(round(y_len_new / pixel_size_new))
+            shape_new = y_pixels_new, x_pixels_new
 
             # Construct scaled down images for tiling
             logger.info("Constructing image stack from tiles")
             tile_stitching_start_time = time.perf_counter()
-            arr = np.zeros((num_frames, frame_y_pixels, frame_x_pixels), dtype=np.uint8)
+            arr = np.zeros((num_frames, y_pixels_new, x_pixels_new), dtype=np.uint8)
             with ThreadPoolExecutor(max_workers=num_procs) as pool:
                 futures = [
                     pool.submit(
@@ -286,8 +286,8 @@ def process_tiff_files(
                         f,
                         tile_extents[t],
                         extent,
-                        frame_pixel_size,
-                        frame_shape,
+                        pixel_size_new,
+                        shape_new,
                         global_vmin,
                         global_vmax,
                     )
@@ -323,15 +323,6 @@ def process_tiff_files(
                             f"{json.dumps(r.error, indent=2, default=str)}"
                         )
 
-            # Update resolution and pixel size in dimensions dictionary
-            y_pixels_new, x_pixels_new = arr.shape[-2:]
-            dims["x"]["num_pixels"] = x_pixels_new
-            dims["x"]["resolution"] = x_pixels_new / (x_max - x_min)
-            dims["x"]["pixel_size"] = (x_max - x_min) / x_pixels_new
-            dims["y"]["num_pixels"] = y_pixels_new
-            dims["y"]["resolution"] = y_pixels_new / (y_max - y_min)
-            dims["y"]["pixel_size"] = (y_max - y_min) / y_pixels_new
-
             tile_stitching_end_time = time.perf_counter()
             logger.debug(
                 "Constructed image stack of tiled dataset in "
@@ -343,25 +334,19 @@ def process_tiff_files(
             logger.info("Constructing image stack")
             array_loading_start_time = time.perf_counter()
 
+            x_pixels_new = x_pixels
+            y_pixels_new = y_pixels
+            pixel_size_new = float(dims["x"]["pixel_size"])
+            shape_new = None
             # If the image is larger than 4096 x 4096 pixels, forcibly resize it
             # to fit within 4096 x 4096 pixels
-            new_shape: tuple[int, int] | None = None
-            if c == 0:
-                if x_pixels * y_pixels > 4096**2:
-                    pixel_size = max(x_len / 4096, y_len / 4096)
-                    x_pixels = int(round(x_len / pixel_size))
-                    y_pixels = int(round(y_len / pixel_size))
-                    new_shape = y_pixels, x_pixels
+            if x_pixels * y_pixels > 4096**2:
+                pixel_size_new = max(x_len / 4096, y_len / 4096)
+                x_pixels_new = int(round(x_len / pixel_size_new))
+                y_pixels_new = int(round(y_len / pixel_size_new))
+                shape_new = y_pixels_new, x_pixels_new
 
-                    # Overwrite the dimensions dictionary upon rescaling
-                    dims["x"]["num_pixels"] = x_pixels
-                    dims["x"]["pixel_size"] = pixel_size
-                    dims["x"]["resolution"] = 1 / pixel_size
-                    dims["y"]["num_pixels"] = y_pixels
-                    dims["y"]["pixel_size"] = pixel_size
-                    dims["y"]["resolution"] = 1 / pixel_size
-
-            arr = np.zeros((num_frames, y_pixels, x_pixels), dtype=np.uint8)
+            arr = np.zeros((num_frames, y_pixels_new, x_pixels_new), dtype=np.uint8)
             with ThreadPoolExecutor(max_workers=num_procs) as pool:
                 futures = [
                     pool.submit(
@@ -370,7 +355,7 @@ def process_tiff_files(
                         z,
                         global_vmin,
                         global_vmax,
-                        new_shape,
+                        shape_new,
                     )
                     for z in range(num_frames)
                 ]
@@ -390,28 +375,26 @@ def process_tiff_files(
             )
 
         # Update results dictionary once per dataset
+        res_new = 1 / (pixel_size_new or 1)  # Guard against 0
         if c == 0:
             # Update results dictionary
-            result["pixels_x"] = dims["x"]["num_pixels"]
-            result["pixels_y"] = dims["y"]["num_pixels"]
+            result["pixels_x"] = x_pixels_new
+            result["pixels_y"] = y_pixels_new
             result["units"] = dims["x"]["units"]
-            result["pixel_size"] = dims["x"]["pixel_size"]
-            result["resolution"] = dims["x"]["resolution"]
+            result["pixel_size"] = pixel_size_new
+            result["resolution"] = res_new
             extent = (x_min, x_max, y_min, y_max)
             result["extent"] = extent
 
         # Extract metadata needed for saving the image
         image_labels = [str(z) for z in range(dims["z"].get("num_frames", 1))]
-        x_res = float(dims["x"]["resolution"])
-        y_res = float(dims["y"]["resolution"])
         z_res = float(dims["z"]["resolution"]) if dims.get("z", {}) else float(0)
         units = dims["x"]["units"]
 
         # Convert units to microns just for the image
         if units == "m":
             units = "micron"
-            x_res /= 10**6
-            y_res /= 10**6
+            res_new /= 10**6
             z_res /= 10**6
 
         # Save as a greyscale TIFF
@@ -419,8 +402,8 @@ def process_tiff_files(
             array=arr,
             save_dir=save_dir,
             file_name=color,
-            x_res=x_res,
-            y_res=y_res,
+            x_res=res_new,
+            y_res=res_new,
             z_res=z_res,
             units=units,
             axes="ZYX",
