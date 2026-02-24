@@ -37,7 +37,7 @@ clem_align_and_merge:
   command: cryoemservices.service -s CLEMAlignAndMerge -c /cryoemservices/config/cryoemservices_config.yaml
   cpuRequest: "4"
   cpuLimit: "4"
-  memoryLimit: 96Gi
+  memoryLimit: 32Gi
   scaleOnQueueLength: true
   queueLengthTrigger: "4"
   minReplicaCount: 0
@@ -49,7 +49,7 @@ clem_process_raw_lifs:
   command: cryoemservices.service -s CLEMProcessRawLIFs -c /cryoemservices/config/cryoemservices_config.yaml
   cpuRequest: "4"
   cpuLimit: "4"
-  memoryLimit: 24Gi
+  memoryLimit: 16Gi
   scaleOnQueueLength: true
   queueLengthTrigger: "4"
   minReplicaCount: 0
@@ -61,7 +61,7 @@ clem_process_raw_tiffs:
   command: cryoemservices.service -s CLEMProcessRawTIFFs -c /cryoemservices/config/cryoemservices_config.yaml
   cpuRequest: "4"
   cpuLimit: "4"
-  memoryLimit: 24Gi
+  memoryLimit: 16Gi
   scaleOnQueueLength: true
   queueLengthTrigger: "4"
   minReplicaCount: 0

@@ -422,7 +422,7 @@ def align_and_merge_stacks(
     logger.info("Applying contrast correction and converting to 8-bit")
     contrast_correction_start_time = time.perf_counter()
     vmin, vmax = composite_img.min(), composite_img.max()
-    scale = 255 / (vmax - vmin)
+    scale = 255 / ((vmax - vmin) or 1)
     np.clip(composite_img, a_min=vmin, a_max=vmax, out=composite_img)
     np.subtract(composite_img, vmin, out=composite_img)
     np.multiply(composite_img, scale, out=composite_img, casting="unsafe")
@@ -526,15 +526,14 @@ class AlignAndMergeParameters(BaseModel):
         return value
 
     @model_validator(mode="after")
-    @classmethod
-    def wrap_images(cls, model: AlignAndMergeParameters):
+    def wrap_images(self):
         """
         Wrap single images in a list to standardise what's passed on to the align-and-
         merge function.
         """
-        if isinstance(model.images, Path):
-            model.images = [model.images]
-        return model
+        if isinstance(self.images, Path):
+            self.images = [self.images]
+        return self
 
     @field_validator("crop_to_n_frames", mode="before")
     @classmethod

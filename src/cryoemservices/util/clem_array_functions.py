@@ -204,6 +204,7 @@ def load_and_convert_image(
     frame_num: int,
     vmin: int | float,
     vmax: int | float,
+    new_shape: tuple[int, int] | None = None,
 ):
     """
     Helper function that loads images and converts them into an 8-bit NumPy array.
@@ -226,6 +227,9 @@ def load_and_convert_image(
         The maximum pixel value to clip the array at before normalising to an 8-bit
         NumPy array.
 
+    new_shape: tuple[int, int] | None
+        The new shape to resize the image to, if provided.
+
     Returns
     -------
     result: LoadImageResult
@@ -236,7 +240,14 @@ def load_and_convert_image(
 
     try:
         arr = image_loader.load()
-        scale = 255 / (vmax - vmin)  # Downscale to 8-bit
+        if new_shape:
+            new_y, new_x = new_shape
+            arr = cv2.resize(
+                arr,
+                dsize=(new_x, new_y),  # cv2 takes (x, y) order
+                interpolation=cv2.INTER_AREA,
+            )
+        scale = 255 / ((vmax - vmin) or 1)  # Downscale to 8-bit
         np.clip(arr, a_min=vmin, a_max=vmax, out=arr)
         np.subtract(arr, vmin, out=arr, casting="unsafe")
         np.multiply(arr, scale, out=arr, casting="unsafe")
@@ -338,7 +349,7 @@ def load_and_resize_tile(
             interpolation=cv2.INTER_AREA,
         )
         # Normalise to 8-bit
-        scale = 255 / (vmax - vmin)
+        scale = 255 / ((vmax - vmin) or 1)
         np.clip(resized, vmin, vmax, out=resized)
         np.subtract(resized, vmin, out=resized, casting="unsafe")
         np.multiply(resized, scale, out=resized, casting="unsafe")
@@ -612,7 +623,7 @@ def align_image_to_self(
         try:
             logger.info(f"Registering frame {frame_num}")
             # For RGB images, create a weighted grayscale image to use for registration
-            scale = 1 / downsampling_factor
+            scale = 1 / (downsampling_factor or 1)
             prev_gray = (
                 (
                     # Luma-style weighted sum; avoids cv2.cvtColor copy
