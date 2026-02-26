@@ -26,7 +26,7 @@ class MurfeyDBConnector(EMISPyB):
         self._database_session_maker = sqlalchemy.orm.sessionmaker(
             bind=sqlalchemy.create_engine(service_config.database_url)
         )
-        self.log.info("ISPyB service ready")
+        self.log.info("Murfey database connector service ready")
         wrap_subscribe(
             self._transport,
             self._environment["queue"] or "ispyb_connector",
