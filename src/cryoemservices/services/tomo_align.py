@@ -491,7 +491,7 @@ class TomoAlign(CommonService):
             node_creator_parameters = {
                 "experiment_type": "tomography",
                 "job_type": self.job_type,
-                "input_file": self.input_file_list_of_lists[0][0],
+                "input_file": f"{project_dir}/AlignTiltSeries/job{job_number - 1:03}/tilts/{Path(self.input_file_list_of_lists[0][0]).name}",
                 "output_file": str(aretomo_output_path),
                 "relion_options": dict(tomo_params.relion_options),
                 "command": " ".join(aretomo_command),
