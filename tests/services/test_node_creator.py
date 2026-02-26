@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 from pathlib import Path
 from unittest import mock
 
@@ -20,6 +21,7 @@ node_creator = pytest.importorskip(
 def offline_transport(mocker):
     transport = OfflineTransport()
     mocker.spy(transport, "send")
+    mocker.spy(transport, "nack")
     return transport
 
 
@@ -182,6 +184,65 @@ def test_node_creator_rerun_job(offline_transport, tmp_path):
     assert (tmp_path / job_dir / "PIPELINER_JOB_EXIT_SUCCESS").exists()
     assert not (tmp_path / job_dir / "default_pipeline.star").exists()
     assert not (tmp_path / job_dir / ".CCPEM_pipeliner_jobinfo").exists()
+
+
+def test_node_creator_invalid_cases(offline_transport, tmp_path):
+    """Test some messages which fail"""
+    job_dir = "MotionCorr/job002"
+    input_file = tmp_path / "Import/job001/Movies/sample.mrc"
+    output_file = tmp_path / job_dir / "Movies/sample.mrc"
+    relion_options = RelionServiceOptions()
+
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+    output_file.touch()
+    test_message = {
+        "job_type": "relion.motioncorr.motioncor2",
+        "input_file": str(input_file),
+        "output_file": str(output_file),
+        "relion_options": relion_options,
+        "command": "command",
+        "stdout": "stdout",
+        "stderr": "stderr",
+        "success": True,
+    }
+
+    # set up the mock service and send the message to it
+    service = node_creator.NodeCreator(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
+
+    # Case 1: no message
+    service.node_creator(None, header=header, message=None)
+    assert offline_transport.nack.call_count == 1
+
+    # Case 2: wrong experiment type
+    wrong_exp_message = copy.deepcopy(test_message)
+    wrong_exp_message["experiment_type"] = "wrong"
+    service.node_creator(None, header=header, message=wrong_exp_message)
+    assert offline_transport.nack.call_count == 2
+
+    # Case 3: invalid message
+    no_input_message = {"experiment_type": "spa"}
+    service.node_creator(None, header=header, message=no_input_message)
+    assert offline_transport.nack.call_count == 3
+
+    # Case 4: no job number in inputs
+    no_job_message = copy.deepcopy(test_message)
+    no_job_message["input_file"] = f"{tmp_path}/MotionCorr/sample.mrc"
+    no_job_message["output_file"] = f"{tmp_path}/CtfFind/sample.ctf"
+    service.node_creator(None, header=header, message=no_job_message)
+    assert offline_transport.nack.call_count == 4
+
+    # Case 5: unknown job type
+    wrong_job_message = copy.deepcopy(test_message)
+    wrong_job_message["job_type"] = "not.a.job"
+    service.node_creator(None, header=header, message=wrong_job_message)
+    assert offline_transport.nack.call_count == 5
 
 
 # SPA tests
