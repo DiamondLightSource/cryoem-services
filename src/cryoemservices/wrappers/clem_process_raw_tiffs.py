@@ -6,24 +6,25 @@ processing workflow.
 
 from __future__ import annotations
 
+import json
 import logging
 import re
+import time
 from ast import literal_eval
-from multiprocessing import Pool
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Optional
 from xml.etree import ElementTree as ET
 
 import numpy as np
 from defusedxml.ElementTree import parse
-from PIL import Image
 from pydantic import BaseModel, ValidationError, field_validator, model_validator
 
 from cryoemservices.util.clem_array_functions import (
-    estimate_int_dtype,
+    TIFFImageLoader,
     get_percentiles,
-    preprocess_img_stk,
-    stitch_image_frames,
+    load_and_convert_image,
+    load_and_resize_tile,
     write_stack_to_tiff,
 )
 from cryoemservices.util.clem_metadata import (
@@ -70,6 +71,9 @@ def process_tiff_files(
         |   |__ red.tiff
         |   |   ... Mimics "images" folder structure
     """
+
+    # Start the timer
+    start_time = time.perf_counter()
 
     # Validate processor count input
     num_procs = number_of_processes  # Use shorter phrase in script
@@ -165,8 +169,10 @@ def process_tiff_files(
         return {}
 
     # Get x, y, and z resolution (pixels per um)
-    w = float(dims["x"]["length"])
-    h = float(dims["y"]["length"])
+    x_len = float(dims["x"]["length"])
+    y_len = float(dims["y"]["length"])
+    x_pixels = int(dims["x"]["num_pixels"])
+    y_pixels = int(dims["y"]["num_pixels"])
 
     # Get number of frames
     num_frames = int(dims["z"].get("num_frames", 1))
@@ -179,24 +185,34 @@ def process_tiff_files(
     y_min = 10e10
     y_max = float(0)
 
-    for tile in tile_scan_info.values():
-        x = float(tile["pos_x"])
-        y = float(tile["pos_y"])
+    tile_extents: dict[int, tuple[float, float, float, float]] = {}
+    for tile_num, tile_info in tile_scan_info.items():
+        # Calculate and store the extent of the tile
+        x = float(tile_info["pos_x"])
+        y = float(tile_info["pos_y"])
+        x0 = x - (x_len / 2)
+        x1 = x + (x_len / 2)
+        y0 = y - (y_len / 2)
+        y1 = y + (y_len / 2)
+        tile_extents[tile_num] = (x0, x1, y0, y1)
 
         # Update the atlas limits
-        x_min = x - w / 2 if x - w / 2 < x_min else x_min
-        x_max = x + w / 2 if x + w / 2 > x_max else x_max
-        y_min = y - h / 2 if y - h / 2 < y_min else y_min
-        y_max = y + h / 2 if y + h / 2 > y_max else y_max
-    extent = [x_min, x_max, y_min, y_max]
+        x_min = x - x_len / 2 if x - x_len / 2 < x_min else x_min
+        x_max = x + x_len / 2 if x + x_len / 2 > x_max else x_max
+        y_min = y - y_len / 2 if y - y_len / 2 < y_min else y_min
+        y_max = y + y_len / 2 if y + y_len / 2 > y_max else y_max
 
-    # Construct results template for use in h
+    extent: tuple[float, float, float, float] = (x_min, x_max, y_min, y_max)
+
+    # Construct results template for use in murfey
     result: dict[str, Any] = {
         "series_name": series_name,
         "number_of_members": len(channels),
         "is_stack": num_frames > 1,
         "is_montage": num_tiles > 1,
         "output_files": {},
+        "thumbnails": {},
+        "thumbnail_size": (512, 512),  # height, row
         "metadata": str(img_xml_file.resolve()),
         "parent_tiffs": {},
         "pixels_x": None,
@@ -204,7 +220,7 @@ def process_tiff_files(
         "units": "",
         "pixel_size": None,
         "resolution": None,
-        "extent": [],  # [x_min, x_max, y_min, y_max] in real space
+        "extent": (),  # [x_min, x_max, y_min, y_max] in real space
     }
 
     # Iterate by color, then z-frame, then tile
@@ -223,163 +239,162 @@ def process_tiff_files(
             else tiff_list
         )
 
+        # Sort list before iterating
+        tiff_color_subset.sort(
+            key=lambda f: (
+                int(m.group(1)) if (m := re.search(r"--Z(\d+)", f.stem)) else -1
+            )
+        )
+
+        # Estimate suitable contrast limits for the dataset
+        logger.info("Estimating global intensity range")
+        estimate_intensity_start_time = time.perf_counter()
+        global_vmin, global_vmax = get_percentiles(
+            image_loaders=[
+                TIFFImageLoader(file)
+                for f, file in enumerate(tiff_color_subset)
+                if not f % 4
+            ],
+            percentiles=(0.5, 99.5),
+            num_procs=num_procs,
+        )
+        estimate_intensity_end_time = time.perf_counter()
+        logger.debug(
+            f"Estimated contrast limits in {estimate_intensity_end_time - estimate_intensity_start_time}s"
+        )
+
         # If it's a montage, stitch the tiles together in Matplotlib
         if num_tiles > 1:
-            # Estimate suitable contrast limits for the dataset
-            logger.info("Estimating global intensity range")
-            with Pool(processes=num_procs) as pool:
-                min_max_list = pool.starmap(
-                    get_percentiles,
-                    [
-                        (
-                            # LIF file-specific parameters
-                            None,
-                            None,
-                            None,
-                            None,
-                            None,
-                            # TIFF file-specific parameters
-                            file,
-                            # Common parameters
-                            (0.5, 99.5),
-                        )
-                        for file in tiff_color_subset
-                    ],
-                )
-            global_vmin = int(
-                np.percentile([m for m, _ in min_max_list if m is not None], 0.5)
-            )
-            global_vmax = int(
-                np.percentile([m for _, m in min_max_list if m is not None], 85)
-            )
+            # Calculate the pixel size and shape of the final tiled image
+            x_len_new = x_max - x_min
+            y_len_new = y_max - y_min
+            # Fit the tiled image within 4096 x 4096 pixels
+            pixel_size_new = max(x_len_new / 4096, y_len_new / 4096)
+            x_pixels_new = int(round(x_len_new / pixel_size_new))
+            y_pixels_new = int(round(y_len_new / pixel_size_new))
+            shape_new = y_pixels_new, x_pixels_new
 
-            # Stitch frames together
-            with Pool(processes=num_procs) as pool:
-                frame_list = pool.starmap(
-                    stitch_image_frames,
-                    # Construct pool args in-line
-                    [
-                        (
-                            # LIF file-specific params
-                            None,
-                            None,
-                            None,
-                            None,
-                            # TIFF file-specific params
-                            (
-                                [
-                                    file
-                                    for file in tiff_color_subset
-                                    if f"Z{str(z).zfill(2)}" in file.stem.split("--")
-                                ]
-                                if num_frames > 1
-                                else tiff_color_subset
-                            ),
-                            # Common params
-                            tile_scan_info,
-                            w,
-                            h,
-                            extent,
-                            400,
-                            (global_vmin, global_vmax),
+            # Construct scaled down images for tiling
+            logger.info("Constructing image stack from tiles")
+            tile_stitching_start_time = time.perf_counter()
+            arr = np.zeros((num_frames, y_pixels_new, x_pixels_new), dtype=np.uint8)
+            with ThreadPoolExecutor(max_workers=num_procs) as pool:
+                futures = [
+                    pool.submit(
+                        load_and_resize_tile,
+                        TIFFImageLoader(file),
+                        f,
+                        tile_extents[t],
+                        extent,
+                        pixel_size_new,
+                        shape_new,
+                        global_vmin,
+                        global_vmax,
+                    )
+                    for f in range(num_frames)
+                    for t in tile_scan_info.keys()
+                    for file in tiff_color_subset
+                    if f"Stage{str(t).zfill(2)}" in file.stem.split("--")
+                    and (
+                        # Add this check if dataset contains multiple frames
+                        f"Z{str(f).zfill(2)}" in file.stem.split("--")
+                        if num_frames > 1
+                        else True
+                    )
+                ]
+                for future in as_completed(futures):
+                    r = future.result()
+                    if (
+                        r.data is not None
+                        and r.frame_num is not None
+                        and r.x0 is not None
+                        and r.x1 is not None
+                        and r.y0 is not None
+                        and r.y1 is not None
+                    ):
+                        arr[
+                            r.frame_num,
+                            r.y0 : r.y1,
+                            r.x0 : r.x1,
+                        ] = r.data
+                    else:
+                        logger.warning(
+                            "Failed to resize tile for the following image: \n"
+                            f"{json.dumps(r.error, indent=2, default=str)}"
                         )
-                        for z in range(num_frames)
-                    ],
-                )
-            arr = np.array(frame_list, dtype=np.uint8)
 
-            # Update resolution and pixel size in dimensions dictionary
-            h_new, w_new = arr.shape[-2:]
-            dims["x"]["num_pixels"] = w_new
-            dims["x"]["resolution"] = w_new / (x_max - x_min)
-            dims["x"]["pixel_size"] = (x_max - x_min) / w_new
-            dims["y"]["num_pixels"] = h_new
-            dims["y"]["resolution"] = h_new / (y_max - y_min)
-            dims["y"]["pixel_size"] = (y_max - y_min) / h_new
+            tile_stitching_end_time = time.perf_counter()
+            logger.debug(
+                "Constructed image stack of tiled dataset in "
+                f"{tile_stitching_end_time - tile_stitching_start_time}s"
+            )
 
         # Otherwise, load the image as an array directly
         else:
-            for z in range(num_frames):
-                if z == 0:
-                    # Sort list before iterating
-                    tiff_color_subset.sort(
-                        key=lambda f: (
-                            int(m.group(1))
-                            if (m := re.search(r"--Z(\d+)", f.stem))
-                            else -1
-                        )
-                    )
-                # Load the relevant frame (they will have been sorted in order now)
-                frame = Image.open(tiff_color_subset[z])
-                logger.info(f"Loaded image {tiff_color_subset[z]}")
+            logger.info("Constructing image stack")
+            array_loading_start_time = time.perf_counter()
 
-                if z == 0:
-                    arr = np.array([frame])
-                else:
-                    arr = np.append(arr, [frame], axis=0)
+            x_pixels_new = x_pixels
+            y_pixels_new = y_pixels
+            pixel_size_new = float(dims["x"]["pixel_size"])
+            shape_new = None
+            # If the image is larger than 4096 x 4096 pixels, forcibly resize it
+            # to fit within 4096 x 4096 pixels
+            if x_pixels * y_pixels > 4096**2:
+                pixel_size_new = max(x_len / 4096, y_len / 4096)
+                x_pixels_new = int(round(x_len / pixel_size_new))
+                y_pixels_new = int(round(y_len / pixel_size_new))
+                shape_new = y_pixels_new, x_pixels_new
+
+            arr = np.zeros((num_frames, y_pixels_new, x_pixels_new), dtype=np.uint8)
+            with ThreadPoolExecutor(max_workers=num_procs) as pool:
+                futures = [
+                    pool.submit(
+                        load_and_convert_image,
+                        TIFFImageLoader(tiff_color_subset[z]),
+                        z,
+                        global_vmin,
+                        global_vmax,
+                        shape_new,
+                    )
+                    for z in range(num_frames)
+                ]
+                for future in as_completed(futures):
+                    r = future.result()
+                    if r.data is not None and r.frame_num is not None:
+                        arr[r.frame_num] = r.data
+                    else:
+                        logger.warning(
+                            f"Failed to load the following image: \n"
+                            f"{json.dumps(r.error, indent=2, default=str)}"
+                        )
+            array_loading_end_time = time.perf_counter()
+            logger.debug(
+                f"Loaded image stack of {num_frames} frames in "
+                f"{array_loading_end_time - array_loading_start_time}s"
+            )
 
         # Update results dictionary once per dataset
+        res_new = 1 / (pixel_size_new or 1)  # Guard against 0
         if c == 0:
             # Update results dictionary
-            result["pixels_x"] = dims["x"]["num_pixels"]
-            result["pixels_y"] = dims["y"]["num_pixels"]
+            result["pixels_x"] = x_pixels_new
+            result["pixels_y"] = y_pixels_new
             result["units"] = dims["x"]["units"]
-            result["pixel_size"] = dims["x"]["pixel_size"]
-            result["resolution"] = dims["x"]["resolution"]
-            extent = [x_min, x_max, y_min, y_max]
+            result["pixel_size"] = pixel_size_new
+            result["resolution"] = res_new
+            extent = (x_min, x_max, y_min, y_max)
             result["extent"] = extent
-
-        # Estimate initial NumPy dtype
-        dtype_init = estimate_int_dtype(
-            arr,
-            bit_depth=8 if num_tiles > 1 else channels[color]["bit_depth"],
-        )
-
-        # Rescale intensity values for fluorescent channels
-        adjust_contrast = (
-            "stretch"
-            if color
-            in (
-                "blue",
-                "cyan",
-                "green",
-                "magenta",
-                "red",
-                "yellow",
-            )
-            and num_tiles == 1  # Contrast adjustment already applied during stitching
-            else None
-        )
-        logger.info(f"Contrast adjustment set to {adjust_contrast}")
-
-        # Process the subimage
-        logger.info("Applying image processing routine to subimage")
-        arr = preprocess_img_stk(
-            array=arr,
-            initial_dtype=dtype_init,
-            target_dtype="uint8",
-            adjust_contrast=adjust_contrast,
-        )
-        logger.debug(
-            f"{series_name} {color} array properties: \n"
-            f"Shape: {arr.shape} \n"
-            f"dtype: {arr.dtype} \n"
-            f"Min value: {arr.min()} \n"
-            f"Max value: {arr.max()} \n"
-        )
 
         # Extract metadata needed for saving the image
         image_labels = [str(z) for z in range(dims["z"].get("num_frames", 1))]
-        x_res = float(dims["x"]["resolution"])
-        y_res = float(dims["y"]["resolution"])
         z_res = float(dims["z"]["resolution"]) if dims.get("z", {}) else float(0)
         units = dims["x"]["units"]
 
         # Convert units to microns just for the image
         if units == "m":
             units = "micron"
-            x_res /= 10**6
-            y_res /= 10**6
+            res_new /= 10**6
             z_res /= 10**6
 
         # Save as a greyscale TIFF
@@ -387,19 +402,30 @@ def process_tiff_files(
             array=arr,
             save_dir=save_dir,
             file_name=color,
-            x_res=x_res,
-            y_res=y_res,
+            x_res=res_new,
+            y_res=res_new,
             z_res=z_res,
             units=units,
             axes="ZYX",
             image_labels=image_labels,
             photometric="minisblack",
-        )
+        ).resolve()
+
         # Collect the images created
-        result["output_files"][color] = str(img_stk_file.resolve())
+        result["output_files"][color] = str(img_stk_file)
         result["parent_tiffs"][color] = [str(file) for file in tiff_color_subset][0:1]
 
-    logger.debug(f"Processing results are as follows: {result}")
+        # Append path to where the PNG images should be created
+        result["thumbnails"][color] = str(
+            img_stk_file.parent / ".thumbnails" / f"{img_stk_file.stem}.png"
+        )
+
+    end_time = time.perf_counter()
+    logger.debug(f"Completed processing of {series_name} in {end_time - start_time}s")
+    logger.debug(
+        "Returning the following processing results: \n"
+        f"{json.dumps(result, indent=2, default=str)}"
+    )
     return result
 
 
@@ -419,7 +445,7 @@ class ProcessRawTIFFsParameters(BaseModel):
     tiff_file: Optional[Path]
     root_folder: str
     metadata: Path
-    num_procs: int = 20
+    num_procs: int = 4
 
     @field_validator("tiff_list", mode="before")
     @classmethod
@@ -452,24 +478,23 @@ class ProcessRawTIFFsParameters(BaseModel):
         return value
 
     @model_validator(mode="after")
-    @classmethod
-    def construct_tiff_list(cls, model: ProcessRawTIFFsParameters):
-        if model.tiff_list and model.tiff_file:
+    def construct_tiff_list(self):
+        if self.tiff_list and self.tiff_file:
             raise ValueError(
                 "Only one of 'tiff_list' or 'tiff_file' should be provided, not both"
             )
-        if not model.tiff_list and not model.tiff_file:
+        if not self.tiff_list and not self.tiff_file:
             raise ValueError("One of 'tiff_list' or 'tiff_file' has to be provided")
-        if not model.tiff_list and model.tiff_file:
-            series_name = model.tiff_file.stem.split("--")[0]
-            model.tiff_list = [
+        if not self.tiff_list and self.tiff_file:
+            series_name = self.tiff_file.stem.split("--")[0]
+            self.tiff_list = [
                 f.resolve()
-                for f in model.tiff_file.parent.glob("./*")
+                for f in self.tiff_file.parent.glob("./*")
                 if f.suffix in (".tif", ".tiff")
                 and f.stem.startswith(f"{series_name}--")
             ]
         # Return updated model
-        return model
+        return self
 
 
 class ProcessRawTIFFsWrapper:
@@ -488,8 +513,9 @@ class ProcessRawTIFFsWrapper:
             params = ProcessRawTIFFsParameters(**params_dict)
         except (ValidationError, TypeError) as e:
             logger.error(
-                "ProcessRawTIFFsParameters validation failed for parameters: "
-                f"{params_dict} with exception: {e}"
+                "ProcessRawTIFFsParameters validation failed for the following parameters: \n"
+                f"{json.dumps(params_dict, indent=2, default=str)}\n"
+                f"with exception: {e}"
             )
             return False
 
@@ -535,6 +561,23 @@ class ProcessRawTIFFsWrapper:
                 f"No processing results were returned for TIFF series {series_name!r}"
             )
             return False
+
+        # Request for PNG images to be created
+        for color in result["output_files"].keys():
+            images_params = {
+                "image_command": "tiff_to_apng",
+                "input_file": result["output_files"][color],
+                "output_file": result["thumbnails"][color],
+                "target_size": result["thumbnail_size"],
+                "color": color,
+            }
+            self.recwrap.send_to(
+                "images",
+                images_params,
+            )
+            logger.info(
+                f"Submitted the following job to Images service: \n{images_params}"
+            )
 
         # Send results to Murfey's "feedback_callback" function
         murfey_params = {

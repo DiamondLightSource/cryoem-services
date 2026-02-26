@@ -26,6 +26,8 @@ def test_start_service_with_optional_args(mock_service, mock_transport, tmp_path
         "MotionCorr",
         "--config_file",
         str(config_file),
+        "--extra_config",
+        "/path/to/extra",
         "--slurm",
         "extra",
         "--queue",
@@ -40,6 +42,7 @@ def test_start_service_with_optional_args(mock_service, mock_transport, tmp_path
     mock_service.assert_called_with(
         environment={
             "config": f"{tmp_path}/config.yaml",
+            "extra_config": "/path/to/extra",
             "slurm_cluster": "extra",
             "queue": "motioncorr",
         },
@@ -78,6 +81,7 @@ def test_start_service_with_default_args(mock_service, mock_transport, tmp_path)
     mock_service.assert_called_with(
         environment={
             "config": f"{tmp_path}/config.yaml",
+            "extra_config": "",
             "slurm_cluster": "default",
             "queue": "",
         },
@@ -108,5 +112,5 @@ def test_start_service_exists():
     assert cleaned_help_line == (
         "usage:cryoemservices.service[-h]-s{"
         + ",".join(sorted(known_services))
-        + "}-cCONFIG_FILE[--slurmSLURM][--queueQUEUE][--single_message]"
+        + "}-cCONFIG_FILE[--extra_configEXTRA_CONFIG][--slurmSLURM][--queueQUEUE][--single_message]"
     )

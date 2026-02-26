@@ -22,13 +22,12 @@ from cryoemservices.util.relion_service_options import (
     RelionServiceOptions,
     update_relion_options,
 )
-from cryoemservices.util.tomo_output_files import _get_tilt_number_v5_12
+from cryoemservices.util.tomo_output_files import get_tilt_number_v5_12
 
 
 def resize_tomogram(tomogram: Path, new_thickness: int):
     """Change the Z size of an XZY tomogram"""
-    with mrcfile.mmap(tomogram, mode="r+") as mrc:
-        # Open tomogram in memmap mode
+    with mrcfile.open(tomogram, mode="r+") as mrc:
         z_size = mrc.data.shape[1]
         start_location = np.copy([mrc.header.mx, mrc.header.my, mrc.header.mz])
         # Slice and set new data
@@ -44,6 +43,59 @@ def resize_tomogram(tomogram: Path, new_thickness: int):
         mrc.header.cella.y *= new_thickness / z_size
 
 
+def rotate_tomogram(tomogram: Path, tilt_axis: float):
+    """Rotate an XZY tomogram into XYZ"""
+    with mrcfile.open(tomogram, mode="r+") as mrc:
+        start_location = np.copy([mrc.header.mx, mrc.header.my, mrc.header.mz])
+        start_cella = np.copy(
+            [mrc.header.cella.x, mrc.header.cella.y, mrc.header.cella.z]
+        )
+        if -45 < tilt_axis < 45:
+            # If given tilt axis of around 0, just rotate from xzy to xyz
+            mrc.set_data(np.rot90(mrc.data, axes=(0, 1)))
+            mrc.header.mx = start_location[0]
+            mrc.header.my = start_location[2]
+            mrc.header.mz = start_location[1]
+            mrc.header.cella.x = start_cella[0]
+            mrc.header.cella.y = start_cella[2]
+            mrc.header.cella.z = start_cella[1]
+        else:
+            # Otherwise assume we need to flip (which is the behaviour for axis 90)
+            mrc.set_data(np.rot90(np.rot90(mrc.data, axes=(0, 1)), axes=(2, 1)))
+            mrc.header.mx = start_location[2]
+            mrc.header.my = start_location[0]
+            mrc.header.mz = start_location[1]
+            mrc.header.cella.x = start_cella[2]
+            mrc.header.cella.y = start_cella[0]
+            mrc.header.cella.z = start_cella[1]
+
+
+def create_tilt_stack(input_file_list_of_lists: List[Any], stack_file: Path):
+    """
+    Construct stack file of all tilt images
+    """
+    # Find the size of the data
+    with mrcfile.open(input_file_list_of_lists[0][0]) as mrc:
+        header = mrc.header
+
+    # Create and populate array of input data
+    data_stack = np.zeros(
+        (len(input_file_list_of_lists), header.ny, header.nx), dtype=np.float32
+    )
+    for i, input_file in enumerate(input_file_list_of_lists):
+        with mrcfile.open(input_file[0]) as mrc:
+            data_stack[i] = mrc.data
+
+    # Write output stack and set header values
+    with mrcfile.new(stack_file, overwrite=True) as mrc:
+        mrc.set_data(data_stack)
+        mrc.header.mx = header.nx
+        mrc.header.my = header.ny
+        mrc.header.mz = len(input_file_list_of_lists)
+        mrc.header.cella = header.cella
+        mrc.header.cella.z *= len(input_file_list_of_lists)
+
+
 class TomoParameters(BaseModel):
     aretomo_version: Literal[2, 3] = 3
     stack_file: str = Field(..., min_length=1)
@@ -52,6 +104,7 @@ class TomoParameters(BaseModel):
     input_file_list: Optional[str] = None
     vol_z: Optional[int] = None
     max_vol: int = 1800
+    min_vol: int = 800
     extra_vol: int = 400
     out_bin: int = 4
     second_bin: Optional[int] = None
@@ -325,7 +378,7 @@ class TomoAlign(CommonService):
                         )
         removed_tilt_numbers = np.array(
             [
-                _get_tilt_number_v5_12(Path(self.input_file_list_of_lists[index][0]))
+                get_tilt_number_v5_12(Path(self.input_file_list_of_lists[index][0]))
                 for index in tilts_to_remove
             ]
         )
@@ -336,8 +389,8 @@ class TomoAlign(CommonService):
         with mrcfile.open(self.input_file_list_of_lists[0][0]) as mrc:
             mrc_header = mrc.header
         # x and y get flipped on tomogram creation
-        tomo_params.relion_options.tomo_size_x = int(mrc_header["nx"])
-        tomo_params.relion_options.tomo_size_y = int(mrc_header["ny"])
+        tomo_params.relion_options.tomo_size_x = int(mrc_header.nx)
+        tomo_params.relion_options.tomo_size_y = int(mrc_header.ny)
         scaled_x_size = tomo_params.relion_options.tomo_size_x / int(
             tomo_params.out_bin
         )
@@ -360,14 +413,13 @@ class TomoAlign(CommonService):
             rw.transport.nack(header)
             return
 
-        # Stack the tilts with newstack
-        newstack_path = alignment_output_dir / f"{stack_name}_newstack.txt"
-        newstack_result = self.newstack(tomo_params, newstack_path)
-        if newstack_result.returncode:
-            self.log.error(
-                f"Newstack failed with exitcode {newstack_result.returncode}:\n"
-                + newstack_result.stderr.decode("utf8", "replace")
+        # Stack the tilts
+        try:
+            create_tilt_stack(
+                self.input_file_list_of_lists, Path(tomo_params.stack_file)
             )
+        except (FileNotFoundError, ValueError) as e:
+            self.log.error(f"Creating stack file failed: {e}")
             rw.transport.nack(header)
             return
 
@@ -378,7 +430,7 @@ class TomoAlign(CommonService):
         )
         tilt_angles = {}
         for i in range(len(self.input_file_list_of_lists)):
-            tilt_index = _get_tilt_number_v5_12(
+            tilt_index = get_tilt_number_v5_12(
                 Path(self.input_file_list_of_lists[i][0])
             )
             tilt_index -= len(np.where(removed_tilt_numbers < tilt_index)[0])
@@ -427,7 +479,10 @@ class TomoAlign(CommonService):
             self.thickness_pixels
             and self.thickness_pixels + tomo_params.extra_vol < tomo_params.max_vol
         ):
-            tomo_params.vol_z = self.thickness_pixels + tomo_params.extra_vol
+            if self.thickness_pixels + tomo_params.extra_vol > tomo_params.min_vol:
+                tomo_params.vol_z = self.thickness_pixels + tomo_params.extra_vol
+            else:
+                tomo_params.vol_z = tomo_params.min_vol
             tomo_params.relion_options.vol_z = tomo_params.vol_z
 
         if not job_is_rerun:
@@ -436,7 +491,7 @@ class TomoAlign(CommonService):
             node_creator_parameters = {
                 "experiment_type": "tomography",
                 "job_type": self.job_type,
-                "input_file": self.input_file_list_of_lists[0][0],
+                "input_file": f"{project_dir}/AlignTiltSeries/job{job_number - 1:03}/tilts/{Path(self.input_file_list_of_lists[0][0]).name}",
                 "output_file": str(aretomo_output_path),
                 "relion_options": dict(tomo_params.relion_options),
                 "command": " ".join(aretomo_command),
@@ -497,34 +552,16 @@ class TomoAlign(CommonService):
 
         # Flip the volume if AreTomo has not done this
         if tomo_params.flip_vol_post_reconstruction and not tomo_params.flip_vol:
-            self.log.info("Rotating volumes")
-            if tomo_params.tilt_axis is not None and -45 < tomo_params.tilt_axis < 45:
-                # If given tilt axis of around 0, don't do rotations
-                angles_to_flip = "0,0,-90"
-            else:
-                # Otherwise assume we need to flip (which is the behaviour for axis 90)
-                angles_to_flip = "90,-90,0"
-            rotate_result = subprocess.run(
-                [
-                    "rotatevol",
-                    "-i",
-                    str(aretomo_output_path),
-                    "-ou",
-                    str(aretomo_output_path),
-                    "-size",
-                    f"{int(scaled_x_size)},{int(scaled_y_size)},{int(scaled_z_size)}",
-                    "-a",
-                    angles_to_flip,
-                ],
-                capture_output=True,
+            self.log.info("Rotating tomogram")
+            rotate_tomogram(
+                aretomo_output_path,
+                self.rot if self.rot is not None else tomo_params.tilt_axis,
             )
-            if rotate_result.returncode:
-                self.log.error(
-                    f"rotatevol failed with exitcode {rotate_result.returncode}:\n"
-                    + rotate_result.stderr.decode("utf8", "replace")
+            if second_volume_path.is_file() and tomo_params.second_bin:
+                rotate_tomogram(
+                    second_volume_path,
+                    self.rot if self.rot is not None else tomo_params.tilt_axis,
                 )
-                rw.transport.nack(header)
-                return
 
         # Forward tomogram (one per-tilt-series)
         ispyb_command_list = [
@@ -741,7 +778,6 @@ class TomoAlign(CommonService):
                     self.thickness_pixels * tomo_params.pixel_size
                 )
             rw.send_to("images", images_call_params)
-            print(images_call_params)
 
         # Forward results to denoise service
         self.log.info(f"Sending to denoise service {aretomo_output_path}")
@@ -774,30 +810,6 @@ class TomoAlign(CommonService):
         rw.send_to("success", {})
         self.log.info(f"Done tomogram alignment for {tomo_params.stack_file}")
         rw.transport.ack(header)
-
-    def newstack(self, tomo_parameters: TomoParameters, newstack_path: Path):
-        """
-        Construct file containing a list of files
-        Run newstack
-        """
-
-        # Write a file with a list of .mrcs for input to Newstack
-        with open(newstack_path, "w") as f:
-            f.write(f"{len(self.input_file_list_of_lists)}\n")
-            f.write("\n0\n".join(i[0] for i in self.input_file_list_of_lists))
-            f.write("\n0\n")
-
-        newstack_cmd = [
-            "newstack",
-            "-fileinlist",
-            str(newstack_path),
-            "-output",
-            tomo_parameters.stack_file,
-            "-quiet",
-        ]
-        self.log.info("Running Newstack")
-        result = subprocess.run(newstack_cmd, capture_output=True)
-        return result
 
     def assemble_aretomo3_command(
         self,

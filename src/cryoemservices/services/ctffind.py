@@ -11,6 +11,7 @@ from workflows.recipe import wrap_subscribe
 from cryoemservices.services.common_service import CommonService
 from cryoemservices.util.models import MockRW
 from cryoemservices.util.relion_service_options import RelionServiceOptions
+from cryoemservices.util.spa_output_files import get_ice_ring_density
 
 
 class CTFParameters(BaseModel):
@@ -159,6 +160,33 @@ class CTFFind(CommonService):
             Path(ctf_params.output_image).parent.mkdir(parents=True, exist_ok=True)
             Path(ctf_params.output_image).with_suffix(".tmp").touch(exist_ok=True)
 
+        # Check job alias
+        job_number_search = re.search("/job[0-9]+/", ctf_params.output_image)
+        if job_number_search:
+            ctf_job_number = int(job_number_search[0][4:7])
+        else:
+            self.log.warning(
+                f"Could not determine job number in {ctf_params.output_image}"
+            )
+            rw.transport.nack(header)
+            return
+        job_alias = Path(
+            re.sub(
+                f"CtfFind/job{ctf_job_number:03}/.+",
+                "CtfFind/Live_processing/",
+                ctf_params.output_image,
+            )
+        )
+        if not job_alias.exists():
+            job_alias.symlink_to(job_alias.parent / f"job{ctf_job_number:03}")
+        elif not (
+            job_alias.is_symlink()
+            and job_alias.readlink() == job_alias.parent / f"job{ctf_job_number:03}"
+        ):
+            self.log.error(f"Symlink {job_alias} already exists")
+            rw.transport.nack(header)
+            return
+
         parameters_list = [
             ctf_params.input_image,
             ctf_params.output_image,
@@ -226,6 +254,7 @@ class CTFFind(CommonService):
                 ),
                 "stdout": result.stdout.decode("utf8", "replace"),
                 "stderr": result.stderr.decode("utf8", "replace"),
+                "alias": "Live_processing",
             }
             if result.returncode:
                 node_creator_parameters["success"] = False
@@ -253,6 +282,7 @@ class CTFFind(CommonService):
         # Extract results for ispyb
         astigmatism = self.defocus1 - self.defocus2
         estimated_defocus = (self.defocus1 + self.defocus2) / 2
+        ice_ring_density = get_ice_ring_density(Path(ctf_params.output_image))
 
         # Forward results to images service
         self.log.info(f"Sending to images service {ctf_params.output_image}")
@@ -284,7 +314,8 @@ class CTFFind(CommonService):
             "cc_value": str(self.cc_value),
             "fft_theoretical_full_path": str(
                 Path(ctf_params.output_image).with_suffix(".jpeg")
-            ),  # path to output mrc (would be jpeg if we could convert in SW)
+            ),
+            "ice_ring_density": ice_ring_density,
         }
         self.log.info(f"Sending to ispyb {ispyb_parameters}")
 
@@ -293,15 +324,10 @@ class CTFFind(CommonService):
             # Forward results to particle picking
             self.log.info(f"Sending to autopicking: {ctf_params.input_image}")
             ctf_params.autopick["input_path"] = ctf_params.input_image
-            job_number_search = re.search("/job[0-9]+/", ctf_params.output_image)
-            if job_number_search:
-                ctf_job_number = int(job_number_search[0][4:7])
-            else:
-                ctf_job_number = 6
             ctf_params.autopick["output_path"] = str(
                 Path(
                     re.sub(
-                        "MotionCorr/job002/.+",
+                        "MotionCorr/job[0-9]+/.+",
                         f"AutoPick/job{ctf_job_number + 1:03}/STAR/",
                         ctf_params.input_image,
                     )
@@ -328,6 +354,7 @@ class CTFFind(CommonService):
                     "smartem",
                     {
                         "ctf_max_resolution_estimate": self.estimated_resolution,
+                        "ice_ring_density": ice_ring_density,
                         "app_id": ctf_params.app_id,
                         "mc_uuid": ctf_params.mc_uuid,
                         "mc_path": ctf_params.input_image,

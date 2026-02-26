@@ -102,7 +102,7 @@ class BFactor(CommonService):
         linked_class_particles.unlink(missing_ok=True)
         linked_class_particles.symlink_to(
             project_dir
-            / f"Extract/Reextract_class{bfactor_params.class_number}/particles.star"
+            / f"Extract/Live_reextract_class{bfactor_params.class_number}/particles.star"
         )
 
         (bfactor_dir / "Extract").unlink(missing_ok=True)

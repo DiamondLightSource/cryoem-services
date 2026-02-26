@@ -10,6 +10,7 @@ from cryoemservices.services.bfactor_setup import BFactorParameters
 from cryoemservices.services.cryolo import CryoloParameters
 from cryoemservices.services.ctffind import CTFParameters
 from cryoemservices.services.denoise import DenoiseParameters
+from cryoemservices.services.easymode import EasymodeParameters
 from cryoemservices.services.extract import ExtractParameters
 from cryoemservices.services.extract_class import ExtractClassParameters
 from cryoemservices.services.icebreaker import IceBreakerParameters
@@ -21,6 +22,9 @@ from cryoemservices.services.select_particles import SelectParticlesParameters
 from cryoemservices.services.tomo_align import TomoParameters
 from cryoemservices.wrappers.class2d_wrapper import Class2DParameters
 from cryoemservices.wrappers.class3d_wrapper import Class3DParameters
+from cryoemservices.wrappers.clem_align_and_merge import AlignAndMergeParameters
+from cryoemservices.wrappers.clem_process_raw_lifs import ProcessRawLIFsParameters
+from cryoemservices.wrappers.clem_process_raw_tiffs import ProcessRawTIFFsParameters
 from cryoemservices.wrappers.refine3d_wrapper import RefineParameters
 
 try:
@@ -59,11 +63,17 @@ class MurfeyParameters(BaseModel):
 FIXTURE_DIR = Path(__file__).parent.parent.parent.resolve()
 known_services = {
     "BFactor": BFactorParameters,
+    "Class2D": Class2DParameters,
+    "Class3D": Class3DParameters,
     "Class2DWrapper": Class2DParameters,
     "Class3DWrapper": Class3DParameters,
+    "CLEM-ALIGN-AND-MERGE": AlignAndMergeParameters,
+    "CLEM-PROCESS-LIFS": ProcessRawLIFsParameters,
+    "CLEM-PROCESS-TIFFS": ProcessRawTIFFsParameters,
     "CrYOLO": CryoloParameters,
     "CTFFind": CTFParameters,
     "Denoise": DenoiseParameters,
+    "Easymode": EasymodeParameters,
     "EMISPyB": ISPyBParameters,
     "Extract": ExtractParameters,
     "ExtractClass": ExtractClassParameters,
@@ -72,8 +82,10 @@ known_services = {
     "MembrainSeg": MembrainSegParameters,
     "MotionCorr": MotionCorrParameters,
     "Murfey": MurfeyParameters,
+    "MurfeyDBConnector": ISPyBParameters,
     "NodeCreator": NodeCreatorParameters,
     "PostProcess": PostProcessParameters,
+    "Refine3D": RefineParameters,
     "RefineWrapper": RefineParameters,
     "SelectClasses": SelectClassesParameters,
     "SelectParticles": SelectParticlesParameters,
@@ -81,19 +93,10 @@ known_services = {
 }
 
 
-@pytest.mark.datafiles(
-    FIXTURE_DIR / "recipes/em-spa-bfactor.json",
-    FIXTURE_DIR / "recipes/em-spa-class2d.json",
-    FIXTURE_DIR / "recipes/em-spa-class3d.json",
-    FIXTURE_DIR / "recipes/em-spa-extract.json",
-    FIXTURE_DIR / "recipes/em-spa-preprocess.json",
-    FIXTURE_DIR / "recipes/em-spa-refine.json",
-    FIXTURE_DIR / "recipes/em-tomo-align.json",
-    FIXTURE_DIR / "recipes/em-tomo-preprocess.json",
-)
+@pytest.mark.datafiles(FIXTURE_DIR / "recipes")
 def test_em_recipes(datafiles):
     """Test for the service names and parameter keys in the recipes"""
-    for recipe_name in datafiles.glob("em-*"):
+    for recipe_name in datafiles.glob("*/*.json"):
         with open(recipe_name, "r") as json_data:
             spa_preprocess_recipe = json.load(json_data)
 

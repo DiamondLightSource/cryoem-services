@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import time
+from pathlib import Path
 from subprocess import CompletedProcess
 from unittest import mock
 
@@ -14,6 +15,12 @@ from cryoemservices.services import tomo_align
 from cryoemservices.util.relion_service_options import RelionServiceOptions
 
 
+class MrcFileHeader:
+    def __init__(self, nx, ny):
+        self.nx = nx
+        self.ny = ny
+
+
 @pytest.fixture
 def offline_transport(mocker):
     transport = OfflineTransport()
@@ -23,9 +30,13 @@ def offline_transport(mocker):
 
 @mock.patch("cryoemservices.services.tomo_align.subprocess.run")
 @mock.patch("cryoemservices.services.tomo_align.mrcfile")
+@mock.patch("cryoemservices.services.tomo_align.create_tilt_stack")
 @mock.patch("cryoemservices.services.tomo_align.resize_tomogram")
+@mock.patch("cryoemservices.services.tomo_align.rotate_tomogram")
 def test_tomo_align_service_file_list_aretomo3(
+    mock_rotate,
     mock_resize,
+    mock_tilt_stack,
     mock_mrcfile,
     mock_subprocess,
     offline_transport,
@@ -36,7 +47,7 @@ def test_tomo_align_service_file_list_aretomo3(
     This should call the mock subprocess then send messages on to
     the denoising, ispyb_connector and images services.
     """
-    mock_mrcfile.open().__enter__().header = {"nx": 3000, "ny": 4000}
+    mock_mrcfile.open().__enter__().header = MrcFileHeader(3000, 4000)
 
     header = {
         "message-id": mock.sentinel,
@@ -85,7 +96,7 @@ def test_tomo_align_service_file_list_aretomo3(
     )
     output_relion_options["tomo_size_x"] = 3000
     output_relion_options["tomo_size_y"] = 4000
-    output_relion_options["vol_z"] = 430
+    output_relion_options["vol_z"] = 1430
     output_relion_options["tilt_axis_angle"] = 86.0
 
     # Touch the expected input files
@@ -112,7 +123,7 @@ def test_tomo_align_service_file_list_aretomo3(
         with open(
             tmp_path / "Tomograms/job006/tomograms/test_stack.aln", "w"
         ) as aln_file:
-            aln_file.write("# Thickness = 130\ndummy 86.0 1000 1.2 2.3 5 6 7 8 4.5")
+            aln_file.write("# Thickness = 1130\ndummy 86.0 1000 1.2 2.3 5 6 7 8 4.5")
         return CompletedProcess(
             "",
             returncode=0,
@@ -158,32 +169,24 @@ def test_tomo_align_service_file_list_aretomo3(
         str(tomo_align_test_message["out_imod"]),
     ]
 
-    # Check the expected calls were made
-    assert mock_subprocess.call_count == 2
-    mock_subprocess.assert_any_call(
-        [
-            "newstack",
-            "-fileinlist",
-            f"{tmp_path}/Tomograms/job006/tomograms/test_stack_newstack.txt",
-            "-output",
-            tomo_align_test_message["stack_file"],
-            "-quiet",
-        ],
-        capture_output=True,
-    )
-    mock_subprocess.assert_any_call(
-        aretomo_command,
-        capture_output=True,
+    # Check tilt stack creation
+    mock_tilt_stack.assert_called_once_with(
+        [[f"{tmp_path}/MotionCorr/job002/Movies/Position_1_001_0.0.mrc", "1.00"]],
+        Path(tomo_align_test_message["stack_file"]),
     )
 
-    # Check resizing
+    # Check the expected calls were made
+    mock_subprocess.assert_called_once_with(aretomo_command, capture_output=True)
+
+    # Check resizing and rotating
     assert mock_resize.call_count == 2
     mock_resize.assert_any_call(
-        tmp_path / "Tomograms/job006/tomograms/test_stack_Vol.mrc", int(430 / 4)
+        tmp_path / "Tomograms/job006/tomograms/test_stack_Vol.mrc", int(1430 / 4)
     )
     mock_resize.assert_any_call(
-        tmp_path / "Tomograms/job006/tomograms/test_stack_2ND_Vol.mrc", int(430 / 2)
+        tmp_path / "Tomograms/job006/tomograms/test_stack_2ND_Vol.mrc", int(1430 / 2)
     )
+    mock_rotate.assert_not_called()
 
     # Check the angle file
     assert (tmp_path / "Tomograms/job006/tomograms/test_stack_TLT.txt").is_file()
@@ -243,7 +246,7 @@ def test_tomo_align_service_file_list_aretomo3(
         {
             "experiment_type": "tomography",
             "job_type": "relion.reconstructtomograms",
-            "input_file": f"{tmp_path}/MotionCorr/job002/Movies/Position_1_001_0.0.mrc",
+            "input_file": f"{tmp_path}/AlignTiltSeries/job005/tilts/Position_1_001_0.0.mrc",
             "output_file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.mrc",
             "relion_options": output_relion_options | {"tilt_axis_angle": 85.0},
             "command": " ".join(aretomo_command),
@@ -268,7 +271,7 @@ def test_tomo_align_service_file_list_aretomo3(
                     "stack_file": tomo_align_test_message["stack_file"],
                     "size_x": 750,
                     "size_y": 1000,
-                    "size_z": int(430 / 4),
+                    "size_z": int(1430 / 4),
                     "pixel_spacing": "4.4",
                     "tilt_angle_offset": "1.1",
                     "z_shift": "2.1",
@@ -354,7 +357,7 @@ def test_tomo_align_service_file_list_aretomo3(
             "file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.mrc",
             "projection": "XZ",
             "pixel_spacing": 4.4,
-            "thickness_ang": 130 * 1.1,
+            "thickness_ang": 1130 * 1.1,
         },
     )
     offline_transport.send.assert_any_call(
@@ -370,7 +373,9 @@ def test_tomo_align_service_file_list_aretomo3(
 
 @mock.patch("cryoemservices.services.tomo_align.subprocess.run")
 @mock.patch("cryoemservices.services.tomo_align.mrcfile")
+@mock.patch("cryoemservices.services.tomo_align.create_tilt_stack")
 def test_tomo_align_service_file_list_aretomo2(
+    mock_tilt_stack,
     mock_mrcfile,
     mock_subprocess,
     offline_transport,
@@ -381,7 +386,7 @@ def test_tomo_align_service_file_list_aretomo2(
     This should call the mock subprocess then send messages on to
     the denoising, ispyb_connector and images services.
     """
-    mock_mrcfile.open().__enter__().header = {"nx": 3000, "ny": 4000}
+    mock_mrcfile.open().__enter__().header = MrcFileHeader(3000, 4000)
 
     header = {
         "message-id": mock.sentinel,
@@ -496,23 +501,14 @@ def test_tomo_align_service_file_list_aretomo2(
         str(tomo_align_test_message["out_imod"]),
     ]
 
+    # Check tilt stack creation
+    mock_tilt_stack.assert_called_once_with(
+        [[f"{tmp_path}/MotionCorr/job002/Movies/Position_1_001_0.0.mrc", "1.00"]],
+        Path(tomo_align_test_message["stack_file"]),
+    )
+
     # Check the expected calls were made
-    assert mock_subprocess.call_count == 2
-    mock_subprocess.assert_any_call(
-        [
-            "newstack",
-            "-fileinlist",
-            f"{tmp_path}/Tomograms/job006/tomograms/test_stack_newstack.txt",
-            "-output",
-            tomo_align_test_message["stack_file"],
-            "-quiet",
-        ],
-        capture_output=True,
-    )
-    mock_subprocess.assert_any_call(
-        aretomo_command,
-        capture_output=True,
-    )
+    mock_subprocess.assert_called_once_with(aretomo_command, capture_output=True)
 
     # Check the angle file
     assert (tmp_path / "Tomograms/job006/tomograms/test_stack_TLT.txt").is_file()
@@ -572,7 +568,7 @@ def test_tomo_align_service_file_list_aretomo2(
         {
             "experiment_type": "tomography",
             "job_type": "relion.reconstructtomograms",
-            "input_file": f"{tmp_path}/MotionCorr/job002/Movies/Position_1_001_0.0.mrc",
+            "input_file": f"{tmp_path}/AlignTiltSeries/job005/tilts/Position_1_001_0.0.mrc",
             "output_file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.mrc",
             "relion_options": output_relion_options | {"tilt_axis_angle": 85.0},
             "command": " ".join(aretomo_command),
@@ -698,7 +694,13 @@ def test_tomo_align_service_file_list_aretomo2(
 
 @mock.patch("cryoemservices.services.tomo_align.subprocess.run")
 @mock.patch("cryoemservices.services.tomo_align.mrcfile")
+@mock.patch("cryoemservices.services.tomo_align.create_tilt_stack")
+@mock.patch("cryoemservices.services.tomo_align.resize_tomogram")
+@mock.patch("cryoemservices.services.tomo_align.rotate_tomogram")
 def test_tomo_align_service_file_list_repeated_tilt(
+    mock_rotate,
+    mock_resize,
+    mock_tilt_stack,
     mock_mrcfile,
     mock_subprocess,
     offline_transport,
@@ -708,7 +710,7 @@ def test_tomo_align_service_file_list_repeated_tilt(
     Send a test message to TomoAlign with a duplicated tilt angle
     Only the newest one of the duplicated tilts should be used
     """
-    mock_mrcfile.open().__enter__().header = {"nx": 3000, "ny": 4000}
+    mock_mrcfile.open().__enter__().header = MrcFileHeader(3000, 4000)
 
     header = {
         "message-id": mock.sentinel,
@@ -732,7 +734,8 @@ def test_tomo_align_service_file_list_repeated_tilt(
     output_relion_options["pixel_size_downscaled"] = 4
     output_relion_options["tomo_size_x"] = 3000
     output_relion_options["tomo_size_y"] = 4000
-    output_relion_options["vol_z"] = 530
+    output_relion_options["tilt_axis_angle"] = 85.1
+    output_relion_options["vol_z"] = 1530
 
     # Create the input files. Needs sleeps to ensure distinct timestamps
     (tmp_path / "MotionCorr/job002/Movies").mkdir(parents=True)
@@ -761,7 +764,7 @@ def test_tomo_align_service_file_list_repeated_tilt(
         with open(
             tmp_path / "Tomograms/job006/tomograms/test_stack.aln", "w"
         ) as aln_file:
-            aln_file.write("# Thickness = 130\ndummy 0 1000 1.2 2.3 5 6 7 8 4.5")
+            aln_file.write("# Thickness = 1130\ndummy 85.1 1000 1.2 2.3 5 6 7 8 4.5")
         return CompletedProcess(
             "",
             returncode=0,
@@ -774,26 +777,24 @@ def test_tomo_align_service_file_list_repeated_tilt(
     # Send a message to the service
     service.tomo_align(None, header=header, message=tomo_align_test_message)
 
+    # Check tilt stack creation with only the one tilt
+    mock_tilt_stack.assert_called_once_with(
+        [[f"{tmp_path}/MotionCorr/job002/Movies/Position_1_003_0.0.mrc", "1.00"]],
+        Path(tomo_align_test_message["stack_file"]),
+    )
+
     # Check the expected calls were made
     assert (
         tmp_path / "Tomograms/job006/tomograms/test_stack_xy_shift_plot.json"
     ).is_file()
-    assert mock_subprocess.call_count == 3
+    mock_subprocess.assert_called_once()
 
     # This one runs the post-reconstruction volume flip
-    mock_subprocess.assert_any_call(
-        [
-            "rotatevol",
-            "-i",
-            f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.mrc",
-            "-ou",
-            f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.mrc",
-            "-size",
-            f"750,1000,{int(530 / 4)}",
-            "-a",
-            "90,-90,0",
-        ],
-        capture_output=True,
+    mock_resize.assert_called_once_with(
+        tmp_path / "Tomograms/job006/tomograms/test_stack_Vol.mrc", int(1530 / 4)
+    )
+    mock_rotate.assert_called_once_with(
+        tmp_path / "Tomograms/job006/tomograms/test_stack_Vol.mrc", 85.1
     )
 
     # Check the angle file
@@ -803,16 +804,6 @@ def test_tomo_align_service_file_list_repeated_tilt(
     ) as angfile:
         angles_data = angfile.read()
     assert angles_data == "1.00  3\n"
-
-    # Check the stack file has only the last one of the duplicated tilt angles
-    with open(
-        tmp_path / "Tomograms/job006/tomograms/test_stack_newstack.txt", "r"
-    ) as newstack_file:
-        newstack_tilts = newstack_file.read()
-    assert (
-        newstack_tilts
-        == f"1\n{tmp_path}/MotionCorr/job002/Movies/Position_1_003_0.0.mrc\n0\n"
-    )
 
     # Look at a sample of the messages to check they use input file 3
     assert offline_transport.send.call_count == 13
@@ -838,7 +829,7 @@ def test_tomo_align_service_file_list_repeated_tilt(
             "file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.mrc",
             "projection": "XZ",
             "pixel_spacing": 4,
-            "thickness_ang": 130,
+            "thickness_ang": 1130,
         },
     )
     offline_transport.send.assert_any_call("success", {})
@@ -846,7 +837,13 @@ def test_tomo_align_service_file_list_repeated_tilt(
 
 @mock.patch("cryoemservices.services.tomo_align.subprocess.run")
 @mock.patch("cryoemservices.services.tomo_align.mrcfile")
+@mock.patch("cryoemservices.services.tomo_align.create_tilt_stack")
+@mock.patch("cryoemservices.services.tomo_align.resize_tomogram")
+@mock.patch("cryoemservices.services.tomo_align.rotate_tomogram")
 def test_tomo_align_service_file_list_zero_rotation(
+    mock_rotate,
+    mock_resize,
+    mock_tilt_stack,
     mock_mrcfile,
     mock_subprocess,
     offline_transport,
@@ -855,7 +852,7 @@ def test_tomo_align_service_file_list_zero_rotation(
     """
     Send a test message to TomoAlign with a tilt axis of zero to test rotation of volume
     """
-    mock_mrcfile.open().__enter__().header = {"nx": 3000, "ny": 4000}
+    mock_mrcfile.open().__enter__().header = MrcFileHeader(3000, 4000)
 
     header = {
         "message-id": mock.sentinel,
@@ -896,7 +893,7 @@ def test_tomo_align_service_file_list_zero_rotation(
         with open(
             tmp_path / "Tomograms/job006/tomograms/test_stack.aln", "w"
         ) as aln_file:
-            aln_file.write("# Thickness = 130\ndummy 0 1000 1.2 2.3 5 6 7 8 4.5")
+            aln_file.write("# Thickness = 1130\ndummy 0 1000 1.2 2.3 5 6 7 8 4.5")
         return CompletedProcess(
             "",
             returncode=0,
@@ -909,27 +906,27 @@ def test_tomo_align_service_file_list_zero_rotation(
     # Send a message to the service
     service.tomo_align(None, header=header, message=tomo_align_test_message)
 
+    # Check tilt stack creation
+    mock_tilt_stack.assert_called_once_with(
+        [
+            [f"{tmp_path}/MotionCorr/job002/Movies/Position_1_001_0.0.mrc", "1.00"],
+        ],
+        Path(tomo_align_test_message["stack_file"]),
+    )
+
     # Check the expected calls were made
     assert (
         tmp_path / "Tomograms/job006/tomograms/test_stack_xy_shift_plot.json"
     ).is_file()
-    assert mock_subprocess.call_count == 3
+    mock_subprocess.assert_called_once()
     assert offline_transport.send.call_count == 13
 
-    # This one runs the post-reconstruction volume flip
-    mock_subprocess.assert_any_call(
-        [
-            "rotatevol",
-            "-i",
-            f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.mrc",
-            "-ou",
-            f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.mrc",
-            "-size",
-            f"750,1000,{int(530 / 4)}",
-            "-a",
-            "0,0,-90",
-        ],
-        capture_output=True,
+    # Check tomogram rotation and resizing
+    mock_resize.assert_called_once_with(
+        tmp_path / "Tomograms/job006/tomograms/test_stack_Vol.mrc", int(1530 / 4)
+    )
+    mock_rotate.assert_called_once_with(
+        tmp_path / "Tomograms/job006/tomograms/test_stack_Vol.mrc", 0
     )
 
     assert (tmp_path / "Tomograms/job006/tomograms/test_stack_2ND_Vol.mrc").is_file()
@@ -945,16 +942,20 @@ def test_tomo_align_service_file_list_zero_rotation(
             "file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.mrc",
             "projection": "YZ",
             "pixel_spacing": 4,
-            "thickness_ang": 130,
+            "thickness_ang": 1130,
         },
     )
 
 
 @mock.patch("cryoemservices.services.tomo_align.subprocess.run")
 @mock.patch("cryoemservices.services.tomo_align.mrcfile")
+@mock.patch("cryoemservices.services.tomo_align.create_tilt_stack")
 @mock.patch("cryoemservices.services.tomo_align.resize_tomogram")
+@mock.patch("cryoemservices.services.tomo_align.rotate_tomogram")
 def test_tomo_align_service_file_list_bad_tilts(
+    mock_rotate,
     mock_resize,
+    mock_tilt_stack,
     mock_mrcfile,
     mock_subprocess,
     offline_transport,
@@ -964,7 +965,7 @@ def test_tomo_align_service_file_list_bad_tilts(
     Send a test message to TomoAlign with a tilts with bad motion correction
     This tilt should be removed
     """
-    mock_mrcfile.open().__enter__().header = {"nx": 3000, "ny": 4000}
+    mock_mrcfile.open().__enter__().header = MrcFileHeader(3000, 4000)
 
     # Create the Relion star files with different motion model results
     (tmp_path / "MotionCorr/job002/Movies").mkdir(parents=True)
@@ -988,19 +989,18 @@ def test_tomo_align_service_file_list_bad_tilts(
             "data_local_motion_model\n\nloop_\n_rlnMotionModelCoeff\n1\n2000\n"
         )
 
+    input_file_list = [
+        [f"{tmp_path}/MotionCorr/job002/Movies/Position_1_001_0.0.mrc", "1.00"],
+        [f"{tmp_path}/MotionCorr/job002/Movies/Position_1_002_0.0.mrc", "2.00"],
+        [f"{tmp_path}/MotionCorr/job002/Movies/Position_1_003_0.0.mrc", "3.00"],
+    ]
     header = {
         "message-id": mock.sentinel,
         "subscription": mock.sentinel,
     }
     tomo_align_test_message = {
         "stack_file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack.st",
-        "input_file_list": str(
-            [
-                [f"{tmp_path}/MotionCorr/job002/Movies/Position_1_001_0.0.mrc", "1.00"],
-                [f"{tmp_path}/MotionCorr/job002/Movies/Position_1_002_0.0.mrc", "2.00"],
-                [f"{tmp_path}/MotionCorr/job002/Movies/Position_1_003_0.0.mrc", "3.00"],
-            ]
-        ),
+        "input_file_list": str(input_file_list),
         "pixel_size": 1,
         "relion_options": {},
     }
@@ -1049,11 +1049,22 @@ def test_tomo_align_service_file_list_bad_tilts(
     # Send a message to the service
     service.tomo_align(None, header=header, message=tomo_align_test_message)
 
+    # Check tilt stack creation with tilt removed
+    mock_tilt_stack.assert_called_once_with(
+        input_file_list[:-1],
+        Path(tomo_align_test_message["stack_file"]),
+    )
+
     # Check the expected calls were made
     assert (
         tmp_path / "Tomograms/job006/tomograms/test_stack_xy_shift_plot.json"
     ).is_file()
-    assert mock_subprocess.call_count == 3
+    mock_subprocess.assert_called_once()
+
+    # Check tomogram rotation
+    mock_rotate.assert_called_once_with(
+        tmp_path / "Tomograms/job006/tomograms/test_stack_Vol.mrc", 0
+    )
 
     # Check resizing - vol z is 2000 but only run at 1800 so no resizing
     mock_resize.assert_not_called()
@@ -1065,16 +1076,6 @@ def test_tomo_align_service_file_list_bad_tilts(
     ) as angfile:
         angles_data = angfile.read()
     assert angles_data == "1.00  1\n2.00  2\n"
-
-    # Check the stack file does not have the tilt where motion correction failed
-    with open(
-        tmp_path / "Tomograms/job006/tomograms/test_stack_newstack.txt", "r"
-    ) as newstack_file:
-        newstack_tilts = newstack_file.read()
-    assert newstack_tilts == (
-        f"2\n{tmp_path}/MotionCorr/job002/Movies/Position_1_001_0.0.mrc\n0\n"
-        f"{tmp_path}/MotionCorr/job002/Movies/Position_1_002_0.0.mrc\n0\n"
-    )
 
     # Look at a sample of the messages to check they use input files 1 and 2
     assert offline_transport.send.call_count == 15
@@ -1111,7 +1112,13 @@ def test_tomo_align_service_file_list_bad_tilts(
 
 @mock.patch("cryoemservices.services.tomo_align.subprocess.run")
 @mock.patch("cryoemservices.services.tomo_align.mrcfile")
+@mock.patch("cryoemservices.services.tomo_align.create_tilt_stack")
+@mock.patch("cryoemservices.services.tomo_align.resize_tomogram")
+@mock.patch("cryoemservices.services.tomo_align.rotate_tomogram")
 def test_tomo_align_service_file_list_rerun(
+    mock_rotate,
+    mock_resize,
+    mock_tilt_stack,
     mock_mrcfile,
     mock_subprocess,
     offline_transport,
@@ -1123,7 +1130,7 @@ def test_tomo_align_service_file_list_rerun(
     the denoising, ispyb_connector and images services.
     Should not do a node creator send
     """
-    mock_mrcfile.open().__enter__().header = {"nx": 3000, "ny": 4000}
+    mock_mrcfile.open().__enter__().header = MrcFileHeader(3000, 4000)
 
     header = {
         "message-id": mock.sentinel,
@@ -1148,7 +1155,7 @@ def test_tomo_align_service_file_list_rerun(
     output_relion_options["tomo_size_x"] = 3000
     output_relion_options["tomo_size_y"] = 4000
     output_relion_options["tilt_axis_angle"] = 86.0
-    output_relion_options["vol_z"] = 530
+    output_relion_options["vol_z"] = 1530
 
     # Touch expected input files
     (tmp_path / "MotionCorr/job002/Movies").mkdir(parents=True)
@@ -1171,7 +1178,7 @@ def test_tomo_align_service_file_list_rerun(
         with open(
             tmp_path / "Tomograms/job006/tomograms/test_stack.aln", "w"
         ) as aln_file:
-            aln_file.write("# Thickness = 130\ndummy 86.0 1000 1.2 2.3 5 6 7 8 4.5")
+            aln_file.write("# Thickness = 1130\ndummy 86.0 1000 1.2 2.3 5 6 7 8 4.5")
         return CompletedProcess(
             "",
             returncode=0,
@@ -1193,8 +1200,24 @@ def test_tomo_align_service_file_list_rerun(
     # Send a message to the service
     service.tomo_align(None, header=header, message=tomo_align_test_message)
 
+    # Check tilt stack creation
+    mock_tilt_stack.assert_called_once_with(
+        [
+            [f"{tmp_path}/MotionCorr/job002/Movies/Position_1_001_0.0.mrc", "1.00"],
+        ],
+        Path(tomo_align_test_message["stack_file"]),
+    )
+
     # Check the expected calls were made
-    assert mock_subprocess.call_count == 3
+    mock_subprocess.assert_called_once()
+
+    # Check tomogram rotation and resizing
+    mock_resize.assert_called_once_with(
+        tmp_path / "Tomograms/job006/tomograms/test_stack_Vol.mrc", int(1530 / 4)
+    )
+    mock_rotate.assert_called_once_with(
+        tmp_path / "Tomograms/job006/tomograms/test_stack_Vol.mrc", 86.0
+    )
 
     # Check the angle file
     assert (tmp_path / "Tomograms/job006/tomograms/test_stack_TLT.txt").is_file()
@@ -1306,7 +1329,7 @@ def test_tomo_align_service_file_list_rerun(
             "file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.mrc",
             "projection": "XZ",
             "pixel_spacing": 4.0,
-            "thickness_ang": 130 * 1.0,
+            "thickness_ang": 1130 * 1.0,
         },
     )
     offline_transport.send.assert_any_call(
@@ -1322,9 +1345,13 @@ def test_tomo_align_service_file_list_rerun(
 
 @mock.patch("cryoemservices.services.tomo_align.subprocess.run")
 @mock.patch("cryoemservices.services.tomo_align.mrcfile")
+@mock.patch("cryoemservices.services.tomo_align.create_tilt_stack")
 @mock.patch("cryoemservices.services.tomo_align.resize_tomogram")
+@mock.patch("cryoemservices.services.tomo_align.rotate_tomogram")
 def test_tomo_align_service_path_pattern(
+    mock_rotate,
     mock_resize,
+    mock_tilt_stack,
     mock_mrcfile,
     mock_subprocess,
     offline_transport,
@@ -1335,7 +1362,7 @@ def test_tomo_align_service_path_pattern(
     This should call the mock subprocess then send messages on to
     the denoising, ispyb_connector and images services.
     """
-    mock_mrcfile.open().__enter__().header = {"nx": 3000, "ny": 4000}
+    mock_mrcfile.open().__enter__().header = MrcFileHeader(3000, 4000)
 
     (tmp_path / "MotionCorr/job002/Movies").mkdir(parents=True)
     (tmp_path / "MotionCorr/job002/Movies/Position_1_001_1.00.mrc").touch()
@@ -1382,7 +1409,8 @@ def test_tomo_align_service_path_pattern(
     output_relion_options["manual_tilt_offset"] = 10.5
     output_relion_options["frame_count"] = 6
     output_relion_options["dose_per_frame"] = 0.2
-    output_relion_options["vol_z"] = 530
+    # Volume default to minimum
+    output_relion_options["vol_z"] = 800
 
     # Set up the mock service
     service = tomo_align.TomoAlign(
@@ -1461,35 +1489,33 @@ def test_tomo_align_service_path_pattern(
         str(tomo_align_test_message["dark_tol"]),
     ]
 
+    # Check tilt stack creation
+    mock_tilt_stack.assert_called_once_with(
+        [
+            [f"{tmp_path}/MotionCorr/job002/Movies/Position_1_001_1.00.mrc", "1.00"],
+            [f"{tmp_path}/MotionCorr/job002/Movies/Position_1_002_2.00.mrc", "2.00"],
+        ],
+        Path(tomo_align_test_message["stack_file"]),
+    )
+
     # Check the expected calls were made
     assert (
         tmp_path / "Tomograms/job006/tomograms/test_stack_xy_shift_plot.json"
     ).is_file()
-    assert mock_subprocess.call_count == 2
-    mock_subprocess.assert_any_call(
-        [
-            "newstack",
-            "-fileinlist",
-            f"{tmp_path}/Tomograms/job006/tomograms/test_stack_newstack.txt",
-            "-output",
-            tomo_align_test_message["stack_file"],
-            "-quiet",
-        ],
-        capture_output=True,
-    )
-    mock_subprocess.assert_any_call(
+    mock_subprocess.assert_called_once_with(
         aretomo_command,
         capture_output=True,
     )
 
-    # Check resizing
+    # Check resizing and rotating
     assert mock_resize.call_count == 2
     mock_resize.assert_any_call(
-        tmp_path / "Tomograms/job006/tomograms/test_stack_Vol.mrc", int(530 / 4)
+        tmp_path / "Tomograms/job006/tomograms/test_stack_Vol.mrc", int(800 / 4)
     )
     mock_resize.assert_any_call(
-        tmp_path / "Tomograms/job006/tomograms/test_stack_2ND_Vol.mrc", int(530 / 2)
+        tmp_path / "Tomograms/job006/tomograms/test_stack_2ND_Vol.mrc", int(800 / 2)
     )
+    mock_rotate.assert_not_called()
 
     # Check the angle file
     assert (tmp_path / "Tomograms/job006/tomograms/test_stack_TLT.txt").is_file()
@@ -1506,7 +1532,7 @@ def test_tomo_align_service_path_pattern(
         {
             "experiment_type": "tomography",
             "job_type": "relion.reconstructtomograms",
-            "input_file": f"{tmp_path}/MotionCorr/job002/Movies/Position_1_001_1.00.mrc",
+            "input_file": f"{tmp_path}/AlignTiltSeries/job005/tilts/Position_1_001_1.00.mrc",
             "output_file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.mrc",
             "relion_options": output_relion_options,
             "command": " ".join(aretomo_command),
@@ -1520,7 +1546,11 @@ def test_tomo_align_service_path_pattern(
 
 @mock.patch("cryoemservices.services.tomo_align.subprocess.run")
 @mock.patch("cryoemservices.services.tomo_align.mrcfile")
+@mock.patch("cryoemservices.services.tomo_align.create_tilt_stack")
+@mock.patch("cryoemservices.services.tomo_align.resize_tomogram")
 def test_tomo_align_service_dark_images(
+    mock_resize,
+    mock_tilt_stack,
     mock_mrcfile,
     mock_subprocess,
     offline_transport,
@@ -1529,26 +1559,25 @@ def test_tomo_align_service_dark_images(
     """
     Send a test message to TomoAlign for a case with dark images which are removed
     """
-    mock_mrcfile.open().__enter__().header = {"nx": 3000, "ny": 4000}
+    mock_mrcfile.open().__enter__().header = MrcFileHeader(3000, 4000)
 
+    input_file_list = [
+        [f"{tmp_path}/MotionCorr/job002/Movies/Position_1_001_0.0.mrc", "0.00"],
+        [
+            f"{tmp_path}/MotionCorr/job002/Movies/Position_1_002_0.0.mrc",
+            "12.00",
+        ],
+        [f"{tmp_path}/MotionCorr/job002/Movies/Position_1_003_0.0.mrc", "6.00"],
+        [f"{tmp_path}/MotionCorr/job002/Movies/Position_1_004_0.0.mrc", "9.00"],
+        [f"{tmp_path}/MotionCorr/job002/Movies/Position_1_005_0.0.mrc", "3.00"],
+    ]
     header = {
         "message-id": mock.sentinel,
         "subscription": mock.sentinel,
     }
     tomo_align_test_message = {
         "stack_file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack.st",
-        "input_file_list": str(
-            [
-                [f"{tmp_path}/MotionCorr/job002/Movies/Position_1_001_0.0.mrc", "0.00"],
-                [
-                    f"{tmp_path}/MotionCorr/job002/Movies/Position_1_002_0.0.mrc",
-                    "12.00",
-                ],
-                [f"{tmp_path}/MotionCorr/job002/Movies/Position_1_003_0.0.mrc", "6.00"],
-                [f"{tmp_path}/MotionCorr/job002/Movies/Position_1_004_0.0.mrc", "9.00"],
-                [f"{tmp_path}/MotionCorr/job002/Movies/Position_1_005_0.0.mrc", "3.00"],
-            ]
-        ),
+        "input_file_list": str(input_file_list),
         "vol_z": 1200,
         "out_bin": 4,
         "tilt_cor": 1,
@@ -1564,7 +1593,7 @@ def test_tomo_align_service_dark_images(
     )
     output_relion_options["tomo_size_x"] = 3000
     output_relion_options["tomo_size_y"] = 4000
-    output_relion_options["vol_z"] = 530
+    output_relion_options["vol_z"] = 1530
 
     # Touch the expected input files
     (tmp_path / "MotionCorr/job002/Movies").mkdir(parents=True)
@@ -1595,7 +1624,7 @@ def test_tomo_align_service_dark_images(
         with open(
             tmp_path / "Tomograms/job006/tomograms/test_stack.aln", "w"
         ) as aln_file:
-            aln_file.write("# Thickness = 130\n")
+            aln_file.write("# Thickness = 1130\n")
             for i in [0, 2, 3]:
                 aln_file.write(
                     f"dummy 0 1000 {x_tilts[i]} {y_tilts[i]} 5 6 7 8 {tilt_angles[i]}\n"
@@ -1616,6 +1645,18 @@ def test_tomo_align_service_dark_images(
 
     # Send a message to the service
     service.tomo_align(None, header=header, message=tomo_align_test_message)
+
+    # Check tilt stack creation
+    mock_tilt_stack.assert_called_once_with(
+        [
+            input_file_list[0],
+            input_file_list[4],
+            input_file_list[2],
+            input_file_list[3],
+            input_file_list[1],
+        ],
+        Path(tomo_align_test_message["stack_file"]),
+    )
 
     # Check the aretomo call
     aretomo_command = [
@@ -1644,9 +1685,14 @@ def test_tomo_align_service_dark_images(
         "-OutImod",
         str(tomo_align_test_message["out_imod"]),
     ]
-    mock_subprocess.assert_any_call(
+    mock_subprocess.assert_called_once_with(
         aretomo_command,
         capture_output=True,
+    )
+
+    # Check resizing
+    mock_resize.assert_called_once_with(
+        tmp_path / "Tomograms/job006/tomograms/test_stack_Vol.mrc", int(1530 / 4)
     )
 
     # Check the angle file
@@ -1707,7 +1753,7 @@ def test_tomo_align_service_dark_images(
                     "stack_file": tomo_align_test_message["stack_file"],
                     "size_x": 750,
                     "size_y": 1000,
-                    "size_z": int(530 / 4),
+                    "size_z": int(1530 / 4),
                     "pixel_spacing": "4.0",
                     "tilt_angle_offset": "1.1",
                     "z_shift": "2.1",
@@ -1761,7 +1807,9 @@ def test_tomo_align_service_dark_images(
 
 @mock.patch("cryoemservices.services.tomo_align.subprocess.run")
 @mock.patch("cryoemservices.services.tomo_align.mrcfile")
+@mock.patch("cryoemservices.services.tomo_align.create_tilt_stack")
 def test_tomo_align_service_all_dark(
+    mock_tilt_stack,
     mock_mrcfile,
     mock_subprocess,
     offline_transport,
@@ -1770,29 +1818,22 @@ def test_tomo_align_service_all_dark(
     """
     Send a test message to TomoAlign for a case where all images are dark
     """
-    mock_mrcfile.open().__enter__().header = {"nx": 3000, "ny": 4000}
+    mock_mrcfile.open().__enter__().header = MrcFileHeader(3000, 4000)
 
+    input_file_list = [
+        [f"{tmp_path}/MotionCorr/job002/Movies/Position_1_001_0.0.mrc", "0.00"],
+        [f"{tmp_path}/MotionCorr/job002/Movies/Position_1_002_0.0.mrc", "-2.00"],
+        [f"{tmp_path}/MotionCorr/job002/Movies/Position_1_003_0.0.mrc", "2.00"],
+        [f"{tmp_path}/MotionCorr/job002/Movies/Position_1_004_0.0.mrc", "-4.00"],
+        [f"{tmp_path}/MotionCorr/job002/Movies/Position_1_005_0.0.mrc", "4.00"],
+    ]
     header = {
         "message-id": mock.sentinel,
         "subscription": mock.sentinel,
     }
     tomo_align_test_message = {
         "stack_file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack.st",
-        "input_file_list": str(
-            [
-                [f"{tmp_path}/MotionCorr/job002/Movies/Position_1_001_0.0.mrc", "0.00"],
-                [
-                    f"{tmp_path}/MotionCorr/job002/Movies/Position_1_002_0.0.mrc",
-                    "-2.00",
-                ],
-                [f"{tmp_path}/MotionCorr/job002/Movies/Position_1_003_0.0.mrc", "2.00"],
-                [
-                    f"{tmp_path}/MotionCorr/job002/Movies/Position_1_004_0.0.mrc",
-                    "-4.00",
-                ],
-                [f"{tmp_path}/MotionCorr/job002/Movies/Position_1_005_0.0.mrc", "4.00"],
-            ]
-        ),
+        "input_file_list": str(input_file_list),
         "vol_z": 1200,
         "out_bin": 4,
         "tilt_cor": 1,
@@ -1843,6 +1884,18 @@ def test_tomo_align_service_all_dark(
 
     # Send a message to the service
     service.tomo_align(None, header=header, message=tomo_align_test_message)
+
+    # Check tilt stack creation
+    mock_tilt_stack.assert_called_once_with(
+        [
+            input_file_list[3],
+            input_file_list[1],
+            input_file_list[0],
+            input_file_list[2],
+            input_file_list[4],
+        ],
+        Path(tomo_align_test_message["stack_file"]),
+    )
 
     # Check the angle file
     assert (tmp_path / "Tomograms/job006/tomograms/test_stack_TLT.txt").is_file()
@@ -1896,7 +1949,9 @@ def test_tomo_align_service_all_dark(
 
 @mock.patch("cryoemservices.services.tomo_align.subprocess.run")
 @mock.patch("cryoemservices.services.tomo_align.mrcfile")
+@mock.patch("cryoemservices.services.tomo_align.create_tilt_stack")
 def test_tomo_align_service_fail_case(
+    mock_tilt_stack,
     mock_mrcfile,
     mock_subprocess,
     offline_transport,
@@ -1905,8 +1960,11 @@ def test_tomo_align_service_fail_case(
     """
     Send a test message to TomoAlign with a simulated failure of AreTomo3
     """
-    mock_mrcfile.open().__enter__().header = {"nx": 3000, "ny": 4000}
+    mock_mrcfile.open().__enter__().header = MrcFileHeader(3000, 4000)
 
+    input_file_list = [
+        [f"{tmp_path}/MotionCorr/job002/Movies/Position_1_001_0.0.mrc", "1.00"],
+    ]
     header = {
         "message-id": mock.sentinel,
         "subscription": mock.sentinel,
@@ -1915,11 +1973,7 @@ def test_tomo_align_service_fail_case(
         "aretomo_version": 3,
         "stack_file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack.st",
         "path_pattern": None,
-        "input_file_list": str(
-            [
-                [f"{tmp_path}/MotionCorr/job002/Movies/Position_1_001_0.0.mrc", "1.00"],
-            ]
-        ),
+        "input_file_list": str(input_file_list),
         "vol_z": 1200,
         "tilt_axis": 90,
         "tilt_cor": 1,
@@ -1994,9 +2048,14 @@ def test_tomo_align_service_fail_case(
         str(tomo_align_test_message["out_imod"]),
     ]
 
+    # Check tilt stack creation
+    mock_tilt_stack.assert_called_once_with(
+        input_file_list,
+        Path(tomo_align_test_message["stack_file"]),
+    )
+
     # Check the expected calls were made
-    assert mock_subprocess.call_count == 2
-    mock_subprocess.assert_any_call(
+    mock_subprocess.assert_called_once_with(
         aretomo_command,
         capture_output=True,
     )
@@ -2008,7 +2067,7 @@ def test_tomo_align_service_fail_case(
         {
             "experiment_type": "tomography",
             "job_type": "relion.reconstructtomograms",
-            "input_file": f"{tmp_path}/MotionCorr/job002/Movies/Position_1_001_0.0.mrc",
+            "input_file": f"{tmp_path}/AlignTiltSeries/job005/tilts/Position_1_001_0.0.mrc",
             "output_file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.mrc",
             "relion_options": output_relion_options | {"tilt_axis_angle": 85},
             "command": " ".join(aretomo_command),
@@ -2044,6 +2103,7 @@ def test_parse_tomo_align_output(offline_transport):
 
 
 def test_resize_tomogram(tmp_path):
+    """Test the reshaping of a XZY tomogram"""
     with mrcfile.new(tmp_path / "test.mrc") as mrc:
         mrc.set_data(np.reshape(np.arange(64, dtype=np.float32), (4, 4, 4)))
         mrc.header.mx = 4
@@ -2064,3 +2124,79 @@ def test_resize_tomogram(tmp_path):
     assert header.cella.x == 100
     assert header.cella.y == 25
     assert header.cella.z == 20
+
+
+def test_rotate_tomogram_axis90(tmp_path):
+    """Test the rotation from XZY to XYZ for the 90 degree axis"""
+    with mrcfile.new(tmp_path / "test.mrc") as mrc:
+        mrc.set_data(np.reshape(np.arange(64, dtype=np.float32), (8, 4, 2)))
+        mrc.header.mx = 2
+        mrc.header.my = 4
+        mrc.header.mz = 8
+        mrc.header.cella = (100, 50, 20)
+
+    tomo_align.rotate_tomogram(tmp_path / "test.mrc", 85)
+
+    with mrcfile.open(tmp_path / "test.mrc") as mrc:
+        data = mrc.data
+        header = mrc.header
+
+    assert data.shape == (4, 2, 8)
+    assert header.mx == 8
+    assert header.my == 2
+    assert header.mz == 4
+    assert header.cella.x == 20
+    assert header.cella.y == 100
+    assert header.cella.z == 50
+
+
+def test_rotate_tomogram_axis0(tmp_path):
+    """Test the rotation from XZY to XYZ for the 0 degree axis"""
+    with mrcfile.new(tmp_path / "test.mrc") as mrc:
+        mrc.set_data(np.reshape(np.arange(64, dtype=np.float32), (8, 4, 2)))
+        mrc.header.mx = 2
+        mrc.header.my = 4
+        mrc.header.mz = 8
+        mrc.header.cella = (100, 50, 20)
+
+    tomo_align.rotate_tomogram(tmp_path / "test.mrc", 5)
+
+    with mrcfile.open(tmp_path / "test.mrc") as mrc:
+        data = mrc.data
+        header = mrc.header
+
+    assert data.shape == (4, 8, 2)
+    assert header.mx == 2
+    assert header.my == 8
+    assert header.mz == 4
+    assert header.cella.x == 100
+    assert header.cella.y == 20
+    assert header.cella.z == 50
+
+
+def test_create_stack_file(tmp_path):
+    """Test stacking of multiple mrc files"""
+    input_file_list_of_lists = []
+    for i in range(3):
+        input_file_list_of_lists.append([f"{tmp_path}/test_{i}.mrc", i])
+        with mrcfile.new(tmp_path / f"test_{i}.mrc") as mrc:
+            mrc.set_data(np.reshape(np.arange(32, dtype=np.float32), (4, 8)))
+            mrc.header.mx = 4
+            mrc.header.my = 8
+            mrc.header.mz = 1
+            mrc.header.cella = (100, 50, 20)
+
+    tomo_align.create_tilt_stack(input_file_list_of_lists, tmp_path / "output_file.mrc")
+
+    assert (tmp_path / "output_file.mrc").is_file()
+    with mrcfile.open(tmp_path / "output_file.mrc") as mrc:
+        data = mrc.data
+        header = mrc.header
+
+    assert data.shape == (3, 4, 8)
+    assert header.mx == 8
+    assert header.my == 4
+    assert header.mz == 3
+    assert header.cella.x == 100
+    assert header.cella.y == 50
+    assert header.cella.z == 60
