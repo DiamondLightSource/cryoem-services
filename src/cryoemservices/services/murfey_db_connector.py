@@ -24,7 +24,7 @@ class MurfeyDBConnector(EMISPyB):
         if not service_config.database_url:
             raise ValueError("No database url supplied")
         self._database_session_maker = sqlalchemy.orm.sessionmaker(
-            bind=sqlalchemy.create_engine(self._environment["database_url"])
+            bind=sqlalchemy.create_engine(service_config.database_url)
         )
         self.log.info("ISPyB service ready")
         wrap_subscribe(
