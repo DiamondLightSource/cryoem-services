@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-from murfey.server.murfey_db import get_murfey_db_session
+import sqlalchemy
 from workflows.recipe import wrap_subscribe
 
 from cryoemservices.services.ispyb_connector import EMISPyB
 from cryoemservices.util import ispyb_commands, murfey_db_commands
+from cryoemservices.util.config import config_from_file
 
 
 class MurfeyDBConnector(EMISPyB):
@@ -19,7 +20,12 @@ class MurfeyDBConnector(EMISPyB):
     def initializing(self):
         """Subscribe the ISPyB connector queue. Received messages must be
         acknowledged. Prepare Murfey database connection."""
-        self._database_session_maker = get_murfey_db_session
+        service_config = config_from_file(self._environment["config"])
+        if not service_config.database_url:
+            raise ValueError("No database url supplied")
+        self._database_session_maker = sqlalchemy.orm.sessionmaker(
+            bind=sqlalchemy.create_engine(self._environment["database_url"])
+        )
         self.log.info("ISPyB service ready")
         wrap_subscribe(
             self._transport,
