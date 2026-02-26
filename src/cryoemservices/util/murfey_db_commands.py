@@ -4,7 +4,7 @@ import logging
 from pathlib import Path
 from typing import Callable
 
-import murfey.util.processing_db as models
+import murfey.util.db as models
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
