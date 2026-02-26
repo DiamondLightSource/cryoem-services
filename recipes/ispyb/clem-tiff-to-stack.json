@@ -1,20 +1,18 @@
 {
   "1": {
     "parameters": {
-      "series_name": "{series_name}",
-      "images": "{images}",
+      "tiff_list": "{tiff_list}",
+      "tiff_file": "{tiff_file}",
+      "root_folder": "{root_folder}",
       "metadata": "{metadata}",
-      "crop_to_n_frames": "{crop_to_n_frames}",
-      "align_self": "{align_self}",
-      "flatten": "{flatten}",
-      "align_across": "{align_across}"
+      "num_procs": "{num_procs}"
     },
     "output": {
       "murfey_feedback": 2,
       "images": 3
     },
     "queue": "cluster.submission",
-    "service": "ALIGN-AND-MERGE"
+    "service": "CLEM-PROCESS-TIFFS"
   },
   "2": {
     "parameters": {

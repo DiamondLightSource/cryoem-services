@@ -6,8 +6,10 @@ processing workflow.
 
 from __future__ import annotations
 
+import json
 import logging
-import multiprocessing as mp
+import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Optional
 from xml.etree import ElementTree as ET
@@ -17,10 +19,10 @@ from pydantic import BaseModel, ValidationError
 from readlif.reader import LifFile
 
 from cryoemservices.util.clem_array_functions import (
-    estimate_int_dtype,
+    LIFImageLoader,
     get_percentiles,
-    preprocess_img_stk,
-    stitch_image_frames,
+    load_and_convert_image,
+    load_and_resize_tile,
     write_stack_to_tiff,
 )
 from cryoemservices.util.clem_metadata import (
@@ -63,7 +65,7 @@ def process_lif_subimage(
     metadata: ET.Element,
     root_save_dir: Path,
     save_path: str = "",
-    num_procs: int = 1,
+    num_procs: int = 4,
 ) -> dict:
     """
     Takes the LIF file and its corresponding metadata and loads the relevant subimage.
@@ -75,8 +77,7 @@ def process_lif_subimage(
     composite image as an atlas.
     """
 
-    # Load LIF file
-    image = LifFile(str(file)).get_image(scene_num)
+    start_time = time.perf_counter()
 
     # Get name of subimage
     file_name = file.stem.replace(" ", "_")  # Remove spaces
@@ -122,8 +123,10 @@ def process_lif_subimage(
         return {}
 
     # Get width and height for a single frame
-    w = float(dims["x"]["length"])
-    h = float(dims["y"]["length"])
+    x_len = float(dims["x"]["length"])
+    y_len = float(dims["y"]["length"])
+    x_pixels = int(dims["x"]["num_pixels"])
+    y_pixels = int(dims["y"]["num_pixels"])
 
     # Get number of frames
     num_frames = int(dims["z"].get("num_frames", 1))
@@ -136,16 +139,23 @@ def process_lif_subimage(
     y_min = 10e10
     y_max = float(0)
 
-    for tile in tile_scan_info.values():
-        x = float(tile["pos_x"])
-        y = float(tile["pos_y"])
+    tile_extents: dict[int, tuple[float, float, float, float]] = {}
+    for tile_num, tile_info in tile_scan_info.items():
+        x = float(tile_info["pos_x"])
+        y = float(tile_info["pos_y"])
+        x0 = x - (x_len / 2)
+        x1 = x + (x_len / 2)
+        y0 = y - (y_len / 2)
+        y1 = y + (y_len / 2)
+        tile_extents[tile_num] = (x0, x1, y0, y1)
 
         # Update the atlas limits
-        x_min = x - w / 2 if x - w / 2 < x_min else x_min
-        x_max = x + w / 2 if x + w / 2 > x_max else x_max
-        y_min = y - h / 2 if y - h / 2 < y_min else y_min
-        y_max = y + h / 2 if y + h / 2 > y_max else y_max
-    extent = [x_min, x_max, y_min, y_max]
+        x_min = x0 if x0 <= x_min else x_min
+        x_max = x1 if x1 >= x_max else x_max
+        y_min = y0 if y1 <= y_min else y_min
+        y_max = y1 if y1 >= y_max else y_max
+
+    extent: tuple[float, float, float, float] = (x_min, x_max, y_min, y_max)
 
     # Template of results dictionary
     result: dict = {
@@ -163,153 +173,174 @@ def process_lif_subimage(
         "units": "",
         "pixel_size": None,
         "resolution": None,
-        "extent": [],  # [x_min, x_max, y_min, y_max] in real space
+        "extent": (),  # [x_min, x_max, y_min, y_max] in real space
     }
 
     # Iterate by color, then z-frame, then tile
     for c, color in enumerate(channels.keys()):
         logger.info(f"Processing {color} channel for {series_name!r}")
 
+        # Estimate suitable contrast limits for the dataset
+        logger.info("Estimating global intensity range")
+        estimate_intensity_start_time = time.perf_counter()
+        global_vmin, global_vmax = get_percentiles(
+            image_loaders=[
+                LIFImageLoader(
+                    lif_file=file,
+                    scene_num=scene_num,
+                    channel_num=c,
+                    frame_num=z,
+                    tile_num=t,
+                )
+                for z in range(num_frames)
+                for t in range(num_tiles)
+                if not z % 2 and not t % 2
+            ],
+            percentiles=(0.5, 99.5),
+            num_procs=num_procs,
+        )
+        estimate_intensity_end_time = time.perf_counter()
+        logger.debug(
+            f"Estimated contrast limits in {estimate_intensity_end_time - estimate_intensity_start_time}s"
+        )
+
         # If it's a montage, stitch the tiles together in Matplotlib
         if num_tiles > 1:
-            # Estimate suitable contrast limits for the dataset
-            logger.info("Estimating global intensity range")
-            with mp.Pool(processes=num_procs) as pool:
-                min_max_list = pool.starmap(
-                    get_percentiles,
-                    # Construct pool arguments in-line
-                    [
-                        (
-                            # LIF file-specific parameters
-                            file,
-                            scene_num,
-                            c,
-                            z,
-                            t,
-                            # TIFF file-specifc parameters
-                            None,
-                            # Common parameters
-                            (0.5, 99.5),
-                        )
-                        for z in range(num_frames)
-                        for t in range(num_tiles)
-                    ],
-                )
-            global_vmin = int(
-                np.percentile([m for m, _ in min_max_list if m is not None], 0.5)
-            )
-            global_vmax = int(
-                np.percentile([m for _, m in min_max_list if m is not None], 85)
-            )
+            # Calculate the pixel size and shape of the final tiled image
+            x_len_new = x_max - x_min
+            y_len_new = y_max - y_min
 
-            # Stitch frames together
-            with mp.Pool(processes=num_procs) as pool:
-                frame_list = pool.starmap(
-                    stitch_image_frames,
-                    # Construct pool arguments in-line
-                    [
-                        (
-                            # LIF file-specific params
-                            file,
-                            scene_num,
-                            c,
-                            z,
-                            # TIFF file-specific params
-                            [],
-                            # Common params
-                            tile_scan_info,
-                            w,
-                            h,
-                            extent,
-                            400,
-                            (global_vmin, global_vmax),
-                        )
-                        for z in range(num_frames)
-                    ],
-                )
-            arr = np.array(frame_list, dtype=np.uint8)
+            # Fit the tiled image within 4096 x 4096 pixels
+            pixel_size_new = float(max(x_len_new / 4096, y_len_new / 4096))
+            x_pixels_new = int(round(x_len_new / pixel_size_new))
+            y_pixels_new = int(round(y_len_new / pixel_size_new))
+            shape_new = y_pixels_new, x_pixels_new
 
-            # Update resolution and pixel size in dimensions dictionary
-            h_new, w_new = arr.shape[-2:]
-            dims["x"]["num_pixels"] = w_new
-            dims["x"]["resolution"] = w_new / (x_max - x_min)
-            dims["x"]["pixel_size"] = (x_max - x_min) / w_new
-            dims["y"]["num_pixels"] = h_new
-            dims["y"]["resolution"] = h_new / (y_max - y_min)
-            dims["y"]["pixel_size"] = (y_max / y_min) / h_new
+            # Construct scaled down images for tiling
+            logger.info("Constructing image stack from tiles")
+            tile_stitching_start_time = time.perf_counter()
+            arr = np.zeros((num_frames, y_pixels_new, x_pixels_new), dtype=np.uint8)
+            with ThreadPoolExecutor(max_workers=num_procs) as pool:
+                futures = [
+                    pool.submit(
+                        load_and_resize_tile,
+                        LIFImageLoader(
+                            lif_file=file,
+                            scene_num=scene_num,
+                            channel_num=c,
+                            frame_num=f,
+                            tile_num=t,
+                        ),
+                        f,
+                        tile_extents[t],
+                        extent,
+                        pixel_size_new,
+                        shape_new,
+                        global_vmin,
+                        global_vmax,
+                    )
+                    for f in range(num_frames)
+                    for t in tile_scan_info.keys()
+                ]
+
+                for future in as_completed(futures):
+                    r = future.result()
+                    if (
+                        r.data is not None
+                        and r.frame_num is not None
+                        and r.x0 is not None
+                        and r.x1 is not None
+                        and r.y0 is not None
+                        and r.y1 is not None
+                    ):
+                        arr[
+                            r.frame_num,
+                            r.y0 : r.y1,
+                            r.x0 : r.x1,
+                        ] = r.data
+                    else:
+                        logger.warning(
+                            "Failed to resize tile for the following image: \n"
+                            f"{json.dumps(r.error, indent=2, default=str)}"
+                        )
+
+            tile_stitching_end_time = time.perf_counter()
+            logger.debug(
+                "Constructed image stack of tiled dataset in "
+                f"{tile_stitching_end_time - tile_stitching_start_time}s"
+            )
 
         else:
-            for z in range(num_frames):
-                frame = image.get_frame(z=z, c=c)
-                logger.info(f"Loaded frame {z}")
+            logger.info("Constructing image stack")
+            array_loading_start_time = time.perf_counter()
 
-                if z == 0:
-                    arr = np.array([frame])
-                else:
-                    arr = np.append(arr, [frame], axis=0)
+            # If the image is larger than 4096 x 4096 pixels, forcibly resize it
+            # to fit within 4096 x 4096 pixels
+            shape_new = None
+            x_pixels_new = x_pixels
+            y_pixels_new = y_pixels
+            pixel_size_new = float(dims["x"]["pixel_size"])
+            if x_pixels * y_pixels > 4096**2:
+                pixel_size_new = float(max(x_len / 4096, y_len / 4096))
+                x_pixels_new = int(round(x_len / pixel_size_new))
+                y_pixels_new = int(round(y_len / pixel_size_new))
+                shape_new = y_pixels_new, x_pixels_new
+
+            arr = np.zeros((num_frames, y_pixels_new, x_pixels_new), dtype=np.uint8)
+            with ThreadPoolExecutor(max_workers=num_procs) as pool:
+                futures = [
+                    pool.submit(
+                        load_and_convert_image,
+                        LIFImageLoader(
+                            lif_file=file,
+                            scene_num=scene_num,
+                            channel_num=c,
+                            frame_num=z,
+                            tile_num=0,
+                        ),
+                        z,
+                        global_vmin,
+                        global_vmax,
+                        shape_new,
+                    )
+                    for z in range(num_frames)
+                ]
+                for future in as_completed(futures):
+                    r = future.result()
+                    if r.data is not None and r.frame_num is not None:
+                        arr[r.frame_num] = r.data
+                    else:
+                        logger.warning(
+                            "Failed to load the following image: \n"
+                            f"{json.dumps(r.error, indent=2, default=str)}"
+                        )
+            array_loading_end_time = time.perf_counter()
+            logger.debug(
+                f"Loaded image stack of {num_frames} frames in "
+                f"{array_loading_end_time - array_loading_start_time}s"
+            )
 
         # Update results dictionary once per dataset
+        res_new = 1 / (pixel_size_new or 1)  # Guard against 0
         if c == 0:
             # Update results dictionary
-            result["pixels_x"] = dims["x"]["num_pixels"]
-            result["pixels_y"] = dims["y"]["num_pixels"]
+            result["pixels_x"] = x_pixels_new
+            result["pixels_y"] = y_pixels_new
             result["units"] = dims["x"]["units"]
-            result["pixel_size"] = dims["x"]["pixel_size"]
-            result["resolution"] = dims["x"]["resolution"]
-            extent = [x_min, x_max, y_min, y_max]
+            result["pixel_size"] = pixel_size_new
+            result["resolution"] = res_new
+            extent = (x_min, x_max, y_min, y_max)
             result["extent"] = extent
-
-        # Estimate initial NumPy dtype
-        dtype_init = estimate_int_dtype(
-            arr,
-            bit_depth=8 if num_tiles > 1 else channels[color]["bit_depth"],
-        )
-
-        # Rescale intensity values for fluorescent channels
-        adjust_contrast = (
-            "stretch"
-            if color
-            in (
-                "blue",
-                "cyan",
-                "green",
-                "magenta",
-                "red",
-                "yellow",
-            )
-            and num_tiles == 1  # Contrast adjustment already applied during stitching
-            else None
-        )
-        logger.info(f"Contrast adjustment set to {adjust_contrast}")
-
-        # Process the subimage
-        logger.info("Applying image processing routine to subimage")
-        arr = preprocess_img_stk(
-            array=arr,
-            initial_dtype=dtype_init,
-            target_dtype="uint8",
-            adjust_contrast=adjust_contrast,
-        )
-        logger.debug(
-            f"{img_name} {color} array properties: \n"
-            f"Shape: {arr.shape} \n"
-            f"dtype: {arr.dtype} \n"
-            f"Min value: {arr.min()} \n"
-            f"Max value: {arr.max()} \n"
-        )
 
         # Extract metadata needed for saving the image
         image_labels = [str(z) for z in range(dims["z"].get("num_frames", 1))]
-        x_res = float(dims["x"]["resolution"])
-        y_res = float(dims["y"]["resolution"])
         z_res = float(dims["z"]["resolution"]) if dims.get("z", {}) else float(0)
         units = dims["x"]["units"]
 
         # Convert units to microns just for the image
         if units == "m":
             units = "micron"
-            x_res /= 10**6
-            y_res /= 10**6
+            res_new /= 10**6
             z_res /= 10**6
 
         # Save as a greyscale TIFF
@@ -317,8 +348,8 @@ def process_lif_subimage(
             array=arr,
             save_dir=save_dir,
             file_name=color,
-            x_res=x_res,
-            y_res=y_res,
+            x_res=res_new,
+            y_res=res_new,
             z_res=z_res,
             units=units,
             axes="ZYX",
@@ -333,7 +364,12 @@ def process_lif_subimage(
             img_stk_file.parent / ".thumbnails" / f"{img_stk_file.stem}.png"
         )
 
-    logger.debug(f"Processing results are as follows: {result}")
+    end_time = time.perf_counter()
+    logger.info(f"Completed processing of {series_name} in {end_time - start_time}s")
+    logger.debug(
+        "Returning the following processing results: \n"
+        f"{json.dumps(result, indent=2, default=str)}"
+    )
     return result
 
 
@@ -361,6 +397,8 @@ def process_lif_file(
                 |   |__ tiffs       <- Save channels as individual images or image stacks
                 |   |__ metadata    <- Individual XML files saved here (not yet implemented)
     """
+
+    start_time = time.perf_counter()
 
     # Validate processor count input
     num_procs = number_of_processes  # Use shorter phrase in script
@@ -434,6 +472,8 @@ def process_lif_file(
         for i, (series_path, metadata) in enumerate(metadata_dict.items())
     ]
 
+    end_time = time.perf_counter()
+    logger.debug(f"Processed LIF file {file} in {end_time - start_time}s")
     return results
 
 
@@ -469,8 +509,9 @@ class ProcessRawLIFsWrapper:
             params = ProcessRawLIFsParameters(**params_dict)
         except (ValidationError, TypeError) as error:
             logger.error(
-                "ProcessRawLIFsParameters validation failed for parameters: "
-                f"{params_dict} with exception: {error}"
+                "ProcessRawLIFsParameters validation failed for the following parameters: \n"
+                f"{json.dumps(params_dict, indent=2, default=str)}\n"
+                f"with exception: {error}"
             )
             return False
 

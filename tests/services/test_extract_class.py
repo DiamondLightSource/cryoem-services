@@ -215,8 +215,8 @@ def test_extract_class_service(mock_requests, offline_transport, tmp_path):
         {
             "job_type": "relion.extract",
             "input_file": (
-                f"{tmp_path}/Select/job011/particles.star"
-                f":CtfFind/Live_processing/micrographs_ctf.star"
+                f"CtfFind/Live_processing/micrographs_ctf.star"
+                f"::{tmp_path}/Select/job011/particles.star"
             ),
             "output_file": f"{tmp_path}/Extract/job012/particles.star",
             "relion_options": output_relion_options,

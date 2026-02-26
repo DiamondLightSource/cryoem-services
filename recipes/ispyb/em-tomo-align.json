@@ -99,7 +99,8 @@
   },
   "9": {
     "output": {
-      "images": 6
+      "images": 6,
+      "ispyb_connector": 11
     },
     "queue": "easymode",
     "service": "Easymode"

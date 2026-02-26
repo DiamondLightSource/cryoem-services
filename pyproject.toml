@@ -7,7 +7,7 @@ requires = [
 
 [project]
 name = "cryoemservices"
-version = "1.3.3"
+version = "1.3.4"
 description = "Services for CryoEM processing"
 readme = "README.md"
 keywords = [
@@ -34,13 +34,12 @@ dependencies = [
     "graypy",
     "healpy",
     "icebreaker-em",
-    "ispyb>=11.1.1",
+    "ispyb>=11.1.2",
     "mrcfile",
     "numpy<2",
     "pillow",
     "plotly",
     "pydantic>=2",
-    "pystackreg", # CLEM workflow
     "readlif", # CLEM workflow
     "requests",
     "SimpleITK", # CLEM workflow
@@ -59,7 +58,7 @@ dev = [
     "pytest-mock",
 ]
 torch = [
-    "easymode@git+https://github.com/mgflast/easymode",
+    # "easymode@git+https://github.com/mgflast/easymode@126163fcb22e469f8fc8791d10ab5c6f0b8b9070",
     "membrain-seg",
     "topaz-em",
 ]

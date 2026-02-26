@@ -272,7 +272,7 @@ class ExtractClass(CommonService):
         self.log.info(f"Sending {self.extract_job_type} to node creator")
         node_creator_extract = {
             "job_type": self.extract_job_type,
-            "input_file": f"{select_job_dir}/particles.star:{ctf_micrographs_file}",
+            "input_file": f"{ctf_micrographs_file}::{select_job_dir}/particles.star",
             "output_file": f"{extract_job_dir}/particles.star",
             "relion_options": dict(extract_params.relion_options),
             "command": " ".join(command),

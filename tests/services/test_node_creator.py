@@ -4,6 +4,7 @@ import copy
 from pathlib import Path
 from unittest import mock
 
+import numpy as np
 import pytest
 from gemmi import cif
 from workflows.transport.offline_transport import OfflineTransport
@@ -264,6 +265,16 @@ def test_node_creator_import(offline_transport, tmp_path):
         input_file,
         output_file,
     )
+    job_star = cif.read_file(f"{job_dir}/job.star")
+    option_names = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionVariable")
+    )
+    option_values = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionValue")
+    )
+    assert (
+        option_values[option_names == "fn_in_raw"][0] == f"{tmp_path}/Movies/sample.mrc"
+    )
 
     # Check the output file structure
     assert (tmp_path / job_dir / "movies.star").exists()
@@ -314,6 +325,17 @@ def test_node_creator_motioncorr(offline_transport, tmp_path):
         input_file,
         output_file,
         results={"total_motion": "10", "early_motion": "4", "late_motion": "6"},
+    )
+    job_star = cif.read_file(f"{job_dir}/job.star")
+    option_names = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionVariable")
+    )
+    option_values = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionValue")
+    )
+    assert (
+        option_values[option_names == "input_star_mics"][0]
+        == "Import/job001/movies.star"
     )
 
     # Check the output file structure
@@ -380,6 +402,17 @@ def test_node_creator_icebreaker_micrographs(offline_transport, tmp_path):
             "late_motion": 8,
         },
     )
+    job_star = cif.read_file(f"{job_dir}/job.star")
+    option_names = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionVariable")
+    )
+    option_values = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionValue")
+    )
+    assert (
+        option_values[option_names == "in_mics"][0]
+        == "MotionCorr/job002/corrected_micrographs.star"
+    )
 
     # Check the output file structure
     assert (tmp_path / job_dir / "grouped_micrographs.star").exists()
@@ -425,6 +458,17 @@ def test_node_creator_icebreaker_enhancecontrast(offline_transport, tmp_path):
             "early_motion": 2,
             "late_motion": 8,
         },
+    )
+    job_star = cif.read_file(f"{job_dir}/job.star")
+    option_names = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionVariable")
+    )
+    option_values = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionValue")
+    )
+    assert (
+        option_values[option_names == "in_mics"][0]
+        == "MotionCorr/job002/corrected_micrographs.star"
     )
 
     # Check the output file structure
@@ -473,6 +517,17 @@ def test_node_creator_icebreaker_summary(offline_transport, tmp_path):
             "summary": ["0", "1", "2", "3", "4"],
         },
     )
+    job_star = cif.read_file(f"{job_dir}/job.star")
+    option_names = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionVariable")
+    )
+    option_values = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionValue")
+    )
+    assert (
+        option_values[option_names == "in_mics"][0]
+        == "IceBreaker/job003/grouped_micrographs.star"
+    )
 
 
 def test_node_creator_ctffind(offline_transport, tmp_path):
@@ -501,6 +556,17 @@ def test_node_creator_ctffind(offline_transport, tmp_path):
         "relion.ctffind.ctffind4",
         input_file,
         output_file,
+    )
+    job_star = cif.read_file(f"{job_dir}/job.star")
+    option_names = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionVariable")
+    )
+    option_values = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionValue")
+    )
+    assert (
+        option_values[option_names == "input_star_mics"][0]
+        == "MotionCorr/job002/corrected_micrographs.star"
     )
 
     # Check the output file structure
@@ -604,6 +670,17 @@ def test_node_creator_cryolo(offline_transport, tmp_path):
         input_file,
         output_file,
     )
+    job_star = cif.read_file(f"{job_dir}/job.star")
+    option_names = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionVariable")
+    )
+    option_values = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionValue")
+    )
+    assert (
+        option_values[option_names == "input_file"][0]
+        == "MotionCorr/job002/corrected_micrographs.star"
+    )
 
     # Check the output file structure
     assert (tmp_path / job_dir / "autopick.star").exists()
@@ -641,6 +718,17 @@ def test_node_creator_topaz_pick(offline_transport, tmp_path):
         input_file,
         output_file,
     )
+    job_star = cif.read_file(f"{job_dir}/job.star")
+    option_names = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionVariable")
+    )
+    option_values = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionValue")
+    )
+    assert (
+        option_values[option_names == "fn_input_autopick"][0]
+        == "MotionCorr/job002/corrected_micrographs.star"
+    )
 
     # Check the output file structure
     assert (tmp_path / job_dir / "autopick.star").exists()
@@ -662,8 +750,9 @@ def test_node_creator_extract(offline_transport, tmp_path):
     """
     job_dir = "Extract/job008"
     input_file = (
-        f"{tmp_path}/AutoPick/job007/STAR/sample.star"
-        f":{tmp_path}/CtfFind/job006/Movies/sample.ctf"
+        f"{tmp_path}/CtfFind/job006/Movies/sample.ctf"
+        f":{tmp_path}/AutoPick/job007/STAR/sample.star"
+        ":"
     )
     output_file = tmp_path / job_dir / "Movies/sample.star"
     relion_options = RelionServiceOptions()
@@ -682,6 +771,22 @@ def test_node_creator_extract(offline_transport, tmp_path):
         output_file,
         results={"box_size": 64},
     )
+    job_star = cif.read_file(f"{job_dir}/job.star")
+    option_names = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionVariable")
+    )
+    option_values = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionValue")
+    )
+    assert (
+        option_values[option_names == "star_mics"][0]
+        == "CtfFind/job006/micrographs_ctf.star"
+    )
+    assert (
+        option_values[option_names == "coords_suffix"][0]
+        == "AutoPick/job007/autopick.star"
+    )
+    assert option_values[option_names == "fndata_reextract"][0] == '""'
 
     # Check the output file structure
     assert (tmp_path / job_dir / "particles.star").exists()
@@ -737,6 +842,16 @@ def test_node_creator_select_particles(offline_transport, tmp_path):
         input_file,
         output_file,
     )
+    job_star = cif.read_file(f"{job_dir}/job.star")
+    option_names = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionVariable")
+    )
+    option_values = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionValue")
+    )
+    assert (
+        option_values[option_names == "fn_data"][0] == "Extract/job007/particles.star"
+    )
 
     # Check the output file structure
     assert (
@@ -755,7 +870,7 @@ def test_node_creator_icebreaker_particles(offline_transport, tmp_path):
     job_dir = "IceBreaker/job011"
     input_file = (
         f"{tmp_path}/IceBreaker/job003/grouped_micrographs.star"
-        f":{tmp_path}/Select/job009/particles.star"
+        f":{tmp_path}/Select/job009/particles_split2.star"
     )
     output_file = tmp_path / job_dir
     output_file.mkdir(parents=True)
@@ -776,6 +891,21 @@ def test_node_creator_icebreaker_particles(offline_transport, tmp_path):
             "icebreaker_type": "particles",
         },
     )
+    job_star = cif.read_file(f"{job_dir}/job.star")
+    option_names = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionVariable")
+    )
+    option_values = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionValue")
+    )
+    assert (
+        option_values[option_names == "in_mics"][0]
+        == "IceBreaker/job003/grouped_micrographs.star"
+    )
+    assert (
+        option_values[option_names == "in_parts"][0]
+        == "Select/job009/particles_split2.star"
+    )
 
     # Check the output file structure
     assert not (tmp_path / job_dir / "done_mics.txt").exists()
@@ -787,7 +917,7 @@ def test_node_creator_class2d_em(offline_transport, tmp_path):
     relion.class2d.em
     """
     job_dir = "Class2D/job010"
-    input_file = f"{tmp_path}/Select/job009/particles.star"
+    input_file = f"{tmp_path}/Select/job009/particles_split2.star"
     output_file = tmp_path / job_dir
     output_file.mkdir(parents=True)
     relion_options = RelionServiceOptions()
@@ -804,6 +934,17 @@ def test_node_creator_class2d_em(offline_transport, tmp_path):
         input_file,
         output_file,
     )
+    job_star = cif.read_file(f"{job_dir}/job.star")
+    option_names = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionVariable")
+    )
+    option_values = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionValue")
+    )
+    assert (
+        option_values[option_names == "fn_img"][0]
+        == "Select/job009/particles_split2.star"
+    )
 
 
 def test_node_creator_class2d_vdam(offline_transport, tmp_path):
@@ -812,7 +953,7 @@ def test_node_creator_class2d_vdam(offline_transport, tmp_path):
     relion.class2d.vdam
     """
     job_dir = "Class2D/job010"
-    input_file = f"{tmp_path}/Select/job009/particles.star"
+    input_file = f"{tmp_path}/Select/job015/particles_split1.star"
     output_file = tmp_path / job_dir
     output_file.mkdir(parents=True)
     relion_options = RelionServiceOptions()
@@ -829,6 +970,17 @@ def test_node_creator_class2d_vdam(offline_transport, tmp_path):
         input_file,
         output_file,
     )
+    job_star = cif.read_file(f"{job_dir}/job.star")
+    option_names = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionVariable")
+    )
+    option_values = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionValue")
+    )
+    assert (
+        option_values[option_names == "fn_img"][0]
+        == "Select/job015/particles_split1.star"
+    )
 
 
 def test_node_creator_select_class(offline_transport, tmp_path):
@@ -837,7 +989,7 @@ def test_node_creator_select_class(offline_transport, tmp_path):
     relion.select.class2dauto
     """
     job_dir = "Select/job012"
-    input_file = f"{tmp_path}/Class2D/job010/optimiser.star"
+    input_file = f"{tmp_path}/Class2D/job010/run_it009_optimiser.star"
     output_file = tmp_path / job_dir / "particles.star"
     output_file.parent.mkdir(parents=True)
     relion_options = RelionServiceOptions()
@@ -854,6 +1006,17 @@ def test_node_creator_select_class(offline_transport, tmp_path):
         input_file,
         output_file,
     )
+    job_star = cif.read_file(f"{job_dir}/job.star")
+    option_names = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionVariable")
+    )
+    option_values = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionValue")
+    )
+    assert (
+        option_values[option_names == "fn_model"][0]
+        == "Class2D/job010/run_it009_optimiser.star"
+    )
 
 
 def test_node_creator_split_star(offline_transport, tmp_path):
@@ -862,7 +1025,7 @@ def test_node_creator_split_star(offline_transport, tmp_path):
     combine_star_files_job
     """
     job_dir = "Select/job013"
-    input_file = f"{tmp_path}/Select/job012/particles.star"
+    input_file = f"{tmp_path}/Select/job012/particles_split1.star"
     output_file = tmp_path / job_dir / "particles_all.star"
     output_file.parent.mkdir(parents=True)
     relion_options = RelionServiceOptions()
@@ -889,6 +1052,17 @@ def test_node_creator_split_star(offline_transport, tmp_path):
         input_file,
         output_file,
     )
+    job_star = cif.read_file(f"{job_dir}/job.star")
+    option_names = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionVariable")
+    )
+    option_values = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionValue")
+    )
+    assert (
+        option_values[option_names == "files_to_process"][0]
+        == "Select/job012/particles_split1.star"
+    )
 
     # Check the output file structure
     assert (tmp_path / job_dir / ".results_display000_pending.json").is_file()
@@ -901,7 +1075,7 @@ def test_node_creator_initial_model(offline_transport, tmp_path):
     relion.initialmodel
     """
     job_dir = "InitialModel/job014"
-    input_file = f"{tmp_path}/Select/job013/particles.star"
+    input_file = f"{tmp_path}/Select/job013/particles_batch.star"
     output_file = tmp_path / job_dir / "initial_model.star"
     output_file.parent.mkdir(parents=True)
     relion_options = RelionServiceOptions()
@@ -918,6 +1092,17 @@ def test_node_creator_initial_model(offline_transport, tmp_path):
         input_file,
         output_file,
     )
+    job_star = cif.read_file(f"{job_dir}/job.star")
+    option_names = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionVariable")
+    )
+    option_values = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionValue")
+    )
+    assert (
+        option_values[option_names == "fn_img"][0]
+        == "Select/job013/particles_batch.star"
+    )
 
 
 def test_node_creator_class3d(offline_transport, tmp_path):
@@ -927,7 +1112,7 @@ def test_node_creator_class3d(offline_transport, tmp_path):
     """
     job_dir = "Class3D/job015"
     input_file = (
-        f"{tmp_path}/Select/job013/particles.star"
+        f"{tmp_path}/Select/job013/particles_batch.star"
         + f":{tmp_path}/InitialModel/job014/initial_model.star"
     )
     output_file = tmp_path / job_dir
@@ -946,6 +1131,21 @@ def test_node_creator_class3d(offline_transport, tmp_path):
         input_file,
         output_file,
     )
+    job_star = cif.read_file(f"{job_dir}/job.star")
+    option_names = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionVariable")
+    )
+    option_values = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionValue")
+    )
+    assert (
+        option_values[option_names == "fn_img"][0]
+        == "Select/job013/particles_batch.star"
+    )
+    assert (
+        option_values[option_names == "fn_ref"][0]
+        == "InitialModel/job014/initial_model.star"
+    )
 
 
 def test_node_creator_select_value(offline_transport, tmp_path):
@@ -954,7 +1154,7 @@ def test_node_creator_select_value(offline_transport, tmp_path):
     relion.select.onvalue
     """
     job_dir = "Select/job019"
-    input_file = f"{tmp_path}/Class3D/job015/optimiser.star"
+    input_file = f"{tmp_path}/Class3D/job015/run_it025_optimiser.star"
     output_file = tmp_path / job_dir / "particles.star"
     output_file.parent.mkdir(parents=True)
     relion_options = RelionServiceOptions()
@@ -971,6 +1171,59 @@ def test_node_creator_select_value(offline_transport, tmp_path):
         input_file,
         output_file,
     )
+    job_star = cif.read_file(f"{job_dir}/job.star")
+    option_names = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionVariable")
+    )
+    option_values = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionValue")
+    )
+    assert (
+        option_values[option_names == "fn_data"][0]
+        == "Class3D/job015/run_it025_optimiser.star"
+    )
+
+
+def test_node_creator_extract_reextract(offline_transport, tmp_path):
+    """
+    Send a test message to the node creator for
+    relion.extract in reextraction form
+    """
+    job_dir = "Extract/job020"
+    input_file = (
+        f"{tmp_path}/CtfFind/job006/Movies/sample.ctf"
+        ":"
+        f":{tmp_path}/Select/job019/particles_split1.star"
+    )
+    output_file = tmp_path / job_dir / "particles.star"
+    relion_options = RelionServiceOptions()
+
+    setup_and_run_node_creation(
+        relion_options,
+        offline_transport,
+        tmp_path,
+        job_dir,
+        "relion.extract",
+        input_file,
+        output_file,
+    )
+    job_star = cif.read_file(f"{job_dir}/job.star")
+    option_names = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionVariable")
+    )
+    option_values = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionValue")
+    )
+    assert (
+        option_values[option_names == "star_mics"][0]
+        == "CtfFind/job006/micrographs_ctf.star"
+    )
+    assert option_values[option_names == "coords_suffix"][0] == '""'
+    assert (
+        option_values[option_names == "fndata_reextract"][0]
+        == "Select/job019/particles_split1.star"
+    )
+    assert output_file.is_file()
 
 
 def test_node_creator_refine3d(offline_transport, tmp_path):
@@ -980,7 +1233,7 @@ def test_node_creator_refine3d(offline_transport, tmp_path):
     """
     job_dir = "Refine3D/job021"
     input_file = (
-        f"{tmp_path}/Extract/job020/particles.star"
+        f"{tmp_path}/Extract/job020/particles_batch.star"
         + f":{tmp_path}/Extract/job020/ref.mrc"
     )
     output_file = tmp_path / job_dir
@@ -999,6 +1252,18 @@ def test_node_creator_refine3d(offline_transport, tmp_path):
         input_file,
         output_file,
     )
+    job_star = cif.read_file(f"{job_dir}/job.star")
+    option_names = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionVariable")
+    )
+    option_values = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionValue")
+    )
+    assert (
+        option_values[option_names == "fn_img"][0]
+        == "Extract/job020/particles_batch.star"
+    )
+    assert option_values[option_names == "fn_ref"][0] == "Extract/job020/ref.mrc"
 
 
 def test_node_creator_maskcreate(offline_transport, tmp_path):
@@ -1023,6 +1288,16 @@ def test_node_creator_maskcreate(offline_transport, tmp_path):
         "relion.maskcreate",
         input_file,
         output_file,
+    )
+    job_star = cif.read_file(f"{job_dir}/job.star")
+    option_names = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionVariable")
+    )
+    option_values = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionValue")
+    )
+    assert (
+        option_values[option_names == "fn_in"][0] == "Refine3D/job021/run_class001.mrc"
     )
 
 
@@ -1052,6 +1327,15 @@ def test_node_creator_postprocess(offline_transport, tmp_path):
         input_file,
         output_file,
     )
+    job_star = cif.read_file(f"{job_dir}/job.star")
+    option_names = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionVariable")
+    )
+    option_values = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionValue")
+    )
+    assert option_values[option_names == "fn_in"][0] == "Refine3D/job021/half_map.mrc"
+    assert option_values[option_names == "fn_mask"][0] == "MaskCreate/job022/mask.mrc"
 
 
 # Tomography tests
@@ -1078,6 +1362,18 @@ def test_node_creator_import_tomo(offline_transport, tmp_path):
         output_file,
         experiment_type="tomography",
     )
+    job_star = cif.read_file(f"{job_dir}/job.star")
+    option_names = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionVariable")
+    )
+    option_values = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionValue")
+    )
+    assert (
+        option_values[option_names == "fn_in_raw"][0]
+        == f"{tmp_path}/Movies/Position_1_2_001_0.00_fractions.tiff"
+    )
+    assert option_values[option_names == "fn_mdoc"][0] == f"{tmp_path}/Movies/*.mdoc"
 
     # Check the output file structure
     assert (tmp_path / job_dir / "tilt_series.star").exists()
@@ -1151,6 +1447,17 @@ def test_node_creator_motioncorr_tomo(offline_transport, tmp_path):
         output_file,
         results={"total_motion": "10", "early_motion": "4", "late_motion": "6"},
         experiment_type="tomography",
+    )
+    job_star = cif.read_file(f"{job_dir}/job.star")
+    option_names = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionVariable")
+    )
+    option_values = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionValue")
+    )
+    assert (
+        option_values[option_names == "input_star_mics"][0]
+        == "Import/job001/tilt_series.star"
     )
 
     # Check the output file structure
@@ -1228,6 +1535,17 @@ def test_node_creator_ctffind_tomo(offline_transport, tmp_path):
         input_file,
         output_file,
         experiment_type="tomography",
+    )
+    job_star = cif.read_file(f"{job_dir}/job.star")
+    option_names = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionVariable")
+    )
+    option_values = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionValue")
+    )
+    assert (
+        option_values[option_names == "input_star_mics"][0]
+        == "MotionCorr/job002/corrected_tilt_series.star"
     )
 
     # Check the output file structure
@@ -1370,6 +1688,17 @@ def test_node_creator_excludetilts_ctf_input(offline_transport, tmp_path):
         input_file,
         output_file,
         experiment_type="tomography",
+    )
+    job_star = cif.read_file(f"{job_dir}/job.star")
+    option_names = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionVariable")
+    )
+    option_values = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionValue")
+    )
+    assert (
+        option_values[option_names == "in_tiltseries"][0]
+        == "CtfFind/job003/tilt_series_ctf.star"
     )
 
     # Check the output file structure
@@ -1703,6 +2032,17 @@ def test_node_creator_aligntiltseries_excludetilt_input(offline_transport, tmp_p
             "TomoYShiftAngst": "4.2",
         },
     )
+    job_star = cif.read_file(f"{job_dir}/job.star")
+    option_names = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionVariable")
+    )
+    option_values = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionValue")
+    )
+    assert (
+        option_values[option_names == "in_tiltseries"][0]
+        == "ExcludeTiltImages/job004/selected_tilt_series.star"
+    )
 
     # Check the output file structure
     assert (tmp_path / job_dir / "aligned_tilt_series.star").exists()
@@ -1862,9 +2202,7 @@ def test_node_creator_tomograms(offline_transport, tmp_path):
     relion.reconstructtomograms
     """
     job_dir = "Tomograms/job006"
-    input_file = (
-        f"{tmp_path}/MotionCorr/job002/Movies/Position_1_2_001_1.50_fractions.mrc"
-    )
+    input_file = f"{tmp_path}/AlignTiltSeries/job005/tilts/motion_corrected_movie.mrc"
     output_file = tmp_path / job_dir / "tomograms/Position_1_2_stack_aretomo.mrc"
     relion_options = RelionServiceOptions()
 
@@ -1880,6 +2218,17 @@ def test_node_creator_tomograms(offline_transport, tmp_path):
         input_file,
         output_file,
         experiment_type="tomography",
+    )
+    job_star = cif.read_file(f"{job_dir}/job.star")
+    option_names = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionVariable")
+    )
+    option_values = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionValue")
+    )
+    assert (
+        option_values[option_names == "in_tiltseries"][0]
+        == "AlignTiltSeries/job005/aligned_tilt_series.star"
     )
 
     # Check the output file structure
@@ -1947,6 +2296,17 @@ def test_node_creator_denoisetomo(offline_transport, tmp_path):
         input_file,
         output_file,
         experiment_type="tomography",
+    )
+    job_star = cif.read_file(f"{job_dir}/job.star")
+    option_names = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionVariable")
+    )
+    option_values = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionValue")
+    )
+    assert (
+        option_values[option_names == "in_tomoset"][0]
+        == "Tomograms/job006/tomograms.star"
     )
 
     # Check the output file structure
@@ -2019,6 +2379,17 @@ def test_node_creator_membrain(offline_transport, tmp_path):
         input_file,
         output_file,
         experiment_type="tomography",
+    )
+    job_star = cif.read_file(f"{job_dir}/job.star")
+    option_names = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionVariable")
+    )
+    option_values = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionValue")
+    )
+    assert (
+        option_values[option_names == "in_tomoset"][0]
+        == "Denoise/job007/tomograms.star"
     )
 
     # Check the output file structure
@@ -2110,6 +2481,17 @@ def test_node_creator_cryolo_tomo_90axis(offline_transport, tmp_path):
         input_file,
         output_file,
         experiment_type="tomography",
+    )
+    job_star = cif.read_file(f"{job_dir}/job.star")
+    option_names = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionVariable")
+    )
+    option_values = np.array(
+        job_star.find_block("joboptions_values").find_loop("_rlnJobOptionValue")
+    )
+    assert (
+        option_values[option_names == "input_file"][0]
+        == "Denoise/job007/tomograms.star"
     )
 
     # Check the output file structure

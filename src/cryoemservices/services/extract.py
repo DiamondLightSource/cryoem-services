@@ -398,9 +398,7 @@ class Extract(CommonService):
         self.log.info(f"Sending {self.job_type} to node creator")
         node_creator_parameters = {
             "job_type": self.job_type,
-            "input_file": extract_params.coord_list_file
-            + ":"
-            + extract_params.ctf_image,
+            "input_file": f"{extract_params.ctf_image}:{extract_params.coord_list_file}:",
             "output_file": extract_params.output_file,
             "relion_options": dict(extract_params.relion_options),
             "command": "",

@@ -103,7 +103,7 @@ def test_extract_service(mock_mrcfile, offline_transport, tmp_path):
         "node_creator",
         {
             "job_type": "relion.extract",
-            "input_file": (f"{cryolo_file}:{extract_test_message['ctf_image']}"),
+            "input_file": (f"{extract_test_message['ctf_image']}:{cryolo_file}:"),
             "output_file": str(output_path),
             "relion_options": output_relion_options,
             "command": "",
