@@ -6,6 +6,7 @@ import pytest
 from workflows.transport.offline_transport import OfflineTransport
 
 from cryoemservices.services import murfey_db_connector
+from tests.test_utils.config import cluster_submission_configuration
 
 
 @pytest.fixture
@@ -16,12 +17,12 @@ def offline_transport(mocker):
 
 
 @mock.patch("cryoemservices.services.ispyb_connector.MockRW")
-@mock.patch("cryoemservices.services.murfey_db_connector.get_murfey_db_session")
+@mock.patch("cryoemservices.services.murfey_db_connector.sqlalchemy")
 @mock.patch(
     "cryoemservices.services.murfey_db_connector.murfey_db_commands.insert_movie"
 )
 def test_murfey_db_service_override(
-    mock_command, mock_murfey_db_session, mock_rw, offline_transport, tmp_path
+    mock_command, mock_sqlalchemy, mock_rw, offline_transport, tmp_path
 ):
     """
     Send a test message to the murfey database connector service
@@ -36,6 +37,9 @@ def test_murfey_db_service_override(
     }
     mock_command.return_value = {"success": True, "return_value": "dummy_result"}
 
+    # Construct the file which contains the database connection information
+    cluster_submission_configuration(tmp_path)
+
     # Set up the mock service and call it
     service = murfey_db_connector.MurfeyDBConnector(
         environment={"config": f"{tmp_path}/config.yaml", "queue": ""},
@@ -44,8 +48,9 @@ def test_murfey_db_service_override(
     service.initializing()
     service.insert_into_ispyb(None, header=header, message=ispyb_test_message)
 
-    mock_murfey_db_session.assert_called()
-    mock_murfey_db_session().__enter__.assert_called()
+    mock_sqlalchemy.create_engine.assert_called_once_with("/url/for/database")
+    mock_sqlalchemy.orm.sessionmaker.assert_called()
+    mock_sqlalchemy.orm.sessionmaker()().__enter__.assert_called_once()
 
     mock_command.assert_called_with(
         message={
@@ -53,7 +58,7 @@ def test_murfey_db_service_override(
             "ispyb_command": "insert_movie",
         },
         parameters=mock.ANY,
-        session=mock_murfey_db_session().__enter__(),
+        session=mock_sqlalchemy.orm.sessionmaker()().__enter__(),
     )
 
     # Check that the correct messages were sent
@@ -63,12 +68,12 @@ def test_murfey_db_service_override(
 
 
 @mock.patch("cryoemservices.services.ispyb_connector.MockRW")
-@mock.patch("cryoemservices.services.murfey_db_connector.get_murfey_db_session")
+@mock.patch("cryoemservices.services.murfey_db_connector.sqlalchemy")
 @mock.patch(
     "cryoemservices.services.murfey_db_connector.ispyb_commands.insert_motion_correction"
 )
 def test_murfey_db_service_use_ispyb_version(
-    mock_command, mock_murfey_db_session, mock_rw, offline_transport, tmp_path
+    mock_command, mock_sqlalchemy, mock_rw, offline_transport, tmp_path
 ):
     """
     Send a test message to the murfey database connector service
@@ -83,6 +88,9 @@ def test_murfey_db_service_use_ispyb_version(
     }
     mock_command.return_value = {"success": True, "return_value": "dummy_result"}
 
+    # Construct the file which contains the database connection information
+    cluster_submission_configuration(tmp_path)
+
     # Set up the mock service and call it
     service = murfey_db_connector.MurfeyDBConnector(
         environment={"config": f"{tmp_path}/config.yaml", "queue": ""},
@@ -91,8 +99,9 @@ def test_murfey_db_service_use_ispyb_version(
     service.initializing()
     service.insert_into_ispyb(None, header=header, message=ispyb_test_message)
 
-    mock_murfey_db_session.assert_called()
-    mock_murfey_db_session().__enter__.assert_called()
+    mock_sqlalchemy.create_engine.assert_called_once_with("/url/for/database")
+    mock_sqlalchemy.orm.sessionmaker.assert_called()
+    mock_sqlalchemy.orm.sessionmaker()().__enter__.assert_called_once()
 
     mock_command.assert_called_with(
         message={
@@ -100,7 +109,7 @@ def test_murfey_db_service_use_ispyb_version(
             "ispyb_command": "insert_motion_correction",
         },
         parameters=mock.ANY,
-        session=mock_murfey_db_session().__enter__(),
+        session=mock_sqlalchemy.orm.sessionmaker()().__enter__(),
     )
 
     # Check that the correct messages were sent

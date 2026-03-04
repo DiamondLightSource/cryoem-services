@@ -9,6 +9,7 @@ def cluster_submission_configuration(tmp_path):
     with open(config_file, "w") as cf:
         cf.write("rabbitmq_credentials: rmq_creds\n")
         cf.write(f"recipe_directory: {tmp_path}/recipes\n")
+        cf.write("database_url: /url/for/database\n")
         cf.write("slurm_credentials:\n")
         cf.write(f"  default: {tmp_path}/slurm_credentials.yaml\n")
         cf.write(f"  extra: {tmp_path}/slurm_credentials_extra.yaml\n")
