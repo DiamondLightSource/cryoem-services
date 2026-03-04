@@ -627,3 +627,19 @@ def test_flatten_grid_bars_two_peaks_with_clipping(mock_hist, tmp_path):
     assert min(output_data.flatten()) == 54
     assert output_data[0][0] == 54.0
     assert int(max(output_data.flatten())) == 211
+
+
+@mock.patch("cryoemservices.services.cryolo.plt.hist")
+def test_flatten_grid_bars_not_multiple_of_four(mock_hist, tmp_path):
+    """Test the flattener runs for an image size not divisible by 4"""
+    mock_hist.return_value = (
+        np.concatenate((np.arange(51), np.arange(49, 0, -1))),
+        np.arange(100),
+    )
+
+    data = np.arange(225).reshape(15, 15)
+    with mrcfile.new(tmp_path / "normal.mrc") as mrc:
+        mrc.set_data(data.astype(np.float32))
+
+    returned_file = cryolo.flatten_grid_bars(tmp_path / "normal.mrc")
+    assert returned_file == tmp_path / "normal.mrc"
