@@ -57,8 +57,12 @@ dev = [
     "pytest-datafiles",
     "pytest-mock",
 ]
-torch = [
+easymode = [
     # "easymode@git+https://github.com/mgflast/easymode@126163fcb22e469f8fc8791d10ab5c6f0b8b9070",
+    "huggingface_hub",
+    "tensorflow[and-cuda]",
+]
+torch = [
     "membrain-seg",
     "topaz-em",
 ]
