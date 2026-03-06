@@ -7,7 +7,7 @@ from typing import Any, cast
 
 import pytest
 
-from cryoemservices.util.clem_metadata import (
+from cryoemservices.util.metadata.clem import (
     find_image_elements,
     get_channel_info,
     get_dimension_info,

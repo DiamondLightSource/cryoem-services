@@ -33,7 +33,7 @@ from cryoemservices.util.clem_array_functions import (
     is_image_stack,
     merge_images,
 )
-from cryoemservices.util.clem_metadata import get_channel_info
+from cryoemservices.util.metadata.clem import get_channel_info
 
 # Create logger object to output messages with
 logger = logging.getLogger("cryoemservices.wrappers.clem_align_and_merge")
