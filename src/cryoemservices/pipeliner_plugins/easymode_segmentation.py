@@ -101,22 +101,3 @@ def segment_tomogram(
     sj, sk, sl = segmented_volume.shape
     segmented_volume = zoom(segmented_volume, (oj / sj, ok / sk, ol / sl), order=1)
     return segmented_volume, input_apix
-
-
-"""
-from cryoemservices.pipeliner_plugins import easymode_segmentation
-from easymode.core.distribution import get_model, load_model
-model_path, model_metadata = get_model("ribosome")
-model = load_model(model_path)
-import logging
-logger = logging.getLogger()
-seg_vol = easymode_segmentation.segment_tomogram(model, "/dls/m06/data/2026/bi41204-8/processed/raw3/relion_murfey/Denoise/job007/tomograms/Position_1_stack_Vol.denoised.mrc", input_apix=6.2, logger=logger)
-
-import mrcfile
-import numpy as np
-with mrcfile.new("/dls/m12/data/2026/cm44187-1/tmp/test_vol6.mrc", overwrite=True) as mrc:
-    #mrc.set_data((seg_vol[0] * 127).astype(np.int8))
-    mrc.set_data(seg_vol[0])
-    mrc.voxel_size = 6.2
-
-"""
