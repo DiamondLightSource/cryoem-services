@@ -120,7 +120,6 @@ class Easymode(CommonService):
                 batch_size=easymode_params.batch_size,
                 model_apix=model_metadata["apix"],
                 input_apix=easymode_params.pixel_size,
-                logger=self.log,
             )
 
             # Convert to int8 and save mrc
