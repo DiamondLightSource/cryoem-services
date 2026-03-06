@@ -208,7 +208,12 @@ def generate_service_options(
 
     job_options["icebreaker.micrograph_analysis.particles"] = {"nr_threads": "10"}
 
-    job_options["relion.ctffind.ctffind4"] = {"nr_mpi": 40}
+    job_options["relion.ctffind.ctffind4"] = {
+        "nr_mpi": 40,
+        "dfmin": 2000,
+        "dfmax": 90000,
+        "dfstep": 100,
+    }
 
     job_options["cryolo.autopick"] = {
         "model_path": relion_options.cryolo_model_weights,
