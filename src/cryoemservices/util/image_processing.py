@@ -21,7 +21,7 @@ from readlif.reader import LifFile
 from tifffile import imwrite
 
 # Create logger object to output messages with
-logger = logging.getLogger("cryoemservices.util.clem_array_functions")
+logger = logging.getLogger("cryoemservices.util.image_processing")
 
 
 @dataclass(frozen=True)
