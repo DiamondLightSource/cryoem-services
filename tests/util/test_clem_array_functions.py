@@ -5,7 +5,7 @@ from typing import Any, Literal
 import numpy as np
 import pytest
 
-from cryoemservices.util.clem_array_functions import (
+from cryoemservices.util.image_processing import (
     LUT,
     align_image_to_reference,
     align_image_to_self,

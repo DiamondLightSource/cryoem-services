@@ -22,7 +22,7 @@ from cryoemservices.services.images_plugins import (
     tiff_to_apng,
     tilt_series_alignment,
 )
-from cryoemservices.util.clem_array_functions import convert_to_rgb
+from cryoemservices.util.image_processing import convert_to_rgb
 
 
 def plugin_params(

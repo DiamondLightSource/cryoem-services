@@ -10,7 +10,7 @@ from pytest_mock import MockerFixture
 from workflows.recipe.wrapper import RecipeWrapper
 from workflows.transport.offline_transport import OfflineTransport
 
-from cryoemservices.util.clem_array_functions import write_stack_to_tiff
+from cryoemservices.util.image_processing import write_stack_to_tiff
 from cryoemservices.wrappers.clem_align_and_merge import (
     AlignAndMergeParameters,
     AlignAndMergeWrapper,

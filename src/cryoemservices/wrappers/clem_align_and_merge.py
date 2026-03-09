@@ -24,7 +24,7 @@ from defusedxml.ElementTree import parse
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 from tifffile import TiffFile, imwrite
 
-from cryoemservices.util.clem_array_functions import (
+from cryoemservices.util.image_processing import (
     align_image_to_reference,
     align_image_to_self,
     convert_to_rgb,
