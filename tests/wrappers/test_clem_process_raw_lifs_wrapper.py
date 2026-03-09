@@ -12,7 +12,7 @@ from readlif.reader import LifFile, LifImage
 from workflows.recipe.wrapper import RecipeWrapper
 from workflows.transport.offline_transport import OfflineTransport
 
-from cryoemservices.util.clem_metadata import (
+from cryoemservices.util.metadata.clem import (
     find_image_elements,
 )
 from cryoemservices.wrappers.clem_process_raw_lifs import (

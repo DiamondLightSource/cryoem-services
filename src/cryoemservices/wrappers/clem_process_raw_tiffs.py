@@ -27,7 +27,7 @@ from cryoemservices.util.clem_array_functions import (
     load_and_resize_tile,
     write_stack_to_tiff,
 )
-from cryoemservices.util.clem_metadata import (
+from cryoemservices.util.metadata.clem import (
     find_image_elements,
     get_channel_info,
     get_dimension_info,
