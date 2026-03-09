@@ -555,7 +555,7 @@ def is_image_stack(
     raise ValueError(f"Unexpected image shape: {array.shape}")
 
 
-def align_image_to_self(
+def drift_correct_image(
     array: np.ndarray,
     start_from: Literal["beginning", "middle", "end"] = "middle",
     max_iters: int = 100,

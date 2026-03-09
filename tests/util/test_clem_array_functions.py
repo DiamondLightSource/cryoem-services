@@ -8,8 +8,8 @@ import pytest
 from cryoemservices.util.image_processing import (
     LUT,
     align_image_to_reference,
-    align_image_to_self,
     convert_to_rgb,
+    drift_correct_image,
     flatten_image,
     is_grayscale_image,
     is_image_stack,
@@ -115,7 +115,7 @@ def test_is_image_stack_errors(test_params: tuple[tuple[int, ...]]):
         (-2, -2, "end"),
     ),
 )
-def test_align_image_to_self(
+def test_drift_correct_image(
     test_params: tuple[int, int, Literal["beginning", "middle", "end"]],
 ):
     # Unpack test params
@@ -150,7 +150,7 @@ def test_align_image_to_self(
         ).astype(dtype, copy=False)
 
     # Align the frames in the stack
-    aligned = align_image_to_self(array=arr, start_from=start_point)
+    aligned = drift_correct_image(array=arr, start_from=start_point)
 
     # Assert that bright spots are aligned throughout the stack
     for f in range(num_frames):

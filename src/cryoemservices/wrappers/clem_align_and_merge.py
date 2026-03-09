@@ -26,8 +26,8 @@ from tifffile import TiffFile, imwrite
 
 from cryoemservices.util.image_processing import (
     align_image_to_reference,
-    align_image_to_self,
     convert_to_rgb,
+    drift_correct_image,
     flatten_image,
     is_grayscale_image,
     is_image_stack,
@@ -267,7 +267,7 @@ def align_and_merge_stacks(
 
             # Align image with multithreading
             arrays = [
-                align_image_to_self(
+                drift_correct_image(
                     array,
                     "middle",
                     num_procs=num_procs,
