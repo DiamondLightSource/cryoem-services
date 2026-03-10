@@ -25,7 +25,7 @@ from pydantic import BaseModel, Field, ValidationError, field_validator, model_v
 from tifffile import TiffFile, imwrite
 
 from cryoemservices.util.image_processing import (
-    align_image_to_reference,
+    align_images_using_mmi,
     convert_to_rgb,
     drift_correct_image,
     flatten_image,
@@ -365,7 +365,7 @@ def align_and_merge_stacks(
 
             # Align images to reference with multithreading
             aligned = [
-                align_image_to_reference(
+                align_images_using_mmi(
                     reference_array=reference,
                     moving_array=arr,
                     downsample_factor=downsample_factor,

@@ -7,7 +7,7 @@ import pytest
 
 from cryoemservices.util.image_processing import (
     LUT,
-    align_image_to_reference,
+    align_images_using_mmi,
     convert_to_rgb,
     drift_correct_image,
     flatten_image,
@@ -175,7 +175,7 @@ def test_drift_correct_image(
         (-2, 2, "uint8"),
     ),
 )
-def test_align_image_to_reference(test_params: tuple[int, int, str]):
+def test_align_images_using_mmi(test_params: tuple[int, int, str]):
     # Unpack test params
     x_offset, y_offset, dtype = test_params
 
@@ -225,7 +225,7 @@ def test_align_image_to_reference(test_params: tuple[int, int, str]):
         ).astype(dtype)
 
     # Align moving image to reference
-    reg = align_image_to_reference(ref, mov)
+    reg = align_images_using_mmi(ref, mov)
 
     # Assert that bright spots are aligned
     np.testing.assert_allclose(

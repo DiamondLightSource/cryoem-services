@@ -855,7 +855,7 @@ def drift_correct_image(
     return aligned.astype(dtype, copy=False)
 
 
-def align_image_to_reference(
+def align_images_using_mmi(
     reference_array: np.ndarray,
     moving_array: np.ndarray,
     downsample_factor: int = 2,
@@ -865,8 +865,9 @@ def align_image_to_reference(
     num_procs: int = 1,
 ) -> np.ndarray:
     """
-    Align images to a reference using SimpleITK's image registration methods. This
-    workflow handles 2D images or image stacks in both grayscale and RGB formats.
+    Align images to a reference using SimpleITK's implementation of the Mattes
+    Mutual Information image registration method. This workflow handles 2D images
+    or image stacks in both grayscale and RGB formats.
 
     Currently, this method works poorly for defocused images, which can lead to a
     lot of jitter in the beginning and tail frames if the images being aligned are
@@ -898,9 +899,6 @@ def align_image_to_reference(
 
     num_procs: int = 1
         The number of threads to run this function with. The code has been optimised
-
-
-
     """
 
     def _register_frame(frame_num: int, ref: np.ndarray, mov: np.ndarray):
