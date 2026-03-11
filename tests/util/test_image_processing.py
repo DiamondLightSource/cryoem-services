@@ -594,3 +594,15 @@ def test_merge_images_fails(test_params: tuple[str, int, bool, bool, bool]):
             arr_list.append(arr)
 
         merge_images(arr_list)
+
+
+def test_create_hanning_window():
+    pass
+
+
+def test_apply_sobel_edge_filter():
+    pass
+
+
+def test_align_images_using_orb():
+    pass
