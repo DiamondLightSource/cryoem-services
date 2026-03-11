@@ -121,8 +121,9 @@ pipeline_jobs: dict[str, dict] = {
     "relion.extract": {
         "folder": "Extract",
         "spa_input": {
-            "coords_suffix": "autopick.star",
             "star_mics": "micrographs_ctf.star",
+            "coords_suffix": "autopick.star",
+            "fndata_reextract": "",
         },
     },
     "relion.select.split": {
@@ -133,57 +134,27 @@ pipeline_jobs: dict[str, dict] = {
         "folder": "IceBreaker",
         "spa_input": {
             "in_mics": "grouped_micrographs.star",
-            "in_parts": "particles_split1.star",
+            "in_parts": "",
         },
     },
-    "relion.class2d.em": {
-        "folder": "Class2D",
-        "spa_input": {"fn_img": "particles_split1.star"},
-    },
-    "relion.class2d.vdam": {
-        "folder": "Class2D",
-        "spa_input": {"fn_img": "particles_split1.star"},
-    },
-    "relion.select.class2dauto": {
-        "folder": "Select",
-        "spa_input": {"fn_model": "run_it020_optimiser.star"},
-    },
+    "relion.class2d.em": {"folder": "Class2D", "spa_input": {"fn_img": ""}},
+    "relion.class2d.vdam": {"folder": "Class2D", "spa_input": {"fn_img": ""}},
+    "relion.select.class2dauto": {"folder": "Select", "spa_input": {"fn_model": ""}},
     "combine_star_files_job": {
         "folder": "Select",
-        "spa_input": {"files_to_process": "particles.star"},
+        "spa_input": {"files_to_process": ""},
     },
-    "relion.initialmodel": {
-        "folder": "InitialModel",
-        "spa_input": {"fn_img": "particles_split1.star"},
-    },
-    "relion.class3d": {
-        "folder": "Class3D",
-        "spa_input": {
-            "fn_img": "particles_split1.star",
-            "fn_ref": "initial_model.mrc",
-        },
-    },
-    "relion.select.onvalue": {
-        "folder": "Select",
-        "spa_input": {"fn_data": "run_it025_data.star"},
-    },
+    "relion.initialmodel": {"folder": "InitialModel", "spa_input": {"fn_img": ""}},
+    "relion.class3d": {"folder": "Class3D", "spa_input": {"fn_img": "", "fn_ref": ""}},
+    "relion.select.onvalue": {"folder": "Select", "spa_input": {"fn_data": ""}},
     "relion.refine3d": {
         "folder": "Refine3D",
-        "spa_input": {
-            "fn_img": "particles.star",
-            "fn_ref": "refinement_reference_class00X.mrc",
-        },
+        "spa_input": {"fn_img": "", "fn_ref": ""},
     },
-    "relion.maskcreate": {
-        "folder": "MaskCreate",
-        "spa_input": {"fn_in": "run_class001.star"},
-    },
+    "relion.maskcreate": {"folder": "MaskCreate", "spa_input": {"fn_in": ""}},
     "relion.postprocess": {
         "folder": "PostProcess",
-        "spa_input": {
-            "fn_in": "run_half1_class001_unfil.mrc",
-            "fn_mask": "mask.mrc",
-        },
+        "spa_input": {"fn_in": "", "fn_mask": ""},
     },
     "relion.excludetilts": {
         "folder": "ExcludeTiltImages",
@@ -340,27 +311,31 @@ class NodeCreator(CommonService):
 
         # Work out the name of the input star file and add this to the job.star
         if job_dir.parent.name != "Import":
-            ii = 0
-            for label, star in pipeline_jobs[job_info.job_type][
-                job_info.experiment_type + "_input"
-            ].items():
+            for ii, (label, star) in enumerate(
+                pipeline_jobs[job_info.job_type][
+                    job_info.experiment_type + "_input"
+                ].items()
+            ):
                 added_file = job_info.input_file.split(":")[ii]
+                if not added_file:
+                    continue
                 input_job_in_project = re.search(".+/job[0-9]+", added_file)
                 if input_job_in_project:
                     input_job_dir = Path(input_job_in_project[0])
                     try:
-                        pipeline_options[label] = (
-                            input_job_dir.relative_to(project_dir) / star
-                        )
+                        pipeline_options[label] = input_job_dir.relative_to(
+                            project_dir
+                        ) / (star or Path(added_file).name)
                     except ValueError:
                         self.log.warning(
                             f"WARNING: {input_job_dir} is not relative to {project_dir}"
                         )
-                        pipeline_options[label] = input_job_dir / star
+                        pipeline_options[label] = input_job_dir / (
+                            star or Path(added_file).name
+                        )
                 else:
                     self.log.warning(f"WARNING: {added_file} is not in a job")
                     pipeline_options[label] = Path(added_file)
-                ii += 1
         elif job_info.job_type == "relion.import.movies":
             pipeline_options["fn_in_raw"] = job_info.input_file
         elif job_info.job_type == "relion.importtomo":
@@ -373,9 +348,9 @@ class NodeCreator(CommonService):
             if exit_file.name == "PIPELINER_JOB_EXIT_SUCCESS" and job_info.success:
                 job_is_continue = True
             exit_file.unlink()
-        if job_info.success:
+        if job_info.success or job_is_continue:
             (job_dir / SUCCESS_FILE).touch()
-        else:
+        elif not job_is_continue:
             (job_dir / FAIL_FILE).touch()
 
         try:

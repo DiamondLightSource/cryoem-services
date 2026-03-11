@@ -1,0 +1,94 @@
+{
+  "1": {
+    "output": {
+      "node_creator": 2,
+      "refine_wrapper": 3
+    },
+    "parameters": {
+      "class3d_dir": "{class3d_dir}",
+      "nr_iter_3d": "{nr_iter}",
+      "original_pixel_size": "{pixel_size}",
+      "refine_class_nr": "{class_number}",
+      "refine_job_dir": "{refine_job_dir}",
+      "relion_options": {}
+    },
+    "queue": "extract_class",
+    "service": "ExtractClass"
+  },
+  "2": {
+    "queue": "node_creator",
+    "service": "NodeCreator"
+  },
+  "3": {
+    "output": {
+      "node_creator": 2,
+      "postprocess": 4
+    },
+    "parameters": {
+      "mask_diameter": "{mask_diameter}",
+      "particle_diameter": "{particle_diameter}",
+      "relion_options": {},
+      "symmetry": "{symmetry}"
+    },
+    "queue": "refine3d",
+    "service": "Refine3D"
+  },
+  "4": {
+    "output": {
+      "ispyb_connector": 6,
+      "murfey_feedback": 5,
+      "node_creator": 2,
+      "refine_wrapper": 7
+    },
+    "parameters": {
+      "picker_id": "{picker_id}",
+      "refined_class_uuid": "{refined_class_uuid}",
+      "refined_grp_uuid": "{refined_grp_uuid}"
+    },
+    "queue": "postprocess",
+    "service": "PostProcess"
+  },
+  "5": {
+    "parameters": {
+      "program_id": "{autoproc_program_id}",
+      "session_id": "{session_id}"
+    },
+    "queue": "{feedback_queue}",
+    "service": "Murfey"
+  },
+  "6": {
+    "parameters": {
+      "dcid": "{dcid}",
+      "program_id": "{autoproc_program_id}"
+    },
+    "queue": "ispyb_connector",
+    "service": "MurfeyDBConnector"
+  },
+  "7": {
+    "output": {
+      "node_creator": 2,
+      "postprocess": 8
+    },
+    "parameters": {
+      "mask_diameter": "{mask_diameter}",
+      "particle_diameter": "{particle_diameter}"
+    },
+    "queue": "refine3d",
+    "service": "Refine3D"
+  },
+  "8": {
+    "output": {
+      "ispyb_connector": 6,
+      "murfey_feedback": 5,
+      "node_creator": 2
+    },
+    "parameters": {
+      "picker_id": "{picker_id}",
+      "refined_class_uuid": "{symmetry_refined_class_uuid}",
+      "refined_grp_uuid": "{symmetry_refined_grp_uuid}"
+    },
+    "queue": "postprocess",
+    "service": "PostProcess"
+  },
+  "start": [[1, []]]
+}

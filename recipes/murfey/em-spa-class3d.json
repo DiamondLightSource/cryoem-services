@@ -1,0 +1,51 @@
+{
+  "1": {
+    "output": {
+      "ispyb_connector": 4,
+      "murfey_feedback": 3,
+      "node_creator": 2
+    },
+    "parameters": {
+      "batch_size": "{batch_size}",
+      "class3d_dir": "{class3d_dir}",
+      "class3d_grp_uuid": "{class3d_grp_uuid}",
+      "class3d_nr_classes": "{nr_classes}",
+      "class3d_nr_iter": "{nr_iter}",
+      "class_uuids": "{class_uuids}",
+      "do_initial_model": "{do_initial_model}",
+      "initial_model_file": "{initial_model_file}",
+      "initial_model_iterations": "{initial_model_iterations}",
+      "mask_diameter": "{mask_diameter}",
+      "mpi_run_command": "srun -n 9",
+      "particle_diameter": "{particle_diameter}",
+      "particles_file": "{particles_file}",
+      "picker_id": "{picker_id}",
+      "relion_options": {},
+      "symmetry": "{symmetry}",
+      "threads": 4
+    },
+    "queue": "class3d",
+    "service": "Class3D"
+  },
+  "2": {
+    "queue": "node_creator",
+    "service": "NodeCreator"
+  },
+  "3": {
+    "parameters": {
+      "program_id": "{autoproc_program_id}",
+      "session_id": "{session_id}"
+    },
+    "queue": "{feedback_queue}",
+    "service": "Murfey"
+  },
+  "4": {
+    "parameters": {
+      "dcid": "{dcid}",
+      "program_id": "{autoproc_program_id}"
+    },
+    "queue": "ispyb_connector",
+    "service": "MurfeyDBConnector"
+  },
+  "start": [[1, []]]
+}
