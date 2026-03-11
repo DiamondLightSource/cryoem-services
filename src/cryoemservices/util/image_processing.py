@@ -601,17 +601,6 @@ def drift_correct_image(
         The aligned image stack as a NumPy array.
     """
 
-    def _invert_euclidean(M: np.ndarray) -> np.ndarray:
-        """Invert a 2x3 Euclidean affine matrix."""
-        R = M[:, :2]  # 2x2 rotation part
-        t = M[:, 2:]  # translation part
-        R_inv = R.T  # inverse rotation
-        t_inv = -R_inv @ t
-        M_inv = np.eye(3, dtype=np.float32)
-        M_inv[:2, :2] = R_inv
-        M_inv[:2, 2:] = t_inv
-        return M_inv[:2]
-
     def _register(
         frame_num: int,
         prev: np.ndarray,
@@ -685,7 +674,7 @@ def drift_correct_image(
                 gaussFiltSize=5,
             )  # Updated in-place
             warp[:2, 2] *= downsampling_factor
-            return _invert_euclidean(warp), frame_num
+            return warp, frame_num
         except cv2.error:
             logger.warning(
                 f"Error registering frame {frame_num}. Using identity matrix",
@@ -717,7 +706,7 @@ def drift_correct_image(
                 frame,
                 M,
                 (w, h),
-                flags=cv2.INTER_LINEAR,
+                flags=cv2.INTER_LINEAR + cv2.WARP_INVERSE_MAP,
                 borderMode=cv2.BORDER_CONSTANT,
                 borderValue=float(vmin),
             )
