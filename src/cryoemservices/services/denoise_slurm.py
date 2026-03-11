@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 from pathlib import Path
 from typing import List
@@ -27,6 +28,20 @@ class DenoiseSlurm(Denoise):
         if not get_iris_state(self.log):
             exit()
         super().initializing()
+
+    @staticmethod
+    def check_visit(denoise_params: DenoiseParameters):
+        # Requeue visits that should not be sent via slurm
+        visit_search = re.search("/[a-z]{2}[0-9]{5}-[0-9]{1,3}/", denoise_params.volume)
+        if visit_search:
+            visit_name = visit_search[0][1:-1]
+            visit_code = visit_name[:2]
+            if (
+                not denoise_params.visits_for_slurm
+                or visit_code in denoise_params.visits_for_slurm
+            ):
+                return True
+        return False
 
     def run_topaz(
         self,

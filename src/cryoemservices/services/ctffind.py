@@ -25,8 +25,8 @@ class CTFParameters(BaseModel):
     ampl_spectrum: int = 512
     min_res: float = 30.0
     max_res: float = 5.0
-    min_defocus: float = 5000.0
-    max_defocus: float = 50000.0
+    min_defocus: float = 2000.0
+    max_defocus: float = 90000.0
     defocus_step: float = 100.0
     astigmatism_known: str = "no"
     slow_search: str = "no"
