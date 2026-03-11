@@ -15,7 +15,7 @@ from cryoemservices.util.image_processing import (
     is_image_stack,
     merge_images,
 )
-from tests.test_utils.clem import gaussian_2d
+from tests.test_utils.image_processing import gaussian_2d
 
 
 def test_get_histogram():

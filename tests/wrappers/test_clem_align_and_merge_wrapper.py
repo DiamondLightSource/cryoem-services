@@ -16,7 +16,7 @@ from cryoemservices.wrappers.clem_align_and_merge import (
     AlignAndMergeWrapper,
     align_and_merge_stacks,
 )
-from tests.test_utils.clem import create_grayscale_image
+from tests.test_utils.image_processing import create_grayscale_image
 
 series_name = "test_series"
 
