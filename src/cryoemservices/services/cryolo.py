@@ -551,11 +551,20 @@ def grid_bar_histogram(
 ) -> Optional[np.ndarray]:
     # Bin the image
     full_shape = np.shape(full_image)
-    small_image = (
-        full_image.reshape((int(full_shape[0] / 4), 4, int(full_shape[1] / 4), 4))
-        .mean(-1)
-        .mean(1)
-    )
+    if full_shape[0] % 4 != 0 or full_shape[1] % 4 != 0:
+        clip_image = full_image[full_shape[0] % 4 :, full_shape[1] % 4 :]
+        clip_shape = np.shape(clip_image)
+        small_image = (
+            clip_image.reshape((int(clip_shape[0] / 4), 4, int(clip_shape[1] / 4), 4))
+            .mean(-1)
+            .mean(1)
+        )
+    else:
+        small_image = (
+            full_image.reshape((int(full_shape[0] / 4), 4, int(full_shape[1] / 4), 4))
+            .mean(-1)
+            .mean(1)
+        )
 
     # Make histogram and find turning points in it
     hist = plt.hist(small_image.flatten(), bins=100)
