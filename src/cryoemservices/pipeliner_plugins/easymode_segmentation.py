@@ -4,9 +4,11 @@ from scipy.ndimage import zoom
 
 
 def segment_tile(xi, yi, zi, volume, model, tile_size, overlap):
-    (pz, py, px) = tile_size
     (oz, oy, ox) = overlap
-    sz, sy, sx = pz - 2 * oz, py - 2 * oy, px - 2 * ox  # non-overlapped patch size
+    # non-overlapped patch sizes
+    sz = tile_size - 2 * oz
+    sy = tile_size - 2 * oy
+    sx = tile_size - 2 * ox
 
     z_start = zi * sz - oz
     y_start = yi * sy - oy
@@ -14,11 +16,11 @@ def segment_tile(xi, yi, zi, volume, model, tile_size, overlap):
     vz0 = max(0, z_start)
     vy0 = max(0, y_start)
     vx0 = max(0, x_start)
-    vz1 = min(volume.shape[0], z_start + pz)
-    vy1 = min(volume.shape[1], y_start + py)
-    vx1 = min(volume.shape[2], x_start + px)
+    vz1 = min(volume.shape[0], z_start + tile_size)
+    vy1 = min(volume.shape[1], y_start + tile_size)
+    vx1 = min(volume.shape[2], x_start + tile_size)
 
-    tile = np.zeros((pz, py, px), dtype=volume.dtype)
+    tile = np.zeros((tile_size, tile_size, tile_size), dtype=volume.dtype)
     tile[
         vz0 - z_start : vz1 - z_start,
         vy0 - y_start : vy1 - y_start,
@@ -30,10 +32,13 @@ def segment_tile(xi, yi, zi, volume, model, tile_size, overlap):
 
 
 def _segment_tomogram_instance(volume, model, tile_size, overlap):
-    (pz, py, px) = tile_size
     (oz, oy, ox) = overlap
     d, h, w = volume.shape
-    sz, sy, sx = pz - 2 * oz, py - 2 * oy, px - 2 * ox  # non-overlapped patch size
+    # non-overlapped patch sizes
+    sz = tile_size - 2 * oz
+    sy = tile_size - 2 * oy
+    sx = tile_size - 2 * ox
+
     z_boxes = max(1, (d + sz - 1) // sz)
     y_boxes = max(1, (h + sy - 1) // sy)
     x_boxes = max(1, (w + sx - 1) // sx)
@@ -49,17 +54,19 @@ def _segment_tomogram_instance(volume, model, tile_size, overlap):
                 seg_vol_float = segment_tile(
                     xi, yi, zi, volume, model, tile_size, overlap
                 )[:az, :ay, :ax]
-                out[z_pos:z_end, y_pos:y_end, x_pos:x_end] += (
+                out[z_pos:z_end, y_pos:y_end, x_pos:x_end] = (
                     seg_vol_float * 127
                 ).astype(np.int8)
     return out
 
 
-def _pad_volume(volume, min_pad=16, div=32):
+def _pad_volume(volume, min_pad=16, div=32, min_size=None):
     j, k, l = volume.shape
     pads = []
     for n in (j, k, l):
         total_pad = max(2 * min_pad, ((n + 2 * min_pad + div - 1) // div) * div - n)
+        if min_size and total_pad + n < min_size:
+            total_pad = min_size - n
         before = total_pad // 2
         after = total_pad - before
         pads.append((before, after))
@@ -74,6 +81,7 @@ def segment_tomogram(
     batch_size=1,
     model_apix=10,
     input_apix=10,
+    tile_size=256,
 ):
     with mrcfile.open(tomogram_path) as m:
         volume = m.data.astype(np.float32)
@@ -84,12 +92,11 @@ def segment_tomogram(
     _l_margin = min(int(0.2 * ol), 64)
     volume -= np.mean(volume[:, _k_margin:-_k_margin, _l_margin:-_l_margin])
     volume /= np.std(volume[:, _k_margin:-_k_margin, _l_margin:-_l_margin]) + 1e-7
-    volume, padding = _pad_volume(volume)
-    tile_size = (min(256, oj), min(256, ok), min(256, ol))
+    volume, padding = _pad_volume(volume, min_size=tile_size)
     overlap = (
-        0 if tile_size[0] == oj else 48,
-        0 if tile_size[1] == ok else 48,
-        0 if tile_size[2] == ol else 48,
+        0 if tile_size >= oj else 48,
+        0 if tile_size >= ok else 48,
+        0 if tile_size >= ol else 48,
     )
     segmented_volume = _segment_tomogram_instance(volume, model, tile_size, overlap)
     (j0, j1), (k0, k1), (l0, l1) = padding
@@ -98,6 +105,5 @@ def segment_tomogram(
         k0 : segmented_volume.shape[1] - k1,
         l0 : segmented_volume.shape[2] - l1,
     ]
-    sj, sk, sl = segmented_volume.shape
-    segmented_volume = zoom(segmented_volume, (oj / sj, ok / sk, ol / sl), order=1)
+    segmented_volume = zoom(segmented_volume, 1 / scale, order=1)
     return segmented_volume, input_apix
