@@ -1418,7 +1418,7 @@ def align_images_using_orb(
             aligned = cv2.warpAffine(mov, M, (w, h), flags=cv2.INTER_LINEAR)
             return aligned, frame_num
         except (cv2.error, Exception):
-            logger.warning(f"Error registering frame {frame_num}")
+            logger.warning(f"Error registering frame {frame_num}", exc_info=True)
             return mov, frame_num
 
     # Start of main function
