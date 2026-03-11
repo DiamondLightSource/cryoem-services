@@ -15,7 +15,7 @@ from cryoemservices.util.image_processing import (
     is_image_stack,
     merge_images,
 )
-from tests.test_utils.image_processing import gaussian_2d
+from tests.test_utils.image_processing import create_grayscale_image
 
 
 def test_get_histogram():
@@ -122,32 +122,33 @@ def test_drift_correct_image(
     x_offset, y_offset, start_point = test_params
     num_frames = 10
     shape = (128, 128)
-    dtype = np.uint8
+    dtype = "uint8"
 
-    # Create a reference image stack with offset bright spots
-    arr = np.zeros((num_frames, *shape), dtype=dtype)
-
-    # Add 3(?) bright spots per frame at different offsets
-    for f in range(num_frames):
-        # Add 2 Gaussian peaks to arrays
-        arr[f] += (
-            gaussian_2d(
-                shape,
-                200,
-                (48 + (f * x_offset), 48 + (f * y_offset)),
-                (8, 12),
-                30,
-                0,
-            )
-            + gaussian_2d(
-                shape,
-                150,
-                (80 + (f * x_offset), 80 + (f * y_offset)),
-                (12, 8),
-                45,
-                0,
-            )
-        ).astype(dtype, copy=False)
+    arr = create_grayscale_image(
+        shape=shape,
+        num_frames=num_frames,
+        dtype=dtype,
+        peaks=[
+            {
+                "shape": shape,
+                "amplitude": 192,
+                "centre": (48, 48),
+                "sigma": (8, 12),
+                "theta": 30,
+                "offset": 0,
+            },
+            {
+                "shape": shape,
+                "amplitude": 128,
+                "centre": (80, 80),
+                "sigma": (12, 8),
+                "theta": 45,
+                "offset": 0,
+            },
+        ],
+        peak_shift_per_frame=(x_offset, y_offset),
+        intensity_offset_per_frame=0,
+    )
 
     # Align the frames in the stack
     aligned = drift_correct_image(array=arr, start_from=start_point)
@@ -181,48 +182,57 @@ def test_align_images_using_mmi(test_params: tuple[int, int, str]):
 
     n_frames = 5
     shape = (128, 128)
-    ref = np.zeros((n_frames, *shape), dtype=dtype)
-    mov = np.zeros((n_frames, *shape), dtype=dtype)
 
-    for f in range(n_frames):
-        # Add 2 Gaussian peaks to arrays
-        ref[f] += (
-            gaussian_2d(
-                shape,
-                200,
-                (48, 48),
-                (8, 12),
-                30,
-                0,
-            )
-            + gaussian_2d(
-                shape,
-                150,
-                (80, 80),
-                (12, 8),
-                45,
-                0,
-            )
-        ).astype(dtype, copy=False)
-
-        mov[f] += (
-            gaussian_2d(
-                shape,
-                200,
-                (48 + x_offset, 48 + y_offset),
-                (8, 12),
-                30,
-                0,
-            )
-            + gaussian_2d(
-                shape,
-                150,
-                (80 + x_offset, 80 + y_offset),
-                (12, 8),
-                45,
-                0,
-            )
-        ).astype(dtype)
+    ref = create_grayscale_image(
+        shape=shape,
+        num_frames=n_frames,
+        dtype=dtype,
+        peaks=[
+            {
+                "shape": shape,
+                "amplitude": 192,
+                "centre": (48, 48),
+                "sigma": (8, 12),
+                "theta": 30,
+                "offset": 0,
+            },
+            {
+                "shape": shape,
+                "amplitude": 128,
+                "centre": (80, 80),
+                "sigma": (12, 8),
+                "theta": 45,
+                "offset": 0,
+            },
+        ],
+        peak_shift_per_frame=(0, 0),
+        intensity_offset_per_frame=0,
+    )
+    mov = create_grayscale_image(
+        shape=shape,
+        num_frames=n_frames,
+        dtype=dtype,
+        peaks=[
+            {
+                "shape": shape,
+                "amplitude": 192,
+                "centre": (48 + x_offset, 48 + y_offset),
+                "sigma": (8, 12),
+                "theta": 30,
+                "offset": 0,
+            },
+            {
+                "shape": shape,
+                "amplitude": 128,
+                "centre": (80 + x_offset, 80 + y_offset),
+                "sigma": (12, 8),
+                "theta": 45,
+                "offset": 0,
+            },
+        ],
+        peak_shift_per_frame=(0, 0),
+        intensity_offset_per_frame=0,
+    )
 
     # Align moving image to reference
     reg = align_images_using_mmi(ref, mov)
