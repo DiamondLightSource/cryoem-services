@@ -1189,6 +1189,7 @@ def apply_sobel_edge_filter(
     ----------
     array : np.ndarray
         Input 2D image array.
+
     kernel_size : int
         Size of the Sobel kernel used to compute the gradients.
 
@@ -1221,7 +1222,8 @@ def align_images_using_orb(
     num_procs=1,
 ):
     """
-    Align a moving image or image stack to a reference using ORB feature matching.
+    Align a moving image or image stack to a reference using ORB (Oriented FAST and
+    Rotated BRIEF) feature matching (DOI: https://doi.org/10.1109/ICCV.2011.6126544).
 
     The function looks for holes in both images using Sobel edge filtering followed
     by thresholding and contour analysis. It calculates the centroids of the detected
@@ -1279,11 +1281,12 @@ def align_images_using_orb(
     def _extract_keypoints(
         img: np.ndarray,
         window: np.ndarray | None,
-        sigma: int,
-        kernel_size: int,
-        min_area: int,
-        max_area: int,
-        patch_size: int,
+        sigma: int,  # Gaussian blur
+        kernel_size: int,  # Sobel filter
+        struct: np.ndarray,  # Structuring element
+        min_area: int,  # Contour evaluation
+        max_area: int,  # Contour evaluation
+        patch_size: int,  # Keypoints
     ):
         # Preprocess image
         blurred = cv2.GaussianBlur(img, (0, 0), sigma)
@@ -1301,14 +1304,12 @@ def align_images_using_orb(
             sobel.max(),
             cv2.THRESH_BINARY,
         )
-        # Create a structuring element
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (7, 7))
         # Apply morphological closing
         # Connect nearby edges and fill holes inside detected shapes
         cleaned = cv2.morphologyEx(
             thres,
             cv2.MORPH_CLOSE,
-            kernel,
+            struct,
         )
 
         # Extract external boundaries from the cleaned image
@@ -1329,6 +1330,7 @@ def align_images_using_orb(
                 continue
             cx = M["m10"] / M["m00"]
             cy = M["m01"] / M["m00"]
+            # Store as keypoint objects
             keypoints.append(cv2.KeyPoint(float(cx), float(cy), patch_size))
         logger.debug(f"{len(keypoints)} hole centroids detected")
         return sobel, keypoints
@@ -1346,9 +1348,10 @@ def align_images_using_orb(
         max_area: int,
         # ORB detection parameters
         patch_size: int,
-        # Instantiated classes
-        orb: cv2.ORB,
-        bf: cv2.BFMatcher,  # Brute-force matcher
+        # Instantiated classes and objects
+        struct: np.ndarray,  # Structuring element
+        orb: cv2.ORB,  # ORB feature matcher instance
+        matcher: cv2.BFMatcher,  # Brute-force matcher instance
     ):
         try:
             # Convert RGB to grayscale for image registration
@@ -1369,12 +1372,17 @@ def align_images_using_orb(
                 else mov.astype(np.float32)
             )
 
-            ref_sobel, ref_kps = _extract_keypoints(
-                ref_gray, window, sigma, kernel_size, min_area, max_area, patch_size
-            )
-            mov_sobel, mov_kps = _extract_keypoints(
-                mov_gray, window, sigma, kernel_size, min_area, max_area, patch_size
-            )
+            args = [
+                window,
+                sigma,
+                kernel_size,
+                struct,
+                min_area,
+                max_area,
+                patch_size,
+            ]
+            ref_sobel, ref_kps = _extract_keypoints(ref_gray, *args)
+            mov_sobel, mov_kps = _extract_keypoints(mov_gray, *args)
 
             # Compute descriptors at the keypoints
             ref_kps, ref_des = orb.compute(ref_sobel, ref_kps)
@@ -1383,7 +1391,7 @@ def align_images_using_orb(
                 raise RuntimeError("ORB descriptor computation failed")
 
             # Match the descriptors with 'k' nearest neighbours
-            matches = bf.knnMatch(ref_des, mov_des, k=2)
+            matches = matcher.knnMatch(ref_des, mov_des, k=2)
 
             # Conduct Lowe ratio test
             # Keep 'm' if it's significantly closer than the second-best match 'n'
@@ -1413,6 +1421,7 @@ def align_images_using_orb(
             logger.warning(f"Error registering frame {frame_num}")
             return mov, frame_num
 
+    # Start of main function
     cv2.setNumThreads(1)
     start_time = time.perf_counter()
 
@@ -1428,11 +1437,14 @@ def align_images_using_orb(
 
     # Create reusable objects
     window = create_hanning_window(w, h).astype(np.float32) if hanning_window else None
+    struct = cv2.getStructuringElement(cv2.MORPH_RECT, (7, 7))
     orb = cast(cv2.ORB, cv2.ORB_create(nfeatures=5000))
-    bf = cv2.BFMatcher(cv2.NORM_HAMMING)  # Brute-force Hamming matcher
+    matcher = cv2.BFMatcher(cv2.NORM_HAMMING)  # Brute-force Hamming matcher
 
+    # Create placeholder array for aligned image
     aligned = np.empty(ref.shape, dtype=dtype)
 
+    # Process frames in parallel
     with ThreadPoolExecutor(max_workers=num_procs) as pool:
         futures = [
             pool.submit(
@@ -1446,8 +1458,9 @@ def align_images_using_orb(
                 min_area,
                 max_area,
                 patch_size,
+                struct,
                 orb,
-                bf,
+                matcher,
             )
             for f in range(z)
         ]
