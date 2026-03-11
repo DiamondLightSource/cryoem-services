@@ -859,7 +859,7 @@ def align_images_using_mmi(
     reference_array: np.ndarray,
     moving_array: np.ndarray,
     downsample_factor: int = 2,
-    sampling_percentage: float = 0.5,
+    sampling_fraction: float = 0.5,
     shrink_factors_per_level: list[int] = [2, 1],
     smoothing_sigmas_per_level: list[float] = [1.0, 0.5],
     num_procs: int = 1,
@@ -887,7 +887,7 @@ def align_images_using_mmi(
         converted into an SITK Image, and will adjust the pixel size associated with
         the Image when it is subsequently resized.
 
-    sampling_percentage: float = 0.5,
+    sampling_fraction: float = 0.5,
         The fraction of pixels to sample when calculating the transformation matrix.
 
     shrink_factors_per_level: list[int] = [2, 1]
@@ -920,38 +920,16 @@ def align_images_using_mmi(
 
             # Set the metric to use
             registration.SetMetricAsMattesMutualInformation(numberOfHistogramBins=64)
-            registration.SetMetricSamplingPercentage(
-                sampling_percentage
-            )  # Sample 5% of pixels
+            registration.SetMetricSamplingPercentage(sampling_fraction)
             registration.SetMetricSamplingStrategy(registration.RANDOM)
 
-            # Set the optimiser to use
-            # registration.SetOptimizerAsGradientDescent(
-            #     learningRate=0.5,
-            #     numberOfIterations=300,
-            #     convergenceMinimumValue=1e-6,
-            #     convergenceWindowSize=10,
-            # )
+            # Use Mattes Mutual Information as the metric
             registration.SetOptimizerAsGradientDescentLineSearch(
                 learningRate=1.0,
                 numberOfIterations=200,
                 convergenceMinimumValue=1e-6,
                 convergenceWindowSize=5,
             )
-            # registration.SetOptimizerAsAmoeba(
-            #     simplexDelta=1.0,
-            #     numberOfIterations=300,
-            #     parametersConvergenceTolerance=1e-8,
-            #     functionConvergenceTolerance=1e-4,
-            #     withRestarts=False,
-            # )
-            # registration.SetOptimizerAsOnePlusOneEvolutionary(
-            #     epsilon=1e-6,
-            #     initialRadius=1.0,
-            #     numberOfIterations=300,
-            #     growthFactor=-1.0,
-            #     shrinkFactor=-1.0,
-            # )
             registration.SetOptimizerScalesFromIndexShift()
 
             # Register over a multi-resolution pyramid
@@ -999,7 +977,7 @@ def align_images_using_mmi(
     logger.debug(
         f"SITK image alignment settings: \n"
         f"Downsample factor: {downsample_factor}\n"
-        f"Sampling percentage: {sampling_percentage}\n"
+        f"Sampling percentage: {sampling_fraction}\n"
         f"Shrink factors per level: {shrink_factors_per_level}\n"
         f"Smoothing sigmas per level: {smoothing_sigmas_per_level}"
     )
