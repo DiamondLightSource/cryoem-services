@@ -57,7 +57,7 @@ def gaussian_2d(
     return gaussian
 
 
-def create_grayscale_image(
+def create_grayscale_image_with_gaussian(
     shape: tuple[int, int],
     num_frames: int,
     dtype: str,
@@ -66,7 +66,7 @@ def create_grayscale_image(
     intensity_offset_per_frame: int,
 ):
     """
-    Creates a grayscale image with features (Gaussian peaks) that are offset from
+    Creates a grayscale image with Gaussian peak features that are offset from
     frame-to-frame.
 
     Parameters

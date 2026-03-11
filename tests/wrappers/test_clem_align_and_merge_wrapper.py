@@ -16,7 +16,7 @@ from cryoemservices.wrappers.clem_align_and_merge import (
     AlignAndMergeWrapper,
     align_and_merge_stacks,
 )
-from tests.test_utils.image_processing import create_grayscale_image
+from tests.test_utils.image_processing import create_grayscale_image_with_gaussian
 
 series_name = "test_series"
 
@@ -53,7 +53,7 @@ def image_list(processed_dir: Path):
 
     for c, color in enumerate(colors):
         # Create test image with desired peaks
-        arr = create_grayscale_image(
+        arr = create_grayscale_image_with_gaussian(
             shape=shape,
             num_frames=num_frames,
             dtype=dtype,

@@ -15,7 +15,7 @@ from cryoemservices.util.image_processing import (
     is_image_stack,
     merge_images,
 )
-from tests.test_utils.image_processing import create_grayscale_image
+from tests.test_utils.image_processing import create_grayscale_image_with_gaussian
 
 
 def test_get_histogram():
@@ -124,7 +124,7 @@ def test_drift_correct_image(
     shape = (128, 128)
     dtype = "uint8"
 
-    arr = create_grayscale_image(
+    arr = create_grayscale_image_with_gaussian(
         shape=shape,
         num_frames=num_frames,
         dtype=dtype,
@@ -183,7 +183,7 @@ def test_align_images_using_mmi(test_params: tuple[int, int, str]):
     n_frames = 5
     shape = (128, 128)
 
-    ref = create_grayscale_image(
+    ref = create_grayscale_image_with_gaussian(
         shape=shape,
         num_frames=n_frames,
         dtype=dtype,
@@ -208,7 +208,7 @@ def test_align_images_using_mmi(test_params: tuple[int, int, str]):
         peak_shift_per_frame=(0, 0),
         intensity_offset_per_frame=0,
     )
-    mov = create_grayscale_image(
+    mov = create_grayscale_image_with_gaussian(
         shape=shape,
         num_frames=n_frames,
         dtype=dtype,
