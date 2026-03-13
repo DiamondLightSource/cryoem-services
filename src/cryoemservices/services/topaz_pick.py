@@ -113,7 +113,7 @@ class TopazPick(CommonService):
         job_alias = Path(
             re.sub(
                 f"AutoPick/job{job_number:03}/.+",
-                "AutoPick/Live_processing/",
+                "AutoPick/Live_topaz_picking/",
                 topaz_params.output_path,
             )
         )
@@ -207,7 +207,7 @@ class TopazPick(CommonService):
             "command": " ".join(command),
             "stdout": "",
             "stderr": "",
-            "alias": "Live_processing",
+            "alias": "Live_topaz_picking",
             "success": True,
         }
         if not job_is_rerun:

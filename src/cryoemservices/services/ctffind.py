@@ -173,7 +173,7 @@ class CTFFind(CommonService):
         job_alias = Path(
             re.sub(
                 f"CtfFind/job{ctf_job_number:03}/.+",
-                "CtfFind/Live_processing/",
+                "CtfFind/Live_ctffind/",
                 ctf_params.output_image,
             )
         )
@@ -254,7 +254,7 @@ class CTFFind(CommonService):
                 ),
                 "stdout": result.stdout.decode("utf8", "replace"),
                 "stderr": result.stderr.decode("utf8", "replace"),
-                "alias": "Live_processing",
+                "alias": "Live_ctffind",
             }
             if result.returncode:
                 node_creator_parameters["success"] = False

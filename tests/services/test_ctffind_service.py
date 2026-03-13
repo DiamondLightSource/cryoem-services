@@ -106,8 +106,8 @@ def test_ctffind4_service_spa(mock_subprocess, offline_transport, tmp_path):
     )
 
     # Check symlinks
-    assert (tmp_path / "CtfFind/Live_processing").is_symlink()
-    assert (tmp_path / "CtfFind/Live_processing").readlink() == (
+    assert (tmp_path / "CtfFind/Live_ctffind").is_symlink()
+    assert (tmp_path / "CtfFind/Live_ctffind").readlink() == (
         tmp_path / "CtfFind/job006"
     )
 
@@ -174,7 +174,7 @@ def test_ctffind4_service_spa(mock_subprocess, offline_transport, tmp_path):
             "command": f"ctffind\n{' '.join(map(str, parameters_list))}",
             "stdout": "stdout",
             "stderr": "stderr",
-            "alias": "Live_processing",
+            "alias": "Live_ctffind",
             "success": True,
         },
     )
@@ -280,7 +280,7 @@ def test_ctffind5_service_tomo(mock_subprocess, offline_transport, tmp_path):
             "command": f"ctffind5\n{' '.join(map(str, parameters_list))}",
             "stdout": "stdout",
             "stderr": "stderr",
-            "alias": "Live_processing",
+            "alias": "Live_ctffind",
             "success": True,
         },
     )
@@ -428,13 +428,13 @@ def test_ctffind5_service_check_symlinks(mock_subprocess, offline_transport, tmp
     offline_transport.ack.assert_called_once()
 
     # Case 2: ok symlink
-    assert (tmp_path / "CtfFind/Live_processing").is_symlink()
+    assert (tmp_path / "CtfFind/Live_ctffind").is_symlink()
     service.ctf_find(None, header=header, message=ctffind_test_message)
     assert offline_transport.ack.call_count == 2
 
     # Case 3: bad symlink
-    (tmp_path / "CtfFind/Live_processing").unlink()
-    (tmp_path / "CtfFind/Live_processing").symlink_to(tmp_path / "CtfFind")
+    (tmp_path / "CtfFind/Live_ctffind").unlink()
+    (tmp_path / "CtfFind/Live_ctffind").symlink_to(tmp_path / "CtfFind")
     service.ctf_find(None, header=header, message=ctffind_test_message)
     offline_transport.nack.assert_called_once()
 
@@ -523,7 +523,7 @@ def test_ctffind5_service_fail_cases(mock_subprocess, offline_transport, tmp_pat
             "command": mock.ANY,
             "stdout": "stdout",
             "stderr": "stderr",
-            "alias": "Live_processing",
+            "alias": "Live_ctffind",
             "success": False,
         },
     )
