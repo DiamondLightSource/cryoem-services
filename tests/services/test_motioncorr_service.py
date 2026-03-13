@@ -197,14 +197,12 @@ def test_motioncor2_service_spa(mock_subprocess, offline_transport, tmp_path):
     mock_subprocess.assert_called_with(mc_command, capture_output=True)
 
     # Check symlinks
-    assert (tmp_path / "MotionCorr/Live_processing").is_symlink()
-    assert (tmp_path / "MotionCorr/Live_processing").readlink() == (
+    assert (tmp_path / "MotionCorr/Live_motioncorr").is_symlink()
+    assert (tmp_path / "MotionCorr/Live_motioncorr").readlink() == (
         tmp_path / "MotionCorr/job002"
     )
-    assert (tmp_path / "Import/Live_processing").is_symlink()
-    assert (tmp_path / "Import/Live_processing").readlink() == (
-        tmp_path / "Import/job001"
-    )
+    assert (tmp_path / "Import/Live_import").is_symlink()
+    assert (tmp_path / "Import/Live_import").readlink() == (tmp_path / "Import/job001")
 
     # Check plotly file creation
     assert (tmp_path / "MotionCorr/job002/Movies/sample_drift_plot.json").is_file()
@@ -294,7 +292,7 @@ def test_motioncor2_service_spa(mock_subprocess, offline_transport, tmp_path):
             "command": "",
             "stdout": "",
             "stderr": "",
-            "alias": "Live_processing",
+            "alias": "Live_import",
         },
     )
     offline_transport.send.assert_any_call(
@@ -313,7 +311,7 @@ def test_motioncor2_service_spa(mock_subprocess, offline_transport, tmp_path):
                 "early_motion": early_motion,
                 "late_motion": late_motion,
             },
-            "alias": "Live_processing",
+            "alias": "Live_motioncorr",
         },
     )
 
@@ -554,7 +552,7 @@ def test_motioncor_relion_service_spa(mock_subprocess, offline_transport, tmp_pa
             "command": "",
             "stdout": "",
             "stderr": "",
-            "alias": "Live_processing",
+            "alias": "Live_import",
         },
     )
     offline_transport.send.assert_any_call(
@@ -573,7 +571,7 @@ def test_motioncor_relion_service_spa(mock_subprocess, offline_transport, tmp_pa
                 "early_motion": early_motion,
                 "late_motion": late_motion,
             },
-            "alias": "Live_processing",
+            "alias": "Live_motioncorr",
         },
     )
 
@@ -754,7 +752,7 @@ def test_motioncor2_service_tomo(mock_subprocess, offline_transport, tmp_path):
             "command": "",
             "stdout": "",
             "stderr": "",
-            "alias": "Live_processing",
+            "alias": "Live_import",
         },
     )
     offline_transport.send.assert_any_call(
@@ -773,7 +771,7 @@ def test_motioncor2_service_tomo(mock_subprocess, offline_transport, tmp_path):
                 "early_motion": early_motion,
                 "late_motion": late_motion,
             },
-            "alias": "Live_processing",
+            "alias": "Live_motioncorr",
         },
     )
 
@@ -969,7 +967,7 @@ def test_motioncor_relion_service_tomo(mock_subprocess, offline_transport, tmp_p
             "command": "",
             "stdout": "",
             "stderr": "",
-            "alias": "Live_processing",
+            "alias": "Live_import",
         },
     )
     offline_transport.send.assert_any_call(
@@ -988,7 +986,7 @@ def test_motioncor_relion_service_tomo(mock_subprocess, offline_transport, tmp_p
                 "early_motion": early_motion,
                 "late_motion": late_motion,
             },
-            "alias": "Live_processing",
+            "alias": "Live_motioncorr",
         },
     )
 
@@ -1145,7 +1143,7 @@ def test_motioncor2_slurm_service_spa(mock_requests, offline_transport, tmp_path
                 "early_motion": early_motion,
                 "late_motion": late_motion,
             },
-            "alias": "Live_processing",
+            "alias": "Live_motioncorr",
         },
     )
 
@@ -1286,7 +1284,7 @@ def test_motioncor_superres_does_slurm(mock_requests, offline_transport, tmp_pat
             "command": " ".join(mc_command),
             "stdout": "cluster job submission",
             "stderr": "failed to submit job",
-            "alias": "Live_processing",
+            "alias": "Live_motioncorr",
             "success": False,
         },
     )
@@ -1544,15 +1542,15 @@ def test_motioncor_check_symlink(mock_subprocess, offline_transport, tmp_path):
     # Case 2: ok symlink
     service.x_shift_list = [-3.0, 3.0]
     service.y_shift_list = [4.0, -4.0]
-    assert (tmp_path / "MotionCorr/Live_processing").is_symlink()
+    assert (tmp_path / "MotionCorr/Live_motioncorr").is_symlink()
     service.motion_correction(None, header=header, message=motioncorr_test_message)
     assert offline_transport.ack.call_count == 2
 
     # Case 3: bad symlink
     service.x_shift_list = [-3.0, 3.0]
     service.y_shift_list = [4.0, -4.0]
-    (tmp_path / "MotionCorr/Live_processing").unlink()
-    (tmp_path / "MotionCorr/Live_processing").symlink_to(tmp_path / "Movies")
+    (tmp_path / "MotionCorr/Live_motioncorr").unlink()
+    (tmp_path / "MotionCorr/Live_motioncorr").symlink_to(tmp_path / "Movies")
     service.motion_correction(None, header=header, message=motioncorr_test_message)
     offline_transport.nack.assert_called_once()
 

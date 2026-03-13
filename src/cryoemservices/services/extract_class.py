@@ -107,7 +107,7 @@ class ExtractClass(CommonService):
             rw.transport.nack(header)
             return
         original_dir = Path(extract_params.class3d_dir).parent.parent
-        ctf_micrographs_file = "CtfFind/Live_processing/micrographs_ctf.star"
+        ctf_micrographs_file = "CtfFind/Live_ctffind/micrographs_ctf.star"
 
         # Link the required files and pull out necessary parameters
         particles_data = (

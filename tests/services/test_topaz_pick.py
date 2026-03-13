@@ -85,8 +85,8 @@ def test_topaz_with_diameter(
     assert (written_coords["rlnAutopickFigureOfMerit"] == [1, 2, 3]).all()
 
     # Check symlinks
-    assert (tmp_path / "AutoPick/Live_processing").is_symlink()
-    assert (tmp_path / "AutoPick/Live_processing").readlink() == (
+    assert (tmp_path / "AutoPick/Live_topaz_picking").is_symlink()
+    assert (tmp_path / "AutoPick/Live_topaz_picking").readlink() == (
         tmp_path / "AutoPick/job007"
     )
 
@@ -145,7 +145,7 @@ def test_topaz_with_diameter(
             ),
             "stdout": "",
             "stderr": "",
-            "alias": "Live_processing",
+            "alias": "Live_topaz_picking",
             "success": True,
         },
     )
@@ -305,13 +305,13 @@ def test_topaz_check_symlinks(
     offline_transport.ack.assert_called_once()
 
     # Case 2: ok symlink
-    assert (tmp_path / "AutoPick/Live_processing").is_symlink()
+    assert (tmp_path / "AutoPick/Live_topaz_picking").is_symlink()
     service.topaz(None, header=header, message=topaz_test_message)
     assert offline_transport.ack.call_count == 2
 
     # Case 3: bad symlink
-    (tmp_path / "AutoPick/Live_processing").unlink()
-    (tmp_path / "AutoPick/Live_processing").symlink_to(tmp_path / "AutoPick")
+    (tmp_path / "AutoPick/Live_topaz_picking").unlink()
+    (tmp_path / "AutoPick/Live_topaz_picking").symlink_to(tmp_path / "AutoPick")
     service.topaz(None, header=header, message=topaz_test_message)
     offline_transport.nack.assert_called_once()
 
