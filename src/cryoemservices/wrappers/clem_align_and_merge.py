@@ -24,10 +24,10 @@ from defusedxml.ElementTree import parse
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 from tifffile import TiffFile, imwrite
 
-from cryoemservices.util.clem_array_functions import (
-    align_image_to_reference,
-    align_image_to_self,
+from cryoemservices.util.image_processing import (
+    align_images_using_mmi,
     convert_to_rgb,
+    drift_correct_image,
     flatten_image,
     is_grayscale_image,
     is_image_stack,
@@ -267,7 +267,7 @@ def align_and_merge_stacks(
 
             # Align image with multithreading
             arrays = [
-                align_image_to_self(
+                drift_correct_image(
                     array,
                     "middle",
                     num_procs=num_procs,
@@ -338,38 +338,38 @@ def align_and_merge_stacks(
                 )
             ) > 4096**2:
                 downsample_factor = 4
-                sampling_percentage = 0.125
+                sampling_fraction = 0.125
                 shrink_factors_per_level = [4, 2]
             elif num_pixels > 2048**2:
                 downsample_factor = 2
-                sampling_percentage = 0.125
+                sampling_fraction = 0.125
                 shrink_factors_per_level = [4, 2]
             elif num_pixels > 1024**2:
                 downsample_factor = 2
-                sampling_percentage = 0.5
+                sampling_fraction = 0.5
                 shrink_factors_per_level = [4, 2]
             elif num_pixels > 512**2:
                 downsample_factor = 2
-                sampling_percentage = 0.5
+                sampling_fraction = 0.5
                 shrink_factors_per_level = [2, 1]
             elif num_pixels > 256**2:
                 downsample_factor = 2
-                sampling_percentage = 0.5
+                sampling_fraction = 0.5
                 shrink_factors_per_level = [1]
             # Image is small enough to sample everything
             else:
                 downsample_factor = 1
-                sampling_percentage = 1.0
+                sampling_fraction = 1.0
                 shrink_factors_per_level = [1]
             smoothing_sigmas_per_level = [s / 2 for s in shrink_factors_per_level]
 
             # Align images to reference with multithreading
             aligned = [
-                align_image_to_reference(
+                align_images_using_mmi(
                     reference_array=reference,
                     moving_array=arr,
                     downsample_factor=downsample_factor,
-                    sampling_percentage=sampling_percentage,
+                    sampling_fraction=sampling_fraction,
                     shrink_factors_per_level=shrink_factors_per_level,
                     smoothing_sigmas_per_level=smoothing_sigmas_per_level,
                     num_procs=num_procs,
