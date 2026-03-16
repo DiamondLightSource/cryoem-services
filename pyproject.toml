@@ -36,7 +36,7 @@ dependencies = [
     "icebreaker-em",
     "ispyb>=11.1.2",
     "mrcfile",
-    "numpy<2",
+    "numpy",
     "pillow",
     "plotly",
     "pydantic>=2",
