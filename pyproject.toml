@@ -30,7 +30,7 @@ classifiers = [
 ]
 dependencies = [
     "defusedxml", # CLEM workflow
-    "gemmi==0.6.5",
+    "gemmi",
     "graypy",
     "healpy",
     "icebreaker-em",
