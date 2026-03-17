@@ -228,7 +228,7 @@ def test_process_lif_subimage(
     metadata = list(find_image_elements(raw_xml_metadata).values())[scene_num]
 
     # Mock the LifFile object and assign the necessary return values
-    mock_lif_file = mocker.patch("cryoemservices.util.clem_array_functions.LifFile")
+    mock_lif_file = mocker.patch("cryoemservices.util.image_processing.LifFile")
     mock_lif_image = MagicMock(spec=LifImage)
     mock_lif_image.get_frame.return_value = np.random.randint(
         0, 256, (y_pixels, x_pixels), dtype="uint16"

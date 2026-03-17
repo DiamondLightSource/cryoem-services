@@ -219,7 +219,7 @@ def test_process_tiff_files(
 
     # Mock the result of 'cv2.imread'
     mocker.patch(
-        "cryoemservices.util.clem_array_functions.cv2.imread",
+        "cryoemservices.util.image_processing.cv2.imread",
         return_value=np.random.randint(0, 65536, (y_pixels, x_pixels), dtype="uint16"),
     )
 

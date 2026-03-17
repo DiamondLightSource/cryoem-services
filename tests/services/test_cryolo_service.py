@@ -119,8 +119,8 @@ def test_cryolo_service_spa(mock_flatten, mock_subprocess, offline_transport, tm
     )
 
     # Check symlinks
-    assert (tmp_path / "AutoPick/Live_processing").is_symlink()
-    assert (tmp_path / "AutoPick/Live_processing").readlink() == (
+    assert (tmp_path / "AutoPick/Live_cryolo").is_symlink()
+    assert (tmp_path / "AutoPick/Live_cryolo").readlink() == (
         tmp_path / "AutoPick/job007"
     )
 
@@ -205,7 +205,7 @@ def test_cryolo_service_spa(mock_flatten, mock_subprocess, offline_transport, tm
             "stdout": "stdout",
             "stderr": "stderr",
             "experiment_type": "spa",
-            "alias": "Live_processing",
+            "alias": "Live_cryolo",
             "success": True,
         },
     )
@@ -349,7 +349,7 @@ def test_cryolo_service_tomography(mock_subprocess, offline_transport, tmp_path)
             "stdout": "stdout",
             "stderr": "stderr",
             "experiment_type": "tomography",
-            "alias": "Live_processing",
+            "alias": "Live_cryolo",
             "success": True,
         },
     )
@@ -469,13 +469,13 @@ def test_cryolo_spa_check_symlinks(
     offline_transport.ack.assert_called_once()
 
     # Case 2: ok symlink
-    assert (tmp_path / "AutoPick/Live_processing").is_symlink()
+    assert (tmp_path / "AutoPick/Live_cryolo").is_symlink()
     service.cryolo(None, header=header, message=cryolo_test_message)
     assert offline_transport.ack.call_count == 2
 
     # Case 3: bad symlink
-    (tmp_path / "AutoPick/Live_processing").unlink()
-    (tmp_path / "AutoPick/Live_processing").symlink_to(tmp_path / "AutoPick")
+    (tmp_path / "AutoPick/Live_cryolo").unlink()
+    (tmp_path / "AutoPick/Live_cryolo").symlink_to(tmp_path / "AutoPick")
     service.cryolo(None, header=header, message=cryolo_test_message)
     offline_transport.nack.assert_called_once()
 

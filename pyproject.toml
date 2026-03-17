@@ -7,7 +7,7 @@ requires = [
 
 [project]
 name = "cryoemservices"
-version = "1.3.4"
+version = "1.3.6"
 description = "Services for CryoEM processing"
 readme = "README.md"
 keywords = [
@@ -36,7 +36,7 @@ dependencies = [
     "icebreaker-em",
     "ispyb>=11.1.2",
     "mrcfile",
-    "numpy<2",
+    "numpy",
     "pillow",
     "plotly",
     "pydantic>=2",

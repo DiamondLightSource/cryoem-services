@@ -18,7 +18,7 @@ import numpy as np
 from pydantic import BaseModel, ValidationError
 from readlif.reader import LifFile
 
-from cryoemservices.util.clem_array_functions import (
+from cryoemservices.util.image_processing import (
     LIFImageLoader,
     get_percentiles,
     load_and_convert_image,
@@ -426,7 +426,11 @@ def process_lif_file(
     processed_dir = Path("/".join(path_parts[: root_index + 1]))
 
     # Create folders if not already present
-    raw_xml_dir = file.parent / "metadata"
+    raw_xml_dir = (
+        processed_dir
+        / "/".join(file.relative_to(processed_dir.parent).parts[1:-1])
+        / "metadata"
+    )
     for folder in (processed_dir, raw_xml_dir):
         folder.mkdir(parents=True, exist_ok=True)
         logger.info("Created processing directory and folder to store raw metadata in")

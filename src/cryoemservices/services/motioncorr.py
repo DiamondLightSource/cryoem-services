@@ -316,7 +316,7 @@ class MotionCorr(CommonService):
         job_alias = Path(
             re.sub(
                 f"MotionCorr/job{job_number:03}/.+",
-                "MotionCorr/Live_processing/",
+                "MotionCorr/Live_motioncorr/",
                 mc_params.mrc_out,
             )
         )
@@ -526,7 +526,7 @@ class MotionCorr(CommonService):
                 "stdout": result.stdout.decode("utf8", "replace"),
                 "stderr": result.stderr.decode("utf8", "replace"),
                 "success": False,
-                "alias": "Live_processing",
+                "alias": "Live_motioncorr",
             }
             rw.send_to("node_creator", node_creator_parameters)
             rw.transport.nack(header)
@@ -677,8 +677,8 @@ class MotionCorr(CommonService):
             )
             if not import_movie.parent.is_dir():
                 import_movie.parent.mkdir(parents=True)
-            if not (project_dir / "Import/Live_processing").exists():
-                (project_dir / "Import/Live_processing").symlink_to(
+            if not (project_dir / "Import/Live_import").exists():
+                (project_dir / "Import/Live_import").symlink_to(
                     project_dir / f"Import/job{job_number - 1:03}"
                 )
             import_movie.unlink(missing_ok=True)
@@ -693,7 +693,7 @@ class MotionCorr(CommonService):
                     "command": "",
                     "stdout": "",
                     "stderr": "",
-                    "alias": "Live_processing",
+                    "alias": "Live_import",
                 }
             else:
                 import_parameters = {
@@ -705,7 +705,7 @@ class MotionCorr(CommonService):
                     "command": "",
                     "stdout": "",
                     "stderr": "",
-                    "alias": "Live_processing",
+                    "alias": "Live_import",
                 }
             rw.send_to("node_creator", import_parameters)
 
@@ -725,7 +725,7 @@ class MotionCorr(CommonService):
                     "early_motion": early_motion,
                     "late_motion": late_motion,
                 },
-                "alias": "Live_processing",
+                "alias": "Live_motioncorr",
             }
             rw.send_to("node_creator", node_creator_parameters)
             # Remove tmp file after requesting node creation

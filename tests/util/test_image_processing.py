@@ -5,17 +5,21 @@ from typing import Any, Literal
 import numpy as np
 import pytest
 
-from cryoemservices.util.clem_array_functions import (
+from cryoemservices.util.image_processing import (
     LUT,
-    align_image_to_reference,
-    align_image_to_self,
+    align_images_using_mmi,
+    align_images_using_orb,
     convert_to_rgb,
+    drift_correct_image,
     flatten_image,
     is_grayscale_image,
     is_image_stack,
     merge_images,
 )
-from tests.test_utils.clem import gaussian_2d
+from tests.test_utils.image_processing import (
+    create_grayscale_image_with_gaussian,
+    create_grayscale_image_with_holes,
+)
 
 
 def test_get_histogram():
@@ -115,42 +119,43 @@ def test_is_image_stack_errors(test_params: tuple[tuple[int, ...]]):
         (-2, -2, "end"),
     ),
 )
-def test_align_image_to_self(
+def test_drift_correct_image(
     test_params: tuple[int, int, Literal["beginning", "middle", "end"]],
 ):
     # Unpack test params
     x_offset, y_offset, start_point = test_params
     num_frames = 10
     shape = (128, 128)
-    dtype = np.uint8
+    dtype = "uint8"
 
-    # Create a reference image stack with offset bright spots
-    arr = np.zeros((num_frames, *shape), dtype=dtype)
-
-    # Add 3(?) bright spots per frame at different offsets
-    for f in range(num_frames):
-        # Add 2 Gaussian peaks to arrays
-        arr[f] += (
-            gaussian_2d(
-                shape,
-                200,
-                (48 + (f * x_offset), 48 + (f * y_offset)),
-                (8, 12),
-                30,
-                0,
-            )
-            + gaussian_2d(
-                shape,
-                150,
-                (80 + (f * x_offset), 80 + (f * y_offset)),
-                (12, 8),
-                45,
-                0,
-            )
-        ).astype(dtype, copy=False)
+    arr = create_grayscale_image_with_gaussian(
+        shape=shape,
+        num_frames=num_frames,
+        dtype=dtype,
+        peaks=[
+            {
+                "shape": shape,
+                "amplitude": 192,
+                "centre": (48, 48),
+                "sigma": (8, 12),
+                "theta": 30,
+                "offset": 0,
+            },
+            {
+                "shape": shape,
+                "amplitude": 128,
+                "centre": (80, 80),
+                "sigma": (12, 8),
+                "theta": 45,
+                "offset": 0,
+            },
+        ],
+        peak_shift_per_frame=(x_offset, y_offset),
+        intensity_offset_per_frame=0,
+    )
 
     # Align the frames in the stack
-    aligned = align_image_to_self(array=arr, start_from=start_point)
+    aligned = drift_correct_image(array=arr, start_from=start_point)
 
     # Assert that bright spots are aligned throughout the stack
     for f in range(num_frames):
@@ -175,57 +180,66 @@ def test_align_image_to_self(
         (-2, 2, "uint8"),
     ),
 )
-def test_align_image_to_reference(test_params: tuple[int, int, str]):
+def test_align_images_using_mmi(test_params: tuple[int, int, str]):
     # Unpack test params
     x_offset, y_offset, dtype = test_params
 
     n_frames = 5
     shape = (128, 128)
-    ref = np.zeros((n_frames, *shape), dtype=dtype)
-    mov = np.zeros((n_frames, *shape), dtype=dtype)
 
-    for f in range(n_frames):
-        # Add 2 Gaussian peaks to arrays
-        ref[f] += (
-            gaussian_2d(
-                shape,
-                200,
-                (48, 48),
-                (8, 12),
-                30,
-                0,
-            )
-            + gaussian_2d(
-                shape,
-                150,
-                (80, 80),
-                (12, 8),
-                45,
-                0,
-            )
-        ).astype(dtype, copy=False)
-
-        mov[f] += (
-            gaussian_2d(
-                shape,
-                200,
-                (48 + x_offset, 48 + y_offset),
-                (8, 12),
-                30,
-                0,
-            )
-            + gaussian_2d(
-                shape,
-                150,
-                (80 + x_offset, 80 + y_offset),
-                (12, 8),
-                45,
-                0,
-            )
-        ).astype(dtype)
+    ref = create_grayscale_image_with_gaussian(
+        shape=shape,
+        num_frames=n_frames,
+        dtype=dtype,
+        peaks=[
+            {
+                "shape": shape,
+                "amplitude": 192,
+                "centre": (48, 48),
+                "sigma": (8, 12),
+                "theta": 30,
+                "offset": 0,
+            },
+            {
+                "shape": shape,
+                "amplitude": 128,
+                "centre": (80, 80),
+                "sigma": (12, 8),
+                "theta": 45,
+                "offset": 0,
+            },
+        ],
+        peak_shift_per_frame=(0, 0),
+        intensity_offset_per_frame=0,
+    )
+    mov = create_grayscale_image_with_gaussian(
+        shape=shape,
+        num_frames=n_frames,
+        dtype=dtype,
+        peaks=[
+            {
+                "shape": shape,
+                "amplitude": 192,
+                "centre": (48 + x_offset, 48 + y_offset),
+                "sigma": (8, 12),
+                "theta": 30,
+                "offset": 0,
+            },
+            {
+                "shape": shape,
+                "amplitude": 128,
+                "centre": (80 + x_offset, 80 + y_offset),
+                "sigma": (12, 8),
+                "theta": 45,
+                "offset": 0,
+            },
+        ],
+        peak_shift_per_frame=(0, 0),
+        intensity_offset_per_frame=0,
+    )
 
     # Align moving image to reference
-    reg = align_image_to_reference(ref, mov)
+    reg = align_images_using_mmi(ref, mov)
 
     # Assert that bright spots are aligned
     np.testing.assert_allclose(
@@ -594,3 +608,141 @@ def test_merge_images_fails(test_params: tuple[str, int, bool, bool, bool]):
             arr_list.append(arr)
 
         merge_images(arr_list)
+
+
+def test_create_hanning_window():
+    pass
+
+
+def test_apply_sobel_edge_filter():
+    pass
+
+
+@pytest.mark.parametrize(
+    "test_params",
+    (  # Num frames | x-offset | y-offset
+        (1, 20, 20),
+        (5, 20, 20),
+        (1, -10, -10),
+        (5, -10, -10),
+        (1, 20, -20),
+        (5, -20, 20),
+        (1, -10, 10),
+        (5, 10, -10),
+    ),
+)
+def test_align_images_using_orb(test_params: tuple[int, int, int]):
+    # Unpack test params
+    num_frames, x_offset, y_offset = test_params
+
+    # Construct the grayscale images to align together
+    w, h = 512, 512
+    ref = create_grayscale_image_with_holes(
+        shape=(h, w),
+        num_frames=num_frames,
+        layer_intensity=96,
+        noise_sigma=4,
+        hole_intensity=32,
+        hole_list=[
+            {
+                "center": (140, 320),
+                "axes": (24, 4),
+                "angle": 90,
+            },
+            {
+                "center": (160, 190),
+                "axes": (20, 4),
+                "angle": 90,
+            },
+            {
+                "center": (250, 340),
+                "axes": (24, 4),
+                "angle": 90,
+            },
+            {
+                "center": (280, 150),
+                "axes": (16, 4),
+                "angle": 90,
+            },
+            {
+                "center": (290, 240),
+                "axes": (12, 4),
+                "angle": 90,
+            },
+            {
+                "center": (360, 170),
+                "axes": (16, 4),
+                "angle": 90,
+            },
+            {
+                "center": (360, 330),
+                "axes": (20, 4),
+                "angle": 90,
+            },
+        ],
+        offset_per_frame=(0, 0),
+    )
+    mov = create_grayscale_image_with_holes(
+        shape=(512, 512),
+        num_frames=num_frames,
+        layer_intensity=96,
+        noise_sigma=4,
+        hole_intensity=32,
+        hole_list=[
+            {
+                "center": (140 + x_offset, 320 + y_offset),
+                "axes": (24, 4),
+                "angle": 90,
+            },
+            {
+                "center": (160 + x_offset, 190 + y_offset),
+                "axes": (20, 4),
+                "angle": 90,
+            },
+            {
+                "center": (250 + x_offset, 340 + y_offset),
+                "axes": (24, 4),
+                "angle": 90,
+            },
+            {
+                "center": (280 + x_offset, 150 + y_offset),
+                "axes": (16, 4),
+                "angle": 90,
+            },
+            {
+                "center": (290 + x_offset, 240 + y_offset),
+                "axes": (12, 4),
+                "angle": 90,
+            },
+            {
+                "center": (360 + x_offset, 170 + y_offset),
+                "axes": (16, 4),
+                "angle": 90,
+            },
+            {
+                "center": (360 + x_offset, 330 + y_offset),
+                "axes": (20, 4),
+                "angle": 90,
+            },
+        ],
+        offset_per_frame=(0, 0),
+    )
+    aln = align_images_using_orb(
+        ref,
+        mov,
+        sigma=3,
+        hanning_window=True,
+        kernel_size=3,
+        min_area=50,
+        max_area=5000,
+        patch_size=31,
+    )
+    # Compare only the common region
+    w0, h0 = abs(x_offset), abs(y_offset)
+    w1, h1 = w - w0, h - h0
+    expected = ref[:, h0:h1, w0:w1] if num_frames != 1 else ref[h0:h1, w0:w1]
+    returned = aln[:, h0:h1, w0:w1] if num_frames != 1 else aln[h0:h1, w0:w1]
+
+    # # Check that the number of pixels that image alignment mismatch is within bounds
+    mismatch = abs(expected.astype(np.float32) - returned.astype(np.float32)) > 5
+    assert np.sum(mismatch) / np.prod(mismatch.shape) < 0.005  # 0.5% pixel deviation
