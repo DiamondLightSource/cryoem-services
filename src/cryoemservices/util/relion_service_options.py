@@ -264,7 +264,6 @@ def generate_service_options(
     }
 
     job_options["relion.select.class2dauto"] = {
-        "python_exe": "/dls_sw/apps/EM/relion/4.0/conda/bin/python",
         "rank_threshold": relion_options.autoselect_min_score,
         "other_args": "--select_min_nr_particles 500",
     }
