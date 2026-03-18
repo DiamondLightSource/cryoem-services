@@ -218,9 +218,7 @@ class Extract(CommonService):
                     "0.0",
                 ]
             )
-        extracted_parts_doc.write_file(
-            extract_params.output_file, style=cif.Style.Simple
-        )
+        extracted_parts_doc.write_file(extract_params.output_file)
 
         # Extraction
         with mrcfile.open(extract_params.micrographs_file) as input_micrograph:
