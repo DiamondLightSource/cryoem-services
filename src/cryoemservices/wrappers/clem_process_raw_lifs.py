@@ -429,6 +429,7 @@ def process_lif_file(
     raw_xml_dir = (
         processed_dir
         / "/".join(file.relative_to(processed_dir.parent).parts[1:-1])
+        / file.stem.replace(" ", "_")
         / "metadata"
     )
     for folder in (processed_dir, raw_xml_dir):
