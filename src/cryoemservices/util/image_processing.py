@@ -239,7 +239,7 @@ def load_and_convert_image(
     """
 
     try:
-        arr = image_loader.load()
+        arr = image_loader.load().astype(np.float32)
         if new_shape:
             new_y, new_x = new_shape
             arr = cv2.resize(
@@ -249,8 +249,8 @@ def load_and_convert_image(
             )
         scale = 255 / ((vmax - vmin) or 1)  # Downscale to 8-bit
         np.clip(arr, a_min=vmin, a_max=vmax, out=arr)
-        np.subtract(arr, vmin, out=arr, casting="unsafe")
-        np.multiply(arr, scale, out=arr, casting="unsafe")
+        np.subtract(arr, vmin, out=arr)
+        np.multiply(arr, scale, out=arr)
         return LoadImageResult(
             data=arr.astype(np.uint8),
             frame_num=frame_num,
@@ -342,7 +342,7 @@ def load_and_resize_tile(
         pos_y = int(round((y0 - py0) / (py1 - py0) * parent_y_pixels))
 
         # Load image and resize
-        img = image_loader.load()
+        img = image_loader.load().astype(np.float32)
         resized = cv2.resize(
             img,
             dsize=(tile_x_pixels, tile_y_pixels),
@@ -351,8 +351,8 @@ def load_and_resize_tile(
         # Normalise to 8-bit
         scale = 255 / ((vmax - vmin) or 1)
         np.clip(resized, vmin, vmax, out=resized)
-        np.subtract(resized, vmin, out=resized, casting="unsafe")
-        np.multiply(resized, scale, out=resized, casting="unsafe")
+        np.subtract(resized, vmin, out=resized)
+        np.multiply(resized, scale, out=resized)
         resized = resized.astype(np.uint8)
 
         return ResizeTileResult(
