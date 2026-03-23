@@ -41,7 +41,6 @@
       "refine_wrapper": 7
     },
     "parameters": {
-      "picker_id": "{picker_id}",
       "refined_class_uuid": "{refined_class_uuid}",
       "refined_grp_uuid": "{refined_grp_uuid}"
     },
@@ -83,7 +82,6 @@
       "node_creator": 2
     },
     "parameters": {
-      "picker_id": "{picker_id}",
       "refined_class_uuid": "{symmetry_refined_class_uuid}",
       "refined_grp_uuid": "{symmetry_refined_grp_uuid}"
     },
