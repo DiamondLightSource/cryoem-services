@@ -57,7 +57,7 @@ class Class2DParameters(BaseModel):
     allow_coarser: bool = False
     do_norm: bool = True
     do_scale: bool = True
-    mpi_run_command: str = "srun -n 5"
+    mpi_run_command: str = "mpirun -n 5"
     threads: int = 8
     gpus: str = "0"
     picker_id: int | None = None

@@ -16,7 +16,6 @@
       "initial_model_file": "{initial_model_file}",
       "initial_model_iterations": "{initial_model_iterations}",
       "mask_diameter": "{mask_diameter}",
-      "mpi_run_command": "srun -n 9",
       "particle_diameter": "{particle_diameter}",
       "particles_file": "{particles_file}",
       "relion_options": {},

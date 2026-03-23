@@ -17,7 +17,6 @@
       "class_uuids": "{class_uuids}",
       "do_icebreaker_jobs": "False",
       "mask_diameter": "{mask_diameter}",
-      "mpi_run_command": "srun -n 5",
       "particle_diameter": "{particle_diameter}",
       "particles_file": "{particles_file}",
       "relion_options": {},
