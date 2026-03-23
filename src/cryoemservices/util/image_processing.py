@@ -17,8 +17,8 @@ from typing import Literal, Protocol, cast
 import cv2
 import numpy as np
 import SimpleITK as sitk
+import tifffile as tf
 from readlif.reader import LifFile
-from tifffile import imwrite
 
 # Create logger object to output messages with
 logger = logging.getLogger("cryoemservices.util.image_processing")
@@ -61,7 +61,7 @@ class TIFFImageLoader(ImageLoader):
     tiff_file: Path
 
     def load(self) -> np.ndarray:
-        return np.asarray(cv2.imread(self.tiff_file, flags=cv2.IMREAD_UNCHANGED))
+        return tf.imread(self.tiff_file)
 
 
 @dataclass(frozen=True)
@@ -498,7 +498,7 @@ def write_stack_to_tiff(
     save_name = save_dir.joinpath(file_name + ".tiff")
 
     # With 'bigtiff=True', they have to be pure Python class instances
-    imwrite(
+    tf.imwrite(
         save_name,
         array,
         bigtiff=use_bigtiff,
