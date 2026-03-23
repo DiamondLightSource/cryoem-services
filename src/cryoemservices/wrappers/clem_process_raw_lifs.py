@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Optional
 from xml.etree import ElementTree as ET
@@ -434,7 +434,7 @@ def process_lif_file(
     )
     for folder in (processed_dir, raw_xml_dir):
         folder.mkdir(parents=True, exist_ok=True)
-        logger.info("Created processing directory and folder to store raw metadata in")
+    logger.info("Created processing directory and folder to store raw metadata in")
 
     # Load LIF file as a LifFile class
     logger.info(f"Loading {file.name!r}")
@@ -465,17 +465,22 @@ def process_lif_file(
     logger.info(f"Examining subimages in {file.name!r}")
 
     # Iterate across the series in the pool
-    results = [
-        process_lif_subimage(
-            file,
-            i,
-            metadata,
-            processed_dir,
-            series_path,
-            num_procs,
-        )
-        for i, (series_path, metadata) in enumerate(metadata_dict.items())
-    ]
+    num_workers = 4 if num_procs > 4 else num_procs
+    num_threads = (num_procs // num_workers) or 1
+    with ProcessPoolExecutor(num_workers) as pool:
+        futures = [
+            pool.submit(
+                process_lif_subimage,
+                file,
+                i,
+                metadata,
+                processed_dir,
+                series_path,
+                num_threads,
+            )
+            for i, (series_path, metadata) in enumerate(metadata_dict.items())
+        ]
+    results = [future.result() for future in as_completed(futures)]
 
     end_time = time.perf_counter()
     logger.debug(f"Processed LIF file {file} in {end_time - start_time}s")
@@ -494,7 +499,7 @@ class ProcessRawLIFsParameters(BaseModel):
 
     lif_file: Path
     root_folder: str  # The root folder under which all LIF files are saved
-    num_procs: int = 20  # Number of processing threads to run
+    num_procs: int = 16  # Number of processing threads to run
 
 
 class ProcessRawLIFsWrapper:
