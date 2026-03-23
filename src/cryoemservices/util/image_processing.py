@@ -248,9 +248,9 @@ def load_and_convert_image(
                 interpolation=cv2.INTER_AREA,
             )
         scale = 255 / ((vmax - vmin) or 1)  # Downscale to 8-bit
-        np.clip(arr, a_min=vmin, a_max=vmax, out=arr)
         np.subtract(arr, vmin, out=arr)
         np.multiply(arr, scale, out=arr)
+        np.clip(arr, a_min=0, a_max=255, out=arr)
         return LoadImageResult(
             data=arr.astype(np.uint8),
             frame_num=frame_num,
@@ -350,13 +350,12 @@ def load_and_resize_tile(
         )
         # Normalise to 8-bit
         scale = 255 / ((vmax - vmin) or 1)
-        np.clip(resized, vmin, vmax, out=resized)
         np.subtract(resized, vmin, out=resized)
         np.multiply(resized, scale, out=resized)
-        resized = resized.astype(np.uint8)
+        np.clip(resized, a_min=0, a_max=255, out=resized)
 
         return ResizeTileResult(
-            data=resized,
+            data=resized.astype(np.uint8),
             frame_num=frame_num,
             x0=pos_x,
             x1=pos_x + tile_x_pixels,
