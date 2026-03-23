@@ -6,7 +6,7 @@ import os
 import re
 import subprocess
 from pathlib import Path
-from typing import Callable, Optional, Tuple
+from typing import Callable, Tuple
 
 import numpy as np
 from gemmi import cif
@@ -50,14 +50,14 @@ class Class3DParameters(BaseModel):
     particle_diameter: float = 0
     mask_diameter: float = 190
     do_initial_model: bool = False
-    initial_model_file: Optional[str] = None
+    initial_model_file: str | None = None
     initial_model_iterations: int = 200
     initial_model_offset_range: float = 6
     initial_model_offset_step: float = 2
     start_initial_model_C1: bool = True
     dont_combine_weights_via_disc: bool = True
     preread_images: bool = True
-    scratch_dir: Optional[str] = None
+    scratch_dir: str | None = None
     nr_pool: int = 10
     pad: int = 2
     skip_gridding: bool = False
@@ -71,8 +71,8 @@ class Class3DParameters(BaseModel):
     class3d_nr_classes: int = 4
     flatten_solvent: bool = True
     do_zero_mask: bool = True
-    highres_limit: Optional[float] = None
-    fn_mask: Optional[str] = None
+    highres_limit: float | None = None
+    fn_mask: str | None = None
     oversampling: int = 1
     skip_align: bool = False
     healpix_order: int = 2
@@ -86,7 +86,7 @@ class Class3DParameters(BaseModel):
     threads: int = 8
     gpus: str = "0:1:2:3"
     initial_model_gpus: str = "0,1,2,3"
-    picker_id: int
+    picker_id: int | None = None
     class3d_grp_uuid: int
     class_uuids: str
     relion_options: RelionServiceOptions

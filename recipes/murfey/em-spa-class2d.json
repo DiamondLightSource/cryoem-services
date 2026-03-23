@@ -20,7 +20,6 @@
       "mpi_run_command": "srun -n 5",
       "particle_diameter": "{particle_diameter}",
       "particles_file": "{particles_file}",
-      "picker_id": "{picker_id}",
       "relion_options": {},
       "threads": 8
     },

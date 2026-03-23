@@ -6,7 +6,7 @@ import os
 import re
 import subprocess
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Callable
 
 import numpy as np
 from gemmi import cif
@@ -36,7 +36,7 @@ class Class2DParameters(BaseModel):
     vdam_final_fraction: float = 0.1
     dont_combine_weights_via_disc: bool = True
     preread_images: bool = True
-    scratch_dir: Optional[str] = None
+    scratch_dir: str | None = None
     nr_pool: int = 100
     pad: int = 2
     skip_gridding: bool = False
@@ -47,7 +47,7 @@ class Class2DParameters(BaseModel):
     class2d_nr_classes: int = 50
     flatten_solvent: bool = True
     do_zero_mask: bool = True
-    highres_limit: Optional[float] = None
+    highres_limit: float | None = None
     centre_classes: bool = True
     oversampling: int = 1
     skip_align: bool = False
@@ -60,7 +60,7 @@ class Class2DParameters(BaseModel):
     mpi_run_command: str = "srun -n 5"
     threads: int = 8
     gpus: str = "0"
-    picker_id: int
+    picker_id: int | None = None
     class2d_grp_uuid: int
     class_uuids: str
     do_icebreaker_jobs: bool = True
