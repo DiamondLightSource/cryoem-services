@@ -480,7 +480,7 @@ def process_lif_file(
             )
             for i, (series_path, metadata) in enumerate(metadata_dict.items())
         ]
-    results = [future.result() for future in as_completed(futures)]
+    results = [future.result() for future in futures]
 
     end_time = time.perf_counter()
     logger.debug(f"Processed LIF file {file} in {end_time - start_time}s")
