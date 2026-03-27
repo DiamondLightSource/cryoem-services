@@ -14,7 +14,7 @@ import tifffile as tf
 from PIL import ImageDraw, ImageEnhance, ImageFilter, ImageFont
 
 from cryoemservices.services.cryolo import grid_bar_histogram
-from cryoemservices.util.clem_array_functions import convert_to_rgb
+from cryoemservices.util.image_processing import convert_to_rgb
 
 logger = logging.getLogger("cryoemservices.services.images_plugins")
 logger.setLevel(logging.INFO)
