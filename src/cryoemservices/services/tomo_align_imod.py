@@ -1,6 +1,6 @@
 import subprocess
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import List, Optional
 
 import mrcfile
 from pydantic import BaseModel, Field, ValidationError
@@ -49,7 +49,6 @@ class ImodTomoAlign(CommonService):
     job_type = "relion.reconstructtomograms"
 
     # Values to extract for ISPyB
-    input_file_list_of_lists: List[Any]
     refined_tilts: List[float]
     x_shift: List[float]
     y_shift: List[float]
@@ -132,12 +131,15 @@ class ImodTomoAlign(CommonService):
             return
 
         # Find the input image dimensions
-        with mrcfile.open(self.input_file_list_of_lists[0][0]) as mrc:
+        with mrcfile.open(tomo_params.stack_file) as mrc:
             mrc_header = mrc.header
 
         # Run batchruntomo
         adoc_file = write_batch_directive_file(tomo_params)
-        imod_output_path = Path(tomo_params.stack_file).with_suffix("_Vol.rec")
+        imod_output_path = (
+            Path(tomo_params.stack_file).parent
+            / f"{Path(tomo_params.stack_file).name}_Vol.rec"
+        )
         imod_result = subprocess.run(
             [
                 "batchruntomo",
@@ -291,7 +293,7 @@ def write_batch_directive_file(tomo_params: ImodTomoParameters):
         "setupset.copyarg.userawtlt=1"
         # "setupset.copyarg.dual=0"
         adoc.write(f"setupset.copyarg.pixel={tomo_params.pixel_size / 10}\n")
-        adoc.write(f"setupset.copyarg.gold={tomo_params.beam_size}\n")
+        adoc.write(f"setupset.copyarg.gold={tomo_params.bead_size}\n")
         adoc.write(f"setupset.copyarg.rotation={tomo_params.tilt_axis}\n")
         # "setupset.copyarg.extract=0"
 
