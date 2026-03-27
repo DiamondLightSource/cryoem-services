@@ -85,6 +85,8 @@ torch = [
 [project.entry-points."ccpem_pipeliner.jobs"]
     "combine_star_files_job" = "cryoemservices.pipeliner_plugins.combine_star_job:ProcessStarFiles"
 [project.entry-points."cryoemservices.services"]
+    AreTomoAlign = "cryoemservices.services.tomo_align_aretomo:AreTomoAlign"
+    AreTomoAlignSlurm = "cryoemservices.services.tomo_align_aretomo_slurm:AreTomoAlignSlurm"
     BFactor = "cryoemservices.services.bfactor_setup:BFactor"
     CLEMAlignAndMerge = "cryoemservices.services.clem_align_and_merge:AlignAndMergeService"
     CLEMProcessRawLIFs = "cryoemservices.services.clem_process_raw_lifs:ProcessRawLIFsService"
@@ -102,6 +104,7 @@ torch = [
     ExtractClass = "cryoemservices.services.extract_class:ExtractClass"
     IceBreaker = "cryoemservices.services.icebreaker:IceBreaker"
     Images = "cryoemservices.services.images:Images"
+    ImodTomoAlign = "cryoemservices.services.tomo_align_imod:ImodTomoAlign"
     MembrainSeg = "cryoemservices.services.membrain_seg:MembrainSeg"
     MotionCorr = "cryoemservices.services.motioncorr:MotionCorr"
     MurfeyDBConnector = "cryoemservices.services.murfey_db_connector:MurfeyDBConnector"
@@ -111,8 +114,6 @@ torch = [
     Refine3D = "cryoemservices.services.refine3d:Refine3D"
     SelectClasses = "cryoemservices.services.select_classes:SelectClasses"
     SelectParticles = "cryoemservices.services.select_particles:SelectParticles"
-    TomoAlign = "cryoemservices.services.tomo_align:TomoAlign"
-    TomoAlignSlurm = "cryoemservices.services.tomo_align_slurm:TomoAlignSlurm"
     TopazPick = "cryoemservices.services.topaz_pick:TopazPick"
 [project.entry-points."cryoemservices.services.images.plugins"]
     "mrc_central_slice" = "cryoemservices.services.images_plugins:mrc_central_slice"
