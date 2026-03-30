@@ -522,9 +522,6 @@ class NodeCreator(CommonService):
             except FileNotFoundError:
                 self.log.warning("No job lock found to remove")
 
-        if job_info.alias:
-            (job_dir.parent / job_info.alias).unlink(missing_ok=True)
-
         # Create the node and default_pipeline.star files in the project directory
         with CachedProjectGraph(
             read_only=False, pipeline_dir=str(project_dir), name="default"
@@ -561,9 +558,6 @@ class NodeCreator(CommonService):
             "relion.select.class2dauto",
             "icebreaker.micrograph_analysis.particles",
         ]:
-            if job_info.alias:
-                # Unlink the alias again as it will be recreated
-                (job_dir.parent / job_info.alias).unlink(missing_ok=True)
             # Set up a "short_pipeline.star" for SPA which excludes the 2D batches
             with CachedProjectGraph(
                 read_only=False,
