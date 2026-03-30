@@ -127,11 +127,7 @@ class Extract(CommonService):
         job_alias = job_dir.parent / "Live_all_particles"
         if not job_alias.exists():
             job_alias.symlink_to(job_dir)
-        elif not (
-            job_alias.is_symlink()
-            and (job_alias.parent.resolve() / job_alias.name).resolve()
-            == job_dir.resolve()
-        ):
+        elif not (job_alias.is_symlink() and job_alias.resolve() == job_dir.resolve()):
             self.log.error(f"Symlink {job_alias} already exists")
             rw.transport.nack(header)
             return

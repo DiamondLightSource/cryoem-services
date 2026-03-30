@@ -96,9 +96,7 @@ class SelectParticles(CommonService):
         if not job_alias.exists():
             job_alias.symlink_to(select_dir)
         elif not (
-            job_alias.is_symlink()
-            and (job_alias.parent.resolve() / job_alias.name).resolve()
-            == select_dir.resolve()
+            job_alias.is_symlink() and job_alias.resolve() == select_dir.resolve()
         ):
             self.log.error(f"Symlink {job_alias} already exists")
             rw.transport.nack(header)

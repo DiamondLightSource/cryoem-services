@@ -345,9 +345,7 @@ class SelectClasses(CommonService):
         if not job_alias.exists():
             job_alias.symlink_to(combine_star_dir)
         elif not (
-            job_alias.is_symlink()
-            and (job_alias.parent.resolve() / job_alias.name).resolve()
-            == combine_star_dir.resolve()
+            job_alias.is_symlink() and job_alias.resolve() == combine_star_dir.resolve()
         ):
             self.log.error(f"Symlink {job_alias} already exists")
             rw.transport.nack(header)
