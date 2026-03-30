@@ -352,7 +352,7 @@ def test_class2d_wrapper_complete_batch(
 
     # Check the expected command was run
     class2d_command = [
-        "srun",
+        "mpirun",
         "-n",
         "5",
         "relion_refine_mpi",

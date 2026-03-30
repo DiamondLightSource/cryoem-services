@@ -103,7 +103,7 @@ def test_class3d_service_has_initial_model(
     # Check the expected 3D classifcation command was run
     assert mock_subprocess.call_count == 4
     class3d_command = [
-        "srun",
+        "mpirun",
         "-n",
         "5",
         "relion_refine_mpi",
@@ -282,6 +282,7 @@ def test_class3d_service_rerun(
                     "do_initial_model": False,
                     "initial_model_file": f"{tmp_path}/initial_model.mrc",
                     "mask_diameter": "190.0",
+                    "mpi_run_command": "srun -n 5",
                     "particle_diameter": "180",
                     "particles_file": f"{tmp_path}/Select/job013/particles_100000.star",
                     "picker_id": "6",

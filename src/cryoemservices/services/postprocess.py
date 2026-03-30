@@ -35,7 +35,7 @@ class PostProcessParameters(BaseModel):
     postprocess_lowres: float = 10
     symmetry: str = "C1"
     particles_file: str = ""
-    picker_id: int
+    picker_id: int | None = None
     refined_grp_uuid: int
     refined_class_uuid: int
     relion_options: RelionServiceOptions
