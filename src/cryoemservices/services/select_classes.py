@@ -344,7 +344,11 @@ class SelectClasses(CommonService):
         job_alias = Path(project_dir / "Select/Live_best_particles")
         if not job_alias.exists():
             job_alias.symlink_to(combine_star_dir)
-        elif not (job_alias.is_symlink() and job_alias.readlink() == combine_star_dir):
+        elif not (
+            job_alias.is_symlink()
+            and (job_alias.parent.resolve() / job_alias.name).resolve()
+            == combine_star_dir.resolve()
+        ):
             self.log.error(f"Symlink {job_alias} already exists")
             rw.transport.nack(header)
             return
