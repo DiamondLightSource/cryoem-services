@@ -354,7 +354,8 @@ class CTFFind(CommonService):
                 rw.send_to(
                     "smartem",
                     {
-                        "ctf_max_resolution_estimate": self.estimated_resolution,
+                        "register": "spa.ctf_estimated",
+                        "ctf_max_resolution": self.estimated_resolution,
                         "ice_ring_density": ice_ring_density,
                         "app_id": ctf_params.app_id,
                         "mc_uuid": ctf_params.mc_uuid,

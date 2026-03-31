@@ -18,9 +18,11 @@
       "icebreaker": 6,
       "images": 5,
       "ispyb_connector": 4,
-      "node_creator": 3
+      "node_creator": 3,
+      "smartem": 10
     },
     "parameters": {
+      "app_id": "{autoproc_program_id}",
       "do_icebreaker_jobs": "{do_icebreaker_jobs}",
       "dose_per_frame": "{fm_dose}",
       "eer_sampling": 1,
@@ -78,11 +80,15 @@
     "service": "IceBreaker"
   },
   "8": {
+    "parameters": {
+      "app_id": "{autoproc_program_id}"
+    },
     "output": {
       "cryolo": 9,
       "images": 5,
       "ispyb_connector": 4,
-      "node_creator": 3
+      "node_creator": 3,
+      "smartem": 10
     },
     "queue": "ctffind",
     "service": "CTFFind"
@@ -95,6 +101,7 @@
       "node_creator": 3
     },
     "parameters": {
+      "app_id": "{autoproc_program_id}",
       "particle_diameter": "{particle_diameter}",
       "cryolo_model_weights": "{cryolo_model_weights}",
       "retained_fraction": "0.7"

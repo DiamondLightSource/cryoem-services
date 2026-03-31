@@ -737,6 +737,7 @@ class MotionCorr(CommonService):
             rw.send_to(
                 "smartem",
                 {
+                    "register": "spa.motion_corrected",
                     "total_motion": total_motion,
                     "average_motion": average_motion_per_frame,
                     "app_id": mc_params.app_id,
