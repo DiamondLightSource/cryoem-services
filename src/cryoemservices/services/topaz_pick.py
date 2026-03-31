@@ -121,7 +121,8 @@ class TopazPick(CommonService):
             job_alias.symlink_to(job_alias.parent / f"job{job_number:03}")
         elif not (
             job_alias.is_symlink()
-            and job_alias.readlink() == job_alias.parent / f"job{job_number:03}"
+            and job_alias.resolve()
+            == (job_alias.parent / f"job{job_number:03}").resolve()
         ):
             self.log.error(f"Symlink {job_alias} already exists")
             rw.transport.nack(header)
