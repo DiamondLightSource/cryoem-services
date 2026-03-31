@@ -17,9 +17,10 @@ from cryoemservices.util.relion_service_options import RelionServiceOptions
 
 
 class MrcFileHeader:
-    def __init__(self, nx, ny):
+    def __init__(self, nx, ny, nz=1):
         self.nx = nx
         self.ny = ny
+        self.nz = nz
 
 
 @pytest.fixture
@@ -1411,7 +1412,7 @@ def test_tomo_align_service_path_pattern(
     output_relion_options["frame_count"] = 6
     output_relion_options["dose_per_frame"] = 0.2
     # Volume default to minimum
-    output_relion_options["vol_z"] = 800
+    output_relion_options["vol_z"] = 600
 
     # Set up the mock service
     service = tomo_align.TomoAlign(
@@ -1511,10 +1512,10 @@ def test_tomo_align_service_path_pattern(
     # Check resizing and rotating
     assert mock_resize.call_count == 2
     mock_resize.assert_any_call(
-        tmp_path / "Tomograms/job006/tomograms/test_stack_Vol.mrc", int(800 / 4)
+        tmp_path / "Tomograms/job006/tomograms/test_stack_Vol.mrc", int(600 / 4)
     )
     mock_resize.assert_any_call(
-        tmp_path / "Tomograms/job006/tomograms/test_stack_2ND_Vol.mrc", int(800 / 2)
+        tmp_path / "Tomograms/job006/tomograms/test_stack_2ND_Vol.mrc", int(600 / 2)
     )
     mock_rotate.assert_not_called()
 
@@ -2087,7 +2088,9 @@ def test_tomo_align_service_fail_case(
 @mock.patch("txrm2tiff.inspector.Inspector")
 @mock.patch("txrm2tiff.txrm_functions.general.read_stream")
 @mock.patch("cryoemservices.services.tomo_align.resize_tomogram")
+@mock.patch("cryoemservices.services.tomo_align.rotate_tomogram")
 def test_tomo_align_service_txrm(
+    mock_rotate,
     mock_resize,
     mock_read_stream,
     mock_inspector,
@@ -2101,7 +2104,7 @@ def test_tomo_align_service_txrm(
     """
     Send a test message to TomoAlign (AreTomo3) for a txrm file
     """
-    mock_mrcfile.open().__enter__().header = {"nx": 4000, "ny": 3000, "nz": 600}
+    mock_mrcfile.open().__enter__().header = MrcFileHeader(nx=4000, ny=3000, nz=600)
     mock_read_stream.return_value = [0.1, 0.3, 0.5]
 
     header = {
@@ -2109,7 +2112,7 @@ def test_tomo_align_service_txrm(
         "subscription": mock.sentinel,
     }
     tomo_align_test_message = {
-        "stack_file": f"{tmp_path}/Tomograms/job001/stack.mrc",
+        "stack_file": f"{tmp_path}/Tomograms/stack.mrc",
         "txrm_file": f"{tmp_path}/tilt_stack.txrm",
         "pixel_size": 100,
         "relion_options": {},
@@ -2124,7 +2127,7 @@ def test_tomo_align_service_txrm(
     output_relion_options["pixel_size_downscaled"] = 100
     output_relion_options["tomo_size_x"] = 4000
     output_relion_options["tomo_size_y"] = 3000
-    output_relion_options["vol_z"] = 530
+    output_relion_options["vol_z"] = 600
 
     # Touch the expected input files
     (tmp_path / "tilt_stack.txrm").touch()
@@ -2137,14 +2140,14 @@ def test_tomo_align_service_txrm(
 
     def write_aretomo_outputs(command, capture_output: bool = False):
         if command[0] != "AreTomo3":
-            (tmp_path / "Tomograms/job001/stack.mrc").touch(exist_ok=True)
+            (tmp_path / "Tomograms/stack.mrc").touch(exist_ok=True)
             return CompletedProcess("", returncode=0)
         # Set up outputs: stack_Imod file like AreTomo3, no exclusions but with space
-        (tmp_path / "Tomograms/job001/stack_Imod").mkdir(parents=True)
-        (tmp_path / "Tomograms/job001/stack_Vol.mrc").touch()
-        with open(tmp_path / "Tomograms/job001/stack_Imod/tilt.com", "w") as dark_file:
+        (tmp_path / "Tomograms/stack_Imod").mkdir(parents=True)
+        (tmp_path / "Tomograms/stack_Vol.mrc").touch()
+        with open(tmp_path / "Tomograms/stack_Imod/tilt.com", "w") as dark_file:
             dark_file.write("EXCLUDELIST ")
-        with open(tmp_path / "Tomograms/job001/stack.aln", "w") as aln_file:
+        with open(tmp_path / "Tomograms/stack.aln", "w") as aln_file:
             aln_file.write("# Thickness = 130\ndummy 0.0 1000 1.2 2.3 5 6 7 8 4.5")
         return CompletedProcess(
             "",
@@ -2170,7 +2173,7 @@ def test_tomo_align_service_txrm(
         "-InPrefix",
         tomo_align_test_message["stack_file"],
         "-OutDir",
-        f"{tmp_path}/Tomograms/job001",
+        f"{tmp_path}/Tomograms",
         "-TiltCor",
         "1",
         "0.0",
@@ -2218,51 +2221,36 @@ def test_tomo_align_service_txrm(
     )
     mock_convert_and_save.assert_called_once_with(
         tomo_align_test_message["txrm_file"],
-        f"{tmp_path}/Tomograms/job001/stack.tiff",
+        f"{tmp_path}/Tomograms/stack.tiff",
         custom_reference=None,
     )
 
     # Check the expected calls were made
-    assert mock_subprocess.call_count == 3
+    assert mock_subprocess.call_count == 2
     mock_subprocess.assert_any_call(
         [
             "tif2mrc",
-            f"{tmp_path}/Tomograms/job001/stack.tiff",
-            f"{tmp_path}/Tomograms/job001/stack.mrc",
+            f"{tmp_path}/Tomograms/stack.tiff",
+            f"{tmp_path}/Tomograms/stack.mrc",
         ]
     )
     mock_subprocess.assert_any_call(
         aretomo_command,
         capture_output=True,
     )
-    mock_subprocess.assert_any_call(
-        [
-            "rotatevol",
-            "-i",
-            f"{tmp_path}/Tomograms/job001/stack_Vol.mrc",
-            "-ou",
-            f"{tmp_path}/Tomograms/job001/stack_Vol.mrc",
-            "-size",
-            "4000,3000,530",
-            "-a",
-            "0,0,-90",
-        ],
-        capture_output=True,
-    )
 
-    # Check resizing
-    mock_resize.assert_called_once_with(
-        tmp_path / "Tomograms/job001/stack_Vol.mrc", 530
-    )
+    # Check resizing and rotating
+    mock_resize.assert_called_once_with(tmp_path / "Tomograms/stack_Vol.mrc", 600)
+    mock_rotate.assert_called_once_with(tmp_path / "Tomograms/stack_Vol.mrc", 0)
 
     # Check the angle file
-    assert (tmp_path / "Tomograms/job001/stack_TLT.txt").is_file()
-    with open(tmp_path / "Tomograms/job001/stack_TLT.txt", "r") as angfile:
+    assert (tmp_path / "Tomograms/stack_TLT.txt").is_file()
+    with open(tmp_path / "Tomograms/stack_TLT.txt", "r") as angfile:
         angles_data = angfile.read()
     assert angles_data == "0.10  0\n0.30  1\n0.50  2\n"
 
     # Check the shift plot
-    with open(tmp_path / "Tomograms/job001/stack_xy_shift_plot.json") as shift_plot:
+    with open(tmp_path / "Tomograms/stack_xy_shift_plot.json") as shift_plot:
         shift_data = json.load(shift_plot)
     assert shift_data["data"][0]["x"] == [1.2]
     assert shift_data["data"][0]["y"] == [2.3]
@@ -2275,7 +2263,7 @@ def test_tomo_align_service_txrm(
             "experiment_type": "tomography",
             "job_type": "relion.reconstructtomograms",
             "input_file": f"{tmp_path}/tilt_stack.txrm",
-            "output_file": f"{tmp_path}/Tomograms/job001/stack_Vol.mrc",
+            "output_file": f"{tmp_path}/Tomograms/stack_Vol.mrc",
             "relion_options": output_relion_options,
             "command": " ".join(aretomo_command),
             "stdout": (
@@ -2299,11 +2287,11 @@ def test_tomo_align_service_txrm(
                     "stack_file": tomo_align_test_message["stack_file"],
                     "size_x": 4000.0,
                     "size_y": 3000.0,
-                    "size_z": 530,
+                    "size_z": 600,
                     "pixel_spacing": "100.0",
                     "tilt_angle_offset": "1.1",
                     "z_shift": "2.1",
-                    "file_directory": f"{tmp_path}/Tomograms/job001",
+                    "file_directory": f"{tmp_path}/Tomograms",
                     "central_slice_image": "stack_Vol_thumbnail.jpeg",
                     "tomogram_movie": "stack_Vol_movie.png",
                     "xy_shift_plot": "stack_xy_shift_plot.json",
@@ -2313,12 +2301,12 @@ def test_tomo_align_service_txrm(
                 },
                 {
                     "ispyb_command": "insert_processed_tomogram",
-                    "file_path": f"{tmp_path}/Tomograms/job001/stack.mrc",
+                    "file_path": f"{tmp_path}/Tomograms/stack.mrc",
                     "processing_type": "Stack",
                 },
                 {
                     "ispyb_command": "insert_processed_tomogram",
-                    "file_path": f"{tmp_path}/Tomograms/job001/stack_alignment.jpeg",
+                    "file_path": f"{tmp_path}/Tomograms/stack_alignment.jpeg",
                     "processing_type": "Alignment",
                 },
             ],
@@ -2329,7 +2317,7 @@ def test_tomo_align_service_txrm(
         {
             "image_command": "tilt_series_alignment",
             "file": tomo_align_test_message["stack_file"],
-            "aln_file": f"{tmp_path}/Tomograms/job001/stack.aln",
+            "aln_file": f"{tmp_path}/Tomograms/stack.aln",
             "pixel_size": tomo_align_test_message["pixel_size"],
         },
     )
@@ -2351,21 +2339,21 @@ def test_tomo_align_service_txrm(
         "images",
         {
             "image_command": "mrc_central_slice",
-            "file": f"{tmp_path}/Tomograms/job001/stack_Vol.mrc",
+            "file": f"{tmp_path}/Tomograms/stack_Vol.mrc",
         },
     )
     offline_transport.send.assert_any_call(
         "images",
         {
             "image_command": "mrc_to_apng",
-            "file": f"{tmp_path}/Tomograms/job001/stack_Vol.mrc",
+            "file": f"{tmp_path}/Tomograms/stack_Vol.mrc",
         },
     )
     offline_transport.send.assert_any_call(
         "images",
         {
             "image_command": "mrc_projection",
-            "file": f"{tmp_path}/Tomograms/job001/stack_Vol.mrc",
+            "file": f"{tmp_path}/Tomograms/stack_Vol.mrc",
             "projection": "XY",
             "pixel_spacing": 100.0,
         },
@@ -2374,7 +2362,7 @@ def test_tomo_align_service_txrm(
         "images",
         {
             "image_command": "mrc_projection",
-            "file": f"{tmp_path}/Tomograms/job001/stack_Vol.mrc",
+            "file": f"{tmp_path}/Tomograms/stack_Vol.mrc",
             "projection": "YZ",
             "pixel_spacing": 100.0,
             "thickness_ang": 13000.0,
@@ -2383,8 +2371,8 @@ def test_tomo_align_service_txrm(
     offline_transport.send.assert_any_call(
         "denoise",
         {
-            "volume": f"{tmp_path}/Tomograms/job001/stack_Vol.mrc",
-            "output_dir": f"{tmp_path}/Denoise/job002/tomograms",
+            "volume": f"{tmp_path}/Tomograms/stack_Vol.mrc",
+            "output_dir": f"{tmp_path}/Denoise",
             "relion_options": output_relion_options,
         },
     )

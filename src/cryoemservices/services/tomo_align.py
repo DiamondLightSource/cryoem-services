@@ -105,7 +105,7 @@ class TomoParameters(BaseModel):
     input_file_list: Optional[str] = None
     vol_z: Optional[int] = None
     max_vol: int = 1800
-    min_vol: int = 800
+    min_vol: int = 600
     extra_vol: int = 400
     out_bin: int = 4
     second_bin: Optional[int] = None
@@ -435,11 +435,15 @@ class TomoAlign(CommonService):
             tomo_params.out_bin
         )
 
-        project_dir_search = re.search(".+/job[0-9]+/", tomo_params.stack_file)
+        project_dir_search = re.search(".+/Tomograms/", tomo_params.stack_file)
         job_num_search = re.search("/job[0-9]+", tomo_params.stack_file)
         if project_dir_search and job_num_search:
-            project_dir = Path(project_dir_search[0]).parent.parent
+            project_dir = Path(project_dir_search[0]).parent
             job_number = int(job_num_search[0][4:])
+        elif project_dir_search and tomo_params.txrm_file:
+            # Allow non-Relion projects for txrm
+            project_dir = Path(project_dir_search[0]).parent
+            job_number = 0
         else:
             self.log.warning(f"Invalid project directory in {tomo_params.stack_file}")
             rw.transport.nack(header)
@@ -813,13 +817,15 @@ class TomoAlign(CommonService):
 
         # Forward results to denoise service
         self.log.info(f"Sending to denoise service {aretomo_output_path}")
+        if job_number:
+            denoise_dir = project_dir / f"Denoise/job{job_number + 1:03}/tomograms"
+        else:
+            denoise_dir = project_dir / "Denoise"
         rw.send_to(
             "denoise",
             {
                 "volume": str(aretomo_output_path),
-                "output_dir": str(
-                    project_dir / f"Denoise/job{job_number + 1:03}/tomograms"
-                ),
+                "output_dir": str(denoise_dir),
                 "relion_options": dict(tomo_params.relion_options),
             },
         )
