@@ -26,8 +26,8 @@ def test_bfactor_service(offline_transport, tmp_path):
     """
     # Create the expected input files
     bfactor_dir = tmp_path / "bfactor_run/bfactor_2"
-    (tmp_path / "Extract/Reextract_class1").mkdir(parents=True)
-    with open(tmp_path / "Extract/Reextract_class1/particles.star", "w") as f:
+    (tmp_path / "Extract/Live_reextract_class1").mkdir(parents=True)
+    with open(tmp_path / "Extract/Live_reextract_class1/particles.star", "w") as f:
         f.write(
             "data_particles\n\nloop_\n_rlnCoordinateX\n_rlnCoordinateY\n_rlnImageName"
             "\n_rlnMicrographName\n_rlnOpticsGroup"

@@ -123,6 +123,15 @@ class Extract(CommonService):
             / Path(extract_params.micrographs_file).with_suffix(".mrcs").name
         )
 
+        # Check job alias
+        job_alias = job_dir.parent / "Live_all_particles"
+        if not job_alias.exists():
+            job_alias.symlink_to(job_dir)
+        elif not (job_alias.is_symlink() and job_alias.resolve() == job_dir.resolve()):
+            self.log.error(f"Symlink {job_alias} already exists")
+            rw.transport.nack(header)
+            return
+
         # If no background radius set diameter as 75% of box
         if extract_params.bg_radius == -1:
             extract_params.bg_radius = round(
@@ -209,9 +218,7 @@ class Extract(CommonService):
                     "0.0",
                 ]
             )
-        extracted_parts_doc.write_file(
-            extract_params.output_file, style=cif.Style.Simple
-        )
+        extracted_parts_doc.write_file(extract_params.output_file)
 
         # Extraction
         with mrcfile.open(extract_params.micrographs_file) as input_micrograph:
@@ -389,15 +396,14 @@ class Extract(CommonService):
         self.log.info(f"Sending {self.job_type} to node creator")
         node_creator_parameters = {
             "job_type": self.job_type,
-            "input_file": extract_params.coord_list_file
-            + ":"
-            + extract_params.ctf_image,
+            "input_file": f"{extract_params.ctf_image}:{extract_params.coord_list_file}:",
             "output_file": extract_params.output_file,
             "relion_options": dict(extract_params.relion_options),
             "command": "",
             "stdout": "",
             "stderr": "",
             "results": {"box_size": box_len},
+            "alias": "Live_all_particles",
         }
         rw.send_to("node_creator", node_creator_parameters)
 

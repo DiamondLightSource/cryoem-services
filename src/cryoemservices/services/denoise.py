@@ -48,6 +48,7 @@ class DenoiseParameters(BaseModel):
     patch_padding: Optional[int] = None  # 48
     device: Optional[int] = None  # -2
     cleanup_output: bool = True
+    visits_for_slurm: Optional[list] = ["bi", "cm", "nr", "nt"]
     relion_options: RelionServiceOptions
 
     @field_validator("model")
@@ -93,6 +94,10 @@ class Denoise(CommonService):
             acknowledgement=True,
             allow_non_recipe_messages=True,
         )
+
+    @staticmethod
+    def check_visit(denoise_params: DenoiseParameters):
+        return True
 
     def run_topaz(
         self,
@@ -161,6 +166,11 @@ class Denoise(CommonService):
                 f"with exception: {e}"
             )
             rw.transport.nack(header)
+            return
+
+        if not self.check_visit(denoise_params):
+            self.log.warning(f"Visit rejected for {denoise_params.volume}")
+            rw.transport.nack(header, requeue=True)
             return
 
         command = [

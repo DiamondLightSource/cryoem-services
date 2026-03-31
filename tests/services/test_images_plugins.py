@@ -1,21 +1,28 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Optional
 from unittest import mock
 
 import mrcfile
 import numpy as np
+import PIL.Image
+import pytest
+import tifffile as tf
 
 from cryoemservices.services.images_plugins import (
     mrc_central_slice,
     mrc_projection,
     mrc_to_apng,
+    mrc_to_apng_colour,
     mrc_to_jpeg,
     picked_particles,
     picked_particles_3d_apng,
     picked_particles_3d_central_slice,
+    tiff_to_apng,
     tilt_series_alignment,
 )
+from cryoemservices.util.image_processing import convert_to_rgb
 
 
 def plugin_params(
@@ -48,6 +55,19 @@ def plugin_params_central(jpeg_path, skip_rescaling=False, jitter_edge=False):
             "file": jpeg_path.with_suffix(".mrc"),
             "skip_rescaling": skip_rescaling,
             "jitter_edge": jitter_edge,
+        }
+        return p.get(key)
+
+    return params
+
+
+def plugin_params_apng_colour(file_list: list[str], mask: Optional[str] = None):
+    def params(key):
+        p = {
+            "parameters": {"images_command": "mrc_to_apng_colour"},
+            "file_list": file_list,
+            "outfile": str(Path(file_list[0]).with_suffix("")) + "_movie.png",
+            "mask": mask,
         }
         return p.get(key)
 
@@ -328,6 +348,71 @@ def test_mrc_to_apng_rescaling(mock_pil, tmp_path):
     mock_pil.fromarray().thumbnail.assert_called_with((512, 512))
 
 
+def test_mrc_to_apng_colour_works_with_3d_mask(tmp_path):
+    tmp_mrc_path1 = tmp_path / "tmp1.mrc"
+    tmp_mrc_path2 = tmp_path / "tmp2.mrc"
+    data_3d = np.linspace(-1000, 1000, 20, dtype=np.int16).reshape((2, 2, 5))
+    with mrcfile.new(tmp_mrc_path1, overwrite=True) as mrc:
+        mrc.set_data(data_3d)
+    with mrcfile.new(tmp_mrc_path2, overwrite=True) as mrc:
+        mrc.set_data(data_3d)
+    assert mrc_to_apng_colour(
+        plugin_params_apng_colour([str(tmp_mrc_path1)], mask=str(tmp_mrc_path2))
+    ) == str(tmp_path / "tmp1_movie.png")
+    assert (tmp_path / "tmp1_movie.png").is_file()
+    assert (tmp_path / "tmp1_thumbnail.jpeg").is_file()
+
+
+def test_mrc_to_apng_colour_withs_with_3d_no_mask(tmp_path):
+    tmp_mrc_path1 = tmp_path / "tmp1.mrc"
+    tmp_mrc_path2 = tmp_path / "tmp2.mrc"
+    data_3d = np.linspace(-1000, 1000, 80, dtype=np.int16).reshape((20, 2, 2))
+    with mrcfile.new(tmp_mrc_path1, overwrite=True) as mrc:
+        mrc.set_data(data_3d)
+    with mrcfile.new(tmp_mrc_path2, overwrite=True) as mrc:
+        mrc.set_data(data_3d)
+    assert mrc_to_apng_colour(
+        plugin_params_apng_colour([str(tmp_mrc_path1), str(tmp_mrc_path2)], mask=None)
+    ) == str(tmp_path / "tmp1_movie.png")
+    assert (tmp_path / "tmp1_movie.png").is_file()
+    assert (tmp_path / "tmp1_thumbnail.jpeg").is_file()
+
+
+def test_mrc_to_apng_colour_fail_cases(tmp_path):
+    tmp_mrc_path1 = tmp_path / "tmp1.mrc"
+    tmp_mrc_path2 = tmp_path / "tmp2.mrc"
+    data_3d = np.linspace(-1000, 1000, 20, dtype=np.int16).reshape((2, 2, 5))
+    with mrcfile.new(tmp_mrc_path2, overwrite=True) as mrc:
+        mrc.set_data(data_3d)
+    # File not found case
+    assert not mrc_to_apng_colour(
+        plugin_params_apng_colour([str(tmp_mrc_path1)], mask=str(tmp_mrc_path2))
+    )
+    # Not an mrc case
+    tmp_mrc_path1.touch()
+    assert not mrc_to_apng_colour(
+        plugin_params_apng_colour([str(tmp_mrc_path1)], mask=str(tmp_mrc_path2))
+    )
+    # Non-matching volume shapes
+    tmp_mrc_path1.unlink()
+    data_3d = np.linspace(-1000, 1000, 20, dtype=np.int16).reshape((2, 5, 2))
+    with mrcfile.new(tmp_mrc_path1, overwrite=True) as mrc:
+        mrc.set_data(data_3d)
+    assert not mrc_to_apng_colour(
+        plugin_params_apng_colour([str(tmp_mrc_path1)], mask=str(tmp_mrc_path2))
+    )
+    # 2D data case
+    tmp_mrc_path1.unlink()
+    data_2d = np.linspace(-1000, 1000, 20, dtype=np.int16).reshape((5, 4))
+    with mrcfile.new(tmp_mrc_path1, overwrite=True) as mrc:
+        mrc.set_data(data_2d)
+    with mrcfile.new(tmp_mrc_path2, overwrite=True) as mrc:
+        mrc.set_data(data_2d)
+    assert not mrc_to_apng_colour(
+        plugin_params_apng_colour([str(tmp_mrc_path1)], mask=str(tmp_mrc_path2))
+    )
+
+
 def test_picked_particles_3d_central_slice_fails_with_2d(tmp_path):
     tmp_mrc_path = tmp_path / "tmp.mrc"
     coords_file = tmp_path / "coords.cbox"
@@ -528,6 +613,106 @@ def test_picked_particles_3d_apng_works_without_coords(tmp_path):
     assert picked_particles_3d_apng(
         plugin_params_tomo_pick(tmp_mrc_path, coords_file, "picked_particles_3d_apng")
     ) == str(tmp_path / "coords_movie.png")
+
+
+def plugin_params_tiff_to_apng(
+    input_file: Path | None = None,
+    output_file: Path | None = None,
+    target_size: tuple[int | None, int | None] | None = None,
+    color: str | None = None,
+):
+    def params(key):
+        p = {
+            "parameters": {"images_command": "tiff_to_apng"},
+            "input_file": input_file,
+            "output_file": output_file,
+            "target_size": target_size,
+            "color": color,
+        }
+        return p.get(key)
+
+    return params
+
+
+# Programmatically generate test matrix
+tiff_to_apng_test_params = []
+for frame in (1, 5):
+    for is_rgb in (True, False):
+        for color in (
+            None,
+            "gray",
+            "red",
+            "green",
+            "blue",
+            "cyan",
+            "magenta",
+            "yellow",
+        ):
+            for resize in (True, False):
+                tiff_to_apng_test_params.append((frame, is_rgb, color, resize))
+tiff_to_apng_test_matrix = [
+    # Input file | Output file | Frames | Initial image is RGB? | Color | Resize image
+    (f"test_{n}.tiff", f".thumbnails/test_{n}.png", frames, is_rgb, color, resize)
+    for n, (frames, is_rgb, color, resize) in enumerate(tiff_to_apng_test_params)
+]
+
+
+@pytest.mark.parametrize("test_params", tiff_to_apng_test_matrix)
+def test_tiff_to_apng(
+    tmp_path: Path,
+    test_params: tuple[str, str, int, bool, str | None, bool],
+):
+    # Unpack test parameters
+    input_file_name, output_file_name, num_frames, is_rgb, color, resize = test_params
+    target_h, target_w = (8, 32) if resize else (None, None)  # height, width
+
+    # Construct full file paths for input and output files
+    input_file = tmp_path / input_file_name
+    input_file.parent.mkdir(parents=True, exist_ok=True)
+    output_file = tmp_path / output_file_name
+
+    # Create test image using 'tifffile'
+    initial_h, initial_w = (16, 64)
+    arr = np.linspace(0, 255, 1024).reshape((initial_h, initial_w))
+    if num_frames > 1:
+        arr = np.asarray([arr for f in range(num_frames)])
+    arr = arr.astype("uint8")
+    if is_rgb:
+        arr = convert_to_rgb(arr, "gray")
+    tf.imwrite(
+        input_file,
+        arr,
+        shape=arr.shape,
+        dtype=str(arr.dtype),
+        imagej=True,
+    )
+
+    # Run the function and check that the outputs are as expected
+    assert tiff_to_apng(
+        plugin_params_tiff_to_apng(input_file, output_file, (target_h, target_w), color)
+    ) == str(output_file)
+    assert output_file.exists()
+
+    # Open the output file and inspect image propoerties
+    output_img = PIL.Image.open(output_file)
+
+    # Incoming RGB images will stay RGB; if 'color' is set, 8-bit images will be converted
+    assert output_img.mode == "RGB" if is_rgb or color is not None else "L"
+
+    # Check that image has been resized as specified
+    assert output_img.size == (target_w, target_h) if resize else (initial_w, initial_h)
+
+    # Check that the number of image frames is preserved
+    frame_counter = 0
+    output_img.seek(0)
+    try:
+        while True:
+            frame_counter += 1
+            output_img.seek(output_img.tell() + 1)
+    except EOFError:
+        pass
+    assert frame_counter == num_frames
+    output_img.close()
 
 
 @mock.patch("cryoemservices.services.images_plugins.ImageDraw")

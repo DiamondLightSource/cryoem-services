@@ -1,0 +1,83 @@
+{
+  "1": {
+    "output": {
+      "ctffind": 5,
+      "images": 4,
+      "ispyb_connector": 3,
+      "node_creator": 2
+    },
+    "parameters": {
+      "do_icebreaker_jobs": "False",
+      "dose_per_frame": "{fm_dose}",
+      "eer_sampling": 1,
+      "experiment_type": "spa",
+      "fm_int_file": "{fm_int_file}",
+      "gain_ref": "{gain_ref}",
+      "mc_uuid": "{mc_uuid}",
+      "motion_corr_binning": "{ft_bin}",
+      "movie": "{movie}",
+      "mrc_out": "{mrc_out}",
+      "picker_uuid": "{picker_uuid}",
+      "pixel_size": "{pixel_size}",
+      "relion_options": {},
+      "submit_to_slurm": "False",
+      "threads": 4,
+      "use_motioncor2": "False",
+      "voltage": "{kv}"
+    },
+    "queue": "motioncorr",
+    "service": "MotionCorr"
+  },
+  "2": {
+    "queue": "node_creator",
+    "service": "NodeCreator"
+  },
+  "3": {
+    "parameters": {
+      "dcid": "{dcid}",
+      "image_number": "{image_number}",
+      "movie_id": "{mc_uuid}",
+      "program_id": "{autoproc_program_id}"
+    },
+    "queue": "ispyb_connector",
+    "service": "MurfeyDBConnector"
+  },
+  "4": {
+    "queue": "images",
+    "service": "Images"
+  },
+  "5": {
+    "output": {
+      "cryolo": 6,
+      "images": 4,
+      "ispyb_connector": 3,
+      "node_creator": 3
+    },
+    "queue": "ctffind",
+    "service": "CTFFind"
+  },
+  "6": {
+    "output": {
+      "images": 4,
+      "ispyb_connector": 3,
+      "murfey_feedback": 7,
+      "node_creator": 2
+    },
+    "parameters": {
+      "particle_diameter": "{particle_diameter}",
+      "cryolo_model_weights": "{cryolo_model_weights}",
+      "retained_fraction": "0.7"
+    },
+    "queue": "cryolo",
+    "service": "CrYOLO"
+  },
+  "7": {
+    "parameters": {
+      "program_id": "{autoproc_program_id}",
+      "session_id": "{session_id}"
+    },
+    "queue": "{feedback_queue}",
+    "service": "Murfey"
+  },
+  "start": [[1, []]]
+}

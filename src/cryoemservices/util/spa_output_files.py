@@ -96,7 +96,7 @@ def _import_output_files(
             "_rln", ["MicrographMovieName", "OpticsGroup"]
         )
         movies_loop.add_row(added_line)
-        output_cif.write_file(str(star_file), style=cif.Style.Simple)
+        output_cif.write_file(str(star_file))
     else:
         with open(star_file, "a") as output_cif:
             output_cif.write(" ".join(added_line) + "\n")
@@ -137,7 +137,7 @@ def _motioncorr_output_files(
             ],
         )
         movies_loop.add_row(added_line)
-        output_cif.write_file(str(star_file), style=cif.Style.Simple)
+        output_cif.write_file(str(star_file))
     else:
         with open(star_file, "a") as output_cif:
             output_cif.write(" ".join(added_line) + "\n")
@@ -195,7 +195,7 @@ def _ctffind_output_files(
             ],
         )
         movies_loop.add_row(added_line)
-        output_cif.write_file(str(star_file), style=cif.Style.Simple)
+        output_cif.write_file(str(star_file))
     else:
         with open(star_file, "a") as output_cif:
             output_cif.write(" ".join(added_line) + "\n")
@@ -273,7 +273,7 @@ def _icebreaker_output_files(
             ],
         )
         movies_loop.add_row(added_line)
-        output_cif.write_file(str(star_file), style=cif.Style.Simple)
+        output_cif.write_file(str(star_file))
     else:
         with open(star_file, "a") as output_cif:
             output_cif.write(" ".join(added_line) + "\n")
@@ -306,7 +306,7 @@ def _autopick_output_files(
             ],
         )
         movies_loop.add_row(added_line)
-        output_cif.write_file(str(star_file), style=cif.Style.Simple)
+        output_cif.write_file(str(star_file))
     else:
         with open(star_file, "a") as output_cif:
             output_cif.write(" ".join(added_line) + "\n")
@@ -335,7 +335,7 @@ def _extract_output_files(
         particles_cif = cif.read_file(str(output_file))
         data_particles = particles_cif.find_block("particles")
         output_cif.add_copied_block(data_particles)
-        output_cif.write_file(str(star_file), style=cif.Style.Simple)
+        output_cif.write_file(str(star_file))
 
     else:
         with open(output_file, "r") as added_cif:

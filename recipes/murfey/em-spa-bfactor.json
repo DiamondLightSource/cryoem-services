@@ -1,0 +1,68 @@
+{
+  "1": {
+    "output": {
+      "node_creator": 2,
+      "refine_wrapper": 3
+    },
+    "parameters": {
+      "batch_size": "{batch_size}",
+      "bfactor_directory": "{bfactor_directory}",
+      "class_number": "{class_number}",
+      "mask": "{mask}",
+      "number_of_particles": "{number_of_particles}",
+      "pixel_size": "{pixel_size}",
+      "relion_options": {},
+      "rescaled_class_reference": "{class_reference}"
+    },
+    "queue": "bfactor",
+    "service": "BFactor"
+  },
+  "2": {
+    "queue": "node_creator",
+    "service": "NodeCreator"
+  },
+  "3": {
+    "output": {
+      "node_creator": 2,
+      "postprocess": 4
+    },
+    "parameters": {
+      "mask_diameter": "{mask_diameter}",
+      "particle_diameter": "{particle_diameter}",
+      "relion_options": {}
+    },
+    "queue": "refine3d",
+    "service": "Refine3D"
+  },
+  "4": {
+    "output": {
+      "ispyb_connector": 6,
+      "murfey_feedback": 5,
+      "node_creator": 2
+    },
+    "parameters": {
+      "picker_id": "{picker_id}",
+      "refined_class_uuid": "{refined_class_uuid}",
+      "refined_grp_uuid": "{refined_grp_uuid}"
+    },
+    "queue": "postprocess",
+    "service": "PostProcess"
+  },
+  "5": {
+    "parameters": {
+      "program_id": "{autoproc_program_id}",
+      "session_id": "{session_id}"
+    },
+    "queue": "{feedback_queue}",
+    "service": "Murfey"
+  },
+  "6": {
+    "parameters": {
+      "dcid": "{dcid}",
+      "program_id": "{autoproc_program_id}"
+    },
+    "queue": "ispyb_connector",
+    "service": "MurfeyDBConnector"
+  },
+  "start": [[1, []]]
+}

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 from unittest import mock
 
 import pytest
@@ -77,7 +77,26 @@ def test_lif_to_stack_service(
 
     # Set up the expected mock values
     # mock_convert.return_value = processing_results
-    dummy_results = [{"series_name": f"dummy_{i}"} for i in range(4)]
+    dummy_results = [
+        {
+            # Include only keys used for tests
+            "series_name": f"dummy_{i}",
+            "output_files": {
+                "gray": "dummy",
+                "red": "dummy",
+                "green": "dummy",
+                "blue": "dummy",
+            },
+            "thumbnails": {
+                "gray": "dummy",
+                "red": "dummy",
+                "green": "dummy",
+                "blue": "dummy",
+            },
+            "thumbnail_size": (512, 512),
+        }
+        for i in range(4)
+    ]
     mock_convert.return_value = dummy_results
 
     # Set up and run the service
@@ -104,9 +123,24 @@ def test_lif_to_stack_service(
     mock_convert.assert_called_with(
         file=lif_file,
         root_folder=raw_dir.stem,
-        number_of_processes=20,
+        number_of_processes=16,
     )
     for result in dummy_results:
+        for color in cast(dict[str, Any], result["output_files"]).keys():
+            offline_transport.send.assert_any_call(
+                "images",
+                {
+                    "image_command": "tiff_to_apng",
+                    "input_file": cast(
+                        dict[str, dict[str, str]], result["output_files"]
+                    )[color],
+                    "output_file": cast(
+                        dict[str, dict[str, str]], result["output_files"]
+                    )[color],
+                    "target_size": result["thumbnail_size"],
+                    "color": color,
+                },
+            )
         offline_transport.send.assert_any_call(
             "murfey_feedback",
             {
@@ -114,6 +148,13 @@ def test_lif_to_stack_service(
                 "result": result,
             },
         )
+    assert offline_transport.send.call_count == (
+        len(dummy_results)
+        * (
+            4  # One for each colour
+            + 1  # One for 'murfey_feedback'
+        )
+    )
 
 
 def test_lif_to_stack_bad_messsage(
@@ -181,7 +222,7 @@ def test_lif_to_stack_service_validation_failed(
     }
     lif_file_value: Any = str(lif_file) if valid_lif_file else 123456789
     root_folder: Any = raw_dir.stem if valid_root_folder else 123456789
-    num_procs: Any = 20 if valid_num_procs else "This is a string"
+    num_procs: Any = 16 if valid_num_procs else "This is a string"
     lif_to_stack_test_message = {
         "lif_file": lif_file_value,
         "root_folder": root_folder,

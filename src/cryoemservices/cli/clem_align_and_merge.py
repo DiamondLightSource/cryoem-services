@@ -113,6 +113,16 @@ def run():
             "DEFAULT:   ''"
         ),
     )
+    # Determine number of processes to use
+    parser.add_argument(
+        "--num-procs",
+        default=1,
+        type=int,
+        help=(
+            "Determine the number of processes to run in parallel during processing. \n"
+            "DEFAULT:   1"
+        ),
+    )
     # Add a debug statement
     parser.add_argument(
         "--debug",
@@ -151,6 +161,7 @@ def run():
         align_self=args.align_self,
         flatten=args.flatten,
         align_across=args.align_across,
+        num_procs=args.num_procs,
     )
 
     if composite_image is not None:

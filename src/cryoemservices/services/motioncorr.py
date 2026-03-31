@@ -20,6 +20,7 @@ from cryoemservices.util.relion_service_options import (
     update_relion_options,
 )
 from cryoemservices.util.slurm_submission import slurm_submission_for_services
+from cryoemservices.util.tomo_output_files import get_tilt_number_v5_12
 
 
 class MotionCorrParameters(BaseModel):
@@ -62,6 +63,7 @@ class MotionCorrParameters(BaseModel):
     split_sum: Optional[int] = None
     dose_motionstats_cutoff: float = 4.0
     do_icebreaker_jobs: bool = True
+    slurm_memory: int = 20000
     mc_uuid: int
     app_id: Optional[int] = None
     picker_uuid: int
@@ -173,7 +175,7 @@ class MotionCorr(CommonService):
         self.parse_mc2_stdout(result.stdout.decode("utf8", "replace"))
         return result
 
-    def motioncor2_slurm(self, command: List[str], mrc_out: Path):
+    def motioncor2_slurm(self, command: List[str], mrc_out: Path, memory: int):
         """Submit MotionCor2 jobs to a slurm cluster via the RestAPI"""
         slurm_outcome = slurm_submission_for_services(
             log=self.log,
@@ -187,6 +189,7 @@ class MotionCorr(CommonService):
             use_gpu=True,
             use_singularity=True,
             cif_name=os.environ["MOTIONCOR2_SIF"],
+            memory_request=memory,
             extra_singularity_directories=["/lib64"],
         )
 
@@ -218,7 +221,7 @@ class MotionCorr(CommonService):
             result.returncode = 1
         return result
 
-    def relion_motioncorr_slurm(self, command: List[str], mrc_out: Path):
+    def relion_motioncorr_slurm(self, command: List[str], mrc_out: Path, memory: int):
         """Submit Relion's own motion correction to a slurm cluster via the RestAPI"""
         result = slurm_submission_for_services(
             log=self.log,
@@ -231,6 +234,7 @@ class MotionCorr(CommonService):
             cpus=4,
             use_gpu=False,
             use_singularity=False,
+            memory_request=memory,
             script_extras="module load EM/relion/motioncorr",
         )
         if Path(mrc_out).with_suffix(".star").exists():
@@ -279,6 +283,15 @@ class MotionCorr(CommonService):
             rw.transport.nack(header)
             return
 
+        # Find the job number
+        job_number_search = re.search("/job[0-9]+/", mc_params.mrc_out)
+        if job_number_search:
+            job_number = int(job_number_search[0][4:7])
+        else:
+            self.log.warning(f"Could not determine job number in {mc_params.mrc_out}")
+            rw.transport.nack(header)
+            return
+
         # Check if the gain file exists:
         if mc_params.gain_ref and not Path(mc_params.gain_ref).is_file():
             self.log.warning(f"Gain reference {mc_params.gain_ref} does not exist")
@@ -298,6 +311,25 @@ class MotionCorr(CommonService):
             job_is_rerun = False
             Path(mc_params.mrc_out).parent.mkdir(parents=True, exist_ok=True)
             Path(mc_params.mrc_out).with_suffix(".tmp").touch(exist_ok=True)
+
+        # Check job alias
+        job_alias = Path(
+            re.sub(
+                f"MotionCorr/job{job_number:03}/.+",
+                "MotionCorr/Live_motioncorr/",
+                mc_params.mrc_out,
+            )
+        )
+        if not job_alias.exists():
+            job_alias.symlink_to(job_alias.parent / f"job{job_number:03}")
+        elif not (
+            job_alias.is_symlink()
+            and job_alias.resolve()
+            == (job_alias.parent / f"job{job_number:03}").resolve()
+        ):
+            self.log.error(f"Symlink {job_alias} already exists")
+            rw.transport.nack(header)
+            return
 
         # Get the eer grouping out of the fractionation file
         eer_grouping = 0
@@ -328,6 +360,18 @@ class MotionCorr(CommonService):
         if mc_params.motion_corr_binning == 2:
             mc_params.use_motioncor2 = True
             mc_params.submit_to_slurm = True
+
+        # Work out pre-exposure dose for tomography if not provided
+        if (
+            mc_params.experiment_type == "tomography"
+            and mc_params.frame_count
+            and not mc_params.init_dose
+        ):
+            tilt_number = get_tilt_number_v5_12(Path(mc_params.movie))
+            if tilt_number:
+                mc_params.init_dose = (
+                    mc_params.dose_per_frame * mc_params.frame_count * (tilt_number - 1)
+                )
 
         # Update the relion options
         mc_params.relion_options = update_relion_options(
@@ -400,7 +444,9 @@ class MotionCorr(CommonService):
                         command.extend((mc2_flags[k], str(v)))
             # Run MotionCor2
             if mc_params.submit_to_slurm:
-                result = self.motioncor2_slurm(command, Path(mc_params.mrc_out))
+                result = self.motioncor2_slurm(
+                    command, Path(mc_params.mrc_out), mc_params.slurm_memory
+                )
             else:
                 result = self.motioncor2(command, Path(mc_params.mrc_out))
 
@@ -451,7 +497,9 @@ class MotionCorr(CommonService):
             command.extend(("--dose_weighting", "--i", "dummy"))
             # Run Relion motion correction
             if mc_params.submit_to_slurm:
-                result = self.relion_motioncorr_slurm(command, Path(mc_params.mrc_out))
+                result = self.relion_motioncorr_slurm(
+                    command, Path(mc_params.mrc_out), mc_params.slurm_memory
+                )
             else:
                 result = self.relion_motioncorr(command, Path(mc_params.mrc_out))
 
@@ -479,6 +527,7 @@ class MotionCorr(CommonService):
                 "stdout": result.stdout.decode("utf8", "replace"),
                 "stderr": result.stderr.decode("utf8", "replace"),
                 "success": False,
+                "alias": "Live_motioncorr",
             }
             rw.send_to("node_creator", node_creator_parameters)
             rw.transport.nack(header)
@@ -523,8 +572,8 @@ class MotionCorr(CommonService):
             # Set up icebreaker if requested, then ctffind
             icebreaker_output = Path(
                 re.sub(
-                    "MotionCorr/job002/",
-                    "IceBreaker/job003/",
+                    f"MotionCorr/job{job_number:03}/",
+                    f"IceBreaker/job{job_number + 1:03}/",
                     mc_params.mrc_out,
                 )
             )
@@ -536,12 +585,12 @@ class MotionCorr(CommonService):
                 self.log.info(
                     f"Sending to IceBreaker micrograph analysis: {mc_params.mrc_out}"
                 )
-                icebreaker_job003_params = {
+                icebreaker_mics_params = {
                     "icebreaker_type": "micrographs",
                     "input_micrographs": mc_params.mrc_out,
                     "output_path": re.sub(
-                        "MotionCorr/job002/.+",
-                        "IceBreaker/job003/",
+                        f"MotionCorr/job{job_number:03}/.+",
+                        f"IceBreaker/job{job_number + 1:03}/",
                         mc_params.mrc_out,
                     ),
                     "mc_uuid": mc_params.mc_uuid,
@@ -550,17 +599,17 @@ class MotionCorr(CommonService):
                     "early_motion": early_motion,
                     "late_motion": late_motion,
                 }
-                rw.send_to("icebreaker", icebreaker_job003_params)
+                rw.send_to("icebreaker", icebreaker_mics_params)
 
                 self.log.info(
                     f"Sending to IceBreaker contrast enhancement: {mc_params.mrc_out}"
                 )
-                icebreaker_job004_params = {
+                icebreaker_contrast_params = {
                     "icebreaker_type": "enhancecontrast",
                     "input_micrographs": mc_params.mrc_out,
                     "output_path": re.sub(
-                        "MotionCorr/job002/.+",
-                        "IceBreaker/job004/",
+                        f"MotionCorr/job{job_number:03}/.+",
+                        f"IceBreaker/job{job_number + 2:03}/",
                         mc_params.mrc_out,
                     ),
                     "mc_uuid": mc_params.mc_uuid,
@@ -569,10 +618,10 @@ class MotionCorr(CommonService):
                     "early_motion": early_motion,
                     "late_motion": late_motion,
                 }
-                rw.send_to("icebreaker", icebreaker_job004_params)
+                rw.send_to("icebreaker", icebreaker_contrast_params)
             elif mc_params.do_icebreaker_jobs and icebreaker_output.is_file():
                 # On a rerun, skip IceBreaker jobs but mark the CtfFind job as MC+4
-                ctf_job_number = 6
+                ctf_job_number = job_number + 4
             else:
                 # No IceBreaker jobs: CtfFind job is MC+1
                 ctf_job_number = 3
@@ -593,7 +642,7 @@ class MotionCorr(CommonService):
         mc_params.ctf["output_image"] = str(
             Path(
                 mc_params.mrc_out.replace(
-                    "MotionCorr/job002", f"CtfFind/job{ctf_job_number:03}"
+                    f"MotionCorr/job{job_number:03}", f"CtfFind/job{ctf_job_number:03}"
                 )
             ).with_suffix(".ctf")
         )
@@ -621,14 +670,18 @@ class MotionCorr(CommonService):
                 return
             import_movie = (
                 project_dir
-                / "Import/job001"
+                / f"Import/job{job_number - 1:03}"
                 / Path(mc_params.mrc_out)
-                .relative_to(project_dir / "MotionCorr/job002")
+                .relative_to(project_dir / f"MotionCorr/job{job_number:03}")
                 .parent
                 / Path(mc_params.movie).name
             )
             if not import_movie.parent.is_dir():
                 import_movie.parent.mkdir(parents=True)
+            if not (project_dir / "Import/Live_import").exists():
+                (project_dir / "Import/Live_import").symlink_to(
+                    project_dir / f"Import/job{job_number - 1:03}"
+                )
             import_movie.unlink(missing_ok=True)
             import_movie.symlink_to(mc_params.movie)
             if mc_params.experiment_type == "spa":
@@ -641,6 +694,7 @@ class MotionCorr(CommonService):
                     "command": "",
                     "stdout": "",
                     "stderr": "",
+                    "alias": "Live_import",
                 }
             else:
                 import_parameters = {
@@ -652,6 +706,7 @@ class MotionCorr(CommonService):
                     "command": "",
                     "stdout": "",
                     "stderr": "",
+                    "alias": "Live_import",
                 }
             rw.send_to("node_creator", import_parameters)
 
@@ -671,6 +726,7 @@ class MotionCorr(CommonService):
                     "early_motion": early_motion,
                     "late_motion": late_motion,
                 },
+                "alias": "Live_motioncorr",
             }
             rw.send_to("node_creator", node_creator_parameters)
             # Remove tmp file after requesting node creation

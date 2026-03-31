@@ -101,6 +101,7 @@ def test_align_and_merge_service(
 
     # Unpack test params
     use_recwrap, crop_to_n_frames, align_self, flatten, align_across = test_params
+    num_procs = 4
 
     # Set up the parameters
     header = {
@@ -115,6 +116,7 @@ def test_align_and_merge_service(
         "align_self": align_self,
         "flatten": flatten,
         "align_across": align_across,
+        "num_procs": num_procs,
     }
 
     # Set up expected return values
@@ -124,15 +126,21 @@ def test_align_and_merge_service(
     else:
         composite_image_stem += "_FL"
     composite_image = image_dir / f"{composite_image_stem}.tiff"
+    thumbnail_image = (
+        composite_image.parent / ".thumbnails" / f"{composite_image.stem}.png"
+    )
 
     result = {
         "image_stacks": [str(f) for f in image_stacks],  # Convert Path to str
         "align_self": align_self,
         "flatten": flatten,
         "align_across": align_across,
-        "composite_image": str(composite_image),
+        "output_file": str(composite_image),
+        "thumbnail": str(thumbnail_image),
+        "thumbnail_size": (512, 512),
     }
     mock_align.return_value = result
+
     # Series name added to results dictionary sending to Murfey
     result["series_name"] = series_name
 
@@ -158,15 +166,28 @@ def test_align_and_merge_service(
         )
 
     # Check that the expected calls were made
-    mock_align.assert_called_with(
+    # 'align and merge' command should be called
+    mock_align.assert_called_once_with(
         images=image_stacks,
         metadata=metadata,
         crop_to_n_frames=crop_to_n_frames,
         align_self=align_self,
         flatten=flatten,
         align_across=align_across,
+        num_procs=num_procs,
     )
-    offline_transport.send.assert_called_with(
+    # 'images' service should be called
+    offline_transport.send.assert_any_call(
+        "images",
+        {
+            "image_command": "tiff_to_apng",
+            "input_file": result["output_file"],
+            "output_file": result["thumbnail"],
+            "target_size": result["thumbnail_size"],
+        },
+    )
+    # 'murfey_feedback' should be called
+    offline_transport.send.assert_any_call(
         "murfey_feedback",
         {
             "register": "clem.register_align_and_merge_result",

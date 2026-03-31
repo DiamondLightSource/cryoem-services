@@ -171,33 +171,6 @@ def buffer(message: dict, parameters: Callable, session: sqlalchemy.orm.Session)
     return result
 
 
-def _get_movie_id(
-    full_path,
-    data_collection_id,
-    db_session,
-):
-    logger.info(
-        f"Looking for Movie ID. Movie name: {full_path} DCID: {data_collection_id}"
-    )
-    movie_name = Path(full_path).stem.replace("_motion_corrected", "")
-    mv_query = db_session.query(models.Movie).filter(
-        models.Movie.dataCollectionId == data_collection_id,
-    )
-    results = mv_query.all()
-    correct_result = None
-    if results:
-        for result in results:
-            if movie_name in result.movieFullPath:
-                correct_result = result
-    if correct_result:
-        mvid = correct_result.movieId
-        logger.info(f"Found Movie ID: {mvid}")
-        return mvid
-    else:
-        logger.error(f"Unable to find movie ID for {movie_name}")
-        return None
-
-
 def insert_movie(message: dict, parameters: Callable, session: sqlalchemy.orm.Session):
     try:
         foil_hole_id = (
@@ -343,6 +316,7 @@ def insert_ctf(message: dict, parameters: Callable, session: sqlalchemy.orm.Sess
             ccValue=full_parameters("cc_value"),
             fftTheoreticalFullPath=full_parameters("fft_theoretical_full_path"),
             comments=full_parameters("comments"),
+            iceRingDensity=full_parameters("ice_ring_density"),
         )
         session.add(values)
         session.commit()
@@ -661,6 +635,9 @@ def insert_processed_tomogram(
             tomogramId=full_parameters("tomogram_id"),
             filePath=full_parameters("file_path"),
             processingType=full_parameters("processing_type"),
+            feature=str(full_parameters("feature")).capitalize().replace("_", " ")
+            if full_parameters("feature")
+            else None,
         )
         session.add(values)
         session.commit()
@@ -683,11 +660,25 @@ def insert_tilt_image_alignment(
     if full_parameters("movie_id"):
         mvid = full_parameters("movie_id")
     else:
-        mvid = _get_movie_id(full_parameters("path"), full_parameters("dcid"), session)
-
-    if not mvid:
-        logger.error("No movie ID for tilt image alignment")
-        return False
+        movie_name = Path(full_parameters("path")).stem.replace("_motion_corrected", "")
+        logger.info(
+            f"Looking for Movie ID. Movie name: {movie_name} DCID: {full_parameters('dcid')}"
+        )
+        results = (
+            session.query(models.Movie)
+            .filter(
+                models.Movie.dataCollectionId == full_parameters("dcid"),
+            )
+            .all()
+        )
+        mvid = None
+        for result in results:
+            if movie_name in result.movieFullPath:
+                logger.info(f"Found Movie ID: {mvid}")
+                mvid = result.movieId
+        if not mvid:
+            logger.error(f"No movie ID for {movie_name} in tilt image alignment")
+            return False
 
     try:
         values = models.TiltImageAlignment(

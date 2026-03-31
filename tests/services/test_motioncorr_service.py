@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import json
 import os
 from pathlib import Path
@@ -18,6 +19,8 @@ from tests.test_utils.config import cluster_submission_configuration
 def offline_transport(mocker):
     transport = OfflineTransport()
     mocker.spy(transport, "send")
+    mocker.spy(transport, "ack")
+    mocker.spy(transport, "nack")
     return transport
 
 
@@ -193,6 +196,14 @@ def test_motioncor2_service_spa(mock_subprocess, offline_transport, tmp_path):
     assert mock_subprocess.call_count == 4
     mock_subprocess.assert_called_with(mc_command, capture_output=True)
 
+    # Check symlinks
+    assert (tmp_path / "MotionCorr/Live_motioncorr").is_symlink()
+    assert (tmp_path / "MotionCorr/Live_motioncorr").readlink() == (
+        tmp_path / "MotionCorr/job002"
+    )
+    assert (tmp_path / "Import/Live_import").is_symlink()
+    assert (tmp_path / "Import/Live_import").readlink() == (tmp_path / "Import/job001")
+
     # Check plotly file creation
     assert (tmp_path / "MotionCorr/job002/Movies/sample_drift_plot.json").is_file()
     with open(
@@ -281,6 +292,7 @@ def test_motioncor2_service_spa(mock_subprocess, offline_transport, tmp_path):
             "command": "",
             "stdout": "",
             "stderr": "",
+            "alias": "Live_import",
         },
     )
     offline_transport.send.assert_any_call(
@@ -299,6 +311,7 @@ def test_motioncor2_service_spa(mock_subprocess, offline_transport, tmp_path):
                 "early_motion": early_motion,
                 "late_motion": late_motion,
             },
+            "alias": "Live_motioncorr",
         },
     )
 
@@ -539,6 +552,7 @@ def test_motioncor_relion_service_spa(mock_subprocess, offline_transport, tmp_pa
             "command": "",
             "stdout": "",
             "stderr": "",
+            "alias": "Live_import",
         },
     )
     offline_transport.send.assert_any_call(
@@ -557,6 +571,7 @@ def test_motioncor_relion_service_spa(mock_subprocess, offline_transport, tmp_pa
                 "early_motion": early_motion,
                 "late_motion": late_motion,
             },
+            "alias": "Live_motioncorr",
         },
     )
 
@@ -574,7 +589,7 @@ def test_motioncor2_service_tomo(mock_subprocess, offline_transport, tmp_path):
     mock_subprocess().stderr = "stderr".encode("ascii")
 
     (tmp_path / "gain.mrc").touch()
-    movie = Path(f"{tmp_path}/Movies/sample.tiff")
+    movie = Path(f"{tmp_path}/Movies/sample_001_3.0_date_time_fractions.tiff")
     movie.parent.mkdir(parents=True)
     movie.touch()
 
@@ -588,7 +603,7 @@ def test_motioncor2_service_tomo(mock_subprocess, offline_transport, tmp_path):
         "autopick": {"autopick": "autopick"},
         "ctf": {"ctf": "ctf"},
         "movie": str(movie),
-        "mrc_out": f"{tmp_path}/MotionCorr/job002/Movies/sample_motion_corrected.mrc",
+        "mrc_out": f"{tmp_path}/MotionCorr/job002/Movies/sample_001_3.0_date_time_fractions_motion_corrected.mrc",
         "patch_sizes": {"x": 5, "y": 5},
         "gpu": 0,
         "threads": 1,
@@ -622,8 +637,8 @@ def test_motioncor2_service_tomo(mock_subprocess, offline_transport, tmp_path):
         "arc_dir": None,
         "in_fm_motion": None,
         "split_sum": None,
+        "frame_count": 5,
         "relion_options": {
-            "frame_count": 5,
             "tilt_axis_angle": 83.0,
             "defocus": -2.0,
             "invert_hand": 1,
@@ -636,6 +651,7 @@ def test_motioncor2_service_tomo(mock_subprocess, offline_transport, tmp_path):
     output_relion_options["gain_ref"] = motioncorr_test_message["gain_ref"]
     output_relion_options.update(motioncorr_test_message["relion_options"])
     output_relion_options["eer_grouping"] = 0
+    output_relion_options["frame_count"] = 5
 
     # Set up the mock service
     service = motioncorr.MotionCorr(
@@ -673,6 +689,8 @@ def test_motioncor2_service_tomo(mock_subprocess, offline_transport, tmp_path):
         motioncorr_test_message["gain_ref"],
         "-FmRef",
         "1",
+        "-InitDose",
+        "0.0",
     ]
 
     assert mock_subprocess.call_count == 4
@@ -689,7 +707,7 @@ def test_motioncor2_service_tomo(mock_subprocess, offline_transport, tmp_path):
             "ctf": "ctf",
             "movie": motioncorr_test_message["movie"],
             "input_image": motioncorr_test_message["mrc_out"],
-            "output_image": f"{tmp_path}/CtfFind/job003/Movies/sample_motion_corrected.ctf",
+            "output_image": f"{tmp_path}/CtfFind/job003/Movies/sample_001_3.0_date_time_fractions_motion_corrected.ctf",
             "mc_uuid": motioncorr_test_message["mc_uuid"],
             "picker_uuid": motioncorr_test_message["picker_uuid"],
             "relion_options": output_relion_options,
@@ -705,8 +723,8 @@ def test_motioncor2_service_tomo(mock_subprocess, offline_transport, tmp_path):
             "last_frame": 2,
             "total_motion": total_motion,
             "average_motion_per_frame": average_motion_per_frame,
-            "drift_plot_full_path": f"{tmp_path}/MotionCorr/job002/Movies/sample_drift_plot.json",
-            "micrograph_snapshot_full_path": f"{tmp_path}/MotionCorr/job002/Movies/sample_motion_corrected.jpeg",
+            "drift_plot_full_path": f"{tmp_path}/MotionCorr/job002/Movies/sample_001_3.0_date_time_fractions_drift_plot.json",
+            "micrograph_snapshot_full_path": f"{tmp_path}/MotionCorr/job002/Movies/sample_001_3.0_date_time_fractions_motion_corrected.jpeg",
             "micrograph_full_path": motioncorr_test_message["mrc_out"],
             "patches_used_x": motioncorr_test_message["patch_sizes"]["x"],
             "patches_used_y": motioncorr_test_message["patch_sizes"]["y"],
@@ -729,11 +747,12 @@ def test_motioncor2_service_tomo(mock_subprocess, offline_transport, tmp_path):
             "experiment_type": "tomography",
             "job_type": "relion.importtomo",
             "input_file": f"{movie}:{tmp_path}/Movies/*.mdoc",
-            "output_file": f"{tmp_path}/Import/job001/Movies/sample.tiff",
+            "output_file": f"{tmp_path}/Import/job001/Movies/sample_001_3.0_date_time_fractions.tiff",
             "relion_options": output_relion_options,
             "command": "",
             "stdout": "",
             "stderr": "",
+            "alias": "Live_import",
         },
     )
     offline_transport.send.assert_any_call(
@@ -741,7 +760,7 @@ def test_motioncor2_service_tomo(mock_subprocess, offline_transport, tmp_path):
         {
             "experiment_type": "tomography",
             "job_type": "relion.motioncorr.motioncor2",
-            "input_file": f"{tmp_path}/Import/job001/Movies/sample.tiff",
+            "input_file": f"{tmp_path}/Import/job001/Movies/sample_001_3.0_date_time_fractions.tiff",
             "output_file": motioncorr_test_message["mrc_out"],
             "relion_options": output_relion_options,
             "command": " ".join(mc_command),
@@ -752,6 +771,7 @@ def test_motioncor2_service_tomo(mock_subprocess, offline_transport, tmp_path):
                 "early_motion": early_motion,
                 "late_motion": late_motion,
             },
+            "alias": "Live_motioncorr",
         },
     )
 
@@ -769,7 +789,7 @@ def test_motioncor_relion_service_tomo(mock_subprocess, offline_transport, tmp_p
     mock_subprocess().stderr = "stderr".encode("ascii")
 
     (tmp_path / "gain.mrc").touch()
-    movie = Path(f"{tmp_path}/Movies/sample.tiff")
+    movie = Path(f"{tmp_path}/Movies/sample_002_3.0_date_time_fractions.tiff")
     movie.parent.mkdir(parents=True)
     movie.touch()
 
@@ -783,7 +803,7 @@ def test_motioncor_relion_service_tomo(mock_subprocess, offline_transport, tmp_p
         "autopick": {"autopick": "autopick"},
         "ctf": {"ctf": "ctf"},
         "movie": str(movie),
-        "mrc_out": f"{tmp_path}/MotionCorr/job002/Movies/sample_motion_corrected.mrc",
+        "mrc_out": f"{tmp_path}/MotionCorr/job002/Movies/sample_002_3.0_date_time_fractions_motion_corrected.mrc",
         "patch_sizes": {"x": 5, "y": 5},
         "gpu": 0,
         "threads": 1,
@@ -817,8 +837,8 @@ def test_motioncor_relion_service_tomo(mock_subprocess, offline_transport, tmp_p
         "arc_dir": None,
         "in_fm_motion": None,
         "split_sum": None,
+        "frame_count": 5,
         "relion_options": {
-            "frame_count": 5,
             "tilt_axis_angle": 83.0,
             "defocus": -2.0,
             "invert_hand": 1,
@@ -831,6 +851,7 @@ def test_motioncor_relion_service_tomo(mock_subprocess, offline_transport, tmp_p
     output_relion_options["gain_ref"] = motioncorr_test_message["gain_ref"]
     output_relion_options.update(motioncorr_test_message["relion_options"])
     output_relion_options["eer_grouping"] = 0
+    output_relion_options["frame_count"] = 5
 
     # Set up the mock service
     service = motioncorr.MotionCorr(
@@ -850,7 +871,9 @@ def test_motioncor_relion_service_tomo(mock_subprocess, offline_transport, tmp_p
     # Touch expected output file
     (tmp_path / "MotionCorr/job002/Movies").mkdir(parents=True, exist_ok=True)
     with open(
-        tmp_path / "MotionCorr/job002/Movies/sample_motion_corrected.star", "w"
+        tmp_path
+        / "MotionCorr/job002/Movies/sample_002_3.0_date_time_fractions_motion_corrected.star",
+        "w",
     ) as relion_output:
         relion_output.write(
             "data_global_shift\nloop_\n_rlnMicrographShiftX\n_rlnMicrographShiftY\n"
@@ -878,6 +901,8 @@ def test_motioncor_relion_service_tomo(mock_subprocess, offline_transport, tmp_p
         "1",
         "--gainref",
         motioncorr_test_message["gain_ref"],
+        "--preexposure",
+        "5.0",
         "--dose_weighting",
         "--i",
         "dummy",
@@ -897,7 +922,7 @@ def test_motioncor_relion_service_tomo(mock_subprocess, offline_transport, tmp_p
             "ctf": "ctf",
             "movie": motioncorr_test_message["movie"],
             "input_image": motioncorr_test_message["mrc_out"],
-            "output_image": f"{tmp_path}/CtfFind/job003/Movies/sample_motion_corrected.ctf",
+            "output_image": f"{tmp_path}/CtfFind/job003/Movies/sample_002_3.0_date_time_fractions_motion_corrected.ctf",
             "mc_uuid": motioncorr_test_message["mc_uuid"],
             "picker_uuid": motioncorr_test_message["picker_uuid"],
             "relion_options": output_relion_options,
@@ -913,8 +938,8 @@ def test_motioncor_relion_service_tomo(mock_subprocess, offline_transport, tmp_p
             "last_frame": 2,
             "total_motion": total_motion,
             "average_motion_per_frame": average_motion_per_frame,
-            "drift_plot_full_path": f"{tmp_path}/MotionCorr/job002/Movies/sample_drift_plot.json",
-            "micrograph_snapshot_full_path": f"{tmp_path}/MotionCorr/job002/Movies/sample_motion_corrected.jpeg",
+            "drift_plot_full_path": f"{tmp_path}/MotionCorr/job002/Movies/sample_002_3.0_date_time_fractions_drift_plot.json",
+            "micrograph_snapshot_full_path": f"{tmp_path}/MotionCorr/job002/Movies/sample_002_3.0_date_time_fractions_motion_corrected.jpeg",
             "micrograph_full_path": motioncorr_test_message["mrc_out"],
             "patches_used_x": motioncorr_test_message["patch_sizes"]["x"],
             "patches_used_y": motioncorr_test_message["patch_sizes"]["y"],
@@ -937,11 +962,12 @@ def test_motioncor_relion_service_tomo(mock_subprocess, offline_transport, tmp_p
             "experiment_type": "tomography",
             "job_type": "relion.importtomo",
             "input_file": f"{movie}:{tmp_path}/Movies/*.mdoc",
-            "output_file": f"{tmp_path}/Import/job001/Movies/sample.tiff",
+            "output_file": f"{tmp_path}/Import/job001/Movies/sample_002_3.0_date_time_fractions.tiff",
             "relion_options": output_relion_options,
             "command": "",
             "stdout": "",
             "stderr": "",
+            "alias": "Live_import",
         },
     )
     offline_transport.send.assert_any_call(
@@ -949,7 +975,7 @@ def test_motioncor_relion_service_tomo(mock_subprocess, offline_transport, tmp_p
         {
             "experiment_type": "tomography",
             "job_type": "relion.motioncorr.own",
-            "input_file": f"{tmp_path}/Import/job001/Movies/sample.tiff",
+            "input_file": f"{tmp_path}/Import/job001/Movies/sample_002_3.0_date_time_fractions.tiff",
             "output_file": motioncorr_test_message["mrc_out"],
             "relion_options": output_relion_options,
             "command": " ".join(mc_command),
@@ -960,6 +986,7 @@ def test_motioncor_relion_service_tomo(mock_subprocess, offline_transport, tmp_p
                 "early_motion": early_motion,
                 "late_motion": late_motion,
             },
+            "alias": "Live_motioncorr",
         },
     )
 
@@ -997,6 +1024,7 @@ def test_motioncor2_slurm_service_spa(mock_requests, offline_transport, tmp_path
         "patch_sizes": {"x": 5, "y": 5},
         "mc_uuid": 0,
         "picker_uuid": 0,
+        "slurm_memory": 12000,
         "relion_options": {},
     }
     output_relion_options = dict(RelionServiceOptions())
@@ -1115,6 +1143,7 @@ def test_motioncor2_slurm_service_spa(mock_requests, offline_transport, tmp_path
                 "early_motion": early_motion,
                 "late_motion": late_motion,
             },
+            "alias": "Live_motioncorr",
         },
     )
 
@@ -1235,7 +1264,7 @@ def test_motioncor_superres_does_slurm(mock_requests, offline_transport, tmp_pat
                 "partition": "partition",
                 "prefer": "preference",
                 "tasks": 1,
-                "memory_per_node": {"number": 12000, "set": True, "infinite": False},
+                "memory_per_node": {"number": 20000, "set": True, "infinite": False},
                 "time_limit": {"number": 60, "set": True, "infinite": False},
                 "tres_per_job": "gres/gpu:1",
             },
@@ -1255,6 +1284,7 @@ def test_motioncor_superres_does_slurm(mock_requests, offline_transport, tmp_pat
             "command": " ".join(mc_command),
             "stdout": "cluster job submission",
             "stderr": "failed to submit job",
+            "alias": "Live_motioncorr",
             "success": False,
         },
     )
@@ -1353,6 +1383,7 @@ def test_motioncor2_slurm_parameters(mock_slurm, offline_transport, tmp_path):
         use_gpu=True,
         use_singularity=True,
         cif_name="MotionCor2_SIF",
+        memory_request=20000,
         extra_singularity_directories=["/lib64"],
     )
 
@@ -1389,6 +1420,7 @@ def test_motioncor_relion_slurm_parameters(mock_slurm, offline_transport, tmp_pa
         "patch_sizes": {"x": 5, "y": 5},
         "mc_uuid": 0,
         "picker_uuid": 0,
+        "slurm_memory": 12000,
         "relion_options": {},
     }
 
@@ -1456,10 +1488,135 @@ def test_motioncor_relion_slurm_parameters(mock_slurm, offline_transport, tmp_pa
         cpus=4,
         use_gpu=False,
         use_singularity=False,
+        memory_request=12000,
         script_extras="module load EM/relion/motioncorr",
     )
 
     assert offline_transport.send.call_count == 7
+
+
+@mock.patch("cryoemservices.services.motioncorr.subprocess.run")
+def test_motioncor_check_symlink(mock_subprocess, offline_transport, tmp_path):
+    """
+    Send a test message to MotionCorr to check the alias symlink
+    """
+    mock_subprocess().returncode = 0
+    mock_subprocess().stdout = "stdout".encode("ascii")
+    mock_subprocess().stderr = "stderr".encode("ascii")
+
+    (tmp_path / "gain.mrc").touch()
+    (tmp_path / "gain.gain").touch()
+    movie = Path(f"{tmp_path}/Movies/sample.tiff")
+    movie.parent.mkdir(parents=True)
+    movie.touch()
+
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+    motioncorr_test_message = {
+        "experiment_type": "spa",
+        "pixel_size": 0.1,
+        "movie": str(movie),
+        "mrc_out": f"{tmp_path}/MotionCorr/job002/Movies/sample.mrc",
+        "gain_ref": f"{tmp_path}/gain.mrc",
+        "mc_uuid": 0,
+        "picker_uuid": 0,
+        "dose_per_frame": 1,
+        "use_motioncor2": True,
+        "relion_options": {},
+    }
+
+    # Set up the mock service
+    service = motioncorr.MotionCorr(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
+
+    # Case 1: no symlink
+    service.x_shift_list = [-3.0, 3.0]
+    service.y_shift_list = [4.0, -4.0]
+    service.motion_correction(None, header=header, message=motioncorr_test_message)
+    offline_transport.ack.assert_called_once()
+
+    # Case 2: ok symlink
+    service.x_shift_list = [-3.0, 3.0]
+    service.y_shift_list = [4.0, -4.0]
+    assert (tmp_path / "MotionCorr/Live_motioncorr").is_symlink()
+    service.motion_correction(None, header=header, message=motioncorr_test_message)
+    assert offline_transport.ack.call_count == 2
+
+    # Case 3: bad symlink
+    service.x_shift_list = [-3.0, 3.0]
+    service.y_shift_list = [4.0, -4.0]
+    (tmp_path / "MotionCorr/Live_motioncorr").unlink()
+    (tmp_path / "MotionCorr/Live_motioncorr").symlink_to(tmp_path / "Movies")
+    service.motion_correction(None, header=header, message=motioncorr_test_message)
+    offline_transport.nack.assert_called_once()
+
+
+@mock.patch("cryoemservices.services.motioncorr.subprocess.run")
+def test_motioncorr_service_fail_cases(mock_subprocess, offline_transport, tmp_path):
+    """
+    Send a test message to MotionCorr to check the alias symlink
+    """
+    mock_subprocess().returncode = 0
+    mock_subprocess().stdout = "stdout".encode("ascii")
+    mock_subprocess().stderr = "stderr".encode("ascii")
+
+    (tmp_path / "gain.mrc").touch()
+    (tmp_path / "gain.gain").touch()
+    movie = Path(f"{tmp_path}/Movies/sample.tiff")
+
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+    motioncorr_test_message = {
+        "experiment_type": "spa",
+        "pixel_size": 0.1,
+        "movie": str(movie),
+        "mrc_out": f"{tmp_path}/MotionCorr/job002/Movies/sample.mrc",
+        "gain_ref": f"{tmp_path}/gain.mrc",
+        "mc_uuid": 0,
+        "picker_uuid": 0,
+        "dose_per_frame": 1,
+        "use_motioncor2": True,
+        "relion_options": {},
+    }
+
+    # Set up the mock service
+    service = motioncorr.MotionCorr(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
+
+    # Case 1: no message
+    service.motion_correction(None, header=header, message=None)
+    offline_transport.nack.assert_called_once()
+
+    # Case 2: bad experiment_type
+    wrong_exp_message = copy.deepcopy(motioncorr_test_message)
+    wrong_exp_message["experiment_type"] = "wrong"
+    service.motion_correction(None, header=header, message=wrong_exp_message)
+    assert offline_transport.nack.call_count == 2
+
+    # Case 3: invalid message
+    no_input_message = {"experiment_type": "spa"}
+    service.motion_correction(None, header=header, message=no_input_message)
+    assert offline_transport.nack.call_count == 3
+
+    # Case 4: no movie exists
+    service.motion_correction(None, header=header, message=motioncorr_test_message)
+    assert offline_transport.nack.call_count == 4
+
+    # Case 5: no job number in inputs
+    movie.parent.mkdir(parents=True)
+    movie.touch()
+    no_job_message = copy.deepcopy(motioncorr_test_message)
+    no_job_message["mrc_out"] = f"{tmp_path}/MotionCorr/sample.mrc"
+    service.motion_correction(None, header=header, message=no_job_message)
+    assert offline_transport.nack.call_count == 5
 
 
 reruns_matrix = (
