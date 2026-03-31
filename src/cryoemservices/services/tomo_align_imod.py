@@ -4,7 +4,11 @@ from typing import List, Optional
 
 import mrcfile
 from pydantic import BaseModel, Field, ValidationError
+from txrm2tiff.inspector import Inspector
 from txrm2tiff.main import convert_and_save
+from txrm2tiff.txrm import open_txrm
+from txrm2tiff.txrm_functions.general import read_stream
+from txrm2tiff.xradia_properties.enums import XrmDataTypes
 from workflows.recipe import wrap_subscribe
 
 from cryoemservices.services.common_service import CommonService
@@ -27,7 +31,7 @@ class ImodTomoParameters(BaseModel):
     wbp: int = 1
     sirt: int = 1
     sirt_leave_iterations: int = 5
-    patch: int = 0
+    patch: int = 1
     patch_size: int = 200
     patch_overlap: float = 0.5
     flip_vol: int = 0
@@ -130,6 +134,25 @@ class ImodTomoAlign(CommonService):
             rw.transport.nack(header)
             return
 
+        # Generate angles file
+        with open_txrm(
+            tomo_params.txrm_file, load_images=False, load_reference=False, strict=False
+        ) as txrm:
+            inspector = Inspector(txrm)
+            angles = read_stream(
+                inspector.txrm.ole,
+                "ImageInfo/Angles",
+                XrmDataTypes.XRM_FLOAT,
+                strict=True,
+            )
+        with open(
+            Path(tomo_params.stack_file).parent
+            / f"{Path(tomo_params.stack_file).stem}.rawtlt",
+            "w",
+        ) as angles_file:
+            for ang in angles:
+                angles_file.write(f"{ang}\n")
+
         # Find the input image dimensions
         with mrcfile.open(tomo_params.stack_file) as mrc:
             mrc_header = mrc.header
@@ -147,11 +170,13 @@ class ImodTomoAlign(CommonService):
                 str(adoc_file),
                 "-cpus",
                 str(tomo_params.cpus),
-            ]
+            ],
+            capture_output=True,
         )
         if imod_result.returncode or not imod_output_path.is_file():
             self.log.error(
                 f"batchruntomo failed with exitcode {imod_result.returncode}:\n"
+                + imod_result.stdout.decode("utf8", "replace")
                 + imod_result.stderr.decode("utf8", "replace")
             )
             # Update failure processing status
@@ -290,7 +315,7 @@ def write_batch_directive_file(tomo_params: ImodTomoParameters):
         # Commands for copytomocoms
         adoc.write(f"setupset.datasetDirectory={adoc_file.parent}\n")
         adoc.write(f"setupset.copyarg.name={Path(tomo_params.stack_file).stem}\n")
-        "setupset.copyarg.userawtlt=1"
+        adoc.write("setupset.copyarg.userawtlt=1\n")
         # "setupset.copyarg.dual=0"
         adoc.write(f"setupset.copyarg.pixel={tomo_params.pixel_size / 10}\n")
         adoc.write(f"setupset.copyarg.gold={tomo_params.bead_size}\n")
