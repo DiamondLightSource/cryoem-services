@@ -14,6 +14,11 @@ import numpy as np
 import plotly.express as px
 from gemmi import cif
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
+from txrm2tiff.inspector import Inspector
+from txrm2tiff.main import convert_and_save
+from txrm2tiff.txrm import open_txrm
+from txrm2tiff.txrm_functions.general import read_stream
+from txrm2tiff.xradia_properties.enums import XrmDataTypes
 from workflows.recipe import wrap_subscribe
 
 from cryoemservices.services.common_service import CommonService
@@ -850,12 +855,6 @@ class TomoAlign(CommonService):
         rw.transport.ack(header)
 
     def convert_txrm_to_stack(self, txrm_file: str, stack_file: str) -> float:
-        from txrm2tiff.inspector import Inspector
-        from txrm2tiff.main import convert_and_save
-        from txrm2tiff.txrm import open_txrm
-        from txrm2tiff.txrm_functions.general import read_stream
-        from txrm2tiff.xradia_properties.enums import XrmDataTypes
-
         # Read the tilt angles and pixel size from the txrm
         with open_txrm(
             txrm_file, load_images=False, load_reference=False, strict=False
