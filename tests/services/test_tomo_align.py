@@ -2083,10 +2083,10 @@ def test_tomo_align_service_fail_case(
 
 @mock.patch("cryoemservices.services.tomo_align.subprocess.run")
 @mock.patch("cryoemservices.services.tomo_align.mrcfile")
-@mock.patch("txrm2tiff.main.convert_and_save")
-@mock.patch("txrm2tiff.txrm.open_txrm")
-@mock.patch("txrm2tiff.inspector.Inspector")
-@mock.patch("txrm2tiff.txrm_functions.general.read_stream")
+@mock.patch("cryoemservices.services.tomo_align.convert_and_save")
+@mock.patch("cryoemservices.services.tomo_align.open_txrm")
+@mock.patch("cryoemservices.services.tomo_align.Inspector")
+@mock.patch("cryoemservices.services.tomo_align.read_stream")
 @mock.patch("cryoemservices.services.tomo_align.resize_tomogram")
 @mock.patch("cryoemservices.services.tomo_align.rotate_tomogram")
 def test_tomo_align_service_txrm(
@@ -2368,6 +2368,9 @@ def test_tomo_align_service_txrm(
             "thickness_ang": 13000.0,
         },
     )
+    # Denoise gets sent with reset pixel size
+    output_relion_options["pixel_size"] = 10
+    output_relion_options["pixel_size_downscaled"] = 10
     offline_transport.send.assert_any_call(
         "denoise",
         {

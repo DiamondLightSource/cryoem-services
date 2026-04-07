@@ -499,7 +499,6 @@ class TomoAlign(CommonService):
         plot_path = alignment_output_dir / plot_file
 
         # Extract results
-        pixel_spacing: str = str(tomo_params.pixel_size * tomo_params.out_bin)
         aln_file = self.extract_from_aln(tomo_params, alignment_output_dir, plot_path)
         if not aretomo_result.returncode and not aln_file:
             self.log.error("Failed to read alignment file")
@@ -614,7 +613,7 @@ class TomoAlign(CommonService):
                 "size_x": scaled_x_size,  # volume image size, pix
                 "size_y": scaled_y_size,
                 "size_z": scaled_z_size,
-                "pixel_spacing": pixel_spacing,
+                "pixel_spacing": str(tomo_params.relion_options.pixel_size_downscaled),
                 "tilt_angle_offset": str(
                     self.tilt_offset or tomo_params.manual_tilt_offset
                 ),
@@ -812,7 +811,7 @@ class TomoAlign(CommonService):
                 "image_command": "mrc_projection",
                 "file": str(aretomo_output_path),
                 "projection": projection_type,
-                "pixel_spacing": float(pixel_spacing),
+                "pixel_spacing": tomo_params.relion_options.pixel_size_downscaled,
             }
             if projection_type in ["XZ", "YZ"] and self.thickness_pixels:
                 images_call_params["thickness_ang"] = (
@@ -825,6 +824,10 @@ class TomoAlign(CommonService):
         if job_number:
             denoise_dir = project_dir / f"Denoise/job{job_number + 1:03}/tomograms"
         else:
+            # This is used for SXT
+            # Resets the pixel size to prevent segmentation rescaling
+            tomo_params.relion_options.pixel_size = 10
+            tomo_params.relion_options.pixel_size_downscaled = 10
             denoise_dir = project_dir / "Denoise"
         rw.send_to(
             "denoise",
