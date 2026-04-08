@@ -68,7 +68,7 @@ class RefineParameters(BaseModel):
     mask_lowpass: float = 15
     mask_extend: int = 3
     mask_soft_edge: int = 3
-    mpi_run_command: str = "srun -n 5"
+    mpi_run_command: str = "mpirun -n 5"
     dont_correct_greyscale: bool = True
     initial_lowpass: float = 20.0
     dont_combine_weights_via_disc: bool = True

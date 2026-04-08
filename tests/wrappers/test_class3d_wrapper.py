@@ -499,7 +499,7 @@ def test_class3d_wrapper_has_initial_model(
     # Check the expected 3D classifcation command was run
     assert mock_subprocess.call_count == 4
     class3d_command = [
-        "srun",
+        "mpirun",
         "-n",
         "5",
         "relion_refine_mpi",
