@@ -420,14 +420,12 @@ class TomoAlign(CommonService):
 
         # Find the input image dimensions
         if self.input_file_list_of_lists:
-            # Read the first image if a list is given
-            with mrcfile.open(self.input_file_list_of_lists[0][0]) as mrc:
-                mrc_header = mrc.header
-
+            input_image = self.input_file_list_of_lists[0][0]
         else:
-            # Read shape of the stack if using txrm
-            with mrcfile.open(tomo_params.stack_file) as mrc:
-                mrc_header = mrc.header
+            input_image = tomo_params.stack_file
+        # Read the first image if a list is given or stack if using txrm
+        with mrcfile.open(input_image) as mrc:
+            mrc_header = mrc.header
         # x and y get flipped on tomogram creation
         tomo_params.relion_options.tomo_size_x = int(mrc_header.nx)
         tomo_params.relion_options.tomo_size_y = int(mrc_header.ny)
