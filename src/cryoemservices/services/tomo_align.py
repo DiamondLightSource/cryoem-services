@@ -445,8 +445,8 @@ class TomoAlign(CommonService):
         if project_dir_search and job_num_search:
             project_dir = Path(project_dir_search[0]).parent
             job_number = int(job_num_search[0][4:])
-        elif project_dir_search and tomo_params.txrm_file:
-            # Allow non-Relion projects for txrm
+        elif project_dir_search:
+            # Allow processing without job numbers, but then skip node creator sends
             project_dir = Path(project_dir_search[0]).parent
             job_number = 0
         else:
@@ -522,7 +522,7 @@ class TomoAlign(CommonService):
                 tomo_params.vol_z = tomo_params.min_vol
             tomo_params.relion_options.vol_z = tomo_params.vol_z
 
-        if not job_is_rerun:
+        if job_number and not job_is_rerun:
             # Send to node creator if this is the first time this tomogram is made
             self.log.info("Sending tomo align to node creator")
             node_creator_parameters = {
@@ -653,7 +653,7 @@ class TomoAlign(CommonService):
         im_diff = 0
         # TiltImageAlignment (one per movie)
         node_creator_params_list = []
-        if self.input_file_list_of_lists:
+        if self.input_file_list_of_lists and job_number:
             (project_dir / f"ExcludeTiltImages/job{job_number - 2:03}").mkdir(
                 parents=True, exist_ok=True
             )
@@ -741,8 +741,9 @@ class TomoAlign(CommonService):
                     rw.transport.nack(header)
                     return
 
-        for tilt_params in node_creator_params_list:
-            rw.send_to("node_creator", tilt_params)
+        if job_number:
+            for tilt_params in node_creator_params_list:
+                rw.send_to("node_creator", tilt_params)
 
         ispyb_command_list.append(
             {
