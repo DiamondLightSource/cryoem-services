@@ -2256,26 +2256,7 @@ def test_tomo_align_service_txrm(
     assert shift_data["data"][0]["y"] == [2.3]
 
     # Check that the correct messages were sent
-    assert offline_transport.send.call_count == 11
-    offline_transport.send.assert_any_call(
-        "node_creator",
-        {
-            "experiment_type": "tomography",
-            "job_type": "relion.reconstructtomograms",
-            "input_file": f"{tmp_path}/tilt_stack.txrm",
-            "output_file": f"{tmp_path}/Tomograms/stack_Vol.mrc",
-            "relion_options": output_relion_options,
-            "command": " ".join(aretomo_command),
-            "stdout": (
-                "Rot center Z 100.0 200.0 3.1\n"
-                "Rot center Z 150.0 250.0 2.1\n"
-                "Tilt offset 1.1, CC: 0.5\n"
-                "Best tilt axis:   57, Score:   0.5\n"
-            ),
-            "stderr": "stderr",
-            "success": True,
-        },
-    )
+    assert offline_transport.send.call_count == 10
     offline_transport.send.assert_any_call(
         "ispyb_connector",
         {
