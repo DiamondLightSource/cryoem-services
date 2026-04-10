@@ -167,7 +167,7 @@ class CrYOLO(CommonService):
         job_alias = job_dir.parent / "Live_cryolo"
         if not job_alias.exists():
             job_alias.symlink_to(job_dir)
-        elif not (job_alias.is_symlink() and job_alias.readlink() == job_dir):
+        elif not (job_alias.is_symlink() and job_alias.resolve() == job_dir.resolve()):
             self.log.error(f"Symlink {job_alias} already exists")
             rw.transport.nack(header)
             return
