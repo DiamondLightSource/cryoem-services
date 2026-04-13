@@ -823,11 +823,12 @@ class TomoAlign(CommonService):
         if job_number:
             denoise_dir = project_dir / f"Denoise/job{job_number + 1:03}/tomograms"
         else:
+            denoise_dir = project_dir / "Denoise"
+        if tomo_params.relion_options.pixel_size_downscaled > 20:
             # This is used for SXT
             # Resets the pixel size to prevent segmentation rescaling
             tomo_params.relion_options.pixel_size = 10
             tomo_params.relion_options.pixel_size_downscaled = 10
-            denoise_dir = project_dir / "Denoise"
         rw.send_to(
             "denoise",
             {
