@@ -47,9 +47,9 @@ clem_process_raw_lifs:
   replicas: 0
   image: gcr.io/image/path
   command: cryoemservices.service -s CLEMProcessRawLIFs -c /cryoemservices/config/cryoemservices_config.yaml
-  cpuRequest: "4"
-  cpuLimit: "4"
-  memoryLimit: 16Gi
+  cpuRequest: "16"
+  cpuLimit: "16"
+  memoryLimit: 32Gi
   scaleOnQueueLength: true
   queueLengthTrigger: "4"
   minReplicaCount: 0

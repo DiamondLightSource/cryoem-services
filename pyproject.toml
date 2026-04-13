@@ -34,6 +34,7 @@ dependencies = [
     "graypy",
     "healpy",
     "icebreaker-em",
+    "imagecodecs", # CLEM workflow
     "ispyb>=11.1.2",
     "mrcfile",
     "numpy",
@@ -46,6 +47,7 @@ dependencies = [
     "starfile",
     "stomp-py>8.1.1",
     "tifffile", # CLEM workflow
+    "txrm2tiff",
     "workflows>=3",
 ]
 [project.optional-dependencies]

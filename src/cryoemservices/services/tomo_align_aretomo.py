@@ -14,6 +14,11 @@ import numpy as np
 import plotly.express as px
 from gemmi import cif
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
+from txrm2tiff.inspector import Inspector
+from txrm2tiff.main import convert_and_save
+from txrm2tiff.txrm import open_txrm
+from txrm2tiff.txrm_functions.general import read_stream
+from txrm2tiff.xradia_properties.enums import XrmDataTypes
 from workflows.recipe import wrap_subscribe
 
 from cryoemservices.services.common_service import CommonService
@@ -100,11 +105,12 @@ class AreTomoParameters(BaseModel):
     aretomo_version: Literal[2, 3] = 3
     stack_file: str = Field(..., min_length=1)
     pixel_size: float
+    txrm_file: Optional[str] = None
     path_pattern: Optional[str] = None
     input_file_list: Optional[str] = None
     vol_z: Optional[int] = None
     max_vol: int = 1800
-    min_vol: int = 800
+    min_vol: int = 600
     extra_vol: int = 400
     out_bin: int = 4
     second_bin: Optional[int] = None
@@ -139,12 +145,15 @@ class AreTomoParameters(BaseModel):
     def check_only_one_is_provided(cls, values):
         input_file_list = values.get("input_file_list")
         path_pattern = values.get("path_pattern")
-        if not input_file_list and not path_pattern:
-            raise ValueError("input_file_list or path_pattern must be provided")
-        if input_file_list and path_pattern:
+        txrm_file = values.get("txrm_file")
+        if not input_file_list and not path_pattern and not txrm_file:
             raise ValueError(
-                "Message must only include one of 'path_pattern' and 'input_file_list'."
-                " Both are set or one has been set by the recipe."
+                "input_file_list or path_pattern or txrm_file must be provided"
+            )
+        if input_file_list and path_pattern and txrm_file:
+            raise ValueError(
+                "Message must only include one of "
+                "'path_pattern', 'input_file_list' or 'txrm_file'."
             )
         return values
 
@@ -179,6 +188,7 @@ class AreTomoAlign(CommonService):
 
     # Values to extract for ISPyB
     input_file_list_of_lists: List[Any]
+    tilt_angles: dict
     refined_tilts: List[float]
     x_shift: List[float]
     y_shift: List[float]
@@ -191,6 +201,7 @@ class AreTomoAlign(CommonService):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.tilt_angles = {}
         self.refined_tilts = []
         self.rot_centre_z_list = []
 
@@ -308,15 +319,13 @@ class AreTomoAlign(CommonService):
             # If no volume provided, set it to the maximum we allow
             tomo_params.vol_z = tomo_params.max_vol
 
-        # Update the relion options
-        tomo_params.relion_options = update_relion_options(
-            tomo_params.relion_options, dict(tomo_params)
-        )
-        tomo_params.relion_options.pixel_size_downscaled = (
-            tomo_params.pixel_size * tomo_params.out_bin
-        )
+        # Get the names of the output files expected
+        alignment_output_dir = Path(tomo_params.stack_file).parent
+        Path(tomo_params.stack_file).parent.mkdir(parents=True, exist_ok=True)
+        stack_name = str(Path(tomo_params.stack_file).stem)
 
         # Convert a path pattern into a file list
+        self.tilt_angles = {}
         if tomo_params.path_pattern:
             directory = Path(tomo_params.path_pattern).parent
 
@@ -330,9 +339,33 @@ class AreTomoAlign(CommonService):
         elif tomo_params.input_file_list:
             file_list = ast.literal_eval(tomo_params.input_file_list)
             self.input_file_list_of_lists = file_list
+        elif tomo_params.txrm_file and Path(tomo_params.txrm_file).is_file():
+            tomo_params.pixel_size = self.convert_txrm_to_stack(
+                tomo_params.txrm_file, tomo_params.stack_file
+            )
+            self.input_file_list_of_lists = []
+            # Check we now have the expected stack file
+            if not Path(tomo_params.stack_file).is_file():
+                self.log.warning("Stack file generation failed")
+                rw.transport.nack(header)
+                return
+        else:
+            self.log.warning(f"Invalid input or {tomo_params.txrm_file} is not a file")
+            rw.transport.nack(header)
+            return
 
-        self.log.info(f"Input list {self.input_file_list_of_lists}")
+        self.log.info(
+            f"Input list {self.input_file_list_of_lists or tomo_params.txrm_file}"
+        )
         self.input_file_list_of_lists.sort(key=_tilt)
+
+        # Update the relion options
+        tomo_params.relion_options = update_relion_options(
+            tomo_params.relion_options, dict(tomo_params)
+        )
+        tomo_params.relion_options.pixel_size_downscaled = (
+            tomo_params.pixel_size * tomo_params.out_bin
+        )
 
         # Find all the tilt angles and remove duplicates
         tilt_dict: dict = {}
@@ -387,11 +420,18 @@ class AreTomoAlign(CommonService):
             self.input_file_list_of_lists.remove(self.input_file_list_of_lists[index])
 
         # Find the input image dimensions
-        with mrcfile.open(self.input_file_list_of_lists[0][0]) as mrc:
+        if self.input_file_list_of_lists:
+            input_image = self.input_file_list_of_lists[0][0]
+        else:
+            input_image = tomo_params.stack_file
+        # Read the first image if a list is given or stack if using txrm
+        with mrcfile.open(input_image) as mrc:
             mrc_header = mrc.header
         # x and y get flipped on tomogram creation
         tomo_params.relion_options.tomo_size_x = int(mrc_header.nx)
         tomo_params.relion_options.tomo_size_y = int(mrc_header.ny)
+
+        # Scale size of output
         scaled_x_size = tomo_params.relion_options.tomo_size_x / int(
             tomo_params.out_bin
         )
@@ -399,52 +439,48 @@ class AreTomoAlign(CommonService):
             tomo_params.out_bin
         )
 
-        # Get the names of the output files expected
-        alignment_output_dir = Path(tomo_params.stack_file).parent
-        Path(tomo_params.stack_file).parent.mkdir(parents=True, exist_ok=True)
-        stack_name = str(Path(tomo_params.stack_file).stem)
-
-        project_dir_search = re.search(".+/job[0-9]+/", tomo_params.stack_file)
+        project_dir_search = re.search(".+/Tomograms/", tomo_params.stack_file)
         job_num_search = re.search("/job[0-9]+", tomo_params.stack_file)
         if project_dir_search and job_num_search:
-            project_dir = Path(project_dir_search[0]).parent.parent
+            project_dir = Path(project_dir_search[0]).parent
             job_number = int(job_num_search[0][4:])
+        elif project_dir_search:
+            # Allow processing without job numbers, but then skip node creator sends
+            project_dir = Path(project_dir_search[0]).parent
+            job_number = 0
         else:
             self.log.warning(f"Invalid project directory in {tomo_params.stack_file}")
             rw.transport.nack(header)
             return
 
-        # Stack the tilts
-        try:
-            create_tilt_stack(
-                self.input_file_list_of_lists, Path(tomo_params.stack_file)
-            )
-        except (FileNotFoundError, ValueError) as e:
-            self.log.error(f"Creating stack file failed: {e}")
-            rw.transport.nack(header)
-            return
+        if self.input_file_list_of_lists:
+            # Stack the tilts
+            try:
+                create_tilt_stack(
+                    self.input_file_list_of_lists, Path(tomo_params.stack_file)
+                )
+            except (FileNotFoundError, ValueError) as e:
+                self.log.error(f"Creating stack file failed: {e}")
+                rw.transport.nack(header)
+                return
 
         # Set up the angle file needed for dose weighting
-        angle_file = (
-            Path(tomo_params.stack_file).parent
-            / f"{Path(tomo_params.stack_file).stem}_TLT.txt"
-        )
-        tilt_angles = {}
+        angle_file = Path(tomo_params.stack_file).parent / f"{stack_name}_TLT.txt"
         for i in range(len(self.input_file_list_of_lists)):
             tilt_index = get_tilt_number_v5_12(
                 Path(self.input_file_list_of_lists[i][0])
             )
             tilt_index -= len(np.where(removed_tilt_numbers < tilt_index)[0])
-            tilt_angles[tilt_index] = float(self.input_file_list_of_lists[i][1])
+            self.tilt_angles[tilt_index] = float(self.input_file_list_of_lists[i][1])
         with open(angle_file, "w") as angfile:
-            for tilt_id in tilt_angles.keys():
+            for tilt_id in self.tilt_angles.keys():
                 if tomo_params.aretomo_version == 3 and tomo_params.manual_tilt_offset:
                     # AreTomo3 performs better with pre-shifted angles
                     angfile.write(
-                        f"{tilt_angles[tilt_id] + tomo_params.manual_tilt_offset:.2f}  {int(tilt_id)}\n"
+                        f"{self.tilt_angles[tilt_id] + tomo_params.manual_tilt_offset:.2f}  {int(tilt_id)}\n"
                     )
                 else:
-                    angfile.write(f"{tilt_angles[tilt_id]:.2f}  {int(tilt_id)}\n")
+                    angfile.write(f"{self.tilt_angles[tilt_id]:.2f}  {int(tilt_id)}\n")
 
         # Do alignment with AreTomo
         aretomo_output_path = alignment_output_dir / f"{stack_name}_Vol.mrc"
@@ -462,7 +498,6 @@ class AreTomoAlign(CommonService):
         plot_path = alignment_output_dir / plot_file
 
         # Extract results
-        pixel_spacing: str = str(tomo_params.pixel_size * tomo_params.out_bin)
         aln_file = self.extract_from_aln(tomo_params, alignment_output_dir, plot_path)
         if not aretomo_result.returncode and not aln_file:
             self.log.error("Failed to read alignment file")
@@ -486,13 +521,15 @@ class AreTomoAlign(CommonService):
                 tomo_params.vol_z = tomo_params.min_vol
             tomo_params.relion_options.vol_z = tomo_params.vol_z
 
-        if not job_is_rerun:
+        if job_number and not job_is_rerun:
             # Send to node creator if this is the first time this tomogram is made
             self.log.info("Sending tomo align to node creator")
             node_creator_parameters = {
                 "experiment_type": "tomography",
                 "job_type": self.job_type,
-                "input_file": f"{project_dir}/AlignTiltSeries/job{job_number - 1:03}/tilts/{Path(self.input_file_list_of_lists[0][0]).name}",
+                "input_file": f"{project_dir}/AlignTiltSeries/job{job_number - 1:03}/tilts/{Path(self.input_file_list_of_lists[0][0]).name}"
+                if self.input_file_list_of_lists
+                else tomo_params.txrm_file,
                 "output_file": str(aretomo_output_path),
                 "relion_options": dict(tomo_params.relion_options),
                 "command": " ".join(aretomo_command),
@@ -575,7 +612,7 @@ class AreTomoAlign(CommonService):
                 "size_x": scaled_x_size,  # volume image size, pix
                 "size_y": scaled_y_size,
                 "size_z": scaled_z_size,
-                "pixel_spacing": pixel_spacing,
+                "pixel_spacing": str(tomo_params.relion_options.pixel_size_downscaled),
                 "tilt_angle_offset": str(
                     self.tilt_offset or tomo_params.manual_tilt_offset
                 ),
@@ -615,18 +652,19 @@ class AreTomoAlign(CommonService):
         im_diff = 0
         # TiltImageAlignment (one per movie)
         node_creator_params_list = []
-        (project_dir / f"ExcludeTiltImages/job{job_number - 2:03}").mkdir(
-            parents=True, exist_ok=True
-        )
-        if not (
-            project_dir / f"ExcludeTiltImages/job{job_number - 2:03}/tilts"
-        ).is_symlink():
-            (
+        if self.input_file_list_of_lists and job_number:
+            (project_dir / f"ExcludeTiltImages/job{job_number - 2:03}").mkdir(
+                parents=True, exist_ok=True
+            )
+            if not (
                 project_dir / f"ExcludeTiltImages/job{job_number - 2:03}/tilts"
-            ).symlink_to(project_dir / "MotionCorr/job002/Movies")
-        (project_dir / f"AlignTiltSeries/job{job_number - 1:03}").mkdir(
-            parents=True, exist_ok=True
-        )
+            ).is_symlink():
+                (
+                    project_dir / f"ExcludeTiltImages/job{job_number - 2:03}/tilts"
+                ).symlink_to(project_dir / "MotionCorr/job002/Movies")
+            (project_dir / f"AlignTiltSeries/job{job_number - 1:03}").mkdir(
+                parents=True, exist_ok=True
+            )
         if self.rot:
             tomo_params.relion_options.tilt_axis_angle = self.rot
         for im, movie in enumerate(self.input_file_list_of_lists):
@@ -702,8 +740,9 @@ class AreTomoAlign(CommonService):
                     rw.transport.nack(header)
                     return
 
-        for tilt_params in node_creator_params_list:
-            rw.send_to("node_creator", tilt_params)
+        if job_number:
+            for tilt_params in node_creator_params_list:
+                rw.send_to("node_creator", tilt_params)
 
         ispyb_command_list.append(
             {
@@ -772,7 +811,7 @@ class AreTomoAlign(CommonService):
                 "image_command": "mrc_projection",
                 "file": str(aretomo_output_path),
                 "projection": projection_type,
-                "pixel_spacing": float(pixel_spacing),
+                "pixel_spacing": tomo_params.relion_options.pixel_size_downscaled,
             }
             if projection_type in ["XZ", "YZ"] and self.thickness_pixels:
                 images_call_params["thickness_ang"] = (
@@ -782,13 +821,20 @@ class AreTomoAlign(CommonService):
 
         # Forward results to denoise service
         self.log.info(f"Sending to denoise service {aretomo_output_path}")
+        if job_number:
+            denoise_dir = project_dir / f"Denoise/job{job_number + 1:03}/tomograms"
+        else:
+            denoise_dir = project_dir / "Denoise"
+        if tomo_params.relion_options.pixel_size_downscaled > 20:
+            # This is used for SXT
+            # Resets the pixel size to prevent segmentation rescaling
+            tomo_params.relion_options.pixel_size = 10
+            tomo_params.relion_options.pixel_size_downscaled = 10
         rw.send_to(
             "denoise",
             {
                 "volume": str(aretomo_output_path),
-                "output_dir": str(
-                    project_dir / f"Denoise/job{job_number + 1:03}/tomograms"
-                ),
+                "output_dir": str(denoise_dir),
                 "relion_options": dict(tomo_params.relion_options),
             },
         )
@@ -811,6 +857,36 @@ class AreTomoAlign(CommonService):
         rw.send_to("success", {})
         self.log.info(f"Done tomogram alignment for {tomo_params.stack_file}")
         rw.transport.ack(header)
+
+    def convert_txrm_to_stack(self, txrm_file: str, stack_file: str) -> float:
+        # Read the tilt angles and pixel size from the txrm
+        with open_txrm(
+            txrm_file, load_images=False, load_reference=False, strict=False
+        ) as txrm:
+            inspector = Inspector(txrm)
+            angles = read_stream(
+                inspector.txrm.ole,
+                "ImageInfo/Angles",
+                XrmDataTypes.XRM_FLOAT,
+                strict=True,
+            )
+            pixel_size_microns = read_stream(
+                inspector.txrm.ole,
+                "ImageInfo/PixelSize",
+                XrmDataTypes.XRM_FLOAT,
+                strict=True,
+            )
+        self.tilt_angles = dict(enumerate(angles))
+
+        # Convert the txrm to a tiff stack, then convert to mrc for aretomo
+        tifftomo = Path(stack_file).with_suffix(".tiff")
+        convert_and_save(txrm_file, str(tifftomo), custom_reference=None)
+        # Let this run, and check later if the output file exists
+        subprocess.run(["tif2mrc", str(tifftomo), stack_file])
+        tifftomo.unlink(missing_ok=True)
+        if pixel_size_microns:
+            return pixel_size_microns[0] * 1000
+        return 100
 
     def assemble_aretomo3_command(
         self,

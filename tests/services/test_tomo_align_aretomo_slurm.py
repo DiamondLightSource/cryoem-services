@@ -253,7 +253,7 @@ def test_tomo_align_aretomo_slurm_service_aretomo3(
     # Check resizing and rotating at min vol
     mock_resize.assert_called_once_with(
         tmp_path / "cm12345-6/Tomograms/job006/tomograms/test_stack_Vol.mrc",
-        int(800 / 4),
+        int(600 / 4),
     )
     mock_rotate.assert_not_called()
 

@@ -95,7 +95,9 @@ class SelectParticles(CommonService):
         job_alias = select_dir.parent / "Live_particle_batches"
         if not job_alias.exists():
             job_alias.symlink_to(select_dir)
-        elif not (job_alias.is_symlink() and job_alias.readlink() == select_dir):
+        elif not (
+            job_alias.is_symlink() and job_alias.resolve() == select_dir.resolve()
+        ):
             self.log.error(f"Symlink {job_alias} already exists")
             rw.transport.nack(header)
             return

@@ -17,8 +17,8 @@ from typing import Literal, Protocol, cast
 import cv2
 import numpy as np
 import SimpleITK as sitk
+import tifffile as tf
 from readlif.reader import LifFile
-from tifffile import imwrite
 
 # Create logger object to output messages with
 logger = logging.getLogger("cryoemservices.util.image_processing")
@@ -61,7 +61,7 @@ class TIFFImageLoader(ImageLoader):
     tiff_file: Path
 
     def load(self) -> np.ndarray:
-        return np.asarray(cv2.imread(self.tiff_file, flags=cv2.IMREAD_UNCHANGED))
+        return tf.imread(self.tiff_file)
 
 
 @dataclass(frozen=True)
@@ -239,7 +239,7 @@ def load_and_convert_image(
     """
 
     try:
-        arr = image_loader.load()
+        arr = image_loader.load().astype(np.float32)
         if new_shape:
             new_y, new_x = new_shape
             arr = cv2.resize(
@@ -248,9 +248,9 @@ def load_and_convert_image(
                 interpolation=cv2.INTER_AREA,
             )
         scale = 255 / ((vmax - vmin) or 1)  # Downscale to 8-bit
-        np.clip(arr, a_min=vmin, a_max=vmax, out=arr)
-        np.subtract(arr, vmin, out=arr, casting="unsafe")
-        np.multiply(arr, scale, out=arr, casting="unsafe")
+        np.subtract(arr, vmin, out=arr)
+        np.multiply(arr, scale, out=arr)
+        np.clip(arr, a_min=0, a_max=255, out=arr)
         return LoadImageResult(
             data=arr.astype(np.uint8),
             frame_num=frame_num,
@@ -342,7 +342,7 @@ def load_and_resize_tile(
         pos_y = int(round((y0 - py0) / (py1 - py0) * parent_y_pixels))
 
         # Load image and resize
-        img = image_loader.load()
+        img = image_loader.load().astype(np.float32)
         resized = cv2.resize(
             img,
             dsize=(tile_x_pixels, tile_y_pixels),
@@ -350,13 +350,12 @@ def load_and_resize_tile(
         )
         # Normalise to 8-bit
         scale = 255 / ((vmax - vmin) or 1)
-        np.clip(resized, vmin, vmax, out=resized)
-        np.subtract(resized, vmin, out=resized, casting="unsafe")
-        np.multiply(resized, scale, out=resized, casting="unsafe")
-        resized = resized.astype(np.uint8)
+        np.subtract(resized, vmin, out=resized)
+        np.multiply(resized, scale, out=resized)
+        np.clip(resized, a_min=0, a_max=255, out=resized)
 
         return ResizeTileResult(
-            data=resized,
+            data=resized.astype(np.uint8),
             frame_num=frame_num,
             x0=pos_x,
             x1=pos_x + tile_x_pixels,
@@ -498,7 +497,7 @@ def write_stack_to_tiff(
     save_name = save_dir.joinpath(file_name + ".tiff")
 
     # With 'bigtiff=True', they have to be pure Python class instances
-    imwrite(
+    tf.imwrite(
         save_name,
         array,
         bigtiff=use_bigtiff,
