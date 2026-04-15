@@ -45,6 +45,7 @@
         "gpus": 4,
         "job_name": "Refine3D-EM",
         "memory_per_node": 96000,
+        "mpi_run_command": "srun -n 5",
         "nodes": 1,
         "partition": "{partition}",
         "prefer": "{partition_preference}",
@@ -65,7 +66,6 @@
       "refine_wrapper": 7
     },
     "parameters": {
-      "picker_id": "{picker_id}",
       "refined_class_uuid": "{refined_class_uuid}",
       "refined_grp_uuid": "{refined_grp_uuid}"
     },
@@ -113,6 +113,7 @@
         "gpus": 4,
         "job_name": "Symmetry3D-EM",
         "memory_per_node": 96000,
+        "mpi_run_command": "srun -n 5",
         "nodes": 1,
         "partition": "{partition}",
         "prefer": "{partition_preference}",
@@ -134,7 +135,6 @@
       "node_creator": 2
     },
     "parameters": {
-      "picker_id": "{picker_id}",
       "refined_class_uuid": "{symmetry_refined_class_uuid}",
       "refined_grp_uuid": "{symmetry_refined_grp_uuid}"
     },

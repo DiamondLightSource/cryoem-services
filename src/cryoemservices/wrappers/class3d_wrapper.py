@@ -82,8 +82,8 @@ class Class3DParameters(BaseModel):
     symmetry: str = "C1"
     do_norm: bool = True
     do_scale: bool = True
-    mpi_run_command: str = "mpirun -n 5"
-    threads: int = 8
+    mpi_run_command: str = "mpirun -n 9"
+    threads: int = 4
     gpus: str = "0:1:2:3"
     initial_model_gpus: str = "0,1,2,3"
     picker_id: int | None = None
