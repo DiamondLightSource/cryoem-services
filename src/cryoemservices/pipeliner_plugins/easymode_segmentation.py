@@ -105,5 +105,6 @@ def segment_tomogram(
         k0 : segmented_volume.shape[1] - k1,
         l0 : segmented_volume.shape[2] - l1,
     ]
-    segmented_volume = zoom(segmented_volume, 1 / scale, order=1)
+    sj, sk, sl = segmented_volume.shape
+    segmented_volume = zoom(segmented_volume, (oj / sj, ok / sk, ol / sl), order=1)
     return segmented_volume, input_apix
