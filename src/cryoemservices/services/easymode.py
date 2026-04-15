@@ -7,10 +7,10 @@ import numpy as np
 import tensorflow as tf
 from easymode.core import config as easymode_config
 from easymode.core.distribution import get_model, load_model
-from easymode.segmentation.inference import segment_tomogram
 from pydantic import BaseModel, Field, ValidationError
 from workflows.recipe import wrap_subscribe
 
+from cryoemservices.pipeliner_plugins.easymode_segmentation import segment_tomogram
 from cryoemservices.services.common_service import CommonService
 from cryoemservices.util.models import MockRW
 from cryoemservices.util.relion_service_options import RelionServiceOptions
@@ -123,6 +123,7 @@ class Easymode(CommonService):
             )
 
             # Convert to int8 and save mrc
+            self.log.info("Saving output")
             segmented_volume = (segmented_volume * 127).astype(np.int8)
             with mrcfile.new(output_tomograms[feature], overwrite=True) as mrc:
                 mrc.set_data(segmented_volume)
