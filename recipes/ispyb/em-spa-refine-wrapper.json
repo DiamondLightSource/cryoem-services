@@ -22,6 +22,7 @@
   "3": {
     "job_parameters": {
       "mask_diameter": "{mask_diameter}",
+      "mpi_run_command": "srun -n 5",
       "particle_diameter": "{particle_diameter}",
       "relion_options": {},
       "symmetry": "{symmetry}"
@@ -65,7 +66,6 @@
       "refine_wrapper": 7
     },
     "parameters": {
-      "picker_id": "{picker_id}",
       "refined_class_uuid": "{refined_class_uuid}",
       "refined_grp_uuid": "{refined_grp_uuid}"
     },
@@ -92,6 +92,7 @@
   "7": {
     "job_parameters": {
       "mask_diameter": "{mask_diameter}",
+      "mpi_run_command": "srun -n 5",
       "particle_diameter": "{particle_diameter}"
     },
     "output": {
@@ -134,7 +135,6 @@
       "node_creator": 2
     },
     "parameters": {
-      "picker_id": "{picker_id}",
       "refined_class_uuid": "{symmetry_refined_class_uuid}",
       "refined_grp_uuid": "{symmetry_refined_grp_uuid}"
     },

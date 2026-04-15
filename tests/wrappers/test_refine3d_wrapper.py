@@ -350,7 +350,7 @@ def test_refine3d_wrapper_no_mask(
     )
 
     refine3d_command = [
-        "srun",
+        "mpirun",
         "-n",
         "5",
         "relion_refine_mpi",

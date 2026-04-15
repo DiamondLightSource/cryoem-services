@@ -14,7 +14,6 @@
       "mpi_run_command": "srun -n 9",
       "particle_diameter": "{particle_diameter}",
       "particles_file": "{particles_file}",
-      "picker_id": "{picker_id}",
       "relion_options": {},
       "symmetry": "{symmetry}",
       "threads": 4
