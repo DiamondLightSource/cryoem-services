@@ -101,7 +101,7 @@ def create_tilt_stack(input_file_list_of_lists: List[Any], stack_file: Path):
         mrc.header.cella.z *= len(input_file_list_of_lists)
 
 
-class TomoParameters(BaseModel):
+class AreTomoParameters(BaseModel):
     aretomo_version: Literal[2, 3] = 3
     stack_file: str = Field(..., min_length=1)
     pixel_size: float
@@ -175,14 +175,13 @@ class TomoParameters(BaseModel):
             raise ValueError("input_file_list is not a list of lists")
 
 
-class TomoAlign(CommonService):
+class AreTomoAlign(CommonService):
     """
-    A service for grouping and aligning tomography tilt-series
-    with Newstack and AreTomo2 or AreTomo3
+    A service for grouping and aligning tomography tilt-series with AreTomo2 or AreTomo3
     """
 
     # Logger name
-    _logger_name = "cryoemservices.services.tomo_align"
+    _logger_name = "cryoemservices.services.tomo_align_aretomo"
 
     # Job name
     job_type = "relion.reconstructtomograms"
@@ -218,7 +217,7 @@ class TomoAlign(CommonService):
         )
 
     @staticmethod
-    def check_visit(tomo_params: TomoParameters):
+    def check_visit(tomo_params: AreTomoParameters):
         return True
 
     def parse_tomo_output(self, tomo_stdout: str):
@@ -289,11 +288,13 @@ class TomoAlign(CommonService):
 
         try:
             if isinstance(message, dict):
-                tomo_params = TomoParameters(
+                tomo_params = AreTomoParameters(
                     **{**rw.recipe_step.get("parameters", {}), **message}
                 )
             else:
-                tomo_params = TomoParameters(**{**rw.recipe_step.get("parameters", {})})
+                tomo_params = AreTomoParameters(
+                    **{**rw.recipe_step.get("parameters", {})}
+                )
         except (ValidationError, TypeError) as e:
             self.log.warning(
                 f"TomoAlign parameter validation failed for message: {message} "
@@ -891,7 +892,7 @@ class TomoAlign(CommonService):
         self,
         aretomo_executable: str,
         input_file: str,
-        tomo_parameters: TomoParameters,
+        tomo_parameters: AreTomoParameters,
     ):
         """
         Assemble the command to run AreTomo3, using a base command with
@@ -977,7 +978,7 @@ class TomoAlign(CommonService):
         self,
         aretomo_executable: str,
         input_file: str,
-        tomo_parameters: TomoParameters,
+        tomo_parameters: AreTomoParameters,
         aretomo_output_path: Path,
         angle_file: Path,
     ):
@@ -1046,7 +1047,7 @@ class TomoAlign(CommonService):
 
     def aretomo(
         self,
-        tomo_parameters: TomoParameters,
+        tomo_parameters: AreTomoParameters,
         aretomo_output_path: Path,
         angle_file: Path,
     ):

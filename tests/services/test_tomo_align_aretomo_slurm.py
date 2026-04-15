@@ -8,7 +8,7 @@ import pytest
 from requests import Response
 from workflows.transport.offline_transport import OfflineTransport
 
-from cryoemservices.services import tomo_align_slurm
+from cryoemservices.services import tomo_align_aretomo_slurm
 from tests.test_utils.config import cluster_submission_configuration
 
 
@@ -27,14 +27,14 @@ def offline_transport(mocker):
 
 
 @mock.patch("cryoemservices.util.slurm_submission.requests")
-@mock.patch("cryoemservices.services.tomo_align.mrcfile")
-@mock.patch("cryoemservices.services.tomo_align.create_tilt_stack")
-@mock.patch("cryoemservices.services.tomo_align.resize_tomogram")
-@mock.patch("cryoemservices.services.tomo_align.rotate_tomogram")
-@mock.patch("cryoemservices.services.tomo_align_slurm.transfer_files")
-@mock.patch("cryoemservices.services.tomo_align_slurm.retrieve_files")
-@mock.patch("cryoemservices.services.tomo_align_slurm.get_iris_state")
-def test_tomo_align_slurm_service_aretomo3(
+@mock.patch("cryoemservices.services.tomo_align_aretomo.mrcfile")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.create_tilt_stack")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.resize_tomogram")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.rotate_tomogram")
+@mock.patch("cryoemservices.services.tomo_align_aretomo_slurm.transfer_files")
+@mock.patch("cryoemservices.services.tomo_align_aretomo_slurm.retrieve_files")
+@mock.patch("cryoemservices.services.tomo_align_aretomo_slurm.get_iris_state")
+def test_tomo_align_aretomo_slurm_service_aretomo3(
     mock_iris_state,
     mock_retrieve,
     mock_transfer,
@@ -116,7 +116,7 @@ def test_tomo_align_slurm_service_aretomo3(
     cluster_submission_configuration(tmp_path)
 
     # Set up the mock service
-    service = tomo_align_slurm.TomoAlignSlurm(
+    service = tomo_align_aretomo_slurm.AreTomoAlignSlurm(
         environment={
             "config": f"{tmp_path}/config.yaml",
             "slurm_cluster": "default",
@@ -259,12 +259,12 @@ def test_tomo_align_slurm_service_aretomo3(
 
 
 @mock.patch("cryoemservices.util.slurm_submission.requests")
-@mock.patch("cryoemservices.services.tomo_align.mrcfile")
-@mock.patch("cryoemservices.services.tomo_align.create_tilt_stack")
-@mock.patch("cryoemservices.services.tomo_align_slurm.transfer_files")
-@mock.patch("cryoemservices.services.tomo_align_slurm.retrieve_files")
-@mock.patch("cryoemservices.services.tomo_align_slurm.get_iris_state")
-def test_tomo_align_slurm_service_aretomo2(
+@mock.patch("cryoemservices.services.tomo_align_aretomo.mrcfile")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.create_tilt_stack")
+@mock.patch("cryoemservices.services.tomo_align_aretomo_slurm.transfer_files")
+@mock.patch("cryoemservices.services.tomo_align_aretomo_slurm.retrieve_files")
+@mock.patch("cryoemservices.services.tomo_align_aretomo_slurm.get_iris_state")
+def test_tomo_align_aretomo_slurm_service_aretomo2(
     mock_iris_state,
     mock_retrieve,
     mock_transfer,
@@ -330,7 +330,7 @@ def test_tomo_align_slurm_service_aretomo2(
     cluster_submission_configuration(tmp_path)
 
     # Set up the mock service
-    service = tomo_align_slurm.TomoAlignSlurm(
+    service = tomo_align_aretomo_slurm.AreTomoAlignSlurm(
         environment={
             "config": f"{tmp_path}/config.yaml",
             "slurm_cluster": "default",
@@ -476,9 +476,9 @@ visit_validation_matrix = (
 )
 
 
-@mock.patch("cryoemservices.services.tomo_align_slurm.get_iris_state")
+@mock.patch("cryoemservices.services.tomo_align_aretomo_slurm.get_iris_state")
 @pytest.mark.parametrize("test_params", visit_validation_matrix)
-def test_tomo_align_slurm_service_reject_visits(
+def test_tomo_align_aretomo_slurm_service_reject_visits(
     mock_iris_state,
     test_params,
     offline_transport,
@@ -506,7 +506,7 @@ def test_tomo_align_slurm_service_reject_visits(
     }
 
     # Set up the mock service
-    service = tomo_align_slurm.TomoAlignSlurm(
+    service = tomo_align_aretomo_slurm.AreTomoAlignSlurm(
         environment={
             "config": f"{tmp_path}/config.yaml",
             "slurm_cluster": "default",
@@ -527,13 +527,13 @@ def test_tomo_align_slurm_service_reject_visits(
         offline_transport.nack.assert_called_once_with(header, requeue=True)
 
 
-@mock.patch("cryoemservices.services.tomo_align_slurm.get_iris_state")
+@mock.patch("cryoemservices.services.tomo_align_aretomo_slurm.get_iris_state")
 def test_parse_tomo_align_output(mock_iris_state, offline_transport, tmp_path):
     """
     Send test lines to the output parser
     to check the rotations and offsets are being read in
     """
-    service = tomo_align_slurm.TomoAlignSlurm(
+    service = tomo_align_aretomo_slurm.AreTomoAlignSlurm(
         environment={"queue": ""}, transport=offline_transport
     )
     service.initializing()
@@ -547,7 +547,7 @@ def test_parse_tomo_align_output(mock_iris_state, offline_transport, tmp_path):
             "Best tilt axis:   57, Score:   0.07568\n"
         )
 
-    tomo_align_slurm.TomoAlignSlurm.parse_tomo_output_file(
+    tomo_align_aretomo_slurm.AreTomoAlignSlurm.parse_tomo_output_file(
         service, tmp_path / "tomo_output.txt"
     )
     assert service.rot_centre_z_list == ["300.0", "350.0"]
@@ -559,7 +559,7 @@ def test_transfer_files(tmp_path):
     """Test that existing files can be transferred, and non-existant files are not"""
     (tmp_path / "to_transfer").mkdir()
     (tmp_path / "to_transfer/file_exists").touch()
-    transferred_files = tomo_align_slurm.transfer_files(
+    transferred_files = tomo_align_aretomo_slurm.transfer_files(
         [
             tmp_path / "to_transfer/file_exists",
             tmp_path / "to_transfer/file_does_not_exist",
@@ -580,7 +580,7 @@ def test_retrieve_files(tmp_path):
     (tmp_path / "remote_system/job_dir/different_basepath").touch()
     (tmp_path / "remote_system/job_dir/file_imod_dir/imod_file").touch()
 
-    tomo_align_slurm.retrieve_files(
+    tomo_align_aretomo_slurm.retrieve_files(
         job_directory=tmp_path / "local_system/job_dir",
         files_to_skip=[
             tmp_path / "local_system/job_dir/file_to_ignore",
@@ -630,10 +630,10 @@ def test_get_iris_state(mock_sleep, mock_requests_get, test_params: tuple[str, i
 
     mock_logger = mock.Mock()
     if output_colour != "red":
-        returned_colour = tomo_align_slurm.get_iris_state(mock_logger)
+        returned_colour = tomo_align_aretomo_slurm.get_iris_state(mock_logger)
         assert returned_colour == output_colour
     else:
-        assert not tomo_align_slurm.get_iris_state(mock_logger)
+        assert not tomo_align_aretomo_slurm.get_iris_state(mock_logger)
     mock_requests_get.assert_called_with(
         "https://iristrafficlights.diamond.ac.uk/status"
     )

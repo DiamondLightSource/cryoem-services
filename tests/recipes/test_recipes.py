@@ -19,7 +19,7 @@ from cryoemservices.services.motioncorr import MotionCorrParameters
 from cryoemservices.services.postprocess import PostProcessParameters
 from cryoemservices.services.select_classes import SelectClassesParameters
 from cryoemservices.services.select_particles import SelectParticlesParameters
-from cryoemservices.services.tomo_align import TomoParameters
+from cryoemservices.services.tomo_align_aretomo import AreTomoParameters
 from cryoemservices.wrappers.class2d_wrapper import Class2DParameters
 from cryoemservices.wrappers.class3d_wrapper import Class3DParameters
 from cryoemservices.wrappers.clem_align_and_merge import AlignAndMergeParameters
@@ -89,7 +89,7 @@ known_services = {
     "RefineWrapper": RefineParameters,
     "SelectClasses": SelectClassesParameters,
     "SelectParticles": SelectParticlesParameters,
-    "TomoAlign": TomoParameters,
+    "TomoAlign": AreTomoParameters,
 }
 
 
