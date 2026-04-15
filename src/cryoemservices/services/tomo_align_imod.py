@@ -161,7 +161,7 @@ class ImodTomoAlign(CommonService):
         adoc_file = write_batch_directive_file(tomo_params)
         imod_output_path = (
             Path(tomo_params.stack_file).parent
-            / f"{Path(tomo_params.stack_file).name}_rec.mrc"
+            / f"{Path(tomo_params.stack_file).stem}_rec.mrc"
         )
         imod_result = subprocess.run(
             [
