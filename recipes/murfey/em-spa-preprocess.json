@@ -65,6 +65,7 @@
     },
     "parameters": {
       "particle_diameter": "{particle_diameter}",
+      "cryolo_model_weights": "{cryolo_model_weights}",
       "retained_fraction": "0.7"
     },
     "queue": "cryolo",

@@ -12,16 +12,16 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import asdict, dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Literal, Protocol
+from typing import Literal, Protocol, cast
 
 import cv2
 import numpy as np
 import SimpleITK as sitk
+import tifffile as tf
 from readlif.reader import LifFile
-from tifffile import imwrite
 
 # Create logger object to output messages with
-logger = logging.getLogger("cryoemservices.util.clem_array_functions")
+logger = logging.getLogger("cryoemservices.util.image_processing")
 
 
 @dataclass(frozen=True)
@@ -61,7 +61,7 @@ class TIFFImageLoader(ImageLoader):
     tiff_file: Path
 
     def load(self) -> np.ndarray:
-        return np.asarray(cv2.imread(self.tiff_file, flags=cv2.IMREAD_UNCHANGED))
+        return tf.imread(self.tiff_file)
 
 
 @dataclass(frozen=True)
@@ -239,7 +239,7 @@ def load_and_convert_image(
     """
 
     try:
-        arr = image_loader.load()
+        arr = image_loader.load().astype(np.float32)
         if new_shape:
             new_y, new_x = new_shape
             arr = cv2.resize(
@@ -248,9 +248,9 @@ def load_and_convert_image(
                 interpolation=cv2.INTER_AREA,
             )
         scale = 255 / ((vmax - vmin) or 1)  # Downscale to 8-bit
-        np.clip(arr, a_min=vmin, a_max=vmax, out=arr)
-        np.subtract(arr, vmin, out=arr, casting="unsafe")
-        np.multiply(arr, scale, out=arr, casting="unsafe")
+        np.subtract(arr, vmin, out=arr)
+        np.multiply(arr, scale, out=arr)
+        np.clip(arr, a_min=0, a_max=255, out=arr)
         return LoadImageResult(
             data=arr.astype(np.uint8),
             frame_num=frame_num,
@@ -342,7 +342,7 @@ def load_and_resize_tile(
         pos_y = int(round((y0 - py0) / (py1 - py0) * parent_y_pixels))
 
         # Load image and resize
-        img = image_loader.load()
+        img = image_loader.load().astype(np.float32)
         resized = cv2.resize(
             img,
             dsize=(tile_x_pixels, tile_y_pixels),
@@ -350,13 +350,12 @@ def load_and_resize_tile(
         )
         # Normalise to 8-bit
         scale = 255 / ((vmax - vmin) or 1)
-        np.clip(resized, vmin, vmax, out=resized)
-        np.subtract(resized, vmin, out=resized, casting="unsafe")
-        np.multiply(resized, scale, out=resized, casting="unsafe")
-        resized = resized.astype(np.uint8)
+        np.subtract(resized, vmin, out=resized)
+        np.multiply(resized, scale, out=resized)
+        np.clip(resized, a_min=0, a_max=255, out=resized)
 
         return ResizeTileResult(
-            data=resized,
+            data=resized.astype(np.uint8),
             frame_num=frame_num,
             x0=pos_x,
             x1=pos_x + tile_x_pixels,
@@ -498,7 +497,7 @@ def write_stack_to_tiff(
     save_name = save_dir.joinpath(file_name + ".tiff")
 
     # With 'bigtiff=True', they have to be pure Python class instances
-    imwrite(
+    tf.imwrite(
         save_name,
         array,
         bigtiff=use_bigtiff,
@@ -555,7 +554,7 @@ def is_image_stack(
     raise ValueError(f"Unexpected image shape: {array.shape}")
 
 
-def align_image_to_self(
+def drift_correct_image(
     array: np.ndarray,
     start_from: Literal["beginning", "middle", "end"] = "middle",
     max_iters: int = 100,
@@ -600,17 +599,6 @@ def align_image_to_self(
     aligned: np.ndarray
         The aligned image stack as a NumPy array.
     """
-
-    def _invert_euclidean(M: np.ndarray) -> np.ndarray:
-        """Invert a 2x3 Euclidean affine matrix."""
-        R = M[:, :2]  # 2x2 rotation part
-        t = M[:, 2:]  # translation part
-        R_inv = R.T  # inverse rotation
-        t_inv = -R_inv @ t
-        M_inv = np.eye(3, dtype=np.float32)
-        M_inv[:2, :2] = R_inv
-        M_inv[:2, 2:] = t_inv
-        return M_inv[:2]
 
     def _register(
         frame_num: int,
@@ -685,10 +673,10 @@ def align_image_to_self(
                 gaussFiltSize=5,
             )  # Updated in-place
             warp[:2, 2] *= downsampling_factor
-            return _invert_euclidean(warp), frame_num
+            return warp, frame_num
         except cv2.error:
             logger.warning(
-                f"Error registering fram {frame_num}. Using identity matrix",
+                f"Error registering frame {frame_num}. Using identity matrix",
                 exc_info=True,
             )
             return warp_init, frame_num
@@ -717,7 +705,7 @@ def align_image_to_self(
                 frame,
                 M,
                 (w, h),
-                flags=cv2.INTER_LINEAR,
+                flags=cv2.INTER_LINEAR + cv2.WARP_INVERSE_MAP,
                 borderMode=cv2.BORDER_CONSTANT,
                 borderValue=float(vmin),
             )
@@ -855,18 +843,19 @@ def align_image_to_self(
     return aligned.astype(dtype, copy=False)
 
 
-def align_image_to_reference(
+def align_images_using_mmi(
     reference_array: np.ndarray,
     moving_array: np.ndarray,
     downsample_factor: int = 2,
-    sampling_percentage: float = 0.5,
+    sampling_fraction: float = 0.5,
     shrink_factors_per_level: list[int] = [2, 1],
     smoothing_sigmas_per_level: list[float] = [1.0, 0.5],
     num_procs: int = 1,
 ) -> np.ndarray:
     """
-    Align images to a reference using SimpleITK's image registration methods. This
-    workflow handles 2D images or image stacks in both grayscale and RGB formats.
+    Align images to a reference using SimpleITK's implementation of the Mattes
+    Mutual Information image registration method. This workflow handles 2D images
+    or image stacks in both grayscale and RGB formats.
 
     Currently, this method works poorly for defocused images, which can lead to a
     lot of jitter in the beginning and tail frames if the images being aligned are
@@ -886,7 +875,7 @@ def align_image_to_reference(
         converted into an SITK Image, and will adjust the pixel size associated with
         the Image when it is subsequently resized.
 
-    sampling_percentage: float = 0.5,
+    sampling_fraction: float = 0.5,
         The fraction of pixels to sample when calculating the transformation matrix.
 
     shrink_factors_per_level: list[int] = [2, 1]
@@ -898,9 +887,6 @@ def align_image_to_reference(
 
     num_procs: int = 1
         The number of threads to run this function with. The code has been optimised
-
-
-
     """
 
     def _register_frame(frame_num: int, ref: np.ndarray, mov: np.ndarray):
@@ -922,38 +908,16 @@ def align_image_to_reference(
 
             # Set the metric to use
             registration.SetMetricAsMattesMutualInformation(numberOfHistogramBins=64)
-            registration.SetMetricSamplingPercentage(
-                sampling_percentage
-            )  # Sample 5% of pixels
+            registration.SetMetricSamplingPercentage(sampling_fraction)
             registration.SetMetricSamplingStrategy(registration.RANDOM)
 
-            # Set the optimiser to use
-            # registration.SetOptimizerAsGradientDescent(
-            #     learningRate=0.5,
-            #     numberOfIterations=300,
-            #     convergenceMinimumValue=1e-6,
-            #     convergenceWindowSize=10,
-            # )
+            # Use Mattes Mutual Information as the metric
             registration.SetOptimizerAsGradientDescentLineSearch(
                 learningRate=1.0,
                 numberOfIterations=200,
                 convergenceMinimumValue=1e-6,
                 convergenceWindowSize=5,
             )
-            # registration.SetOptimizerAsAmoeba(
-            #     simplexDelta=1.0,
-            #     numberOfIterations=300,
-            #     parametersConvergenceTolerance=1e-8,
-            #     functionConvergenceTolerance=1e-4,
-            #     withRestarts=False,
-            # )
-            # registration.SetOptimizerAsOnePlusOneEvolutionary(
-            #     epsilon=1e-6,
-            #     initialRadius=1.0,
-            #     numberOfIterations=300,
-            #     growthFactor=-1.0,
-            #     shrinkFactor=-1.0,
-            # )
             registration.SetOptimizerScalesFromIndexShift()
 
             # Register over a multi-resolution pyramid
@@ -1001,7 +965,7 @@ def align_image_to_reference(
     logger.debug(
         f"SITK image alignment settings: \n"
         f"Downsample factor: {downsample_factor}\n"
-        f"Sampling percentage: {sampling_percentage}\n"
+        f"Sampling percentage: {sampling_fraction}\n"
         f"Shrink factors per level: {shrink_factors_per_level}\n"
         f"Smoothing sigmas per level: {smoothing_sigmas_per_level}"
     )
@@ -1198,3 +1162,315 @@ def merge_images(
         out = out.astype(dtype, copy=False)
 
     return out
+
+
+def create_hanning_window(width: int, height: int):
+    """
+    Generate a 2D Hanning window of the specified dimensions. This array will
+    smoothly taper towards zero at the edges of the image, which helps with
+    reducing boundary artifacts and edge discontinuities.
+    """
+    return np.outer(np.hanning(height), np.hanning(width))
+
+
+def apply_sobel_edge_filter(
+    array: np.ndarray,
+    kernel_size: int,
+) -> np.ndarray:
+    """
+    Calculate the Sobel edge magnitude of a 2D grayscale image.
+
+    Horizontal and vertical Sobel gradients are calculated and combined to produce
+    thegradient magnitude image. The result is then normalised and returned as an
+    8-bit array.
+
+    Parameters
+    ----------
+    array : np.ndarray
+        Input 2D image array.
+
+    kernel_size : int
+        Size of the Sobel kernel used to compute the gradients.
+
+    Returns
+    -------
+    np.ndarray
+        Normalized gradient magnitude image highlighting edge strength.
+    """
+    gx = cv2.Sobel(array, cv2.CV_32F, 1, 0, ksize=kernel_size)
+    gy = cv2.Sobel(array, cv2.CV_32F, 0, 1, ksize=kernel_size)
+
+    mag = cv2.magnitude(gx, gy)
+    mag = cv2.normalize(mag, None, 0, 255, cv2.NORM_MINMAX)
+    return mag.astype(np.uint8)
+
+
+def align_images_using_orb(
+    reference_array: np.ndarray,
+    moving_array: np.ndarray,
+    # Preprocessing parameters
+    sigma: int = 3,
+    hanning_window: bool = True,
+    kernel_size: int = 3,
+    # Hole detection parameters
+    min_area: int = 100,
+    max_area: int = 5000,
+    # ORB detection parameters
+    patch_size: int = 31,
+    # Parallel processing parameters,
+    num_procs=1,
+):
+    """
+    Align a moving image or image stack to a reference using ORB (Oriented FAST and
+    Rotated BRIEF) feature matching (DOI: https://doi.org/10.1109/ICCV.2011.6126544).
+
+    The function looks for holes in both images using Sobel edge filtering followed
+    by thresholding and contour analysis. It calculates the centroids of the detected
+    holes, and uses them as fixed keypoint locations to compute ORB descriptors with.
+
+    The descriptors are matched between the reference and moving images, and an affine
+    transformation is estimated using RANSAC and applied to the moving image.
+
+    THis function supports both single images and image stacks, along with grayscale
+    and RGB ones.
+
+    Parameters
+    ----------
+    reference_array : np.ndarray
+        Reference image or image stack to which the moving image(s) will be aligned.
+        Must have the same shape as `moving_array`.
+
+    moving_array : np.ndarray
+        Image or image stack to be aligned with the reference.
+
+    sigma : int, optional
+        Standard deviation for the Gaussian blur applied during preprocessing.
+        Default is 3.
+
+    hanning_window : bool, optional
+        If True, applies a 2D Hanning window prior to edge detection to reduce
+        boundary artifacts. Default is True.
+
+    kernel_size : int, optional
+        Kernel size used for the Sobel edge filter. Default is 3.
+
+    min_area : int, optional
+        Minimum contour area used to identify candidate hole regions.
+        Default is 100.
+
+    max_area : int, optional
+        Maximum contour area used to identify candidate hole regions.
+        Default is 5000.
+
+    patch_size : int, optional
+        Patch size used when creating ORB keypoints at detected hole centroids.
+        Default is 31.
+
+    num_procs : int, optional
+        Number of worker threads used to process image frames in parallel.
+        Default is 1.
+
+    Returns
+    -------
+    np.ndarray
+        The aligned moving image or image stack with the same shape as the input.
+
+    """
+
+    def _extract_keypoints(
+        img: np.ndarray,
+        window: np.ndarray | None,
+        sigma: int,  # Gaussian blur
+        kernel_size: int,  # Sobel filter
+        struct: np.ndarray,  # Structuring element
+        min_area: int,  # Contour evaluation
+        max_area: int,  # Contour evaluation
+        patch_size: int,  # Keypoints
+    ):
+        # Preprocess image
+        blurred = cv2.GaussianBlur(img, (0, 0), sigma)
+        windowed = (
+            (blurred * window).astype(np.float32)
+            if window is not None
+            else blurred.astype(np.float32)
+        )
+        sobel = apply_sobel_edge_filter(windowed, kernel_size)
+
+        # Threshold the image
+        _, thres = cv2.threshold(
+            sobel,
+            sobel.max() * 0.3,
+            sobel.max(),
+            cv2.THRESH_BINARY,
+        )
+        # Apply morphological closing
+        # Connect nearby edges and fill holes inside detected shapes
+        cleaned = cv2.morphologyEx(
+            thres,
+            cv2.MORPH_CLOSE,
+            struct,
+        )
+
+        # Extract external boundaries from the cleaned image
+        contours, _ = cv2.findContours(
+            cleaned, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE
+        )
+        keypoints: list[cv2.KeyPoint] = []
+        for contour in contours:
+            # Filter out overly large or small contours
+            if (area := cv2.contourArea(contour)) <= min_area or area >= max_area:
+                continue
+            # Filter out artefacts
+            if cv2.arcLength(contour, True) == 0:
+                continue
+            # Calculate spatial moments of the contours
+            M = cv2.moments(contour)
+            if M["m00"] == 0:
+                continue
+            cx = M["m10"] / M["m00"]
+            cy = M["m01"] / M["m00"]
+            # Store as keypoint objects
+            keypoints.append(cv2.KeyPoint(float(cx), float(cy), patch_size))
+        logger.debug(f"{len(keypoints)} hole centroids detected")
+        return sobel, keypoints
+
+    def _register(
+        frame_num: int,
+        ref: np.ndarray,
+        mov: np.ndarray,
+        # Preprocessing parameters
+        sigma: int,
+        window: np.ndarray | None,
+        kernel_size: int,
+        # Hole detection parameters
+        min_area: int,
+        max_area: int,
+        # ORB detection parameters
+        patch_size: int,
+        # Instantiated classes and objects
+        struct: np.ndarray,  # Structuring element
+        orb: cv2.ORB,  # ORB feature matcher instance
+        matcher: cv2.BFMatcher,  # Brute-force matcher instance
+    ):
+        try:
+            # Convert RGB to grayscale for image registration
+            ref_gray = (
+                (
+                    # Luma-style weighted sum; avoids cv2.cvtColor copy
+                    0.2126 * ref[..., 0] + 0.7152 * ref[..., 1] + 0.0722 * ref[..., 2]
+                ).astype(np.float32)
+                if ref.ndim == 3
+                else ref.astype(np.float32)
+            )
+            mov_gray = (
+                (
+                    # Luma-style weighted sum; avoids cv2.cvtColor copy
+                    0.2126 * mov[..., 0] + 0.7152 * mov[..., 1] + 0.0722 * mov[..., 2]
+                ).astype(np.float32)
+                if mov.ndim == 3
+                else mov.astype(np.float32)
+            )
+
+            args = [
+                window,
+                sigma,
+                kernel_size,
+                struct,
+                min_area,
+                max_area,
+                patch_size,
+            ]
+            ref_sobel, ref_kps = _extract_keypoints(ref_gray, *args)
+            mov_sobel, mov_kps = _extract_keypoints(mov_gray, *args)
+
+            # Compute descriptors at the keypoints
+            ref_kps, ref_des = orb.compute(ref_sobel, ref_kps)
+            mov_kps, mov_des = orb.compute(mov_sobel, mov_kps)
+            if ref_des is None or mov_des is None:
+                raise RuntimeError("ORB descriptor computation failed")
+
+            # Match the descriptors with 'k' nearest neighbours
+            matches = matcher.knnMatch(ref_des, mov_des, k=2)
+
+            # Conduct Lowe ratio test
+            # Keep 'm' if it's significantly closer than the second-best match 'n'
+            good_matches = [m for m, n in matches if m.distance < 0.9 * n.distance]
+            logger.debug("Number of ORB matches after ratio test:", len(good_matches))
+
+            # Estimate the affine transform with RANSAC
+            if not len(good_matches) >= 3:
+                raise RuntimeError("Not enough matches for affine estimation")
+            # Extract (x,y) coordinates of the matched keypoints
+            ref_pts = np.float32([ref_kps[m.queryIdx].pt for m in good_matches])
+            mov_pts = np.float32([mov_kps[m.trainIdx].pt for m in good_matches])
+            # Estimate the affine transformation
+            M, inliers = cv2.estimateAffinePartial2D(
+                mov_pts,
+                ref_pts,
+                method=cv2.RANSAC,
+                ransacReprojThreshold=3,
+            )
+            logger.debug("Affine matrix:\n", M)
+            logger.debug("Inliers:", np.sum(inliers), "/", len(inliers))
+
+            # Apply transform to the original moving image
+            aligned = cv2.warpAffine(mov, M, (w, h), flags=cv2.INTER_LINEAR)
+            return aligned, frame_num
+        except (cv2.error, Exception):
+            logger.warning(f"Error registering frame {frame_num}", exc_info=True)
+            return mov, frame_num
+
+    # Start of main function
+    cv2.setNumThreads(1)
+    start_time = time.perf_counter()
+
+    if not (ref := reference_array).shape == (mov := moving_array).shape:
+        raise RuntimeError("Input images do not have the same dimensions")
+
+    # Standardise as image stacks before further processing
+    is_stack = is_image_stack(ref)
+    ref = ref if is_stack else ref[np.newaxis, ...]
+    mov = mov if is_stack else mov[np.newaxis, ...]
+    z, h, w = ref.shape[:3]
+    dtype = ref.dtype
+
+    # Create reusable objects
+    window = create_hanning_window(w, h).astype(np.float32) if hanning_window else None
+    struct = cv2.getStructuringElement(cv2.MORPH_RECT, (7, 7))
+    orb = cast(cv2.ORB, cv2.ORB_create(nfeatures=5000))
+    matcher = cv2.BFMatcher(cv2.NORM_HAMMING)  # Brute-force Hamming matcher
+
+    # Create placeholder array for aligned image
+    aligned = np.empty(ref.shape, dtype=dtype)
+
+    # Process frames in parallel
+    with ThreadPoolExecutor(max_workers=num_procs) as pool:
+        futures = [
+            pool.submit(
+                _register,
+                f,
+                ref[f],
+                mov[f],
+                sigma,
+                window,
+                kernel_size,
+                min_area,
+                max_area,
+                patch_size,
+                struct,
+                orb,
+                matcher,
+            )
+            for f in range(z)
+        ]
+        for future in as_completed(futures):
+            frame, frame_num = future.result()
+            aligned[frame_num] = frame
+
+    # If it wasn't initially a stack, flatten it
+    if not is_stack:
+        aligned = aligned[0]
+
+    end_time = time.perf_counter()
+    logger.debug(f"Completed registration of image stack in {end_time - start_time}")
+    return aligned

@@ -164,10 +164,10 @@ class CrYOLO(CommonService):
             return
 
         # Check job alias
-        job_alias = job_dir.parent / "Live_processing"
+        job_alias = job_dir.parent / "Live_cryolo"
         if not job_alias.exists():
             job_alias.symlink_to(job_dir)
-        elif not (job_alias.is_symlink() and job_alias.readlink() == job_dir):
+        elif not (job_alias.is_symlink() and job_alias.resolve() == job_dir.resolve()):
             self.log.error(f"Symlink {job_alias} already exists")
             rw.transport.nack(header)
             return
@@ -276,7 +276,7 @@ class CrYOLO(CommonService):
             "stdout": result.stdout.decode("utf8", "replace"),
             "stderr": result.stderr.decode("utf8", "replace"),
             "experiment_type": cryolo_params.experiment_type,
-            "alias": "Live_processing",
+            "alias": "Live_cryolo",
         }
         if (
             result.returncode
@@ -551,11 +551,20 @@ def grid_bar_histogram(
 ) -> Optional[np.ndarray]:
     # Bin the image
     full_shape = np.shape(full_image)
-    small_image = (
-        full_image.reshape((int(full_shape[0] / 4), 4, int(full_shape[1] / 4), 4))
-        .mean(-1)
-        .mean(1)
-    )
+    if full_shape[0] % 4 != 0 or full_shape[1] % 4 != 0:
+        clip_image = full_image[full_shape[0] % 4 :, full_shape[1] % 4 :]
+        clip_shape = np.shape(clip_image)
+        small_image = (
+            clip_image.reshape((int(clip_shape[0] / 4), 4, int(clip_shape[1] / 4), 4))
+            .mean(-1)
+            .mean(1)
+        )
+    else:
+        small_image = (
+            full_image.reshape((int(full_shape[0] / 4), 4, int(full_shape[1] / 4), 4))
+            .mean(-1)
+            .mean(1)
+        )
 
     # Make histogram and find turning points in it
     hist = plt.hist(small_image.flatten(), bins=100)

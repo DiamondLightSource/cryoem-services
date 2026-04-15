@@ -12,7 +12,7 @@ from readlif.reader import LifFile, LifImage
 from workflows.recipe.wrapper import RecipeWrapper
 from workflows.transport.offline_transport import OfflineTransport
 
-from cryoemservices.util.clem_metadata import (
+from cryoemservices.util.metadata.clem import (
     find_image_elements,
 )
 from cryoemservices.wrappers.clem_process_raw_lifs import (
@@ -228,7 +228,7 @@ def test_process_lif_subimage(
     metadata = list(find_image_elements(raw_xml_metadata).values())[scene_num]
 
     # Mock the LifFile object and assign the necessary return values
-    mock_lif_file = mocker.patch("cryoemservices.util.clem_array_functions.LifFile")
+    mock_lif_file = mocker.patch("cryoemservices.util.image_processing.LifFile")
     mock_lif_image = MagicMock(spec=LifImage)
     mock_lif_image.get_frame.return_value = np.random.randint(
         0, 256, (y_pixels, x_pixels), dtype="uint16"
@@ -313,19 +313,24 @@ def test_process_lif_file(
         return_value=raw_xml_metadata,
     )
 
-    # Mock out the sub-image processing function to return results iteratively
-    mock_process_lif_subimage = mocker.patch(
-        "cryoemservices.wrappers.clem_process_raw_lifs.process_lif_subimage"
-    )
-    mock_process_lif_subimage.side_effect = [
-        create_dummy_result(
+    # Store dummy result in mock Future objects
+    mock_futures = []
+    for scene_num in range(num_scenes):
+        mock_future = MagicMock()
+        mock_future.result.return_value = create_dummy_result(
             lif_file=lif_file,
             series_name=series_name,
             processed_dir=processed_dir,
             scene_num=scene_num,
         )
-        for scene_num in range(num_scenes)
-    ]
+        mock_futures.append(mock_future)
+
+    # Mock out the ProcessPoolExecutor used to run 'process_lif_subimage'
+    mock_executor = mocker.patch(
+        "cryoemservices.wrappers.clem_process_raw_lifs.ProcessPoolExecutor"
+    )
+    mock_pool = mock_executor.return_value.__enter__.return_value
+    mock_pool.submit.side_effect = mock_futures
 
     # Run the function
     results = process_lif_file(
@@ -335,7 +340,7 @@ def test_process_lif_file(
     )
 
     # Check that nested list of results was collapsed correctly
-    assert mock_process_lif_subimage.call_count == num_scenes
+    assert mock_pool.submit.call_count == num_scenes
     assert len(results) == num_scenes
 
 
@@ -361,7 +366,7 @@ def test_lif_to_stack_wrapper(
     mock_send_to = mocker.patch("workflows.recipe.wrapper.RecipeWrapper.send_to")
 
     # Set the number of simultaneous processes to run
-    num_procs = 20
+    num_procs = 16
 
     # Construct a dictionary to pass to the wrapper
     message = {

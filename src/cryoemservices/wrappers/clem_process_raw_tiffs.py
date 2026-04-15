@@ -20,14 +20,14 @@ import numpy as np
 from defusedxml.ElementTree import parse
 from pydantic import BaseModel, ValidationError, field_validator, model_validator
 
-from cryoemservices.util.clem_array_functions import (
+from cryoemservices.util.image_processing import (
     TIFFImageLoader,
     get_percentiles,
     load_and_convert_image,
     load_and_resize_tile,
     write_stack_to_tiff,
 )
-from cryoemservices.util.clem_metadata import (
+from cryoemservices.util.metadata.clem import (
     find_image_elements,
     get_channel_info,
     get_dimension_info,

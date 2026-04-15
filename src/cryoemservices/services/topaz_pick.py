@@ -113,7 +113,7 @@ class TopazPick(CommonService):
         job_alias = Path(
             re.sub(
                 f"AutoPick/job{job_number:03}/.+",
-                "AutoPick/Live_processing/",
+                "AutoPick/Live_topaz_picking/",
                 topaz_params.output_path,
             )
         )
@@ -121,7 +121,8 @@ class TopazPick(CommonService):
             job_alias.symlink_to(job_alias.parent / f"job{job_number:03}")
         elif not (
             job_alias.is_symlink()
-            and job_alias.readlink() == job_alias.parent / f"job{job_number:03}"
+            and job_alias.resolve()
+            == (job_alias.parent / f"job{job_number:03}").resolve()
         ):
             self.log.error(f"Symlink {job_alias} already exists")
             rw.transport.nack(header)
@@ -207,7 +208,7 @@ class TopazPick(CommonService):
             "command": " ".join(command),
             "stdout": "",
             "stderr": "",
-            "alias": "Live_processing",
+            "alias": "Live_topaz_picking",
             "success": True,
         }
         if not job_is_rerun:

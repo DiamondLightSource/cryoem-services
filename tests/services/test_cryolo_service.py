@@ -119,8 +119,8 @@ def test_cryolo_service_spa(mock_flatten, mock_subprocess, offline_transport, tm
     )
 
     # Check symlinks
-    assert (tmp_path / "AutoPick/Live_processing").is_symlink()
-    assert (tmp_path / "AutoPick/Live_processing").readlink() == (
+    assert (tmp_path / "AutoPick/Live_cryolo").is_symlink()
+    assert (tmp_path / "AutoPick/Live_cryolo").readlink() == (
         tmp_path / "AutoPick/job007"
     )
 
@@ -205,7 +205,7 @@ def test_cryolo_service_spa(mock_flatten, mock_subprocess, offline_transport, tm
             "stdout": "stdout",
             "stderr": "stderr",
             "experiment_type": "spa",
-            "alias": "Live_processing",
+            "alias": "Live_cryolo",
             "success": True,
         },
     )
@@ -349,7 +349,7 @@ def test_cryolo_service_tomography(mock_subprocess, offline_transport, tmp_path)
             "stdout": "stdout",
             "stderr": "stderr",
             "experiment_type": "tomography",
-            "alias": "Live_processing",
+            "alias": "Live_cryolo",
             "success": True,
         },
     )
@@ -469,13 +469,13 @@ def test_cryolo_spa_check_symlinks(
     offline_transport.ack.assert_called_once()
 
     # Case 2: ok symlink
-    assert (tmp_path / "AutoPick/Live_processing").is_symlink()
+    assert (tmp_path / "AutoPick/Live_cryolo").is_symlink()
     service.cryolo(None, header=header, message=cryolo_test_message)
     assert offline_transport.ack.call_count == 2
 
     # Case 3: bad symlink
-    (tmp_path / "AutoPick/Live_processing").unlink()
-    (tmp_path / "AutoPick/Live_processing").symlink_to(tmp_path / "AutoPick")
+    (tmp_path / "AutoPick/Live_cryolo").unlink()
+    (tmp_path / "AutoPick/Live_cryolo").symlink_to(tmp_path / "AutoPick")
     service.cryolo(None, header=header, message=cryolo_test_message)
     offline_transport.nack.assert_called_once()
 
@@ -627,3 +627,19 @@ def test_flatten_grid_bars_two_peaks_with_clipping(mock_hist, tmp_path):
     assert min(output_data.flatten()) == 54
     assert output_data[0][0] == 54.0
     assert int(max(output_data.flatten())) == 211
+
+
+@mock.patch("cryoemservices.services.cryolo.plt.hist")
+def test_flatten_grid_bars_not_multiple_of_four(mock_hist, tmp_path):
+    """Test the flattener runs for an image size not divisible by 4"""
+    mock_hist.return_value = (
+        np.concatenate((np.arange(51), np.arange(49, 0, -1))),
+        np.arange(100),
+    )
+
+    data = np.arange(225).reshape(15, 15)
+    with mrcfile.new(tmp_path / "normal.mrc") as mrc:
+        mrc.set_data(data.astype(np.float32))
+
+    returned_file = cryolo.flatten_grid_bars(tmp_path / "normal.mrc")
+    assert returned_file == tmp_path / "normal.mrc"

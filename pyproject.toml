@@ -7,7 +7,7 @@ requires = [
 
 [project]
 name = "cryoemservices"
-version = "1.3.4"
+version = "1.3.6"
 description = "Services for CryoEM processing"
 readme = "README.md"
 keywords = [
@@ -30,10 +30,11 @@ classifiers = [
 ]
 dependencies = [
     "defusedxml", # CLEM workflow
-    "gemmi==0.6.5",
+    "gemmi",
     "graypy",
     "healpy",
     "icebreaker-em",
+    "imagecodecs", # CLEM workflow
     "ispyb>=11.1.2",
     "mrcfile",
     "numpy",
@@ -46,6 +47,7 @@ dependencies = [
     "starfile",
     "stomp-py>8.1.1",
     "tifffile", # CLEM workflow
+    "txrm2tiff",
     "workflows>=3",
 ]
 [project.optional-dependencies]
@@ -61,6 +63,9 @@ easymode = [
     # "easymode@git+https://github.com/mgflast/easymode@126163fcb22e469f8fc8791d10ab5c6f0b8b9070",
     "huggingface_hub",
     "tensorflow[and-cuda]",
+]
+murfey_db = [
+    "murfey[server]",
 ]
 torch = [
     "membrain-seg",
@@ -105,6 +110,7 @@ torch = [
     Images = "cryoemservices.services.images:Images"
     MembrainSeg = "cryoemservices.services.membrain_seg:MembrainSeg"
     MotionCorr = "cryoemservices.services.motioncorr:MotionCorr"
+    MurfeyDBConnector = "cryoemservices.services.murfey_db_connector:MurfeyDBConnector"
     NodeCreator = "cryoemservices.services.node_creator:NodeCreator"
     PostProcess = "cryoemservices.services.postprocess:PostProcess"
     ProcessRecipe = "cryoemservices.services.process_recipe:ProcessRecipe"

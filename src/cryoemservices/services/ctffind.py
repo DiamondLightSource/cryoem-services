@@ -25,8 +25,8 @@ class CTFParameters(BaseModel):
     ampl_spectrum: int = 512
     min_res: float = 30.0
     max_res: float = 5.0
-    min_defocus: float = 5000.0
-    max_defocus: float = 50000.0
+    min_defocus: float = 2000.0
+    max_defocus: float = 90000.0
     defocus_step: float = 100.0
     astigmatism_known: str = "no"
     slow_search: str = "no"
@@ -173,7 +173,7 @@ class CTFFind(CommonService):
         job_alias = Path(
             re.sub(
                 f"CtfFind/job{ctf_job_number:03}/.+",
-                "CtfFind/Live_processing/",
+                "CtfFind/Live_ctffind/",
                 ctf_params.output_image,
             )
         )
@@ -181,7 +181,8 @@ class CTFFind(CommonService):
             job_alias.symlink_to(job_alias.parent / f"job{ctf_job_number:03}")
         elif not (
             job_alias.is_symlink()
-            and job_alias.readlink() == job_alias.parent / f"job{ctf_job_number:03}"
+            and job_alias.resolve()
+            == (job_alias.parent / f"job{ctf_job_number:03}").resolve()
         ):
             self.log.error(f"Symlink {job_alias} already exists")
             rw.transport.nack(header)
@@ -254,7 +255,7 @@ class CTFFind(CommonService):
                 ),
                 "stdout": result.stdout.decode("utf8", "replace"),
                 "stderr": result.stderr.decode("utf8", "replace"),
-                "alias": "Live_processing",
+                "alias": "Live_ctffind",
             }
             if result.returncode:
                 node_creator_parameters["success"] = False
