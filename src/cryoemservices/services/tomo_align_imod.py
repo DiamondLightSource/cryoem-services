@@ -34,10 +34,10 @@ class ImodTomoParameters(BaseModel):
     patch: int = 1
     patch_size: int = 200
     patch_overlap: float = 0.5
-    flip_vol: int = 0
+    flip_vol: int = 1
     flip_vol_post_reconstruction: bool = True
     manual_tilt_offset: Optional[float] = None
-    cpus: int = 1
+    cpus: int = 2
     relion_options: RelionServiceOptions
 
 
@@ -161,7 +161,7 @@ class ImodTomoAlign(CommonService):
         adoc_file = write_batch_directive_file(tomo_params)
         imod_output_path = (
             Path(tomo_params.stack_file).parent
-            / f"{Path(tomo_params.stack_file).name}_Vol.rec"
+            / f"{Path(tomo_params.stack_file).name}_rec.mrc"
         )
         imod_result = subprocess.run(
             [
@@ -315,19 +315,20 @@ def write_batch_directive_file(tomo_params: ImodTomoParameters):
         # Commands for copytomocoms
         adoc.write(f"setupset.datasetDirectory={adoc_file.parent}\n")
         adoc.write(f"setupset.copyarg.name={Path(tomo_params.stack_file).stem}\n")
+        adoc.write(f"setupset.copyarg.stackext={Path(tomo_params.stack_file).suffix}\n")
         adoc.write("setupset.copyarg.userawtlt=1\n")
-        # "setupset.copyarg.dual=0"
+        adoc.write("setupset.copyarg.dual=0\n")
         adoc.write(f"setupset.copyarg.pixel={tomo_params.pixel_size / 10}\n")
         adoc.write(f"setupset.copyarg.gold={tomo_params.bead_size}\n")
         adoc.write(f"setupset.copyarg.rotation={tomo_params.tilt_axis}\n")
-        # "setupset.copyarg.extract=0"
+        adoc.write("setupset.copyarg.extract=0\n")
 
         # Preprocessing
         adoc.write("runtime.Preprocessing.any.removeXrays=1\n")
 
         # Coarse Alignment
         # if tomo_params.patch:
-        #    "comparam.prenewst.newstack.BinByFactor=2"
+        #   adoc.write("comparam.prenewst.newstack.BinByFactor=2\n")
 
         # Tracking Choices
         adoc.write(f"runtime.Fiducials.any.trackingMethod={tomo_params.patch}\n")
@@ -376,7 +377,7 @@ def write_batch_directive_file(tomo_params: ImodTomoParameters):
 
         # Reconstruction + SIRT Parameters
         adoc.write(f"comparam.tilt.tilt.THICKNESS={tomo_params.vol_z}\n")
-        "comparam.tilt.tilt.LOG="
+        adoc.write("comparam.tilt.tilt.LOG=\n")
         adoc.write(f"runtime.Reconstruction.any.useSirt={tomo_params.sirt}\n")
         adoc.write(f"runtime.Reconstruction.any.doBackprojAlso={tomo_params.wbp}\n")
         if tomo_params.sirt:
