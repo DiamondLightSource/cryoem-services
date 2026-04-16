@@ -346,6 +346,18 @@ class CrYOLO(CommonService):
             rw.transport.ack(header)
             return
 
+        # Rename any flattened files
+        if scaled_input_path != cryolo_params.input_path:
+            (job_dir / f"CBOX/{Path(cryolo_params.output_path).stem}_flat.cbox").rename(
+                job_dir / f"CBOX/{Path(cryolo_params.output_path).stem}.cbox"
+            )
+            (job_dir / f"STAR/{Path(cryolo_params.output_path).stem}_flat.star").rename(
+                job_dir / f"STAR/{Path(cryolo_params.output_path).stem}.star"
+            )
+            (job_dir / f"EMAN/{Path(cryolo_params.output_path).stem}_flat.box").rename(
+                job_dir / f"EMAN/{Path(cryolo_params.output_path).stem}.box"
+            )
+
         # Read in the cbox file for particle selection and finding sizes
         try:
             cbox_file = cif.read_file(
