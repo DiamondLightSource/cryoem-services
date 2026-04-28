@@ -14,6 +14,29 @@ logger = logging.getLogger("cryoemservices.util.murfey_db_commands")
 logger.setLevel(logging.INFO)
 
 
+def multipart_message(message: dict, parameters: Callable, session: Session):
+    """
+    Override of the multipart message command,
+    which uses commands from this file rather than ispyb commands
+    """
+    commands = parameters("ispyb_command_list")
+    if not commands or not isinstance(commands, list):
+        logger.error("Received multipart message containing no command list")
+        return False
+
+    current_command = commands[0]
+    ispyb_command = current_command.get("ispyb_command")
+    command: Callable | None = globals().get(ispyb_command) or getattr(
+        ispyb_commands, ispyb_command, None
+    )
+    if not command:
+        logger.error(
+            f"Multipart command {current_command} does not have a valid ispyb_command"
+        )
+        return False
+    return ispyb_commands.run_multipart_command(message, parameters, session, command)
+
+
 def buffer(message: dict, parameters: Callable, session: Session):
     """
     Override of the buffer command,
