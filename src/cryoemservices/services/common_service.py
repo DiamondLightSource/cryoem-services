@@ -41,15 +41,19 @@ class CommonService:
 
         return add_item_to_queue
 
+    def connect(self):
+        self._transport.connect()
+        self._transport.subscription_callback_set_intercept(self._transport_interceptor)
+        self.initializing()
+
+    def disconnect(self):
+        self._transport.disconnect()
+
     def start(self):
         """Start listening and process commands in main loop"""
         try:
             # Setup
-            self._transport.connect()
-            self._transport.subscription_callback_set_intercept(
-                self._transport_interceptor
-            )
-            self.initializing()
+            self.connect()
 
             # Main loop
             while self._transport.is_connected():
@@ -63,6 +67,6 @@ class CommonService:
         except Exception as e:
             self.log.critical(f"Unhandled service exception: {e}", exc_info=True)
         try:
-            self._transport.disconnect()
+            self.disconnect()
         except Exception as e:
             self.log.error(f"Could not disconnect transport: {e}", exc_info=True)

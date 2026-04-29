@@ -34,7 +34,7 @@ class Class2D(CommonService):
             if not isinstance(message, dict):
                 self.log.error("Rejected invalid simple message")
                 self._transport.nack(header)
-                return
+                return False
 
             # Create a wrapper-like object that can be passed to functions
             # as if a recipe wrapper was present.
@@ -58,7 +58,7 @@ class Class2D(CommonService):
                 f"with exception: {e}"
             )
             rw.transport.nack(header)
-            return
+            return False
 
         # In this setup we cannot nack messages on failure, so instead check here
         if message.get("requeue", 0) >= 5:
@@ -71,6 +71,7 @@ class Class2D(CommonService):
             f"Running disconnected Class2D job for {class2d_params.particles_file}"
         )
         rw.transport.ack(header)
+        self.disconnect()
 
         # Run the class2d job
         try:
@@ -88,3 +89,7 @@ class Class2D(CommonService):
             # Send back to the queue but mark a failure in the message
             message["requeue"] = message.get("requeue", 0) + 1
             rw.send_to("class2d", message)
+
+        # Reconnect to rabbitmq
+        self.connect()
+        return True
