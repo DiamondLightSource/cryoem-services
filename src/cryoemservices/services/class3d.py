@@ -72,6 +72,7 @@ class Class3D(CommonService):
         )
         rw.transport.ack(header)
         rw.transport.unsubscribe(self.subscription_id)
+        rw.transport.drop_callback_reference(self.subscription_id)
 
         # Run the class3d job
         try:
