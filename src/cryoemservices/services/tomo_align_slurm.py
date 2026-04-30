@@ -108,6 +108,8 @@ class TomoAlignSlurm(TomoAlign):
         visit_search = re.search(
             "/[a-z]{2}[0-9]{5}-[0-9]{1,3}/", tomo_params.stack_file
         )
+        if tomo_params.denoise_tilts == 2:
+            return False
         if visit_search:
             visit_name = visit_search[0][1:-1]
             visit_code = visit_name[:2]
