@@ -19,7 +19,7 @@ class Class3D(CommonService):
     def initializing(self):
         """Subscribe to a queue. Received messages must be acknowledged."""
         self.log.info("Class3D service starting")
-        wrap_subscribe(
+        self.subscription_id = wrap_subscribe(
             self._transport,
             self._environment["queue"] or "class3d",
             self.class3d,
@@ -71,7 +71,7 @@ class Class3D(CommonService):
             f"Running disconnected Class3D job for {class3d_params.particles_file}"
         )
         rw.transport.ack(header)
-        self.disconnect()
+        rw.transport.unsubscribe(self.subscription_id)
 
         # Run the class3d job
         try:
@@ -91,5 +91,5 @@ class Class3D(CommonService):
             rw.send_to("class3d", message)
 
         # Reconnect to rabbitmq
-        self.connect()
+        self.initializing()
         return True

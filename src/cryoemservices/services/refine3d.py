@@ -19,7 +19,7 @@ class Refine3D(CommonService):
     def initializing(self):
         """Subscribe to a queue. Received messages must be acknowledged."""
         self.log.info("Refine3D service starting")
-        wrap_subscribe(
+        self.subscription_id = wrap_subscribe(
             self._transport,
             self._environment["queue"] or "refine3d",
             self.refine3d,
@@ -71,7 +71,7 @@ class Refine3D(CommonService):
             f"Running disconnected Refine3D job for {refine_params.particles_file}"
         )
         rw.transport.ack(header)
-        self.disconnect()
+        rw.transport.unsubscribe(self.subscription_id)
 
         # Run the refinement job
         try:
@@ -93,5 +93,5 @@ class Refine3D(CommonService):
             rw.send_to("refine3d", message)
 
         # Reconnect to rabbitmq
-        self.connect()
+        self.initializing()
         return True

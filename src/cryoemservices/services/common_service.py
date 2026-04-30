@@ -31,6 +31,7 @@ class CommonService:
         self.log = logging.getLogger(self._logger_name)
         self.log.setLevel(logging.INFO)
         self.single_message_mode: bool = single_message_mode
+        self.subscription_id: int = 0
 
     def _transport_interceptor(self, callback):
         """Takes a callback function and adds headers and messages"""
@@ -41,19 +42,15 @@ class CommonService:
 
         return add_item_to_queue
 
-    def connect(self):
-        self._transport.connect()
-        self._transport.subscription_callback_set_intercept(self._transport_interceptor)
-        self.initializing()
-
-    def disconnect(self):
-        self._transport.disconnect()
-
     def start(self):
         """Start listening and process commands in main loop"""
         try:
             # Setup
-            self.connect()
+            self._transport.connect()
+            self._transport.subscription_callback_set_intercept(
+                self._transport_interceptor
+            )
+            self.initializing()
 
             # Main loop
             while self._transport.is_connected():
@@ -67,6 +64,6 @@ class CommonService:
         except Exception as e:
             self.log.critical(f"Unhandled service exception: {e}", exc_info=True)
         try:
-            self.disconnect()
+            self._transport.disconnect()
         except Exception as e:
             self.log.error(f"Could not disconnect transport: {e}", exc_info=True)
