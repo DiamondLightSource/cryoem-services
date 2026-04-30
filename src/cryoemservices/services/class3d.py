@@ -105,4 +105,7 @@ class Class3D(CommonService):
             # Send back to the queue but mark a failure in the message
             message["requeue"] = message.get("requeue", 0) + 1
             self._transport.send("class3d", message)
+
+        # Reconnect to rabbitmq
+        self.initializing()
         return True
