@@ -91,6 +91,7 @@ class RefineParameters(BaseModel):
     symmetry: str = "C1"
     do_norm: bool = True
     do_scale: bool = True
+    seed: int | None = None
     threads: int = 8
     gpus: str = "0:1:2:3"
     relion_options: RelionServiceOptions
@@ -183,6 +184,7 @@ def run_refinement(refine_params: RefineParameters, send_to_rabbitmq: Callable):
         "symmetry": "--sym",
         "do_norm": "--norm",
         "do_scale": "--scale",
+        "seed": "--random_seed",
         "threads": "--j",
         "gpus": "--gpu",
     }

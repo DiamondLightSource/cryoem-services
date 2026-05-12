@@ -39,6 +39,7 @@ class3d_common_flags = {
     "do_zero_mask": "--zero_mask",
     "oversampling": "--oversampling",
     "healpix_order": "--healpix_order",
+    "seed": "--random_seed",
     "threads": "--j",
 }
 
@@ -82,6 +83,7 @@ class Class3DParameters(BaseModel):
     symmetry: str = "C1"
     do_norm: bool = True
     do_scale: bool = True
+    seed: int | None = None
     mpi_run_command: str = "mpirun -n 9"
     threads: int = 4
     gpus: str = "0:1:2:3"
