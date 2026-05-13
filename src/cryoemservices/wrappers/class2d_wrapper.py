@@ -64,9 +64,10 @@ class Class2DParameters(BaseModel):
     picker_id: int | None = None
     class2d_grp_uuid: int
     class_uuids: str
-    do_icebreaker_jobs: bool = True
+    do_icebreaker_jobs: bool = False
     do_cryodann: bool = False
     cryodann_dataset: str = ""
+    directory_replacements: dict[str, str] = {"processed": "spool"}
     relion_options: RelionServiceOptions
 
 
@@ -149,6 +150,10 @@ def run_cryodann(
 
 
 def run_class2d(class2d_params: Class2DParameters, send_to_rabbitmq: Callable):
+    # For testing versions add the insert directory into the Class2D directory to avoid a clash with the main run
+    for k, v in class2d_params.directory_replacements.items():
+        class2d_params.class2d_dir = class2d_params.class2d_dir.replace(k, v)
+
     # Class ids get fed in as a string, need to convert these to a dictionary
     class_uuids_dict = json.loads(class2d_params.class_uuids.replace("'", '"'))
     class_uuids_keys = list(class_uuids_dict.keys())

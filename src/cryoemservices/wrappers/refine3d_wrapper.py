@@ -94,10 +94,15 @@ class RefineParameters(BaseModel):
     seed: int | None = None
     threads: int = 8
     gpus: str = "0:1:2:3"
+    directory_replacements: dict[str, str] = {"processed": "spool"}
     relion_options: RelionServiceOptions
 
 
 def run_refinement(refine_params: RefineParameters, send_to_rabbitmq: Callable):
+    # For testing versions add the insert directory into the Refine3D directory to avoid a clash with the main run
+    for k, v in refine_params.directory_replacements.items():
+        refine_params.refine_job_dir = refine_params.refine_job_dir.replace(k, v)
+
     # Determine the directory to run in and the job numbers
     logger.info(f"Running refinement pipeline for {refine_params.particles_file}")
     project_dir = Path(refine_params.refine_job_dir).parent.parent

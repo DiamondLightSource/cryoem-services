@@ -89,6 +89,7 @@ class Class3DParameters(BaseModel):
     gpus: str = "0:1:2:3"
     initial_model_gpus: str = "0,1,2,3"
     picker_id: int | None = None
+    directory_replacements: dict[str, str] = {"processed": "spool"}
     class3d_grp_uuid: int
     class_uuids: str
     relion_options: RelionServiceOptions
@@ -286,6 +287,10 @@ def run_initial_model(
 
 
 def run_class3d(class3d_params: Class3DParameters, send_to_rabbitmq: Callable) -> bool:
+    # For testing versions add the insert directory into the Class3D directory to avoid a clash with the main run
+    for k, v in class3d_params.directory_replacements.items():
+        class3d_params.class3d_dir = class3d_params.class3d_dir.replace(k, v)
+
     # Class ids get fed in as a string, need to convert these to a dictionary
     class_uuids_dict = json.loads(class3d_params.class_uuids.replace("'", '"'))
     class_uuids_keys = list(class_uuids_dict.keys())
