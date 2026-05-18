@@ -601,6 +601,11 @@ class TomoAlign(CommonService):
                 )
 
         # Forward tomogram (one per-tilt-series)
+        side_projection = (
+            "YZ"
+            if tomo_params.tilt_axis is not None and -45 < tomo_params.tilt_axis < 45
+            else "XZ"
+        )
         ispyb_command_list = [
             {
                 "ispyb_command": "insert_tomogram",
@@ -621,7 +626,7 @@ class TomoAlign(CommonService):
                 "tomogram_movie": stack_name + "_Vol_movie.png",
                 "xy_shift_plot": plot_file,
                 "proj_xy": stack_name + "_Vol_projXY.jpeg",
-                "proj_xz": stack_name + "_Vol_projXZ.jpeg",
+                "proj_xz": stack_name + f"_Vol_proj{side_projection}.jpeg",
                 "alignment_quality": str(self.alignment_quality),
             }
         ]
@@ -800,11 +805,6 @@ class TomoAlign(CommonService):
         )
 
         self.log.info("Sending to images service for XY and XZ projections")
-        side_projection = (
-            "YZ"
-            if tomo_params.tilt_axis is not None and -45 < tomo_params.tilt_axis < 45
-            else "XZ"
-        )
         for projection_type in ["XY", side_projection]:
             images_call_params: dict[str, str | float] = {
                 "image_command": "mrc_projection",
