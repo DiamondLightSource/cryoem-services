@@ -19,7 +19,7 @@ class Class3D(CommonService):
     def initializing(self):
         """Subscribe to a queue. Received messages must be acknowledged."""
         self.log.info("Class3D service starting")
-        wrap_subscribe(
+        self.subscription_id = wrap_subscribe(
             self._transport,
             self._environment["queue"] or "class3d",
             self.class3d,
@@ -34,7 +34,7 @@ class Class3D(CommonService):
             if not isinstance(message, dict):
                 self.log.error("Rejected invalid simple message")
                 self._transport.nack(header)
-                return
+                return False
 
             # Create a wrapper-like object that can be passed to functions
             # as if a recipe wrapper was present.
@@ -58,7 +58,7 @@ class Class3D(CommonService):
                 f"with exception: {e}"
             )
             rw.transport.nack(header)
-            return
+            return False
 
         # In this setup we cannot nack messages on failure, so instead check here
         if message.get("requeue", 0) >= 5:
@@ -71,6 +71,8 @@ class Class3D(CommonService):
             f"Running disconnected Class3D job for {class3d_params.particles_file}"
         )
         rw.transport.ack(header)
+        rw.transport.unsubscribe(self.subscription_id)
+        rw.transport.drop_callback_reference(self.subscription_id)
 
         # Run the class3d job
         try:
@@ -88,3 +90,7 @@ class Class3D(CommonService):
             # Send back to the queue but mark a failure in the message
             message["requeue"] = message.get("requeue", 0) + 1
             rw.send_to("class3d", message)
+
+        # Reconnect to rabbitmq
+        self.initializing()
+        return True

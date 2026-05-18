@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 import os
 import re
+import subprocess
 from pathlib import Path
 
 from pydantic import BaseModel, Field, ValidationError
@@ -30,6 +31,7 @@ class ExtractClassParameters(BaseModel):
     downscale: bool = True
     normalise: bool = True
     invert_contrast: bool = True
+    submit_to_slurm: bool = False
     relion_options: RelionServiceOptions
 
 
@@ -254,19 +256,22 @@ class ExtractClass(CommonService):
         if extract_params.downscale:
             command.append("--downscale")
 
-        result = slurm_submission_for_services(
-            log=self.log,
-            service_config_file=self._environment["config"],
-            slurm_cluster=self._environment["slurm_cluster"],
-            job_name="ReExtract",
-            command=command,
-            project_dir=extract_job_dir,
-            output_file=extract_job_dir / "slurm_run",
-            cpus=40,
-            use_gpu=False,
-            use_singularity=False,
-            script_extras="module load EM/cryoem-services",
-        )
+        if extract_params.submit_to_slurm:
+            result = slurm_submission_for_services(
+                log=self.log,
+                service_config_file=self._environment["config"],
+                slurm_cluster=self._environment["slurm_cluster"],
+                job_name="ReExtract",
+                command=command,
+                project_dir=extract_job_dir,
+                output_file=extract_job_dir / "slurm_run",
+                cpus=40,
+                use_gpu=False,
+                use_singularity=False,
+                script_extras="module load EM/cryoem-services",
+            )
+        else:
+            result = subprocess.run(command, capture_output=True)
 
         # Register the Re-extraction job with the node creator
         self.log.info(f"Sending {self.extract_job_type} to node creator")

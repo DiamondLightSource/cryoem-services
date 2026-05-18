@@ -31,6 +31,7 @@ class CommonService:
         self.log = logging.getLogger(self._logger_name)
         self.log.setLevel(logging.INFO)
         self.single_message_mode: bool = single_message_mode
+        self.subscription_id: int = 0
 
     def _transport_interceptor(self, callback):
         """Takes a callback function and adds headers and messages"""
