@@ -2045,7 +2045,10 @@ def align_images_using_neighbors(
 
         if len(ref_desc) == 0 or len(mov_desc) == 0:
             logger.warning("Could not compile descriptors from the detected features")
-            return None
+            return (
+                np.empty((0, 2), dtype=np.float32),
+                np.empty((0, 2), dtype=np.float32),
+            )
 
         # Save tables if set
         if save_tables and save_dir is not None:
@@ -2239,6 +2242,9 @@ def align_images_using_neighbors(
 
     # Run the feature matching algorith
     ref_match, mov_match = _match_features(ref_features, mov_features)
+    if len(ref_match) == 0 or len(mov_match) == 0:
+        logger.warning("Could not identify matching features between the images")
+        return {}
     if save_images:
         _draw_matches(ref_features, mov_features, ref_match, mov_match)
 
