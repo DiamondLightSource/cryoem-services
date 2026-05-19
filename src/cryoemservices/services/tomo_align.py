@@ -13,12 +13,9 @@ import mrcfile
 import numpy as np
 import plotly.express as px
 from gemmi import cif
+from olefile import OleFileIO
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
-from txrm2tiff.inspector import Inspector
 from txrm2tiff.main import convert_and_save
-from txrm2tiff.txrm import open_txrm
-from txrm2tiff.txrm_functions.general import read_stream
-from txrm2tiff.xradia_properties.enums import XrmDataTypes
 from workflows.recipe import wrap_subscribe
 
 from cryoemservices.services.common_service import CommonService
@@ -859,23 +856,20 @@ class TomoAlign(CommonService):
 
     def convert_txrm_to_stack(self, txrm_file: str, stack_file: str) -> float:
         # Read the tilt angles and pixel size from the txrm
-        with open_txrm(
-            txrm_file, load_images=False, load_reference=False, strict=False
-        ) as txrm:
-            inspector = Inspector(txrm)
-            angles = read_stream(
-                inspector.txrm.ole,
-                "ImageInfo/Angles",
-                XrmDataTypes.XRM_FLOAT,
-                strict=True,
-            )
-            pixel_size_microns = read_stream(
-                inspector.txrm.ole,
-                "ImageInfo/PixelSize",
-                XrmDataTypes.XRM_FLOAT,
-                strict=True,
-            )
-        self.tilt_angles = dict(enumerate(angles))
+        pixel_size_angstroms = 100
+        with OleFileIO(txrm_file) as txrm_ole:
+            if txrm_ole.exists("ImageInfo/Angles"):
+                angles = np.frombuffer(
+                    txrm_ole.openstream("ImageInfo/Angles").getvalue(), np.float32
+                ).tolist()
+                self.tilt_angles = dict(enumerate(angles))
+
+            if txrm_ole.exists("ImageInfo/PixelSize"):
+                pixel_size_microns = np.frombuffer(
+                    txrm_ole.openstream("ImageInfo/PixelSize").getvalue(),
+                    np.float32,
+                ).tolist()
+                pixel_size_angstroms = pixel_size_microns[0] * 1e4
 
         # Convert the txrm to a tiff stack, then convert to mrc for aretomo
         tifftomo = Path(stack_file).with_suffix(".tiff")
@@ -883,9 +877,7 @@ class TomoAlign(CommonService):
         # Let this run, and check later if the output file exists
         subprocess.run(["tif2mrc", str(tifftomo), stack_file])
         tifftomo.unlink(missing_ok=True)
-        if pixel_size_microns:
-            return pixel_size_microns[0] * 1000
-        return 100
+        return pixel_size_angstroms
 
     def assemble_aretomo3_command(
         self,

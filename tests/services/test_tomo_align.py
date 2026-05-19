@@ -2277,7 +2277,7 @@ def test_tomo_align_service_txrm(
                     "tomogram_movie": "stack_Vol_movie.png",
                     "xy_shift_plot": "stack_xy_shift_plot.json",
                     "proj_xy": "stack_Vol_projXY.jpeg",
-                    "proj_xz": "stack_Vol_projXZ.jpeg",
+                    "proj_xz": "stack_Vol_projYZ.jpeg",
                     "alignment_quality": "0.5",
                 },
                 {
