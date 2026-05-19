@@ -869,7 +869,7 @@ class TomoAlign(CommonService):
                     txrm_ole.openstream("ImageInfo/PixelSize").getvalue(),
                     np.float32,
                 ).tolist()
-                pixel_size_angstroms = pixel_size_microns[0] * 1e4
+                pixel_size_angstroms = round(pixel_size_microns[0] * 1e4, 2)
 
         # Convert the txrm to a tiff stack, then convert to mrc for aretomo
         tifftomo = Path(stack_file).with_suffix(".tiff")
