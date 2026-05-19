@@ -1762,7 +1762,7 @@ def align_images_using_neighbors(
         annotated = cv2.cvtColor(binary, cv2.COLOR_GRAY2BGR) if save_images else None
 
         # Keep only features that match criteria, and extract descriptors
-        features = []
+        features_list = []
         index = 0
         for contour in contours:
             # Remove features that cannot be used for ellipse fitting
@@ -1813,7 +1813,7 @@ def align_images_using_neighbors(
                 continue
 
             # Append results
-            features.append((x, y, w, h, angle, area, hull_area))
+            features_list.append((x, y, w, h, angle, area, hull_area))
 
             # Annotate image
             if annotated is not None:
@@ -1855,6 +1855,13 @@ def align_images_using_neighbors(
             # Increment the index for next loop once successful
             index += 1
 
+        # Convert to array or return empty array
+        if features_list:
+            features = np.array(features_list, dtype=np.float32)
+        else:
+            features = np.empty((0, 7), dtype=np.float32)
+
+        # Optionally save results
         if annotated is not None:
             _save_image(f"{name}_features.png", annotated)
         if save_tables and save_dir is not None:
@@ -1882,7 +1889,7 @@ def align_images_using_neighbors(
                     f"{'hull_area':<10} "
                 ),
             )
-        return np.array(features, dtype=np.float32)
+        return features
 
     def _match_features(
         ref_features: np.ndarray,
@@ -2239,6 +2246,9 @@ def align_images_using_neighbors(
 
     ref_features = _detect_features(ref_bin, name="ref")
     mov_features = _detect_features(mov_bin, name="mov")
+    if len(ref_features) == 0 or len(mov_features) == 0:
+        logger.warning("Could not identify any features in the images")
+        return {}
 
     # Run the feature matching algorith
     ref_match, mov_match = _match_features(ref_features, mov_features)
