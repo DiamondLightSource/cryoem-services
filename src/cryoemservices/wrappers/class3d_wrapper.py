@@ -156,12 +156,20 @@ def run_initial_model(
         initial_model_command, cwd=str(project_dir), capture_output=True
     )
 
+    if initial_model_params.multiple_initial_models:
+        ini_model_file = (
+            job_dir
+            / f"run_it{initial_model_params.initial_model_iterations:03}_model.star"
+        )
+    else:
+        ini_model_file = job_dir / "initial_model.mrc"
+
     # Register the initial model job with the node creator
     logger.info("Sending relion.initialmodel (model) to node creator")
     node_creator_parameters_refine: dict = {
         "job_type": "relion.initialmodel",
         "input_file": f"{project_dir}/{particles_file}",
-        "output_file": f"{job_dir}/initial_model.mrc",
+        "output_file": str(ini_model_file),
         "relion_options": dict(initial_model_params.relion_options),
         "command": " ".join(initial_model_command),
         "stdout": result.stdout.decode("utf8", "replace"),
@@ -178,13 +186,7 @@ def run_initial_model(
         )
         return "", []
 
-    if initial_model_params.multiple_initial_models:
-        ini_model_file = (
-            job_dir
-            / f"run_it{initial_model_params.initial_model_iterations:03}_model.star"
-        )
-    else:
-        ini_model_file = job_dir / "initial_model.mrc"
+    if not initial_model_params.multiple_initial_models:
         align_symmetry_command = [
             "relion_align_symmetry",
             "--i",
@@ -510,7 +512,7 @@ def run_class3d(class3d_params: Class3DParameters, send_to_rabbitmq: Callable) -
             "class_distribution": classes_loop[class_id, 1],
             "rotation_accuracy": classes_loop[class_id, 2],
             "translation_accuracy": classes_loop[class_id, 3],
-            "angular_efficiency": class_efficiencies[class_id],
+            "angular_efficiency": float(class_efficiencies[class_id]),
             "suggested_tilt": 0 if class_efficiencies[class_id] > 0.65 else 30,
         }
         if job_is_rerun:
