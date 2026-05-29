@@ -56,6 +56,7 @@ class Class3DParameters(BaseModel):
     initial_model_offset_range: float = 6
     initial_model_offset_step: float = 2
     start_initial_model_C1: bool = True
+    multiple_initial_models: bool = True
     dont_combine_weights_via_disc: bool = True
     preread_images: bool = True
     scratch_dir: str | None = None
@@ -155,12 +156,20 @@ def run_initial_model(
         initial_model_command, cwd=str(project_dir), capture_output=True
     )
 
+    if initial_model_params.multiple_initial_models:
+        ini_model_file = (
+            job_dir
+            / f"run_it{initial_model_params.initial_model_iterations:03}_model.star"
+        )
+    else:
+        ini_model_file = job_dir / "initial_model.mrc"
+
     # Register the initial model job with the node creator
     logger.info("Sending relion.initialmodel (model) to node creator")
     node_creator_parameters_refine: dict = {
         "job_type": "relion.initialmodel",
         "input_file": f"{project_dir}/{particles_file}",
-        "output_file": f"{job_dir}/initial_model.mrc",
+        "output_file": str(ini_model_file),
         "relion_options": dict(initial_model_params.relion_options),
         "command": " ".join(initial_model_command),
         "stdout": result.stdout.decode("utf8", "replace"),
@@ -177,57 +186,89 @@ def run_initial_model(
         )
         return "", []
 
-    ini_model_file = job_dir / "initial_model.mrc"
-    align_symmetry_command = [
-        "relion_align_symmetry",
-        "--i",
-        str(
-            job_dir.relative_to(project_dir)
-            / f"run_it{initial_model_params.initial_model_iterations:03}_model.star"
-        ),
-        "--o",
-        f"{ini_model_file.relative_to(project_dir)}",
-        "--sym",
-        initial_model_params.symmetry,
-        "--apply_sym",
-        "--select_largest_class",
-        "--pipeline_control",
-        f"{job_dir.relative_to(project_dir)}/",
-    ]
+    if (
+        initial_model_params.multiple_initial_models
+        and initial_model_params.symmetry != "C1"
+    ):
+        for model in ini_model_file.parent.glob(
+            f"{ini_model_file.stem.replace('_model', '')}_class*.mrc"
+        ):
+            align_symmetry_command = [
+                "relion_align_symmetry",
+                "--i",
+                str(model.relative_to(project_dir)),
+                "--o",
+                str(model.relative_to(project_dir)),
+                "--sym",
+                initial_model_params.symmetry,
+                "--apply_sym",
+                "--pipeline_control",
+                f"{job_dir.relative_to(project_dir)}/",
+            ]
 
-    # Run symmetry alignment and confirm it ran successfully
-    logger.info("Running symmetry alignment")
-    result = subprocess.run(
-        align_symmetry_command, cwd=str(project_dir), capture_output=True
-    )
+            # Run symmetry alignment and confirm it ran successfully
+            logger.info(f"Running symmetry alignment for {model.name}")
+            result = subprocess.run(
+                align_symmetry_command, cwd=str(project_dir), capture_output=True
+            )
+            if result.returncode:
+                logger.error(
+                    f"Relion initial model symmetry alignment "
+                    f"failed with exitcode {result.returncode}:\n"
+                    + result.stderr.decode("utf8", "replace")
+                )
 
-    # Register the initial model job with the node creator
-    logger.info("Sending relion.initialmodel (alignment) to node creator")
-    node_creator_parameters_symmetry: dict = {
-        "job_type": "relion.initialmodel",
-        "input_file": f"{project_dir}/{particles_file}",
-        "output_file": f"{job_dir}/initial_model.mrc",
-        "relion_options": dict(initial_model_params.relion_options),
-        "command": " ".join(align_symmetry_command),
-        "stdout": result.stdout.decode("utf8", "replace"),
-        "stderr": result.stderr.decode("utf8", "replace"),
-        "success": (result.returncode == 0),
-    }
-    send_to_rabbitmq("node_creator", node_creator_parameters_symmetry)
+    elif not initial_model_params.multiple_initial_models:
+        align_symmetry_command = [
+            "relion_align_symmetry",
+            "--i",
+            str(
+                job_dir.relative_to(project_dir)
+                / f"run_it{initial_model_params.initial_model_iterations:03}_model.star"
+            ),
+            "--o",
+            f"{ini_model_file.relative_to(project_dir)}",
+            "--sym",
+            initial_model_params.symmetry,
+            "--apply_sym",
+            "--select_largest_class",
+            "--pipeline_control",
+            f"{job_dir.relative_to(project_dir)}/",
+        ]
 
-    # End here if the command failed
-    if result.returncode:
-        logger.error(
-            f"Relion initial model symmetry alignment "
-            f"failed with exitcode {result.returncode}:\n"
-            + result.stderr.decode("utf8", "replace")
+        # Run symmetry alignment and confirm it ran successfully
+        logger.info("Running symmetry alignment")
+        result = subprocess.run(
+            align_symmetry_command, cwd=str(project_dir), capture_output=True
         )
-        return "", []
+
+        # Register the initial model job with the node creator
+        logger.info("Sending relion.initialmodel (alignment) to node creator")
+        node_creator_parameters_symmetry: dict = {
+            "job_type": "relion.initialmodel",
+            "input_file": f"{project_dir}/{particles_file}",
+            "output_file": f"{job_dir}/initial_model.mrc",
+            "relion_options": dict(initial_model_params.relion_options),
+            "command": " ".join(align_symmetry_command),
+            "stdout": result.stdout.decode("utf8", "replace"),
+            "stderr": result.stderr.decode("utf8", "replace"),
+            "success": (result.returncode == 0),
+        }
+        send_to_rabbitmq("node_creator", node_creator_parameters_symmetry)
+
+        # End here if the command failed
+        if result.returncode:
+            logger.error(
+                f"Relion initial model symmetry alignment "
+                f"failed with exitcode {result.returncode}:\n"
+                + result.stderr.decode("utf8", "replace")
+            )
+            return "", []
 
     # Send Murfey the location of the initial model
     murfey_params = {
         "register": "save_initial_model",
-        "initial_model": f"{job_dir}/initial_model.mrc",
+        "initial_model": str(ini_model_file),
     }
     send_to_rabbitmq("murfey_feedback", murfey_params)
 
@@ -248,20 +289,9 @@ def run_initial_model(
         "Will send best initial model to ispyb with "
         f"resolution {resolution} and {number_of_particles} particles"
     )
-    ini_ispyb_parameters = [
-        {
-            "ispyb_command": "buffer",
-            "buffer_lookup": {
-                "particle_classification_id": class_uuids_dict[class_uuids_keys[0]]
-            },
-            "buffer_command": {"ispyb_command": "insert_cryoem_initial_model"},
-            "number_of_particles": number_of_particles,
-            "resolution": resolution,
-            "store_result": "ispyb_initial_model_id",
-        }
-    ]
-    for i in range(1, initial_model_params.class3d_nr_classes):
-        # Insert initial model for every class, sending model id each time
+    ini_ispyb_parameters: list[dict] = []
+    for i in range(initial_model_params.class3d_nr_classes):
+        # Insert initial model for every class,
         ini_ispyb_parameters.append(
             {
                 "ispyb_command": "buffer",
@@ -269,17 +299,31 @@ def run_initial_model(
                     "particle_classification_id": class_uuids_dict[class_uuids_keys[i]]
                 },
                 "buffer_command": {"ispyb_command": "insert_cryoem_initial_model"},
-                "number_of_particles": number_of_particles,
-                "resolution": resolution,
-                "cryoem_initial_model_id": "$ispyb_initial_model_id",
             }
         )
     for i in range(initial_model_params.class3d_nr_classes):
         # Add resolution to every model if it is finite
-        if np.isfinite(float(resolution)):
-            ini_ispyb_parameters[i]["resolution"] = resolution
+        if initial_model_params.multiple_initial_models:
+            ini_ispyb_parameters[i]["resolution"] = (
+                model_resolutions[i]
+                if np.isfinite(float(model_resolutions[i]))
+                else 0.0
+            )
+            ini_ispyb_parameters[i]["number_of_particles"] = (
+                float(model_scores[i]) * initial_model_params.batch_size
+            )
         else:
-            ini_ispyb_parameters[i]["resolution"] = 0.0
+            ini_ispyb_parameters[i]["resolution"] = (
+                resolution if np.isfinite(float(resolution)) else 0.0
+            )
+            ini_ispyb_parameters[i]["number_of_particles"] = number_of_particles
+            # Set model id for the first class, sending model id each time afterwards
+            if i == 0:
+                ini_ispyb_parameters[i]["store_result"] = "ispyb_initial_model_id"
+            else:
+                ini_ispyb_parameters[i]["cryoem_initial_model_id"] = (
+                    "$ispyb_initial_model_id"
+                )
 
     logger.info("Running 3D classification using new initial model")
     return f"{ini_model_file}", ini_ispyb_parameters
@@ -500,7 +544,7 @@ def run_class3d(class3d_params: Class3DParameters, send_to_rabbitmq: Callable) -
             "class_distribution": classes_loop[class_id, 1],
             "rotation_accuracy": classes_loop[class_id, 2],
             "translation_accuracy": classes_loop[class_id, 3],
-            "angular_efficiency": class_efficiencies[class_id],
+            "angular_efficiency": float(class_efficiencies[class_id]),
             "suggested_tilt": 0 if class_efficiencies[class_id] > 0.65 else 30,
         }
         if job_is_rerun:
