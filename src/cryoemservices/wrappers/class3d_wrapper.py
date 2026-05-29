@@ -211,6 +211,12 @@ def run_initial_model(
             result = subprocess.run(
                 align_symmetry_command, cwd=str(project_dir), capture_output=True
             )
+            if result.returncode:
+                logger.error(
+                    f"Relion initial model symmetry alignment "
+                    f"failed with exitcode {result.returncode}:\n"
+                    + result.stderr.decode("utf8", "replace")
+                )
 
     elif not initial_model_params.multiple_initial_models:
         align_symmetry_command = [
