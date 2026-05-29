@@ -186,7 +186,33 @@ def run_initial_model(
         )
         return "", []
 
-    if not initial_model_params.multiple_initial_models:
+    if (
+        initial_model_params.multiple_initial_models
+        and initial_model_params.symmetry != "C1"
+    ):
+        for model in ini_model_file.parent.glob(
+            f"{ini_model_file.stem.replace('_model', '')}_class*.mrc"
+        ):
+            align_symmetry_command = [
+                "relion_align_symmetry",
+                "--i",
+                str(model.relative_to(project_dir)),
+                "--o",
+                str(model.relative_to(project_dir)),
+                "--sym",
+                initial_model_params.symmetry,
+                "--apply_sym",
+                "--pipeline_control",
+                f"{job_dir.relative_to(project_dir)}/",
+            ]
+
+            # Run symmetry alignment and confirm it ran successfully
+            logger.info(f"Running symmetry alignment for {model.name}")
+            result = subprocess.run(
+                align_symmetry_command, cwd=str(project_dir), capture_output=True
+            )
+
+    else:
         align_symmetry_command = [
             "relion_align_symmetry",
             "--i",
