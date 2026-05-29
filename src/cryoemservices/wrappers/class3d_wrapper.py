@@ -212,7 +212,7 @@ def run_initial_model(
                 align_symmetry_command, cwd=str(project_dir), capture_output=True
             )
 
-    else:
+    elif not initial_model_params.multiple_initial_models:
         align_symmetry_command = [
             "relion_align_symmetry",
             "--i",
