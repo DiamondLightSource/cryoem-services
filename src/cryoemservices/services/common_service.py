@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import logging
 import queue
+from functools import partial
 
 from workflows.transport.common_transport import CommonTransport
+from workflows.transport.pika_transport import PikaTransport
 
 
 class CommonService:
@@ -66,3 +68,28 @@ class CommonService:
             self._transport.disconnect()
         except Exception as e:
             self.log.error(f"Could not disconnect transport: {e}", exc_info=True)
+
+    def _reject_message(
+        self,
+        header: dict,
+        transport: CommonTransport | None = None,
+        requeue: bool = True,
+    ):
+        message_id = header.get("message-id")
+        subscription_id = header.get("subscription")
+        if transport is None:
+            transport = self._transport
+        if (
+            isinstance(transport, PikaTransport)
+            and message_id is not None
+            and subscription_id is not None
+        ):
+            pika_thread = transport._pika_thread
+            channel = pika_thread._pika_channels[subscription_id]
+            pika_thread._connection.add_callback_threadsafe(
+                partial(channel.basic_reject, delivery_tag=message_id, requeue=requeue)
+            )
+        else:
+            self.log.warning(
+                f"Message {message_id} in {subscription_id} is not valid for rabbitmq"
+            )
