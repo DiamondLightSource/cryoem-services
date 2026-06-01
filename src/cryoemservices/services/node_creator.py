@@ -231,7 +231,7 @@ class NodeCreator(CommonService):
             self.log.info("Received a simple message")
             if not isinstance(message, dict):
                 self.log.error("Rejected invalid simple message")
-                self._transport.nack(header)
+                self._reject_message(header, requeue=False)
                 return
 
             # Create a wrapper-like object that can be passed to functions
@@ -255,7 +255,7 @@ class NodeCreator(CommonService):
                 f"and recipe parameters: {rw.recipe_step.get('parameters', {})} "
                 f"with exception: {e}"
             )
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport, requeue=False)
             return
 
         self.log.info(
@@ -271,7 +271,7 @@ class NodeCreator(CommonService):
             job_number = int(job_num_search[0][4:])
         else:
             self.log.warning(f"Cannot determine job dir for {job_info.output_file}")
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport, requeue=False)
             return
         project_dir = job_dir.parent.parent
         os.chdir(project_dir)
@@ -296,7 +296,7 @@ class NodeCreator(CommonService):
                 f"Unknown node creator job type {job_info.job_type} "
                 f"in {job_info.experiment_type} collection"
             )
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport)
             return
 
         # Get the options for this job out of the RelionServiceOptions
@@ -306,7 +306,7 @@ class NodeCreator(CommonService):
         )
         if not pipeline_options:
             self.log.error(f"Cannot generate pipeline options for {job_info.job_type}")
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport)
             return
 
         # Work out the name of the input star file and add this to the job.star
@@ -381,7 +381,7 @@ class NodeCreator(CommonService):
                 )
         except (IndexError, ValueError) as e:
             self.log.error(f"Pipeliner failed for {job_info.job_type}, error {e}")
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport)
             return
 
         # Copy the job.star file
@@ -461,7 +461,7 @@ class NodeCreator(CommonService):
                     )
             except FileNotFoundError as e:
                 self.log.error(f"Cannot find expected file: {e}", exc_info=True)
-                rw.transport.nack(header)
+                self._reject_message(header, transport=rw.transport)
                 return
             if extra_output_nodes:
                 # Add any extra nodes if they are not already present
