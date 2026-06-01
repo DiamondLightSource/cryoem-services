@@ -75,6 +75,7 @@ class CommonService:
         transport: CommonTransport | None = None,
         requeue: bool = True,
     ):
+        """Reject failed messages back to rabbitmq"""
         message_id = header.get("message-id")
         subscription_id = header.get("subscription")
         if transport is None:
@@ -90,6 +91,9 @@ class CommonService:
                 partial(channel.basic_reject, delivery_tag=message_id, requeue=requeue)
             )
         else:
+            # Resort back to nacking if this isn't pika or the header is invalid
+            # Mostly just for tests compatibility
             self.log.warning(
                 f"Message {message_id} in {subscription_id} is not valid for rabbitmq"
             )
+            transport.nack(header)
