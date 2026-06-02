@@ -71,22 +71,20 @@ def offline_transport(mocker):
     return transport
 
 
-align_and_merge_params_matrix = (
-    # Use Recipe Wrapper | Crop to N frames | Align to self | Flatten | Align across
-    (True, 20, "enabled", "mean", "enabled"),
-    (True, 20, "enabled", "min", "enabled"),
-    (True, 20, "enabled", "max", "enabled"),
-    (False, 20, "enabled", "mean", ""),
-    (False, 20, "", "min", "enabled"),
-    (False, 20, "", "max", ""),
+@pytest.mark.parametrize(
+    "test_params",
+    (
+        # Use Recipe Wrapper | Crop to N frames | Align to self | Flatten | Align across
+        (True, 20, True, True, True),
+        (False, 20, True, True, False),
+        (False, 20, False, True, True),
+        (False, 20, False, True, False),
+    ),
 )
-
-
-@pytest.mark.parametrize("test_params", align_and_merge_params_matrix)
 @mock.patch("cryoemservices.services.clem_align_and_merge.align_and_merge_stacks")
 def test_align_and_merge_service(
     mock_align,
-    test_params: tuple[bool, int, str, str, str],
+    test_params: tuple[bool, int, bool, bool, bool],
     image_stacks: list[Path],
     metadata: Path,
     series_name: str,
@@ -225,22 +223,21 @@ def test_align_and_merge_bad_messsage(
     offline_transport.send.assert_not_called()
 
 
-# Introduce invalid parameters field-by-field
-align_and_merge_params_bad_validation_matrix = (
-    # Series name | Images | Metadata | Crop to N frames | Align to self | Flatten | Align across
-    (False, True, True, 20, "enabled", "mean", "enabled"),
-    (True, False, True, 20, "enabled", "mean", "enabled"),
-    (True, True, False, 20, "enabled", "mean", "enabled"),
-    (True, True, True, "Not a number", "enabled", "mean", "enabled"),
-    (True, True, True, 20, "off", "mean", "enabled"),
-    (True, True, True, 20, "enabled", "off", "enabled"),
-    (True, True, True, 20, "enabled", "mean", "off"),
+@pytest.mark.parametrize(
+    "test_params",
+    (  # Introduce invalid parameters field-by-field
+        # Series name | Images | Metadata | Crop to N frames | Align to self | Flatten | Align across
+        (False, True, True, 20, True, True, True),
+        (True, False, True, 20, True, True, True),
+        (True, True, False, 20, True, True, True),
+        (True, True, True, "Not a number", True, True, True),
+        (True, True, True, 20, "off", True, True),
+        (True, True, True, 20, True, "off", True),
+        (True, True, True, 20, True, True, "off"),
+    ),
 )
-
-
-@pytest.mark.parametrize("test_params", align_and_merge_params_bad_validation_matrix)
 def test_align_and_merge_service_validation_failed(
-    test_params: tuple[bool, bool, bool, Any, str, str, str],
+    test_params: tuple[bool, bool, bool, Any, Any, Any, Any],
     image_stacks: list[Path],
     metadata: Path,
     series_name: str,
@@ -295,7 +292,21 @@ def test_align_and_merge_service_validation_failed(
     )
 
     # Check that the message was nacked
-    offline_transport.nack.assert_called_once_with(header, requeue=False)
+    offline_transport.nack.assert_called_once_with(
+        header,
+        requeue=(
+            True
+            if any(
+                isinstance(item, str)
+                for item in (
+                    align_self,
+                    flatten,
+                    align_across,
+                )
+            )
+            else False
+        ),
+    )
 
     # Check that the message wasn't erronerously sent
     offline_transport.send.assert_not_called()
@@ -325,9 +336,9 @@ def test_align_and_merge_service_process_failed(
         "images": [str(f) for f in image_stacks],
         "metadata": str(metadata),
         "crop_to_n_frames": 50,
-        "align_self": "enabled",
-        "flatten": "mean",
-        "align_across": "enabled",
+        "align_self": True,
+        "flatten": True,
+        "align_across": True,
     }
 
     # Set up expected return values if the process fails
