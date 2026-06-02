@@ -180,7 +180,7 @@ def test_lif_to_stack_bad_messsage(
     )
 
     # Check that message was nacked with the expected parameters
-    offline_transport.nack.assert_called_once_with(header)
+    offline_transport.nack.assert_called_once_with(header, requeue=False)
 
     # Check that the message wasn't erronerously sent
     offline_transport.send.assert_not_called()
@@ -241,7 +241,7 @@ def test_lif_to_stack_service_validation_failed(
     )
 
     # Check that the message was nacked with the expected parameters
-    offline_transport.nack.assert_called_once_with(header)
+    offline_transport.nack.assert_called_once_with(header, requeue=False)
 
     # Check that the message wasn't erronerously sent
     offline_transport.send.assert_not_called()
@@ -285,7 +285,7 @@ def test_lif_to_stack_service_processing_failed(
     )
 
     # Check that message was nacked with expected parameters
-    offline_transport.nack.assert_called_once_with(header)
+    offline_transport.nack.assert_called_once_with(header, requeue=True)
 
     # Check that the message wasn't erronerously sent
     offline_transport.send.assert_not_called()
