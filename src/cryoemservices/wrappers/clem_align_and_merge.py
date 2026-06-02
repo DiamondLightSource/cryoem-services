@@ -17,7 +17,7 @@ import time
 from ast import literal_eval
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import Any, Literal, Optional
+from typing import Any, Optional
 
 import numpy as np
 from defusedxml.ElementTree import parse
@@ -43,9 +43,9 @@ def align_and_merge_stacks(
     images: Path | list[Path],
     metadata: Optional[Path] = None,
     crop_to_n_frames: Optional[int] = None,
-    align_self: Literal["enabled", ""] = "",
-    flatten: Optional[Literal["min", "max", "mean", ""]] = "mean",
-    align_across: Literal["enabled", ""] = "",
+    align_self: bool = False,
+    flatten: bool = True,
+    align_across: bool = False,
     num_procs: int = 4,
 ) -> dict[str, Any]:
     """
@@ -70,21 +70,6 @@ def align_and_merge_stacks(
     # Validate inputs before proceeding further
     if crop_to_n_frames is not None and not isinstance(crop_to_n_frames, int):
         message = "Incorrect value provided for 'crop_to_n_frames' parameter"
-        logger.error(message)
-        raise ValueError(message)
-
-    if align_self not in ("enabled", ""):
-        message = "Incorrect value provided for 'align_self' parameter"
-        logger.error(message)
-        raise ValueError(message)
-
-    if flatten not in ("mean", "min", "max", ""):
-        message = "Incorrect value provided for 'flatten' parameter"
-        logger.error(message)
-        raise ValueError(message)
-
-    if align_across not in ("enabled", ""):
-        message = "Incorrect value provided for 'align_across' parameter"
         logger.error(message)
         raise ValueError(message)
 
@@ -298,7 +283,10 @@ def align_and_merge_stacks(
                 arrays = list(
                     pool.map(
                         lambda p: flatten_image(*p),
-                        [(arr, flatten) for arr in arrays],
+                        [
+                            (arr, "mean" if color == "gray" else "max")
+                            for arr, color in zip(arrays, colors_to_process)
+                        ],
                     )
                 )
             if len({arr.shape for arr in arrays}) > 1:
@@ -504,9 +492,9 @@ class AlignAndMergeParameters(BaseModel):
     images: Path | list[Path]
     metadata: Optional[Path] = Field(default=None)
     crop_to_n_frames: Optional[int] = Field(default=None)
-    align_self: Literal["enabled", ""] = Field(default="")
-    flatten: Literal["mean", "min", "max", ""] = Field(default="mean")
-    align_across: Literal["enabled", ""] = Field(default="")
+    align_self: bool = Field(default=False)
+    flatten: bool = Field(default=True)
+    align_across: bool = Field(default=False)
     num_procs: int = Field(default=4)
 
     @field_validator("images", mode="before")
