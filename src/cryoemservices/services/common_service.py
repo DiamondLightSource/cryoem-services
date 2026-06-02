@@ -96,4 +96,4 @@ class CommonService:
             self.log.warning(
                 f"Message {message_id} in {subscription_id} is not valid for rabbitmq"
             )
-            transport.nack(header)
+            transport.nack(header, requeue=requeue)
