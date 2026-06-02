@@ -179,19 +179,20 @@ def test_align_and_merge_stacks(
     (
         # Colors | Crop frames | Align self | Flatten | Align across
         # Wrong 'crop_frames' value
-        ("5", "enabled", "max", "enabled"),
-        (5.0, "enabled", "mean", "enabled"),
+        ("5", True, True, True),
+        (5.0, True, True, True),
         # Wrong 'align_self' value
-        (5, None, "min", ""),
-        (None, 1, "mean", "enabled"),
+        (5, None, True, True),
+        (None, 1, True, True),
+        (5, "enabled", True, True),
         # Wrong 'flatten' value
-        (5, "enabled", None, ""),
-        (5, "enabled", 1, "enabled"),
-        (10, "enabled", True, "enabled"),
+        (5, True, None, False),
+        (5, True, 1, True),
+        (10, True, "enabled", True),
         # Wrong 'align_across' value
-        (5, "", "min", None),
-        (None, "enabled", "mean", True),
-        (5, "enabled", "", 1),
+        (5, False, True, None),
+        (None, True, True, 1),
+        (5, True, False, "enabled"),
     ),
 )
 def test_align_and_merge_stacks_wrong_params(
