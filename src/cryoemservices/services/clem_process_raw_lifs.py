@@ -38,7 +38,7 @@ class ProcessRawLIFsService(CommonService):
             self.log.info("Received a simple message")
             if not isinstance(message, dict):
                 self.log.error("Rejected invalid simple message")
-                self._transport.nack(header)
+                self._reject_message(header, requeue=False)
                 return
 
             # Create a wrapper-like object that can be passed to functions
@@ -61,7 +61,7 @@ class ProcessRawLIFsService(CommonService):
                 f"and recipe parameters: {rw.recipe_step.get('parameters', {})} "
                 f"with exception: {e}"
             )
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport, requeue=False)
             return
 
         # Process files and collect output
@@ -71,19 +71,19 @@ class ProcessRawLIFsService(CommonService):
                 root_folder=params.root_folder,
                 number_of_processes=params.num_procs,
             )
-        # Log error and nack message if the command fails to execute
+        # Log error and reject message if the command fails to execute
         except Exception:
             self.log.error(
-                f"Exception encontered while processing LIF file {str(params.lif_file)!r}: \n",
+                f"Exception encountered while processing LIF file {str(params.lif_file)!r}: \n",
                 exc_info=True,
             )
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport)
             return
         if not results:
             self.log.error(
                 f"Failed to extract image stacks from {str(params.lif_file)!r}"
             )
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport)
             return
 
         # Send each subset of output files to Murfey for registration

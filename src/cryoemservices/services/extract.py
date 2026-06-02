@@ -69,7 +69,7 @@ class Extract(CommonService):
             self.log.info("Received a simple message")
             if not isinstance(message, dict):
                 self.log.error("Rejected invalid simple message")
-                self._transport.nack(header)
+                self._reject_message(header, requeue=False)
                 return
 
             # Create a wrapper-like object that can be passed to functions
@@ -92,7 +92,7 @@ class Extract(CommonService):
                 f"and recipe parameters: {rw.recipe_step.get('parameters', {})} "
                 f"with exception: {e}"
             )
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport, requeue=False)
             return
 
         self.log.info(
@@ -113,7 +113,7 @@ class Extract(CommonService):
             job_dir = Path(job_dir_search[0])
         else:
             self.log.warning(f"Invalid job directory in {extract_params.output_file}")
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport, requeue=False)
             return
         project_dir = job_dir.parent.parent
         if not Path(extract_params.output_file).parent.exists():
@@ -129,7 +129,7 @@ class Extract(CommonService):
             job_alias.symlink_to(job_dir)
         elif not (job_alias.is_symlink() and job_alias.resolve() == job_dir.resolve()):
             self.log.error(f"Symlink {job_alias} already exists")
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport)
             return
 
         # If no background radius set diameter as 75% of box
