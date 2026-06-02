@@ -38,7 +38,7 @@ class ProcessRawTIFFsService(CommonService):
             self.log.info("Received a simple message")
             if not isinstance(message, dict):
                 self.log.error("Rejected invalid simple message")
-                self._transport.nack(header)
+                self._reject_message(header, requeue=False)
                 return
 
             # Create a wrapper-like object that can be passed to functions
@@ -61,7 +61,7 @@ class ProcessRawTIFFsService(CommonService):
                 f"and recipe parameters: {rw.recipe_step.get('parameters', {})} "
                 f"with exception: {e}"
             )
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport, requeue=False)
             return
 
         # Reconstruct series name using reference file from list
@@ -74,7 +74,7 @@ class ProcessRawTIFFsService(CommonService):
                 f"Subpath {params.root_folder!r} was not found in file path "
                 f"{str(ref_file.parent / ref_file.stem.split('--')[0])!r}"
             )
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport, requeue=False)
             return
         series_name = "--".join(
             [p.replace(" ", "_") if " " in p else p for p in path_parts][
@@ -90,19 +90,19 @@ class ProcessRawTIFFsService(CommonService):
                 metadata_file=params.metadata,
                 number_of_processes=params.num_procs,
             )
-        # Log error and nack message if the command fails to execute
+        # Log error and reject message if the command fails to execute
         except Exception:
             self.log.error(
                 f"Exception encountered while processing TIFF files for series {series_name}: \n",
                 exc_info=True,
             )
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport)
             return
         if not result:
             self.log.error(
                 f"No processing results were returned for TIFF series {series_name!r}"
             )
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport)
             return
 
         # Request for PNG images to be created

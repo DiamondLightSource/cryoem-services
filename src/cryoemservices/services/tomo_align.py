@@ -276,7 +276,7 @@ class TomoAlign(CommonService):
             self.log.info("Received a simple message")
             if not isinstance(message, dict):
                 self.log.error("Rejected invalid simple message")
-                self._transport.nack(header)
+                self._reject_message(header, requeue=False)
                 return
 
             # Create a wrapper-like object that can be passed to functions
@@ -297,13 +297,14 @@ class TomoAlign(CommonService):
                 f"and recipe parameters: {rw.recipe_step.get('parameters', {})} "
                 f"with exception: {e}"
             )
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport, requeue=False)
             return
 
         def _tilt(file_list_for_tilts):
             return float(file_list_for_tilts[1])
 
         if not self.check_visit(tomo_params):
+            # This one should infinitely nack
             self.log.warning(f"Visit rejected for {tomo_params.stack_file}")
             rw.transport.nack(header, requeue=True)
             return
@@ -343,11 +344,11 @@ class TomoAlign(CommonService):
             # Check we now have the expected stack file
             if not Path(tomo_params.stack_file).is_file():
                 self.log.warning("Stack file generation failed")
-                rw.transport.nack(header)
+                self._reject_message(header, transport=rw.transport)
                 return
         else:
             self.log.warning(f"Invalid input or {tomo_params.txrm_file} is not a file")
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport)
             return
 
         self.log.info(
@@ -368,7 +369,7 @@ class TomoAlign(CommonService):
         for tilt in self.input_file_list_of_lists:
             if not Path(tilt[0]).is_file():
                 self.log.warning(f"File not found {tilt[0]}")
-                rw.transport.nack(header)
+                self._reject_message(header, transport=rw.transport)
                 return
             if tilt[1] not in tilt_dict:
                 tilt_dict[tilt[1]] = []
@@ -446,7 +447,7 @@ class TomoAlign(CommonService):
             job_number = 0
         else:
             self.log.warning(f"Invalid project directory in {tomo_params.stack_file}")
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport)
             return
 
         if self.input_file_list_of_lists:
@@ -457,7 +458,7 @@ class TomoAlign(CommonService):
                 )
             except (FileNotFoundError, ValueError) as e:
                 self.log.error(f"Creating stack file failed: {e}")
-                rw.transport.nack(header)
+                self._reject_message(header, transport=rw.transport)
                 return
 
         # Set up the angle file needed for dose weighting
@@ -497,7 +498,7 @@ class TomoAlign(CommonService):
         aln_file = self.extract_from_aln(tomo_params, alignment_output_dir, plot_path)
         if not aretomo_result.returncode and not aln_file:
             self.log.error("Failed to read alignment file")
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport)
             return
         rot_centre_z = None
         if tomo_params.tilt_cor:
@@ -546,7 +547,7 @@ class TomoAlign(CommonService):
             )
             # Update failure processing status
             rw.send_to("failure", {})
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport)
             return
 
         # Change permissions of imod directory
@@ -738,7 +739,7 @@ class TomoAlign(CommonService):
                     self.log.error(
                         f"{e} - Dark images haven't been accounted for properly"
                     )
-                    rw.transport.nack(header)
+                    self._reject_message(header, transport=rw.transport)
                     return
 
         if job_number:

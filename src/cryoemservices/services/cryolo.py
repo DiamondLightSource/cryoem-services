@@ -112,7 +112,7 @@ class CrYOLO(CommonService):
             self.log.info("Received a simple message")
             if not isinstance(message, dict):
                 self.log.error("Rejected invalid simple message")
-                self._transport.nack(header)
+                self._reject_message(header, requeue=False)
                 return
 
             # Create a wrapper-like object that can be passed to functions
@@ -138,7 +138,7 @@ class CrYOLO(CommonService):
                 f"and recipe parameters: {rw.recipe_step.get('parameters', {})} "
                 f"with exception: {e}"
             )
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport, requeue=False)
             return
 
         # Check if this file has been run before
@@ -160,7 +160,7 @@ class CrYOLO(CommonService):
             job_number = int(job_num_search[0][4:7])
         else:
             self.log.warning(f"Invalid job directory in {cryolo_params.output_path}")
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport, requeue=False)
             return
 
         # Check job alias
@@ -169,7 +169,7 @@ class CrYOLO(CommonService):
             job_alias.symlink_to(job_dir)
         elif not (job_alias.is_symlink() and job_alias.resolve() == job_dir.resolve()):
             self.log.error(f"Symlink {job_alias} already exists")
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport)
             return
 
         Path(cryolo_params.output_path).unlink(missing_ok=True)
@@ -302,7 +302,7 @@ class CrYOLO(CommonService):
                 f"crYOLO failed with exitcode {result.returncode}:\n"
                 + result.stderr.decode("utf8", "replace")
             )
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport)
             return
 
         # If this is tomo then make an image and stop here

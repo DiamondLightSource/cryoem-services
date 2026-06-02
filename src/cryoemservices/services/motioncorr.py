@@ -251,7 +251,7 @@ class MotionCorr(CommonService):
             self.log.info("Received a simple message")
             if not isinstance(message, dict):
                 self.log.error("Rejected invalid simple message")
-                self._transport.nack(header)
+                self._reject_message(header, requeue=False)
                 return
 
             # Create a wrapper-like object that can be passed to functions
@@ -274,13 +274,13 @@ class MotionCorr(CommonService):
                 f"and recipe parameters: {rw.recipe_step.get('parameters', {})} "
                 f"with exception: {e}"
             )
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport, requeue=False)
             return
 
         # Catch any cases where the movie does not exist
         if not Path(mc_params.movie).is_file():
             self.log.warning(f"Movie {mc_params.movie} does not exist")
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport)
             return
 
         # Find the job number
@@ -289,7 +289,7 @@ class MotionCorr(CommonService):
             job_number = int(job_number_search[0][4:7])
         else:
             self.log.warning(f"Could not determine job number in {mc_params.mrc_out}")
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport, requeue=False)
             return
 
         # Check if the gain file exists:
@@ -328,7 +328,7 @@ class MotionCorr(CommonService):
             == (job_alias.parent / f"job{job_number:03}").resolve()
         ):
             self.log.error(f"Symlink {job_alias} already exists")
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport)
             return
 
         # Get the eer grouping out of the fractionation file
@@ -389,7 +389,7 @@ class MotionCorr(CommonService):
             input_flag = "-InEer"
         else:
             self.log.error(f"No input flag found for movie {mc_params.movie}")
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport)
             return
 
         # Run motion correction
@@ -530,7 +530,7 @@ class MotionCorr(CommonService):
                 "alias": "Live_motioncorr",
             }
             rw.send_to("node_creator", node_creator_parameters)
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport)
             return
 
         # Extract results for ispyb
@@ -666,7 +666,7 @@ class MotionCorr(CommonService):
                 project_dir = Path(project_dir_search[0]).parent.parent
             else:
                 self.log.error(f"Cannot find project dir for {mc_params.mrc_out}")
-                rw.transport.nack(header)
+                self._reject_message(header, transport=rw.transport)
                 return
             import_movie = (
                 project_dir

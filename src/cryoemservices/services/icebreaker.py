@@ -64,7 +64,7 @@ class IceBreaker(CommonService):
             self.log.info("Received a simple message")
             if not isinstance(message, dict):
                 self.log.error("Rejected invalid simple message")
-                self._transport.nack(header)
+                self._reject_message(header, requeue=False)
                 return
 
             # Create a wrapper-like object that can be passed to functions
@@ -87,7 +87,7 @@ class IceBreaker(CommonService):
                 f"and recipe parameters: {rw.recipe_step.get('parameters', {})} "
                 f"with exception: {e}"
             )
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport, requeue=False)
             return
 
         # IceBreaker requires running in the job directory
@@ -219,7 +219,7 @@ class IceBreaker(CommonService):
                     )
                 except FileNotFoundError as e:
                     self.log.warning(f"IceBreaker failed to find file: {e}")
-                    rw.transport.nack(header)
+                    self._reject_message(header, transport=rw.transport)
                     return
 
                 # Create a star file with the input data
@@ -257,7 +257,7 @@ class IceBreaker(CommonService):
             self.log.warning(
                 f"Unknown IceBreaker job type {icebreaker_params.icebreaker_type}"
             )
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport)
             return
 
         # Register the icebreaker job with the node creator
@@ -293,7 +293,7 @@ class IceBreaker(CommonService):
         # End here if the command failed
         if not icebreaker_success:
             self.log.error("IceBreaker failed")
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport)
             return
 
         # Forward results to next IceBreaker job
