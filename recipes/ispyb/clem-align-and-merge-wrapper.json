@@ -4,11 +4,10 @@
       "series_name": "{series_name}",
       "images": "{images}",
       "metadata": "{metadata}",
-      "crop_to_n_frames": "{crop_to_n_frames}",
-      "align_self": "{align_self}",
-      "flatten": "{flatten}",
-      "align_across": "{align_across}",
-      "num_procs": "{num_procs}"
+      "crop_to_n_frames": null,
+      "align_self": false,
+      "flatten": true,
+      "align_across": false
     },
     "output": {
       "murfey_feedback": 2,
