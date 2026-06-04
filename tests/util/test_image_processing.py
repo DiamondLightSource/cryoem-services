@@ -6,10 +6,12 @@ from typing import Any, Literal
 import numpy as np
 import pytest
 
+from cryoemservices.util.align_images_using_neighbors import (
+    align_images_using_neighbors,
+)
 from cryoemservices.util.image_processing import (
     LUT,
     align_images_using_mmi,
-    align_images_using_neighbors,
     align_images_using_orb,
     convert_to_rgb,
     drift_correct_image,
