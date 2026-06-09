@@ -192,12 +192,14 @@ def _detect_features(
     min_solidity: float | None = None,
     max_aspect_ratio: float | None = None,
     # Image/file saving parameters
-    marker_size: int = 3,
-    line_thickness: int = 2,
     save_images: bool = False,
     save_tables: bool = False,
     save_dir: Path | None = None,
     name: str = "",
+    marker_size: int = 3,
+    line_thickness: int = 2,
+    font_scale: float = 1.0,
+    text_offset: int = 20,
 ) -> np.ndarray:
     """
     Identifies features in a thresholded image that fulfil the criteria specified.
@@ -301,9 +303,9 @@ def _detect_features(
             cv2.putText(
                 annotated,
                 text=f"{index}",
-                org=(int(x) + 40, int(y)),
+                org=(int(x) + text_offset, int(y)),
                 fontFace=cv2.FONT_HERSHEY_SIMPLEX,
-                fontScale=1.0,
+                fontScale=font_scale,
                 color=(255, 255, 255),
                 thickness=line_thickness,
                 lineType=cv2.LINE_AA,
@@ -662,6 +664,8 @@ def _draw_matches(
     save_dir: Path,
     marker_size: int = 3,
     line_thickness: int = 2,
+    font_scale: float = 1.0,
+    text_offset: int = 20,
 ):
     """
     Overlay the original reference and moving images on top of one another and add
@@ -704,9 +708,9 @@ def _draw_matches(
             cv2.putText(
                 annotated,
                 text=f"{i}",
-                org=(x + 20, y),
+                org=(x + text_offset, y),
                 fontFace=cv2.FONT_HERSHEY_SIMPLEX,
-                fontScale=1.0,
+                fontScale=font_scale,
                 color=color,
                 thickness=line_thickness,
                 lineType=cv2.LINE_AA,
@@ -852,6 +856,40 @@ def align_images_using_neighbors(
             "was specified. Intermediate results will not be saved."
         )
 
+    # Use the height and width to determine suitable values for figures
+    height, width = reference_array.shape[:2]
+
+    if (num_pixels := height * width) >= 4096**2:
+        line_thickness = 4
+        marker_size = 5
+        font_scale = 2.0
+        text_offset = 32
+    elif (num_pixels := height * width) >= 2048**2:
+        line_thickness = 3
+        marker_size = 4
+        font_scale = 1.5
+        text_offset = 24
+    elif num_pixels >= 1024**2:
+        line_thickness = 2
+        marker_size = 3
+        font_scale = 1.0
+        text_offset = 16
+    elif num_pixels >= 512**2:
+        line_thickness = 1
+        marker_size = 3
+        font_scale = 0.75
+        text_offset = 12
+    elif num_pixels >= 256**2:
+        line_thickness = 1
+        marker_size = 3
+        font_scale = 0.5
+        text_offset = 10
+    else:
+        line_thickness = 1
+        marker_size = 2
+        font_scale = 0.25
+        text_offset = 8
+
     # Preprocess images to get binaries
     ref_bin = _preprocess(
         reference_array,
@@ -895,6 +933,10 @@ def align_images_using_neighbors(
         save_images=save_images,
         save_dir=save_dir,
         name="ref",
+        marker_size=marker_size,
+        line_thickness=line_thickness,
+        font_scale=font_scale,
+        text_offset=text_offset,
     )
     mov_features = _detect_features(
         mov_bin,
@@ -906,6 +948,10 @@ def align_images_using_neighbors(
         save_images=save_images,
         save_dir=save_dir,
         name="mov",
+        marker_size=marker_size,
+        line_thickness=line_thickness,
+        font_scale=font_scale,
+        text_offset=text_offset,
     )
     if len(ref_features) == 0 or len(mov_features) == 0:
         logger.warning("Could not identify any features in the images")
@@ -933,6 +979,10 @@ def align_images_using_neighbors(
             ref_match,
             mov_match,
             save_dir=save_dir,
+            marker_size=marker_size,
+            line_thickness=line_thickness,
+            font_scale=font_scale,
+            text_offset=text_offset,
         )
 
     # Use the matched points to estimate the similarity transform
