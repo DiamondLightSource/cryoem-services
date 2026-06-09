@@ -869,7 +869,7 @@ def align_images_using_neighbors(
         logger.warning("Could not identify any features in the images")
         return {}
 
-    # Run the feature matching algorith
+    # Run the feature matching algorithm
     ref_match, mov_match = _match_features(
         ref_features,
         mov_features,
