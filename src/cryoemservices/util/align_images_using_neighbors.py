@@ -9,8 +9,8 @@ import numpy as np
 from cryoemservices.util.image_processing import (
     apply_sobel_edge_filter,
     create_hanning_window,
-    save_image,
     threshold_image,
+    write_image,
 )
 
 logger = logging.getLogger(__name__)
@@ -108,12 +108,20 @@ def _preprocess(
     if median_blur is not None:
         processed = cv2.medianBlur(processed, median_blur)
         if save_images and save_dir and name:
-            save_image(f"{name}_median.png", processed, save_dir)
+            write_image(
+                processed,
+                save_dir,
+                f"{name}_median.png",
+            )
     # Apply Gaussian blur
     if gaussian_blur is not None:
         processed = cv2.GaussianBlur(processed, ksize=(0, 0), sigmaX=gaussian_blur)
         if save_images and save_dir and name:
-            save_image(f"{name}_gaussian.png", processed, save_dir)
+            write_image(
+                processed,
+                save_dir,
+                f"{name}_gaussian.png",
+            )
     # Apply Hanning window
     if use_hanning:
         window = create_hanning_window(width=width, height=height).astype(np.float32)
@@ -127,24 +135,40 @@ def _preprocess(
         )
         processed = processed.astype(np.uint8)
         if save_images and save_dir and name:
-            save_image(f"{name}_hanning.png", processed, save_dir)
+            write_image(
+                processed,
+                save_dir,
+                f"{name}_hanning.png",
+            )
     # Apply Sobel filter
     if sobel_kernel is not None:
         processed = apply_sobel_edge_filter(processed, kernel_size=sobel_kernel)
         if save_images and save_dir and name:
-            save_image(f"{name}_sobel.png", processed, save_dir)
+            write_image(
+                processed,
+                save_dir,
+                f"{name}_sobel.png",
+            )
     # Threshold image
     binary = threshold_image(
         processed,
         percentile=threshold_percentile,
     )
     if save_images and save_dir and name:
-        save_image(f"{name}_threshold.png", binary, save_dir)
+        write_image(
+            binary,
+            save_dir,
+            f"{name}_threshold.png",
+        )
     # Filter out small features after thresholding
     if min_component_area is not None:
         binary = _filter_components(binary, min_component_area=min_component_area)
         if save_images and save_dir and name:
-            save_image(f"{name}_filtered.png", binary, save_dir)
+            write_image(
+                binary,
+                save_dir,
+                f"{name}_filtered.png",
+            )
     # Connect disjointed components in the binary image
     binary = _fill_holes(
         binary,
@@ -152,7 +176,11 @@ def _preprocess(
         morph_open_kernel=morph_open_kernel,
     )
     if save_images and save_dir and name:
-        save_image(f"{name}_filled.png", binary, save_dir)
+        write_image(
+            binary,
+            save_dir,
+            f"{name}_filled.png",
+        )
 
     return binary
 
@@ -292,7 +320,11 @@ def _detect_features(
 
     # Optionally save results
     if annotated is not None and name and save_dir:
-        save_image(f"{name}_features.png", annotated, save_dir)
+        write_image(
+            annotated,
+            save_dir,
+            f"{name}_features.png",
+        )
     if save_tables and save_dir and name:
         np.savetxt(
             save_dir / f"{name}_features.tsv",
@@ -674,7 +706,11 @@ def _draw_matches(
                 thickness=line_thickness,
                 lineType=cv2.LINE_AA,
             )
-    save_image("matched_holes.png", annotated, save_dir)
+    write_image(
+        annotated,
+        save_dir,
+        "matched_holes.png",
+    )
 
 
 def align_images_using_neighbors(
@@ -913,7 +949,11 @@ def align_images_using_neighbors(
             beta=0.5,
             gamma=0,
         )
-        save_image("overlay.png", overlay, save_dir)
+        write_image(
+            overlay,
+            save_dir,
+            "overlay.png",
+        )
 
     return {
         "aligned": aligned,

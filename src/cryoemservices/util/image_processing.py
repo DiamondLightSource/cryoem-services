@@ -529,9 +529,14 @@ def write_stack_to_tiff(
     return save_name
 
 
-def save_image(name: str, img: np.ndarray, save_dir: Path):
+def write_image(
+    img: np.ndarray,
+    save_dir: Path,
+    name: str,
+):
     """
-    Helper function to quickly save a 2D grayscale/RGB image.
+    Helper function to quickly save a 2D grayscale/RGB image in most common file
+    formats (e.g. PNG, JPG, TIFF).
     """
     save_dir.mkdir(parents=True, exist_ok=True)
     cv2.imwrite(save_dir / name, img)
