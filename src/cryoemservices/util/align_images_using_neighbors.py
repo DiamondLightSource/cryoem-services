@@ -551,10 +551,11 @@ def _match_features(
     """
     Constructs descriptors for each feature in the arrays provided, which are then
     used to compute a similarity score between the two features. Only the features
-    for which they are each other's best match. For instance, for Point A in the
-    reference image and Point B in the moving image, Point B must be the highest
-    scoring candidate for Point A, and Point A must be Point B's highest scoring
-    candidate.
+    for which they are each other's best match are retained.
+
+    For instance, for Point A in the reference image and Point B in the moving one,
+    Point B must be the highest scoring candidate for Point A, and Point A must be
+    Point B's highest scoring candidate for it to be considered.
     """
 
     ref_desc = _build_descriptor(
@@ -879,6 +880,7 @@ def align_images_using_neighbors(
         name="mov",
     )
 
+    # Identify features in binarised images
     ref_features = _detect_features(
         ref_bin,
         min_feature_area=min_feature_area,
