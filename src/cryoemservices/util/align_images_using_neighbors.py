@@ -930,16 +930,21 @@ def align_images_using_neighbors(
         )
 
     # Use the matched points to estimate the similarity transform
-    M, _ = cv2.estimateAffinePartial2D(
+    transform, _ = cv2.estimateAffinePartial2D(
         from_=np.ascontiguousarray(mov_match),
         to=np.ascontiguousarray(ref_match),
         method=cv2.RANSAC,
         ransacReprojThreshold=ransac_threshold,
     )
-    if M is None:
+    if transform is None:
         raise RuntimeError("Affine transform estimation failed")
     aligned = cv2.warpAffine(
-        moving_array, M=M, dsize=(moving_array.shape[1], moving_array.shape[0])
+        moving_array,
+        M=transform,
+        dsize=(
+            moving_array.shape[1],
+            moving_array.shape[0],
+        ),
     )
     if save_images and save_dir:
         overlay = cv2.addWeighted(
@@ -957,5 +962,5 @@ def align_images_using_neighbors(
 
     return {
         "aligned": aligned,
-        "transform": M,
+        "transform": transform,
     }
