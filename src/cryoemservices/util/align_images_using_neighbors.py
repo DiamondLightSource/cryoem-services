@@ -633,15 +633,19 @@ def _match_features(
             score_list.append(score)
     ref_matches = ref_features[ref_list][:, :2]
     mov_matches = mov_features[mov_list][:, :2]
-    logger.info(
-        (
-            "Found matches:\n"
-            + "".join(
-                f"{i} -> {j} ({score})\n"
-                for i, j, score in zip(ref_list, mov_list, score_list)
+    # Display logs as appropriate
+    if ref_list:
+        logger.info(
+            (
+                "Found matches:\n"
+                + "".join(
+                    f"{i} -> {j} ({score})\n"
+                    for i, j, score in zip(ref_list, mov_list, score_list)
+                )
             )
         )
-    )
+    else:
+        logger.warning("No matches found for current criteria")
     return ref_matches, mov_matches
 
 
