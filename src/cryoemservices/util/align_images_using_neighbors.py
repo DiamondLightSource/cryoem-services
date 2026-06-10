@@ -1,4 +1,5 @@
 import logging
+from dataclasses import dataclass
 from itertools import combinations
 from pathlib import Path
 from typing import cast
@@ -14,6 +15,61 @@ from cryoemservices.util.image_processing import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class AnnotationParameters:
+    line_thickness: int
+    marker_size: int
+    font_scale: float
+    text_offset: int
+
+
+def _determine_annotation_settings(img: np.ndarray):
+    """
+    Based on the number of pixels in the reference 2D image, decide on suitable
+    values to use when annotating drawings produced by this image alignment
+    function.
+    """
+
+    # Use the height and width to determine suitable values for figures
+    num_pixels = int(np.prod(img.shape[:2]))
+    if num_pixels > 4096**2:
+        line_thickness = 4
+        marker_size = 5
+        font_scale = 2.0
+        text_offset = 32
+    elif num_pixels > 2048**2:
+        line_thickness = 3
+        marker_size = 4
+        font_scale = 1.5
+        text_offset = 24
+    elif num_pixels > 1024**2:
+        line_thickness = 2
+        marker_size = 3
+        font_scale = 1.0
+        text_offset = 16
+    elif num_pixels > 512**2:
+        line_thickness = 1
+        marker_size = 3
+        font_scale = 0.75
+        text_offset = 12
+    elif num_pixels > 256**2:
+        line_thickness = 1
+        marker_size = 3
+        font_scale = 0.5
+        text_offset = 10
+    else:
+        line_thickness = 1
+        marker_size = 2
+        font_scale = 0.25
+        text_offset = 8
+    return AnnotationParameters(
+        line_thickness=line_thickness,
+        marker_size=marker_size,
+        font_scale=font_scale,
+        text_offset=text_offset,
+    )
 
 
 def _filter_components(
@@ -892,39 +948,8 @@ def align_images_using_neighbors(
             "was specified. Intermediate results will not be saved."
         )
 
-    # Use the height and width to determine suitable values for figures
-    height, width = reference_array.shape[:2]
-
-    if (num_pixels := height * width) > 4096**2:
-        line_thickness = 4
-        marker_size = 5
-        font_scale = 2.0
-        text_offset = 32
-    elif num_pixels > 2048**2:
-        line_thickness = 3
-        marker_size = 4
-        font_scale = 1.5
-        text_offset = 24
-    elif num_pixels > 1024**2:
-        line_thickness = 2
-        marker_size = 3
-        font_scale = 1.0
-        text_offset = 16
-    elif num_pixels > 512**2:
-        line_thickness = 1
-        marker_size = 3
-        font_scale = 0.75
-        text_offset = 12
-    elif num_pixels > 256**2:
-        line_thickness = 1
-        marker_size = 3
-        font_scale = 0.5
-        text_offset = 10
-    else:
-        line_thickness = 1
-        marker_size = 2
-        font_scale = 0.25
-        text_offset = 8
+    # Determine the parameters to use when annotating diagrams
+    annotation_params = _determine_annotation_settings(reference_array)
 
     # Preprocess images to get binaries
     ref_bin = _preprocess(
@@ -971,10 +996,10 @@ def align_images_using_neighbors(
         save_tables=save_tables,
         save_dir=save_dir,
         name="ref",
-        marker_size=marker_size,
-        line_thickness=line_thickness,
-        font_scale=font_scale,
-        text_offset=text_offset,
+        marker_size=annotation_params.marker_size,
+        line_thickness=annotation_params.line_thickness,
+        font_scale=annotation_params.font_scale,
+        text_offset=annotation_params.text_offset,
     )
     mov_features = _detect_features(
         mov_bin,
@@ -988,10 +1013,10 @@ def align_images_using_neighbors(
         save_tables=save_tables,
         save_dir=save_dir,
         name="mov",
-        marker_size=marker_size,
-        line_thickness=line_thickness,
-        font_scale=font_scale,
-        text_offset=text_offset,
+        marker_size=annotation_params.marker_size,
+        line_thickness=annotation_params.line_thickness,
+        font_scale=annotation_params.font_scale,
+        text_offset=annotation_params.text_offset,
     )
     if len(ref_features) == 0 or len(mov_features) == 0:
         logger.warning("Could not identify any features in the images")
@@ -1025,10 +1050,10 @@ def align_images_using_neighbors(
             ref_match,
             mov_match,
             save_dir=save_dir,
-            marker_size=marker_size,
-            line_thickness=line_thickness,
-            font_scale=font_scale,
-            text_offset=text_offset,
+            marker_size=annotation_params.marker_size,
+            line_thickness=annotation_params.line_thickness,
+            font_scale=annotation_params.font_scale,
+            text_offset=annotation_params.text_offset,
         )
 
     # Use the matched points to estimate the similarity transform
