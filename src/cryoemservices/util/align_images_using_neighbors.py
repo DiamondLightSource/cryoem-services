@@ -190,6 +190,7 @@ def _detect_features(
     min_feature_area: int | None = None,
     max_feature_area: int | None = None,
     min_solidity: float | None = None,
+    min_ellipse_fit: float | None = None,
     max_aspect_ratio: float | None = None,
     # Image/file saving parameters
     save_images: bool = False,
@@ -206,7 +207,6 @@ def _detect_features(
     Returns a list of descriptors for each feature, along with either None if
     'save_images' is False or an annotated version of the image if True.
     """
-    height, width = binary.shape[:2]
     contours, _ = cv2.findContours(
         binary,
         mode=cv2.RETR_LIST,
@@ -252,10 +252,15 @@ def _detect_features(
         # w = short axis
         # h = long axis
 
-        # Exclude fits where the center is outside the image
-        if x < 0 or x > width:
+        # Exclude bad elliptical fits
+        # Much larger than actual area
+        ellipse_area = np.pi * (w / 2) * (h / 2)
+        if min_ellipse_fit is not None and hull_area / ellipse_area < min_ellipse_fit:
             continue
-        if y < 0 or y > height:
+
+        # Too circular
+        aspect = min(w, h) / max(w, h)
+        if max_aspect_ratio is not None and aspect > max_aspect_ratio:
             continue
 
         # Adjust the returned angle so that:
@@ -264,12 +269,6 @@ def _detect_features(
         # anticlockwise = negative
         if angle > 90:
             angle -= 180
-
-        # Check the aspect ratio
-        aspect = min(w, h) / max(w, h)
-        # Reject fits that are too circular
-        if max_aspect_ratio is not None and aspect > max_aspect_ratio:
-            continue
 
         # Append results
         features_list.append((x, y, w, h, angle, area, hull_area))
@@ -738,6 +737,7 @@ def align_images_using_neighbors(
     min_feature_area: int | None = 400,
     max_feature_area: int | None = 5000,
     min_solidity: float | None = 0.6,
+    min_ellipse_fit: float | None = 0.7,
     max_aspect_ratio: float | None = 0.9,
     # Similarity calculation and registration
     max_neighbor_distance: float | None = 400,
@@ -928,6 +928,7 @@ def align_images_using_neighbors(
         min_feature_area=min_feature_area,
         max_feature_area=max_feature_area,
         min_solidity=min_solidity,
+        min_ellipse_fit=min_ellipse_fit,
         max_aspect_ratio=max_aspect_ratio,
         # Image saving
         save_images=save_images,
@@ -943,6 +944,7 @@ def align_images_using_neighbors(
         min_feature_area=min_feature_area,
         max_feature_area=max_feature_area,
         min_solidity=min_solidity,
+        min_ellipse_fit=min_ellipse_fit,
         max_aspect_ratio=max_aspect_ratio,
         # Image saving
         save_images=save_images,
