@@ -247,7 +247,7 @@ def _detect_features(
             continue
 
         # Elliptical fit for the feature
-        ellipse = cv2.fitEllipse(contour)
+        ellipse = cv2.fitEllipse(hull)
         (x, y), (w, h), angle = ellipse
         # w = short axis
         # h = long axis
