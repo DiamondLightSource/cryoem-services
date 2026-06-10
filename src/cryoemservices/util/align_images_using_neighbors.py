@@ -205,7 +205,12 @@ def _detect_features(
     """
     Identifies features in a thresholded image that fulfil the criteria specified.
     Returns a list of descriptors for each feature, along with either None if
-    'save_images' is False or an annotated version of the image if True.
+    'save_images' is False or an annotated version of the image if True. The
+    returned features array will contain the following columns:
+    - x- and y- coordinates of the feature's centroid
+    - The areas of the feature contour and it convex hull
+    - The minor and major axes of the fitted ellipse
+    - The angulr orientation of the fitted ellipse
     """
     contours, _ = cv2.findContours(
         binary,
@@ -381,9 +386,12 @@ def _build_descriptor(
     """
     Build geometric descriptors describing the arrangement of neighbouring
     features around each parent feature.
-    - Use pairwise distance matrices instead of repeated norm calculations
-    - Use combinations() to quickly iterate unique neighbor combinations
-    - Precomputes logarithms before comparing similarities
+
+    Descriptors captured for a given feature O include:
+    - The ratio of the distances between two neighbours N (near) and F (far)
+    - The signed angle formed by the vector NOF
+    - The natural logs of the contour and convex hull areas of N and F
+    - The natural logs of the minor and major axes of the ellipses fitted to N and F
     """
     # Safe early exit if no features were provided
     if len(features) == 0:
@@ -437,7 +445,7 @@ def _build_descriptor(
                 feat_near = features[n][2:6]
                 feat_far = features[f][2:6]
 
-                # Precompute their logs and extra feature names
+                # Precompute logs of the features
                 (
                     area_n,
                     hull_n,
@@ -767,8 +775,8 @@ def align_images_using_neighbors(
     min_score: float | None = 0.2,
     ransac_threshold: float = 10,
     # Debug options
-    save_tables: bool = False,
     save_images: bool = False,
+    save_tables: bool = False,
     save_dir: Path | None = None,
 ):
     """
@@ -828,6 +836,11 @@ def align_images_using_neighbors(
         smallest convex hull it is bound by. This is used to reject features
         that are highly irregular in shape.
         The default is 0.6.
+    min_ellipse_fit: float | None
+        The min ratio of the fitted ellipse's area to the convex hull area of the
+        feature. A ratio of 1.0 means that their areas are identical, while 0.0
+        means that the ellipse area is inifinitely larger than that of the hull's.
+        The default value is 0.4.
     max_aspect_ratio: float | None
         The maximum aspect ratio of the ellipse fitted around a feature, beyond
         which the feature will not be used to compute the transformation matrix
@@ -849,11 +862,11 @@ def align_images_using_neighbors(
         images are allowed to differ from one another before the computed
         transform is considered bad.
         The default is 5.
-    save_tables: bool
-        Toggle whether to save intermediate tables.
-        The default is False.
     save_images: bool
         Toggle whether to save intermediate images.
+        The default is False.
+    save_tables: bool
+        Toggle whether to save intermediate tables.
         The default is False.
     save_dir: Path | None
         If either 'save_tables' or 'save_images' is set tot True, this determines
