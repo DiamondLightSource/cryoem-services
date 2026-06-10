@@ -882,27 +882,27 @@ def align_images_using_neighbors(
     # Use the height and width to determine suitable values for figures
     height, width = reference_array.shape[:2]
 
-    if (num_pixels := height * width) >= 4096**2:
+    if (num_pixels := height * width) > 4096**2:
         line_thickness = 4
         marker_size = 5
         font_scale = 2.0
         text_offset = 32
-    elif (num_pixels := height * width) >= 2048**2:
+    elif num_pixels > 2048**2:
         line_thickness = 3
         marker_size = 4
         font_scale = 1.5
         text_offset = 24
-    elif num_pixels >= 1024**2:
+    elif num_pixels > 1024**2:
         line_thickness = 2
         marker_size = 3
         font_scale = 1.0
         text_offset = 16
-    elif num_pixels >= 512**2:
+    elif num_pixels > 512**2:
         line_thickness = 1
         marker_size = 3
         font_scale = 0.75
         text_offset = 12
-    elif num_pixels >= 256**2:
+    elif num_pixels > 256**2:
         line_thickness = 1
         marker_size = 3
         font_scale = 0.5
