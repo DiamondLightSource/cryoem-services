@@ -868,20 +868,21 @@ def test_align_images_using_neighbors(
         ref,
         mov,
         median_blur=3,
-        gaussian_blur=1.5,
+        gaussian_blur=0.5,
         sobel_kernel=3,
         use_hanning=True,
-        threshold_percentile=98,
         min_component_area=20,
-        morph_close_kernel=19,
-        morph_open_kernel=3,
-        min_feature_area=50,
-        max_feature_area=5000,
-        min_solidity=0.5,
+        threshold_percentile=98,
+        morph_close_kernel=16,
+        morph_open_kernel=2,
+        min_feature_area=20,
+        max_feature_area=2500,
+        min_solidity=0.6,
+        min_ellipse_fit=0.4,
         max_aspect_ratio=0.9,
-        max_neighbor_distance=500,
-        min_score=0.2,
-        ransac_threshold=10,
+        max_neighbor_distance=200,
+        min_score=0.4,
+        ransac_threshold=5,
         save_tables=True,
         save_images=True,
         save_dir=tmp_path,
@@ -895,6 +896,25 @@ def test_align_images_using_neighbors(
     expected = ref[h0:h1, w0:w1]
     returned = aln[h0:h1, w0:w1]
 
-    # # Check that the number of pixels that image alignment mismatch is within bounds
+    # Check that the number of pixels that image alignment mismatch is within bounds
     mismatch = abs(expected.astype(np.float32) - returned.astype(np.float32)) > 5
     assert np.sum(mismatch) / np.prod(mismatch.shape) < 0.005  # 0.5% pixel deviation
+
+    # Assert that the expected intermediate files were produced
+    for name in ("ref", "mov"):
+        for stub in (
+            "desc.tsv",
+            "features.png",
+            "features.tsv",
+            "filled.png",
+            "filtered.png",
+            "gaussian.png",
+            "hanning.png",
+            "median.png",
+            "sobel.png",
+            "threshold.png",
+        ):
+            assert (tmp_path / f"{name}_{stub}").exists()
+    assert (tmp_path / "matched_holes.png").exists()
+    assert (tmp_path / "overlay.png").exists()
+    assert (tmp_path / "scores.tsv").exists()
