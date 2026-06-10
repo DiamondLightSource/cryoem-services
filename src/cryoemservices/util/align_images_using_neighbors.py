@@ -955,7 +955,10 @@ def align_images_using_neighbors(
     )
     if len(ref_features) == 0 or len(mov_features) == 0:
         logger.warning("Could not identify any features in the images")
-        return {}
+        return {
+            "aligned": moving_array,
+            "transform": None,
+        }
 
     # Run the feature matching algorithm
     ref_match, mov_match = _match_features(
@@ -969,7 +972,10 @@ def align_images_using_neighbors(
     )
     if len(ref_match) == 0 or len(mov_match) == 0:
         logger.warning("Could not identify matching features between the images")
-        return {}
+        return {
+            "aligned": moving_array,
+            "transform": None,
+        }
     if save_images and save_dir:
         _draw_matches(
             reference_array,
@@ -993,7 +999,11 @@ def align_images_using_neighbors(
         ransacReprojThreshold=ransac_threshold,
     )
     if transform is None:
-        raise RuntimeError("Affine transform estimation failed")
+        logger.warning("Affine transform estimation failed")
+        return {
+            "aligned": moving_array,
+            "transform": transform,
+        }
     aligned = cv2.warpAffine(
         moving_array,
         M=transform,
