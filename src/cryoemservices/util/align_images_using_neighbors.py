@@ -248,7 +248,7 @@ def _detect_features(
 
         # Elliptical fit for the feature
         ellipse = cv2.fitEllipse(hull)
-        (x, y), (w, h), angle = ellipse
+        (ex, ey), (w, h), angle = ellipse
         # w = short axis
         # h = long axis
 
@@ -270,8 +270,13 @@ def _detect_features(
         if angle > 90:
             angle -= 180
 
+        # Find the centroids of the features using the convex hull
+        hull_moments = cv2.moments(hull)
+        cx = hull_moments["m10"] / hull_moments["m00"]
+        cy = hull_moments["m01"] / hull_moments["m00"]
+
         # Append results
-        features_list.append((x, y, w, h, angle, area, hull_area))
+        features_list.append((cx, cy, w, h, angle, area, hull_area))
 
         # Annotate image
         if annotated is not None:
@@ -293,7 +298,7 @@ def _detect_features(
             # Add a marker
             cv2.circle(
                 annotated,
-                center=(int(x), int(y)),
+                center=(int(cx), int(cy)),
                 radius=marker_size,
                 color=(0, 255, 0),
                 thickness=line_thickness,
@@ -302,7 +307,7 @@ def _detect_features(
             cv2.putText(
                 annotated,
                 text=f"{index}",
-                org=(int(x) + text_offset, int(y)),
+                org=(int(cx) + text_offset, int(cy)),
                 fontFace=cv2.FONT_HERSHEY_SIMPLEX,
                 fontScale=font_scale,
                 color=(255, 255, 255),
