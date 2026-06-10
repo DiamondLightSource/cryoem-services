@@ -1,12 +1,45 @@
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
 
 from cryoemservices.util.align_images_using_neighbors import (
+    AnnotationParameters,
+    _determine_annotation_parameters,
     align_images_using_neighbors,
 )
 from tests.test_utils.image_processing import create_grayscale_image_with_holes
+
+
+@pytest.mark.parametrize(
+    "test_params",
+    (  # Input shape | Expected annotation params
+        ((5000, 5000), (4, 5, 2.0, 32)),
+        ((4000, 4000), (3, 4, 1.5, 24)),
+        ((2000, 2000), (2, 3, 1.0, 16)),
+        ((1000, 1000), (1, 3, 0.8, 12)),
+        ((500, 500), (1, 3, 0.6, 10)),
+        ((200, 200), (1, 2, 0.4, 8)),
+    ),
+)
+def test_determine_annotation_parameters(
+    test_params: tuple[tuple[int, int], tuple[int, int, float, int]],
+):
+    # Unpack test params
+    shape, (line_thickness, marker_size, font_scale, text_offset) = test_params
+
+    # Create a mock array with a 'shape' attribute
+    mock_img = MagicMock()
+    mock_img.shape = shape
+
+    # Verify that the expected parameters were selected
+    assert _determine_annotation_parameters(mock_img) == AnnotationParameters(
+        line_thickness=line_thickness,
+        marker_size=marker_size,
+        font_scale=font_scale,
+        text_offset=text_offset,
+    )
 
 
 @pytest.mark.parametrize(
