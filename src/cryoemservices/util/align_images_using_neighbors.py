@@ -282,6 +282,7 @@ def _detect_features(
     )
 
     # Keep only features that match criteria, and extract descriptors
+    features = np.empty((0, 7), dtype=np.float32)  # Empty placeholder
     features_list = []
     index = 0
     for contour in contours:
@@ -389,11 +390,9 @@ def _detect_features(
         # Increment the index for next loop once successful
         index += 1
 
-    # Convert to array or return empty array
+    # Update empty placeholder with features
     if features_list:
         features = np.array(features_list, dtype=np.float32)
-    else:
-        features = np.empty((0, 7), dtype=np.float32)
 
     # Optionally save results
     if annotated is not None and name and save_dir:
