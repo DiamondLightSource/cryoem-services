@@ -52,17 +52,17 @@ def _determine_annotation_settings(img: np.ndarray):
     elif num_pixels > 512**2:
         line_thickness = 1
         marker_size = 3
-        font_scale = 0.75
+        font_scale = 0.8
         text_offset = 12
     elif num_pixels > 256**2:
         line_thickness = 1
         marker_size = 3
-        font_scale = 0.5
+        font_scale = 0.6
         text_offset = 10
     else:
         line_thickness = 1
         marker_size = 2
-        font_scale = 0.25
+        font_scale = 0.4
         text_offset = 8
     return AnnotationParameters(
         line_thickness=line_thickness,
