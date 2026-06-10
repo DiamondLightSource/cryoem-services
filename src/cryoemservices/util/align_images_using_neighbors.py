@@ -754,19 +754,17 @@ def _draw_matches(
     annotations showing how the features from the reference image map onto those in
     the moving image.
     """
-
-    annotated = cv2.addWeighted(
-        src1=ref,
-        alpha=0.5,
-        src2=mov,
-        beta=0.5,
-        gamma=0,
-    )
+    # Place reference and moving image side-by-side
+    (height_ref, width_ref), (height_mov, width_mov) = ref.shape[:2], mov.shape[:2]
+    shape = (max(height_ref, height_mov), (width_ref + width_mov))
+    annotated = np.zeros(shape, dtype=np.uint8)
+    annotated[:height_ref, :width_ref] = ref
+    annotated[:height_mov, width_ref:] = mov
     annotated = cv2.cvtColor(annotated, code=cv2.COLOR_GRAY2BGR)
 
     # Mark the points
     for (x0, y0), (x1, y1) in zip(ref_match, mov_match):
-        x0, y0, x1, y1 = map(int, (x0, y0, x1, y1))
+        x0, y0, x1, y1 = map(int, (x0, y0, x1 + width_ref, y1))
         cv2.line(
             annotated,
             pt1=(x0, y0),
@@ -774,12 +772,12 @@ def _draw_matches(
             color=(0, 255, 255),
             thickness=line_thickness,
         )
-    for features, color in (
-        (ref_features, (0, 255, 0)),
-        (mov_features, (0, 0, 255)),
+    for features, color, x_offset in (
+        (ref_features, (0, 255, 0), 0),
+        (mov_features, (0, 0, 255), width_ref),
     ):
         for i, (x, y) in enumerate(features[:, :2]):
-            x, y = int(x), int(y)
+            x, y = int(x + x_offset), int(y)
             cv2.circle(
                 annotated,
                 center=(x, y),
