@@ -25,7 +25,7 @@ class AnnotationParameters:
     text_offset: int
 
 
-def _determine_annotation_settings(img: np.ndarray):
+def _determine_annotation_parameters(img: np.ndarray):
     """
     Based on the number of pixels in the reference 2D image, decide on suitable
     values to use when annotating drawings produced by this image alignment
@@ -949,7 +949,7 @@ def align_images_using_neighbors(
         )
 
     # Determine the parameters to use when annotating diagrams
-    annotation_params = _determine_annotation_settings(reference_array)
+    annotation_params = _determine_annotation_parameters(reference_array)
 
     # Preprocess images to get binaries
     ref_bin = _preprocess(
