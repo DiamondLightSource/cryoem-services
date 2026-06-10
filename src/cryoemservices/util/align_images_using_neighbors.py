@@ -742,7 +742,7 @@ def align_images_using_neighbors(
     min_feature_area: int | None = 400,
     max_feature_area: int | None = 5000,
     min_solidity: float | None = 0.6,
-    min_ellipse_fit: float | None = 0.7,
+    min_ellipse_fit: float | None = 0.4,
     max_aspect_ratio: float | None = 0.9,
     # Similarity calculation and registration
     max_neighbor_distance: float | None = 400,
