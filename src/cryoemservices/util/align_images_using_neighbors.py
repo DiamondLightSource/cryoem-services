@@ -276,7 +276,17 @@ def _detect_features(
         cy = hull_moments["m01"] / hull_moments["m00"]
 
         # Append results
-        features_list.append((cx, cy, w, h, angle, area, hull_area))
+        features_list.append(
+            (
+                cx,
+                cy,
+                area,
+                hull_area,
+                w,
+                h,
+                angle,
+            )
+        )
 
         # Annotate image
         if annotated is not None:
@@ -349,11 +359,11 @@ def _detect_features(
                 f"{'':<3} "
                 f"{'x':<10} "
                 f"{'y':<10} "
+                f"{'cont_area':<10} "
+                f"{'hull_area':<10} "
                 f"{'w':<10} "
                 f"{'h':<10} "
                 f"{'angle':<10} "
-                f"{'cont_area':<10} "
-                f"{'hull_area':<10} "
             ),
         )
     return features
@@ -423,15 +433,23 @@ def _build_descriptor(
                 dot = NO @ OF
                 angle = np.arctan2(cross, dot)
 
-                # Extract ellipse and contour descriptors
-                feat_near = features[n][[2, 3, 5, 6]]
-                feat_far = features[f][[2, 3, 5, 6]]
+                # Extract contour and ellipse descriptors
+                feat_near = features[n][2:6]
+                feat_far = features[f][2:6]
 
                 # Precompute their logs and extra feature names
-                wn, hn, area_n, hull_n = np.log(
-                    np.where(feat_near <= 0, eps, feat_near)
-                )
-                wf, hf, area_f, hull_f = np.log(np.where(feat_far <= 0, eps, feat_far))
+                (
+                    area_n,
+                    hull_n,
+                    wn,
+                    hn,
+                ) = np.log(np.where(feat_near <= 0, eps, feat_near))
+                (
+                    area_f,
+                    hull_f,
+                    wf,
+                    hf,
+                ) = np.log(np.where(feat_far <= 0, eps, feat_far))
 
                 # Append
                 desc_list.append(
@@ -441,14 +459,14 @@ def _build_descriptor(
                         f,
                         d_near / (d_far + eps),
                         angle,
-                        wn,
-                        hn,
                         area_n,
                         hull_n,
-                        wf,
-                        hf,
+                        wn,
+                        hn,
                         area_f,
                         hull_f,
+                        wf,
+                        hf,
                     ]
                 )
         if len(desc_list) == 0:
@@ -485,14 +503,14 @@ def _build_descriptor(
                 f"{'f':<3} "
                 f"{'d_ratio':<10} "
                 f"{'angle':<10} "
-                f"{'w_near':<10} "
-                f"{'h_near':<10} "
                 f"{'area_near':<10} "
                 f"{'hull_near':<10} "
-                f"{'w_far':<10} "
-                f"{'h_far':<10} "
+                f"{'w_near':<10} "
+                f"{'h_near':<10} "
                 f"{'area_far':<10} "
                 f"{'hull_far':<10} "
+                f"{'w_far':<10} "
+                f"{'h_far':<10} "
             ),
         )
     return descriptors
@@ -530,14 +548,14 @@ def _calculate_similarity(
     )
 
     # Compare ellipse dimensions
-    d_elps_near = np.linalg.norm(mov[..., 2:4] - ref[..., 2:4], axis=-1)
-    d_elps_far = np.linalg.norm(mov[..., 6:8] - ref[..., 6:8], axis=-1)
-    d_elps = 0.5 * (d_elps_near + d_elps_far)
+    d_area_near = np.linalg.norm(mov[..., 2:4] - ref[..., 2:4], axis=-1)
+    d_area_far = np.linalg.norm(mov[..., 6:8] - ref[..., 6:8], axis=-1)
+    d_area = 0.5 * (d_area_near + d_area_far)
 
     # Compare combined contour area-hull area differences
-    d_area_near = np.linalg.norm(mov[..., 4:6] - ref[..., 4:6], axis=-1)
-    d_area_far = np.linalg.norm(mov[..., 8:10] - ref[..., 8:10], axis=-1)
-    d_area = 0.5 * (d_area_near + d_area_far)
+    d_elps_near = np.linalg.norm(mov[..., 4:6] - ref[..., 4:6], axis=-1)
+    d_elps_far = np.linalg.norm(mov[..., 8:10] - ref[..., 8:10], axis=-1)
+    d_elps = 0.5 * (d_elps_near + d_elps_far)
 
     # Calculate the combined feature-space distance
     # Smaller distances indicate larger similarity scores
@@ -937,6 +955,7 @@ def align_images_using_neighbors(
         max_aspect_ratio=max_aspect_ratio,
         # Image saving
         save_images=save_images,
+        save_tables=save_tables,
         save_dir=save_dir,
         name="ref",
         marker_size=marker_size,
@@ -953,6 +972,7 @@ def align_images_using_neighbors(
         max_aspect_ratio=max_aspect_ratio,
         # Image saving
         save_images=save_images,
+        save_tables=save_tables,
         save_dir=save_dir,
         name="mov",
         marker_size=marker_size,
