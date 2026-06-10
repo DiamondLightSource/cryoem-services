@@ -52,7 +52,7 @@ class EMISPyB(CommonService):
             self.log.info("Received a simple message")
             if not isinstance(message, dict):
                 self.log.error("Rejected invalid simple message")
-                self._transport.nack(header)
+                self._reject_message(header, requeue=False)
                 return
 
             if message.get("parameters"):
@@ -101,12 +101,12 @@ class EMISPyB(CommonService):
         command = parameters("ispyb_command")
         if not command:
             self.log.error("Received message is not a valid ISPyB command")
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport)
             return
         command_function = self.get_command(command)
         if not command_function:
             self.log.error("Received unknown ISPyB command (%s)", command)
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport)
             return
 
         # Set an expiry time for this message, for delays on database synchronisation
@@ -127,7 +127,7 @@ class EMISPyB(CommonService):
                 "quarantining message and shutting down instance.",
                 exc_info=True,
             )
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport)
             return
 
         # Store results if they are requested in the parameters or in the command
@@ -154,7 +154,7 @@ class EMISPyB(CommonService):
             rw.transport.ack(header)
         elif message["expiry_time"] > time.time():
             self.log.warning(f"Failed call {command} due to timeout")
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport)
         else:
             self.log.error(f"ISPyB request for {command} failed")
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport)

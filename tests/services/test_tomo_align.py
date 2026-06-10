@@ -9,7 +9,6 @@ from unittest import mock
 import mrcfile
 import numpy as np
 import pytest
-from txrm2tiff.xradia_properties.enums import XrmDataTypes
 from workflows.transport.offline_transport import OfflineTransport
 
 from cryoemservices.services import tomo_align
@@ -2084,17 +2083,13 @@ def test_tomo_align_service_fail_case(
 @mock.patch("cryoemservices.services.tomo_align.subprocess.run")
 @mock.patch("cryoemservices.services.tomo_align.mrcfile")
 @mock.patch("cryoemservices.services.tomo_align.convert_and_save")
-@mock.patch("cryoemservices.services.tomo_align.open_txrm")
-@mock.patch("cryoemservices.services.tomo_align.Inspector")
-@mock.patch("cryoemservices.services.tomo_align.read_stream")
+@mock.patch("cryoemservices.services.tomo_align.OleFileIO")
 @mock.patch("cryoemservices.services.tomo_align.resize_tomogram")
 @mock.patch("cryoemservices.services.tomo_align.rotate_tomogram")
 def test_tomo_align_service_txrm(
     mock_rotate,
     mock_resize,
-    mock_read_stream,
-    mock_inspector,
-    mock_open_txrm,
+    mock_ole_file,
     mock_convert_and_save,
     mock_mrcfile,
     mock_subprocess,
@@ -2105,7 +2100,10 @@ def test_tomo_align_service_txrm(
     Send a test message to TomoAlign (AreTomo3) for a txrm file
     """
     mock_mrcfile.open().__enter__().header = MrcFileHeader(nx=4000, ny=3000, nz=600)
-    mock_read_stream.return_value = [0.1, 0.3, 0.5]
+    mock_ole_file().__enter__().exists.return_value = True
+    mock_ole_file().__enter__().openstream().getvalue.return_value = np.array(
+        [0.01, 0.3, 0.5], dtype=np.float32
+    ).tobytes()
 
     header = {
         "message-id": mock.sentinel,
@@ -2199,26 +2197,15 @@ def test_tomo_align_service_txrm(
     ]
 
     # Check txrm file reading
-    mock_open_txrm.assert_called_once_with(
-        tomo_align_test_message["txrm_file"],
-        load_images=False,
-        load_reference=False,
-        strict=False,
-    )
-    mock_open_txrm().__enter__.assert_called_once()
-    mock_inspector.assert_called_once()
-    mock_read_stream.assert_any_call(
-        mock.ANY,
+    mock_ole_file.assert_any_call(tomo_align_test_message["txrm_file"])
+    assert mock_ole_file().__enter__().exists.call_count == 2
+    assert mock_ole_file().__enter__().openstream.call_count == 3  # 2 + 1 above
+    for field_name in [
         "ImageInfo/Angles",
-        XrmDataTypes.XRM_FLOAT,
-        strict=True,
-    )
-    mock_read_stream.assert_any_call(
-        mock.ANY,
         "ImageInfo/PixelSize",
-        XrmDataTypes.XRM_FLOAT,
-        strict=True,
-    )
+    ]:
+        mock_ole_file().__enter__().exists.assert_any_call(field_name)
+        mock_ole_file().__enter__().openstream.assert_any_call(field_name)
     mock_convert_and_save.assert_called_once_with(
         tomo_align_test_message["txrm_file"],
         f"{tmp_path}/Tomograms/stack.tiff",
@@ -2247,7 +2234,7 @@ def test_tomo_align_service_txrm(
     assert (tmp_path / "Tomograms/stack_TLT.txt").is_file()
     with open(tmp_path / "Tomograms/stack_TLT.txt", "r") as angfile:
         angles_data = angfile.read()
-    assert angles_data == "0.10  0\n0.30  1\n0.50  2\n"
+    assert angles_data == "0.01  0\n0.30  1\n0.50  2\n"
 
     # Check the shift plot
     with open(tmp_path / "Tomograms/stack_xy_shift_plot.json") as shift_plot:
@@ -2277,7 +2264,7 @@ def test_tomo_align_service_txrm(
                     "tomogram_movie": "stack_Vol_movie.png",
                     "xy_shift_plot": "stack_xy_shift_plot.json",
                     "proj_xy": "stack_Vol_projXY.jpeg",
-                    "proj_xz": "stack_Vol_projXZ.jpeg",
+                    "proj_xz": "stack_Vol_projYZ.jpeg",
                     "alignment_quality": "0.5",
                 },
                 {

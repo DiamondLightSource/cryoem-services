@@ -57,6 +57,7 @@ class Class2DParameters(BaseModel):
     allow_coarser: bool = False
     do_norm: bool = True
     do_scale: bool = True
+    seed: int | None = None
     mpi_run_command: str = "mpirun -n 5"
     threads: int = 8
     gpus: str = "0"
@@ -208,6 +209,7 @@ def run_class2d(class2d_params: Class2DParameters, send_to_rabbitmq: Callable):
         "do_scale": "--scale",
         "threads": "--j",
         "gpus": "--gpu",
+        "seed": "--random_seed",
     }
 
     # Create the classification command

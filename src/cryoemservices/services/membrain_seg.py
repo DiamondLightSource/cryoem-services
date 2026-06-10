@@ -67,7 +67,7 @@ class MembrainSeg(CommonService):
             self.log.info("Received a simple message")
             if not isinstance(message, dict):
                 self.log.error("Rejected invalid simple message")
-                self._transport.nack(header)
+                self._reject_message(header, requeue=False)
                 return
 
             # Create a wrapper-like object that can be passed to functions
@@ -90,7 +90,7 @@ class MembrainSeg(CommonService):
                 f"and recipe parameters: {rw.recipe_step.get('parameters', {})} "
                 f"with exception: {e}"
             )
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport, requeue=False)
             return
 
         # Assemble the membrain-seg command
@@ -213,7 +213,7 @@ class MembrainSeg(CommonService):
             self.log.error(
                 f"membrain-seg failed to run: {result.stderr.decode('utf8', 'replace')}"
             )
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport)
             return
 
         # Rename the output file

@@ -51,7 +51,7 @@ class Images(CommonService):
             self.log.info("Received a simple message")
             if not isinstance(message, dict):
                 self.log.error("Rejected invalid simple message")
-                self._transport.nack(header)
+                self._reject_message(header, requeue=False)
                 return
 
             # Create a wrapper-like object that can be passed to functions
@@ -67,14 +67,14 @@ class Images(CommonService):
         command = parameters("image_command")
         if command not in self.image_functions:
             self.log.error(f"Unknown command: {command!r}")
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport)
             return
 
         try:
             result = self.image_functions[command](parameters)
         except (PermissionError, FileNotFoundError) as e:
             self.log.error(f"Command {command!r} raised {e}", exc_info=True)
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport)
             return
 
         if result:
@@ -82,4 +82,4 @@ class Images(CommonService):
             rw.transport.ack(header)
         else:
             self.log.error(f"Command {command!r} returned {result!r}")
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport)

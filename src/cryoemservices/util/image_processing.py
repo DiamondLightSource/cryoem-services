@@ -529,6 +529,19 @@ def write_stack_to_tiff(
     return save_name
 
 
+def write_image(
+    img: np.ndarray,
+    save_dir: Path,
+    name: str,
+):
+    """
+    Helper function to quickly save a 2D grayscale/RGB image in most common file
+    formats (e.g. PNG, JPG, TIFF).
+    """
+    save_dir.mkdir(parents=True, exist_ok=True)
+    cv2.imwrite(save_dir / name, img)
+
+
 def is_image_stack(
     array: np.ndarray,
 ) -> bool:
@@ -1203,6 +1216,26 @@ def apply_sobel_edge_filter(
     mag = cv2.magnitude(gx, gy)
     mag = cv2.normalize(mag, None, 0, 255, cv2.NORM_MINMAX)
     return mag.astype(np.uint8)
+
+
+def threshold_image(
+    array: np.ndarray,
+    percentile: float | None = None,
+) -> np.ndarray:
+    """
+    Helper function to threshold an input image and return it as a binary 8-bit one
+    If a percentile is provided, uses the percentile to determine the threshold value.
+    Otherwise, it will default to using the Otsu method to automatically select a
+    suitable threshold.
+    """
+    # Use the percentile if provided
+    _, binary = cv2.threshold(
+        array,
+        thresh=(np.percentile(array, percentile) if percentile is not None else 0),
+        maxval=255,
+        type=cv2.THRESH_BINARY + (0 if percentile is not None else cv2.THRESH_OTSU),
+    )
+    return cast(np.ndarray, binary).astype(np.uint8)
 
 
 def align_images_using_orb(

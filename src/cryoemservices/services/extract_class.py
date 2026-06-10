@@ -64,7 +64,7 @@ class ExtractClass(CommonService):
             self.log.info("Received a simple message")
             if not isinstance(message, dict):
                 self.log.error("Rejected invalid simple message")
-                self._transport.nack(header)
+                self._reject_message(header, requeue=False)
                 return
 
             # Create a wrapper-like object that can be passed to functions
@@ -87,7 +87,7 @@ class ExtractClass(CommonService):
                 f"and recipe parameters: {rw.recipe_step.get('parameters', {})} "
                 f"with exception: {e}"
             )
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport, requeue=False)
             return
 
         self.log.info(
@@ -106,7 +106,7 @@ class ExtractClass(CommonService):
             job_num_refine = int(job_num_search[0][4:7])
         else:
             self.log.warning(f"Invalid job number in {extract_params.refine_job_dir}")
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport, requeue=False)
             return
         original_dir = Path(extract_params.class3d_dir).parent.parent
         ctf_micrographs_file = "CtfFind/Live_ctffind/micrographs_ctf.star"
@@ -127,7 +127,7 @@ class ExtractClass(CommonService):
                     break
         if not downscaled_pixel_size:
             self.log.warning("No class3d pixel size found")
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport)
             return
 
         with open(
@@ -141,7 +141,7 @@ class ExtractClass(CommonService):
                     break
         if not mask_diameter:
             self.log.warning("No mask diameter found")
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport)
             return
 
         # Boxsize conversion as in particle extraction, enlarged by 25%
@@ -296,7 +296,7 @@ class ExtractClass(CommonService):
             self.log.warning(
                 f"Reextraction failed: {result.stderr.decode('utf8', 'replace')}"
             )
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport)
             return
 
         # Create a reference for the refinement

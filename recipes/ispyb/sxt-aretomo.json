@@ -23,9 +23,9 @@
     },
     "parameters": {
       "dark_tol": 0,
-      "manual_tilt_offset": 0,
+      "manual_tilt_offset": "{manual_tilt_offset}",
       "out_bin": 1,
-      "pixel_size": 100,
+      "pixel_size": "{pixel_size}",
       "relion_options": {},
       "stack_file": "{stack_file}",
       "tilt_axis": 0,

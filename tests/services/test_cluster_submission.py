@@ -322,6 +322,7 @@ def test_cluster_submission_failed_submission(
             },
         }
     }
+    mock_rw.transport = offline_transport
 
     # Set up the mock service
     service = cluster_submission.ClusterSubmission(
@@ -382,6 +383,7 @@ def test_cluster_submission_directory_failures(mock_rw, offline_transport, tmp_p
             },
         }
     }
+    mock_rw.transport = offline_transport
     service.run_submit_job(mock_rw, header=header, message={})
 
     # Cases of invalid working dirs

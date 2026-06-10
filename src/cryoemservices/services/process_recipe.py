@@ -80,7 +80,7 @@ class ProcessRecipe(CommonService):
         parameters = message.get("parameters", {})
         if not isinstance(parameters, dict):
             self.log.error("Rejected parameters not given as dictionary")
-            self._transport.nack(header)
+            self._reject_message(header, requeue=False)
             return
 
         # Unless 'guid' is already defined then generate a unique recipe ID
@@ -100,7 +100,7 @@ class ProcessRecipe(CommonService):
                 )
             except Exception as e:
                 self.log.info(f"Rejected message due to filter {name} error: {e}")
-                self._transport.nack(header)
+                self._reject_message(header, transport=rw.transport)
                 return
 
         self.log.info(f"Filtered processing request: {str(message)}")

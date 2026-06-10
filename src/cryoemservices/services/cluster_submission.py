@@ -46,7 +46,7 @@ class ClusterSubmission(CommonService):
                 Path(wrapper).parent.mkdir(parents=True, exist_ok=True)
             except OSError:
                 self.log.error(f"Cannot make directory for {wrapper}")
-                self._transport.nack(header)
+                self._reject_message(header, transport=rw.transport)
                 return
             self.log.info(f"Storing serialized recipe wrapper in {wrapper}")
             cluster_params.commands = cluster_params.commands.replace(
@@ -72,7 +72,7 @@ class ClusterSubmission(CommonService):
             self.log.error(
                 "No absolute working directory specified. Will not run cluster job"
             )
-            self._transport.nack(header)
+            self._reject_message(header, transport=rw.transport)
             return
         working_directory = Path(parameters["workingdir"])
         try:
@@ -81,7 +81,7 @@ class ClusterSubmission(CommonService):
             self.log.error(
                 "Could not create working directory: %s", str(e), exc_info=True
             )
-            self._transport.nack(header)
+            self._reject_message(header, transport=rw.transport)
             return
 
         if parameters.get("standard_output"):
@@ -105,7 +105,7 @@ class ClusterSubmission(CommonService):
         )
         if not jobnumber:
             self.log.error("Job was not submitted")
-            self._transport.nack(header)
+            self._reject_message(header, transport=rw.transport)
             return
 
         # Conditionally acknowledge receipt of the message

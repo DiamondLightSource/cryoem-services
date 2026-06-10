@@ -32,9 +32,9 @@ class Class3D(CommonService):
         if not rw:
             self.log.info("Received a simple message")
             if not isinstance(message, dict):
-                self.log.error("Rejected invalid simple message")
-                self._transport.nack(header)
-                return False
+                self.log.error("Rejected invaid simple message")
+                self._reject_message(header, requeue=False)
+                return
 
             # Create a wrapper-like object that can be passed to functions
             # as if a recipe wrapper was present.
@@ -57,14 +57,14 @@ class Class3D(CommonService):
                 f"and recipe parameters: {rw.recipe_step.get('parameters', {})} "
                 f"with exception: {e}"
             )
-            rw.transport.nack(header)
-            return False
+            self._reject_message(header, transport=rw.transport, requeue=False)
+            return
 
-        # In this setup we cannot nack messages on failure, so instead check here
+        # In this setup we cannot reject messages on failure, so instead check here
         if message.get("requeue", 0) >= 5:
-            self.log.warning(f"Nacking requeued file {class3d_params.particles_file}")
-            rw.transport.nack(header)
-            return False
+            self.log.warning(f"Rejecting requeued file {class3d_params.particles_file}")
+            self._reject_message(header, transport=rw.transport, requeue=False)
+            return
 
         # Acknowledge the message and disconnect from rabbitmq
         self.log.info(
