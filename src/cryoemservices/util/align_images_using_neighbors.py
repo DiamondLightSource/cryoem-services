@@ -449,10 +449,8 @@ def _build_descriptor(
     - The natural logs of the contour and convex hull areas of N and F
     - The natural logs of the minor and major axes of the ellipses fitted to N and F
     """
-    # Safe early exit if no features were provided
-    if len(features) == 0:
-        descriptors = np.empty((0, 13), dtype=np.float32)
-    else:
+    descriptors = np.empty((0, 13), dtype=np.float32)  # Empty placeholder
+    if len(features) > 0:
         # Precompute distances between points via matrix operations
         coords = features[:, :2]  # x, y
         distances = np.linalg.norm(coords[:, None, :] - coords[None, :, :], axis=-1)
@@ -533,9 +531,8 @@ def _build_descriptor(
                         hf,
                     ]
                 )
-        if len(desc_list) == 0:
-            descriptors = np.empty((0, 13), dtype=np.float32)
-        else:
+        # Overwrite placeholder with descriptors array
+        if len(desc_list) > 0:
             descriptors = np.asarray(desc_list, dtype=np.float32)
 
     # Save tables if set
