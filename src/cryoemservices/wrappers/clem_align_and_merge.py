@@ -24,8 +24,8 @@ from defusedxml.ElementTree import parse
 from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
 from tifffile import TiffFile, imwrite
 
+from cryoemservices.util.align_images_using_mmi import align_images_using_mmi
 from cryoemservices.util.image_processing import (
-    align_images_using_mmi,
     convert_to_rgb,
     drift_correct_image,
     flatten_image,
