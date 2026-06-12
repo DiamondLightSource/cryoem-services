@@ -1,4 +1,5 @@
 import logging
+from dataclasses import dataclass
 from itertools import combinations
 from pathlib import Path
 from typing import cast
@@ -14,6 +15,61 @@ from cryoemservices.util.image_processing import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class AnnotationParameters:
+    line_thickness: int
+    marker_size: int
+    font_scale: float
+    text_offset: int
+
+
+def _determine_annotation_parameters(img: np.ndarray):
+    """
+    Based on the number of pixels in the reference 2D image, decide on suitable
+    values to use when annotating drawings produced by this image alignment
+    function.
+    """
+
+    # Use the height and width to determine suitable values for figures
+    num_pixels = int(np.prod(img.shape[:2]))
+    if num_pixels > 4096**2:
+        line_thickness = 4
+        marker_size = 5
+        font_scale = 2.0
+        text_offset = 32
+    elif num_pixels > 2048**2:
+        line_thickness = 3
+        marker_size = 4
+        font_scale = 1.5
+        text_offset = 24
+    elif num_pixels > 1024**2:
+        line_thickness = 2
+        marker_size = 3
+        font_scale = 1.0
+        text_offset = 16
+    elif num_pixels > 512**2:
+        line_thickness = 1
+        marker_size = 3
+        font_scale = 0.8
+        text_offset = 12
+    elif num_pixels > 256**2:
+        line_thickness = 1
+        marker_size = 3
+        font_scale = 0.6
+        text_offset = 10
+    else:
+        line_thickness = 1
+        marker_size = 2
+        font_scale = 0.4
+        text_offset = 8
+    return AnnotationParameters(
+        line_thickness=line_thickness,
+        marker_size=marker_size,
+        font_scale=font_scale,
+        text_offset=text_offset,
+    )
 
 
 def _filter_components(
@@ -190,6 +246,7 @@ def _detect_features(
     min_feature_area: int | None = None,
     max_feature_area: int | None = None,
     min_solidity: float | None = None,
+    min_ellipse_fit: float | None = None,
     max_aspect_ratio: float | None = None,
     # Image/file saving parameters
     save_images: bool = False,
@@ -204,9 +261,13 @@ def _detect_features(
     """
     Identifies features in a thresholded image that fulfil the criteria specified.
     Returns a list of descriptors for each feature, along with either None if
-    'save_images' is False or an annotated version of the image if True.
+    'save_images' is False or an annotated version of the image if True. The
+    returned features array will contain the following columns:
+    - x- and y- coordinates of the feature's centroid
+    - The areas of the feature contour and it convex hull
+    - The minor and major axes of the fitted ellipse
+    - The angulr orientation of the fitted ellipse
     """
-    height, width = binary.shape[:2]
     contours, _ = cv2.findContours(
         binary,
         mode=cv2.RETR_LIST,
@@ -221,6 +282,7 @@ def _detect_features(
     )
 
     # Keep only features that match criteria, and extract descriptors
+    features = np.empty((0, 7), dtype=np.float32)  # Empty placeholder
     features_list = []
     index = 0
     for contour in contours:
@@ -247,15 +309,20 @@ def _detect_features(
             continue
 
         # Elliptical fit for the feature
-        ellipse = cv2.fitEllipse(contour)
-        (x, y), (w, h), angle = ellipse
+        ellipse = cv2.fitEllipse(hull)
+        (ex, ey), (w, h), angle = ellipse
         # w = short axis
         # h = long axis
 
-        # Exclude fits where the center is outside the image
-        if x < 0 or x > width:
+        # Exclude bad elliptical fits
+        # Much larger than actual area
+        ellipse_area = np.pi * (w / 2) * (h / 2)
+        if min_ellipse_fit is not None and hull_area / ellipse_area < min_ellipse_fit:
             continue
-        if y < 0 or y > height:
+
+        # Too circular
+        aspect = min(w, h) / max(w, h)
+        if max_aspect_ratio is not None and aspect > max_aspect_ratio:
             continue
 
         # Adjust the returned angle so that:
@@ -265,14 +332,23 @@ def _detect_features(
         if angle > 90:
             angle -= 180
 
-        # Check the aspect ratio
-        aspect = min(w, h) / max(w, h)
-        # Reject fits that are too circular
-        if max_aspect_ratio is not None and aspect > max_aspect_ratio:
-            continue
+        # Find the centroids of the features using the convex hull
+        hull_moments = cv2.moments(hull)
+        cx = hull_moments["m10"] / hull_moments["m00"]
+        cy = hull_moments["m01"] / hull_moments["m00"]
 
         # Append results
-        features_list.append((x, y, w, h, angle, area, hull_area))
+        features_list.append(
+            (
+                cx,
+                cy,
+                area,
+                hull_area,
+                w,
+                h,
+                angle,
+            )
+        )
 
         # Annotate image
         if annotated is not None:
@@ -294,7 +370,7 @@ def _detect_features(
             # Add a marker
             cv2.circle(
                 annotated,
-                center=(int(x), int(y)),
+                center=(int(cx), int(cy)),
                 radius=marker_size,
                 color=(0, 255, 0),
                 thickness=line_thickness,
@@ -303,7 +379,7 @@ def _detect_features(
             cv2.putText(
                 annotated,
                 text=f"{index}",
-                org=(int(x) + text_offset, int(y)),
+                org=(int(cx) + text_offset, int(cy)),
                 fontFace=cv2.FONT_HERSHEY_SIMPLEX,
                 fontScale=font_scale,
                 color=(255, 255, 255),
@@ -314,11 +390,9 @@ def _detect_features(
         # Increment the index for next loop once successful
         index += 1
 
-    # Convert to array or return empty array
+    # Update empty placeholder with features
     if features_list:
         features = np.array(features_list, dtype=np.float32)
-    else:
-        features = np.empty((0, 7), dtype=np.float32)
 
     # Optionally save results
     if annotated is not None and name and save_dir:
@@ -345,11 +419,11 @@ def _detect_features(
                 f"{'':<3} "
                 f"{'x':<10} "
                 f"{'y':<10} "
+                f"{'cont_area':<10} "
+                f"{'hull_area':<10} "
                 f"{'w':<10} "
                 f"{'h':<10} "
                 f"{'angle':<10} "
-                f"{'cont_area':<10} "
-                f"{'hull_area':<10} "
             ),
         )
     return features
@@ -367,14 +441,15 @@ def _build_descriptor(
     """
     Build geometric descriptors describing the arrangement of neighbouring
     features around each parent feature.
-    - Use pairwise distance matrices instead of repeated norm calculations
-    - Use combinations() to quickly iterate unique neighbor combinations
-    - Precomputes logarithms before comparing similarities
+
+    Descriptors captured for a given feature O include:
+    - The ratio of the distances between two neighbours N (near) and F (far)
+    - The signed angle formed by the vector NOF
+    - The natural logs of the contour and convex hull areas of N and F
+    - The natural logs of the minor and major axes of the ellipses fitted to N and F
     """
-    # Safe early exit if no features were provided
-    if len(features) == 0:
-        descriptors = np.empty((0, 13), dtype=np.float32)
-    else:
+    descriptors = np.empty((0, 13), dtype=np.float32)  # Empty placeholder
+    if len(features) > 0:
         # Precompute distances between points via matrix operations
         coords = features[:, :2]  # x, y
         distances = np.linalg.norm(coords[:, None, :] - coords[None, :, :], axis=-1)
@@ -419,15 +494,23 @@ def _build_descriptor(
                 dot = NO @ OF
                 angle = np.arctan2(cross, dot)
 
-                # Extract ellipse and contour descriptors
-                feat_near = features[n][[2, 3, 5, 6]]
-                feat_far = features[f][[2, 3, 5, 6]]
+                # Extract contour and ellipse descriptors
+                feat_near = features[n][2:6]
+                feat_far = features[f][2:6]
 
-                # Precompute their logs and extra feature names
-                wn, hn, area_n, hull_n = np.log(
-                    np.where(feat_near <= 0, eps, feat_near)
-                )
-                wf, hf, area_f, hull_f = np.log(np.where(feat_far <= 0, eps, feat_far))
+                # Precompute logs of the features
+                (
+                    area_n,
+                    hull_n,
+                    wn,
+                    hn,
+                ) = np.log(np.where(feat_near <= 0, eps, feat_near))
+                (
+                    area_f,
+                    hull_f,
+                    wf,
+                    hf,
+                ) = np.log(np.where(feat_far <= 0, eps, feat_far))
 
                 # Append
                 desc_list.append(
@@ -437,19 +520,18 @@ def _build_descriptor(
                         f,
                         d_near / (d_far + eps),
                         angle,
-                        wn,
-                        hn,
                         area_n,
                         hull_n,
-                        wf,
-                        hf,
+                        wn,
+                        hn,
                         area_f,
                         hull_f,
+                        wf,
+                        hf,
                     ]
                 )
-        if len(desc_list) == 0:
-            descriptors = np.empty((0, 13), dtype=np.float32)
-        else:
+        # Overwrite placeholder with descriptors array
+        if len(desc_list) > 0:
             descriptors = np.asarray(desc_list, dtype=np.float32)
 
     # Save tables if set
@@ -481,14 +563,14 @@ def _build_descriptor(
                 f"{'f':<3} "
                 f"{'d_ratio':<10} "
                 f"{'angle':<10} "
-                f"{'w_near':<10} "
-                f"{'h_near':<10} "
                 f"{'area_near':<10} "
                 f"{'hull_near':<10} "
-                f"{'w_far':<10} "
-                f"{'h_far':<10} "
+                f"{'w_near':<10} "
+                f"{'h_near':<10} "
                 f"{'area_far':<10} "
                 f"{'hull_far':<10} "
+                f"{'w_far':<10} "
+                f"{'h_far':<10} "
             ),
         )
     return descriptors
@@ -526,14 +608,14 @@ def _calculate_similarity(
     )
 
     # Compare ellipse dimensions
-    d_elps_near = np.linalg.norm(mov[..., 2:4] - ref[..., 2:4], axis=-1)
-    d_elps_far = np.linalg.norm(mov[..., 6:8] - ref[..., 6:8], axis=-1)
-    d_elps = 0.5 * (d_elps_near + d_elps_far)
+    d_area_near = np.linalg.norm(mov[..., 2:4] - ref[..., 2:4], axis=-1)
+    d_area_far = np.linalg.norm(mov[..., 6:8] - ref[..., 6:8], axis=-1)
+    d_area = 0.5 * (d_area_near + d_area_far)
 
     # Compare combined contour area-hull area differences
-    d_area_near = np.linalg.norm(mov[..., 4:6] - ref[..., 4:6], axis=-1)
-    d_area_far = np.linalg.norm(mov[..., 8:10] - ref[..., 8:10], axis=-1)
-    d_area = 0.5 * (d_area_near + d_area_far)
+    d_elps_near = np.linalg.norm(mov[..., 4:6] - ref[..., 4:6], axis=-1)
+    d_elps_far = np.linalg.norm(mov[..., 8:10] - ref[..., 8:10], axis=-1)
+    d_elps = 0.5 * (d_elps_near + d_elps_far)
 
     # Calculate the combined feature-space distance
     # Smaller distances indicate larger similarity scores
@@ -672,19 +754,17 @@ def _draw_matches(
     annotations showing how the features from the reference image map onto those in
     the moving image.
     """
-
-    annotated = cv2.addWeighted(
-        src1=ref,
-        alpha=0.5,
-        src2=mov,
-        beta=0.5,
-        gamma=0,
-    )
+    # Place reference and moving image side-by-side
+    (height_ref, width_ref), (height_mov, width_mov) = ref.shape[:2], mov.shape[:2]
+    shape = (max(height_ref, height_mov), (width_ref + width_mov))
+    annotated = np.zeros(shape, dtype=np.uint8)
+    annotated[:height_ref, :width_ref] = ref
+    annotated[:height_mov, width_ref:] = mov
     annotated = cv2.cvtColor(annotated, code=cv2.COLOR_GRAY2BGR)
 
     # Mark the points
     for (x0, y0), (x1, y1) in zip(ref_match, mov_match):
-        x0, y0, x1, y1 = map(int, (x0, y0, x1, y1))
+        x0, y0, x1, y1 = map(int, (x0, y0, x1 + width_ref, y1))
         cv2.line(
             annotated,
             pt1=(x0, y0),
@@ -692,12 +772,12 @@ def _draw_matches(
             color=(0, 255, 255),
             thickness=line_thickness,
         )
-    for features, color in (
-        (ref_features, (0, 255, 0)),
-        (mov_features, (0, 0, 255)),
+    for features, color, x_offset in (
+        (ref_features, (0, 255, 0), 0),
+        (mov_features, (0, 0, 255), width_ref),
     ):
         for i, (x, y) in enumerate(features[:, :2]):
-            x, y = int(x), int(y)
+            x, y = int(x + x_offset), int(y)
             cv2.circle(
                 annotated,
                 center=(x, y),
@@ -738,14 +818,15 @@ def align_images_using_neighbors(
     min_feature_area: int | None = 400,
     max_feature_area: int | None = 5000,
     min_solidity: float | None = 0.6,
+    min_ellipse_fit: float | None = 0.4,
     max_aspect_ratio: float | None = 0.9,
     # Similarity calculation and registration
     max_neighbor_distance: float | None = 400,
     min_score: float | None = 0.2,
     ransac_threshold: float = 10,
     # Debug options
-    save_tables: bool = False,
     save_images: bool = False,
+    save_tables: bool = False,
     save_dir: Path | None = None,
 ):
     """
@@ -805,6 +886,11 @@ def align_images_using_neighbors(
         smallest convex hull it is bound by. This is used to reject features
         that are highly irregular in shape.
         The default is 0.6.
+    min_ellipse_fit: float | None
+        The min ratio of the fitted ellipse's area to the convex hull area of the
+        feature. A ratio of 1.0 means that their areas are identical, while 0.0
+        means that the ellipse area is inifinitely larger than that of the hull's.
+        The default value is 0.4.
     max_aspect_ratio: float | None
         The maximum aspect ratio of the ellipse fitted around a feature, beyond
         which the feature will not be used to compute the transformation matrix
@@ -826,11 +912,11 @@ def align_images_using_neighbors(
         images are allowed to differ from one another before the computed
         transform is considered bad.
         The default is 5.
-    save_tables: bool
-        Toggle whether to save intermediate tables.
-        The default is False.
     save_images: bool
         Toggle whether to save intermediate images.
+        The default is False.
+    save_tables: bool
+        Toggle whether to save intermediate tables.
         The default is False.
     save_dir: Path | None
         If either 'save_tables' or 'save_images' is set tot True, this determines
@@ -856,39 +942,8 @@ def align_images_using_neighbors(
             "was specified. Intermediate results will not be saved."
         )
 
-    # Use the height and width to determine suitable values for figures
-    height, width = reference_array.shape[:2]
-
-    if (num_pixels := height * width) >= 4096**2:
-        line_thickness = 4
-        marker_size = 5
-        font_scale = 2.0
-        text_offset = 32
-    elif (num_pixels := height * width) >= 2048**2:
-        line_thickness = 3
-        marker_size = 4
-        font_scale = 1.5
-        text_offset = 24
-    elif num_pixels >= 1024**2:
-        line_thickness = 2
-        marker_size = 3
-        font_scale = 1.0
-        text_offset = 16
-    elif num_pixels >= 512**2:
-        line_thickness = 1
-        marker_size = 3
-        font_scale = 0.75
-        text_offset = 12
-    elif num_pixels >= 256**2:
-        line_thickness = 1
-        marker_size = 3
-        font_scale = 0.5
-        text_offset = 10
-    else:
-        line_thickness = 1
-        marker_size = 2
-        font_scale = 0.25
-        text_offset = 8
+    # Determine the parameters to use when annotating diagrams
+    annotation_params = _determine_annotation_parameters(reference_array)
 
     # Preprocess images to get binaries
     ref_bin = _preprocess(
@@ -928,34 +983,41 @@ def align_images_using_neighbors(
         min_feature_area=min_feature_area,
         max_feature_area=max_feature_area,
         min_solidity=min_solidity,
+        min_ellipse_fit=min_ellipse_fit,
         max_aspect_ratio=max_aspect_ratio,
         # Image saving
         save_images=save_images,
+        save_tables=save_tables,
         save_dir=save_dir,
         name="ref",
-        marker_size=marker_size,
-        line_thickness=line_thickness,
-        font_scale=font_scale,
-        text_offset=text_offset,
+        marker_size=annotation_params.marker_size,
+        line_thickness=annotation_params.line_thickness,
+        font_scale=annotation_params.font_scale,
+        text_offset=annotation_params.text_offset,
     )
     mov_features = _detect_features(
         mov_bin,
         min_feature_area=min_feature_area,
         max_feature_area=max_feature_area,
         min_solidity=min_solidity,
+        min_ellipse_fit=min_ellipse_fit,
         max_aspect_ratio=max_aspect_ratio,
         # Image saving
         save_images=save_images,
+        save_tables=save_tables,
         save_dir=save_dir,
         name="mov",
-        marker_size=marker_size,
-        line_thickness=line_thickness,
-        font_scale=font_scale,
-        text_offset=text_offset,
+        marker_size=annotation_params.marker_size,
+        line_thickness=annotation_params.line_thickness,
+        font_scale=annotation_params.font_scale,
+        text_offset=annotation_params.text_offset,
     )
     if len(ref_features) == 0 or len(mov_features) == 0:
         logger.warning("Could not identify any features in the images")
-        return {}
+        return {
+            "aligned": moving_array,
+            "transform": None,
+        }
 
     # Run the feature matching algorithm
     ref_match, mov_match = _match_features(
@@ -969,7 +1031,10 @@ def align_images_using_neighbors(
     )
     if len(ref_match) == 0 or len(mov_match) == 0:
         logger.warning("Could not identify matching features between the images")
-        return {}
+        return {
+            "aligned": moving_array,
+            "transform": None,
+        }
     if save_images and save_dir:
         _draw_matches(
             reference_array,
@@ -979,10 +1044,10 @@ def align_images_using_neighbors(
             ref_match,
             mov_match,
             save_dir=save_dir,
-            marker_size=marker_size,
-            line_thickness=line_thickness,
-            font_scale=font_scale,
-            text_offset=text_offset,
+            marker_size=annotation_params.marker_size,
+            line_thickness=annotation_params.line_thickness,
+            font_scale=annotation_params.font_scale,
+            text_offset=annotation_params.text_offset,
         )
 
     # Use the matched points to estimate the similarity transform
@@ -993,7 +1058,11 @@ def align_images_using_neighbors(
         ransacReprojThreshold=ransac_threshold,
     )
     if transform is None:
-        raise RuntimeError("Affine transform estimation failed")
+        logger.warning("Affine transform estimation failed")
+        return {
+            "aligned": moving_array,
+            "transform": transform,
+        }
     aligned = cv2.warpAffine(
         moving_array,
         M=transform,
