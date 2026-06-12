@@ -72,18 +72,6 @@ def align_and_merge_stacks(
         message = f"Invalid value provided for 'crop_to_n_frames' parameter: {crop_to_n_frames}"
         logger.error(message)
         raise ValueError(message)
-    if not isinstance(align_self, bool):
-        message = f"Invalid value provided for 'align_self' parameter: {align_self}"
-        logger.error(message)
-        raise ValueError(message)
-    if not isinstance(flatten, bool):
-        message = f"Invalid value provided for 'flatten' parameter: {flatten}"
-        logger.error(message)
-        raise ValueError(message)
-    if not isinstance(align_across, bool):
-        message = f"Invalid value provided for 'align_across' parameter: {align_across}"
-        logger.error(message)
-        raise ValueError(message)
 
     # Standardise into a list of Paths
     files = [images] if isinstance(images, (Path, str)) else images
