@@ -64,7 +64,7 @@ def test_align_images_using_neighbors(
         shape=(h, w),
         num_frames=1,
         layer_intensity=128,
-        noise_sigma=2,
+        noise_sigma=0,
         hole_intensity=16,
         hole_list=[
             {
@@ -109,7 +109,7 @@ def test_align_images_using_neighbors(
         shape=(h, w),
         num_frames=1,
         layer_intensity=128,
-        noise_sigma=2,
+        noise_sigma=0,
         hole_intensity=16,
         hole_list=[
             {
@@ -184,7 +184,7 @@ def test_align_images_using_neighbors(
 
     # Check that the number of pixels that image alignment mismatch is within bounds
     mismatch = abs(expected.astype(np.float32) - returned.astype(np.float32)) > 5
-    assert np.sum(mismatch) / np.prod(mismatch.shape) < 0.005  # 0.5% pixel deviation
+    assert np.sum(mismatch) / np.prod(mismatch.shape) < 0.0005  # 0.5% pixel deviation
 
     # Assert that the expected intermediate files were produced
     for name in ("ref", "mov"):
