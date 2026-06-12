@@ -24,7 +24,7 @@ The configuration has the following format:
     user_token: <file with restapi token>
     user: <username>
     user_home: <home directory>
-    api_version: v0.0.40
+    api_version: v0.0.42
     partition: <optional slurm partition>
     partition_preference: <optional slurm preferences>
     cluster: <optional slurm clusters>
@@ -60,7 +60,7 @@ class SlurmRestApi:
         url: str,
         user_name: str,
         user_token: Path,
-        version: str = "v0.0.40",
+        version: str,
     ):
         self.url = url
         self.version = version
@@ -305,7 +305,8 @@ def slurm_submission_for_services(
 
     # Check the API version is one this service has been tested with
     api_version = slurm_rest["api_version"]
-    if api_version not in ["v0.0.40"]:
+    api_version_number = int(api_version.split(".")[-1])
+    if not 40 <= api_version_number <= 44:
         return subprocess.CompletedProcess(
             args="",
             returncode=1,
