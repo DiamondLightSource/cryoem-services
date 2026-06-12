@@ -25,9 +25,9 @@ from pydantic import BaseModel, Field, ValidationError, field_validator, model_v
 from tifffile import TiffFile, imwrite
 
 from cryoemservices.util.align_images_using_mmi import align_images_using_mmi
+from cryoemservices.util.drift_correct_image import drift_correct_image
 from cryoemservices.util.image_processing import (
     convert_to_rgb,
-    drift_correct_image,
     flatten_image,
     is_grayscale_image,
     is_image_stack,
