@@ -41,7 +41,6 @@
       "node_creator": 2
     },
     "parameters": {
-      "picker_id": "{picker_id}",
       "refined_class_uuid": "{refined_class_uuid}",
       "refined_grp_uuid": "{refined_grp_uuid}"
     },

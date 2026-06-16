@@ -519,12 +519,8 @@ def test_tomo_align_aretomo_slurm_service_reject_visits(
 
     # Send a message to the service
     service.tomo_align(None, header=header, message=tomo_align_test_message)
-    if valid_visit:
-        # These fail due to file not found
-        offline_transport.nack.assert_called_once_with(header)
-    else:
-        # Invalid visits should be requeued for non-slurm service
-        offline_transport.nack.assert_called_once_with(header, requeue=True)
+    # Invalid visits or file not found should be requeued for non-slurm service
+    offline_transport.nack.assert_called_once_with(header, requeue=True)
 
 
 @mock.patch("cryoemservices.services.tomo_align_aretomo_slurm.get_iris_state")

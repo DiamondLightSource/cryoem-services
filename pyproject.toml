@@ -7,7 +7,7 @@ requires = [
 
 [project]
 name = "cryoemservices"
-version = "1.3.6"
+version = "1.3.7"
 description = "Services for CryoEM processing"
 readme = "README.md"
 keywords = [
@@ -59,13 +59,18 @@ dev = [
     "pytest-datafiles",
     "pytest-mock",
 ]
+easymode = [
+    # "easymode@git+https://github.com/mgflast/easymode@126163fcb22e469f8fc8791d10ab5c6f0b8b9070",
+    "huggingface_hub",
+    "tensorflow[and-cuda]",
+]
 murfey_db = [
     "murfey[server]",
 ]
 torch = [
-    # "easymode@git+https://github.com/mgflast/easymode@126163fcb22e469f8fc8791d10ab5c6f0b8b9070",
     "membrain-seg",
     "topaz-em",
+    "torch==2.11.0",
 ]
 [project.urls]
     Bug-Tracker = "https://github.com/DiamondLightSource/cryoem-services/issues"

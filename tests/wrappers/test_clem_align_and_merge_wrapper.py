@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 from unittest import mock
 from unittest.mock import MagicMock
 
@@ -109,29 +109,23 @@ def image_list(processed_dir: Path):
     "test_params",
     (
         # Colors | Crop frames | Align self | Flatten | Align across
-        (("gray", "green", "red"), 5, "enabled", "max", "enabled"),
-        (("gray", "green", "red", "blue"), 5, "enabled", "max", "enabled"),
-        (("gray", "green", "red"), 10, "enabled", "mean", "enabled"),
-        (("gray", "green", "red"), 5, "", "min", ""),
-        (("gray", "green", "red"), None, "enabled", "mean", "enabled"),
-        (("gray", "green", "red"), 5, "enabled", "", ""),
-        (("green", "red"), 5, "enabled", "max", "enabled"),
-        (("green", "red", "blue"), 5, "enabled", "max", "enabled"),
-        (("green", "red"), 10, "enabled", "mean", "enabled"),
-        (("green", "red"), 5, "", "min", ""),
-        (("green", "red"), None, "enabled", "mean", "enabled"),
-        (("green", "red"), 5, "enabled", "", ""),
+        (("gray", "green", "red"), 5, True, True, True),
+        (("gray", "green", "red", "blue"), 5, True, True, True),
+        (("gray", "green", "red"), 10, True, True, True),
+        (("gray", "green", "red"), 5, False, True, False),
+        (("gray", "green", "red"), None, True, True, True),
+        (("gray", "green", "red"), 5, True, False, False),
+        (("green", "red"), 5, True, True, True),
+        (("green", "red", "blue"), 5, True, True, True),
+        (("green", "red"), 10, True, True, True),
+        (("green", "red"), 5, False, True, False),
+        (("green", "red"), None, True, True, True),
+        (("green", "red"), 5, True, False, False),
     ),
 )
 def test_align_and_merge_stacks(
     mocker: MockerFixture,
-    test_params: tuple[
-        tuple[str, ...],
-        int | None,
-        Literal["enabled", ""],
-        Literal["min", "max", "mean", ""],
-        Literal["enabled", ""],
-    ],
+    test_params: tuple[tuple[str, ...], int | None, bool, bool, bool],
     metadata_file: Path,
     image_list: list[Path],
 ):
@@ -185,19 +179,20 @@ def test_align_and_merge_stacks(
     (
         # Colors | Crop frames | Align self | Flatten | Align across
         # Wrong 'crop_frames' value
-        ("5", "enabled", "max", "enabled"),
-        (5.0, "enabled", "mean", "enabled"),
+        ("5", True, True, True),
+        (5.0, True, True, True),
         # Wrong 'align_self' value
-        (5, None, "min", ""),
-        (None, 1, "mean", "enabled"),
+        (5, None, True, True),
+        (None, 1, True, True),
+        (5, "enabled", True, True),
         # Wrong 'flatten' value
-        (5, "enabled", None, ""),
-        (5, "enabled", 1, "enabled"),
-        (10, "enabled", True, "enabled"),
+        (5, True, None, False),
+        (5, True, 1, True),
+        (10, True, "enabled", True),
         # Wrong 'align_across' value
-        (5, "", "min", None),
-        (None, "enabled", "mean", True),
-        (5, "enabled", "", 1),
+        (5, False, True, None),
+        (None, True, True, 1),
+        (5, True, False, "enabled"),
     ),
 )
 def test_align_and_merge_stacks_wrong_params(
@@ -238,14 +233,14 @@ def test_align_and_merge_stacks_wrong_params(
     "test_params",
     (
         # Number of images | Stringify list | Frames to crop | Align self | Flatten | Align across
-        (3, False, 5, "enabled", "max", "enabled"),
-        (3, True, 5, "", "mean", "enabled"),
-        (3, False, None, "enabled", "min", ""),
-        (3, False, "None", "enabled", "min", ""),
-        (1, False, 5, "", "", "enabled"),
-        (1, True, 5, "enabled", "max", "enabled"),
-        (1, False, None, "", "mean", ""),
-        (1, False, "None", "", "mean", ""),
+        (3, False, 5, "true", "true", "true"),
+        (3, True, 5, "false", "true", "true"),
+        (3, False, None, "true", "true", "false"),
+        (3, False, "None", "true", "true", "false"),
+        (1, False, 5, "false", "false", "true"),
+        (1, True, 5, "true", "true", "true"),
+        (1, False, None, "false", "true", "false"),
+        (1, False, "None", "false", "true", "false"),
     ),
 )
 def test_align_and_merge_parameters(
@@ -295,9 +290,9 @@ def test_align_and_merge_parameters(
         isinstance(validated_params.crop_to_n_frames, int)
         or validated_params.crop_to_n_frames is None
     )
-    assert validated_params.align_self in ("enabled", "")
-    assert validated_params.flatten in ("mean", "min", "max", "")
-    assert validated_params.align_across in ("enabled", "")
+    assert validated_params.align_self in (True, False)
+    assert validated_params.flatten in (True, False)
+    assert validated_params.align_across in (True, False)
 
 
 # Set up a mock transport object
@@ -325,9 +320,9 @@ def test_align_and_merge_wrapper(
 
     # Construct a dictionary to pass to the wrapper
     crop_to_n_frames = 30
-    align_self = "enabled"
-    flatten = "max"
-    align_across = "enabled"
+    align_self = True
+    flatten = True
+    align_across = True
     num_procs = 4
 
     message = {

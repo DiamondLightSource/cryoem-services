@@ -117,7 +117,7 @@ class CTFFind(CommonService):
             self.log.info("Received a simple message")
             if not isinstance(message, dict):
                 self.log.error("Rejected invalid simple message")
-                self._transport.nack(header)
+                self._reject_message(header, requeue=False)
                 return
 
             # Create a wrapper-like object that can be passed to functions
@@ -138,12 +138,12 @@ class CTFFind(CommonService):
                 f"and recipe parameters: {rw.recipe_step.get('parameters', {})} "
                 f"with exception: {e}"
             )
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport, requeue=False)
             return
 
         if ctf_params.ctffind_version not in [4, 5]:
             self.log.error(f"Cannot use CTFFind version {ctf_params.ctffind_version}")
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport, requeue=False)
             return
         self.log.info(f"Using CTFFind version {ctf_params.ctffind_version}")
 
@@ -168,7 +168,7 @@ class CTFFind(CommonService):
             self.log.warning(
                 f"Could not determine job number in {ctf_params.output_image}"
             )
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport, requeue=False)
             return
         job_alias = Path(
             re.sub(
@@ -185,7 +185,7 @@ class CTFFind(CommonService):
             == (job_alias.parent / f"job{ctf_job_number:03}").resolve()
         ):
             self.log.error(f"Symlink {job_alias} already exists")
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport)
             return
 
         parameters_list = [
@@ -271,7 +271,7 @@ class CTFFind(CommonService):
                 f"CTFFind failed with exitcode {result.returncode}:\n"
                 + result.stderr.decode("utf8", "replace")
             )
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport)
             return
 
         # Write stdout to logfile
@@ -354,7 +354,8 @@ class CTFFind(CommonService):
                 rw.send_to(
                     "smartem",
                     {
-                        "ctf_max_resolution_estimate": self.estimated_resolution,
+                        "register": "spa.ctf_estimated",
+                        "ctf_max_resolution": self.estimated_resolution,
                         "ice_ring_density": ice_ring_density,
                         "app_id": ctf_params.app_id,
                         "mc_uuid": ctf_params.mc_uuid,

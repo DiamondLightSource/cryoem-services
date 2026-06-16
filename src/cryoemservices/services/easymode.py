@@ -7,10 +7,10 @@ import numpy as np
 import tensorflow as tf
 from easymode.core import config as easymode_config
 from easymode.core.distribution import get_model, load_model
-from easymode.segmentation.inference import segment_tomogram
 from pydantic import BaseModel, Field, ValidationError
 from workflows.recipe import wrap_subscribe
 
+from cryoemservices.pipeliner_plugins.easymode_segmentation import segment_tomogram
 from cryoemservices.services.common_service import CommonService
 from cryoemservices.util.models import MockRW
 from cryoemservices.util.relion_service_options import RelionServiceOptions
@@ -65,7 +65,7 @@ class Easymode(CommonService):
             self.log.info("Received a simple message")
             if not isinstance(message, dict):
                 self.log.error("Rejected invalid simple message")
-                self._transport.nack(header)
+                self._reject_message(header, requeue=False)
                 return
 
             # Create a wrapper-like object that can be passed to functions
@@ -88,7 +88,7 @@ class Easymode(CommonService):
                 f"and recipe parameters: {rw.recipe_step.get('parameters', {})} "
                 f"with exception: {e}"
             )
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport, requeue=False)
             return
 
         try:
@@ -96,7 +96,7 @@ class Easymode(CommonService):
                 tomogram_header = mrc.header
         except (FileNotFoundError, ValueError):
             self.log.error(f"Input tomogram {easymode_params.tomogram} cannot be read")
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport)
             return
 
         output_tomograms: dict[str, Path] = {}
@@ -123,6 +123,7 @@ class Easymode(CommonService):
             )
 
             # Convert to int8 and save mrc
+            self.log.info("Saving output")
             segmented_volume = (segmented_volume * 127).astype(np.int8)
             with mrcfile.new(output_tomograms[feature], overwrite=True) as mrc:
                 mrc.set_data(segmented_volume)

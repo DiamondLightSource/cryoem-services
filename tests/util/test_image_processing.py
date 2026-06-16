@@ -618,6 +618,10 @@ def test_apply_sobel_edge_filter():
     pass
 
 
+def test_threshold_image():
+    pass
+
+
 @pytest.mark.parametrize(
     "test_params",
     (  # Num frames | x-offset | y-offset
