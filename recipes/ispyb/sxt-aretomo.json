@@ -30,7 +30,8 @@
       "stack_file": "{stack_file}",
       "tilt_axis": 0,
       "txrm_file": "{txrm_file}",
-      "wbp": 1
+      "wbp": 1,
+      "xrm_reference": "{xrm_reference}"
     },
     "queue": "tomo_align",
     "service": "TomoAlign"
