@@ -44,7 +44,7 @@ def combine_star_files(files_to_process: List[Path], output_dir: Path):
     ):
         for line_counter in range(50):
             line = full_starfile.readline()
-            if line.startswith("opticsGroup"):
+            if "opticsGroup" in line:
                 reference_optics = line.split()
             if not line:
                 break
@@ -71,7 +71,7 @@ def combine_star_files(files_to_process: List[Path], output_dir: Path):
                 optics_line = added_starfile.readline()
                 if not optics_line:
                     raise IndexError(f"Cannot find optics group in {split_file}")
-                if optics_line.startswith("opticsGroup"):
+                if "opticsGroup" in optics_line:
                     new_optics = optics_line.split()
                     break
 
@@ -104,8 +104,14 @@ def combine_star_files(files_to_process: List[Path], output_dir: Path):
                 particle_line = added_starfile.readline()
                 if not particle_line:
                     break
+                if "opticsGroup" in particle_line:
+                    # Skip the optics group
+                    continue
+                if particle_line.startswith(("_", "loop_", "data_", "#")):
+                    # Skip all block and loop header lines
+                    continue
                 particle_split_line = particle_line.split()
-                if len(particle_split_line) > 0 and particle_split_line[0][0].isdigit():
+                if len(particle_split_line) > 0:
                     file_particles_count += 1
                     total_particles += 1
                     particles_file.write(particle_line)
