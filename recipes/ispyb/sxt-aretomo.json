@@ -33,7 +33,7 @@
       "wbp": 1
     },
     "queue": "tomo_align",
-    "service": "TomoAlign"
+    "service": "AreTomoAlign"
   },
   "3": {
     "parameters": {

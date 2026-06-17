@@ -38,7 +38,7 @@
       "tilt_axis": "{tilt_axis}"
     },
     "queue": "tomo_align",
-    "service": "TomoAlign"
+    "service": "AreTomoAlign"
   },
   "3": {
     "parameters": {
