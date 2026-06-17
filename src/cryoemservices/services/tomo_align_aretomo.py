@@ -7,7 +7,7 @@ import re
 import subprocess
 import time
 from pathlib import Path
-from typing import Any, List, Literal, Optional
+from typing import Any, Literal
 
 import mrcfile
 import numpy as np
@@ -72,7 +72,7 @@ def rotate_tomogram(tomogram: Path, tilt_axis: float):
             mrc.header.cella.z = start_cella[1]
 
 
-def create_tilt_stack(input_file_list_of_lists: List[Any], stack_file: Path):
+def create_tilt_stack(input_file_list_of_lists: list[Any], stack_file: Path):
     """
     Construct stack file of all tilt images
     """
@@ -102,39 +102,40 @@ class AreTomoParameters(BaseModel):
     aretomo_version: Literal[2, 3] = 3
     stack_file: str = Field(..., min_length=1)
     pixel_size: float
-    txrm_file: Optional[str] = None
-    path_pattern: Optional[str] = None
-    input_file_list: Optional[str] = None
-    vol_z: Optional[int] = None
+    txrm_file: str | None = None
+    xrm_reference: str | None = None
+    path_pattern: str | None = None
+    input_file_list: str | None = None
+    vol_z: int | None = None
     max_vol: int = 1800
     min_vol: int = 600
     extra_vol: int = 400
     out_bin: int = 4
-    second_bin: Optional[int] = None
+    second_bin: int | None = None
     tilt_axis: float = 85
     tilt_cor: int = 1
-    ctf_cor: Optional[int] = None
-    flip_int: Optional[int] = None
+    ctf_cor: int | None = None
+    flip_int: int | None = None
     flip_vol: int = 0
     flip_vol_post_reconstruction: bool = True
-    sart_iterations: Optional[int] = None
-    sart_projections: Optional[int] = None
-    wbp: Optional[int] = None
-    patch: Optional[int] = None
-    kv: Optional[int] = None
-    cs: Optional[float] = None
-    amplitude_contrast: Optional[float] = None
-    dose_per_frame: Optional[float] = None
-    frame_count: Optional[int] = None
-    align_file: Optional[str] = None
-    align_z: Optional[int] = None
+    sart_iterations: int | None = None
+    sart_projections: int | None = None
+    wbp: int | None = None
+    patch: int | None = None
+    kv: int | None = None
+    cs: float | None = None
+    amplitude_contrast: float | None = None
+    dose_per_frame: float | None = None
+    frame_count: int | None = None
+    align_file: str | None = None
+    align_z: int | None = None
     refine_flag: int = 1
     out_imod: int = 1
-    out_imod_xf: Optional[int] = None
-    interpolation_correction: Optional[int] = None
-    dark_tol: Optional[float] = None
-    manual_tilt_offset: Optional[float] = None
-    visits_for_slurm: Optional[list] = ["bi", "cm", "nr", "nt"]
+    out_imod_xf: int | None = None
+    interpolation_correction: int | None = None
+    dark_tol: float | None = None
+    manual_tilt_offset: float | None = None
+    visits_for_slurm: list | None = ["bi", "cm", "nr", "nt"]
     relion_options: RelionServiceOptions
 
     @model_validator(mode="before")
@@ -184,17 +185,17 @@ class AreTomoAlign(CommonService):
     job_type = "relion.reconstructtomograms"
 
     # Values to extract for ISPyB
-    input_file_list_of_lists: List[Any]
+    input_file_list_of_lists: list[Any]
     tilt_angles: dict
-    refined_tilts: List[float]
-    x_shift: List[float]
-    y_shift: List[float]
-    rot_centre_z_list: List[str]
-    tilt_offset: Optional[float] = None
+    refined_tilts: list[float]
+    x_shift: list[float]
+    y_shift: list[float]
+    rot_centre_z_list: list[str]
+    tilt_offset: float | None = None
     thickness_pixels: int | None = None
     rot: float | None = None
     mag: float | None = None
-    alignment_quality: Optional[float] = None
+    alignment_quality: float | None = None
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -339,7 +340,7 @@ class AreTomoAlign(CommonService):
             self.input_file_list_of_lists = file_list
         elif tomo_params.txrm_file and Path(tomo_params.txrm_file).is_file():
             tomo_params.pixel_size = self.convert_txrm_to_stack(
-                tomo_params.txrm_file, tomo_params.stack_file
+                tomo_params.txrm_file, tomo_params.stack_file, tomo_params.xrm_reference
             )
             self.input_file_list_of_lists = []
             # Check we now have the expected stack file
@@ -856,7 +857,9 @@ class AreTomoAlign(CommonService):
         self.log.info(f"Done tomogram alignment for {tomo_params.stack_file}")
         rw.transport.ack(header)
 
-    def convert_txrm_to_stack(self, txrm_file: str, stack_file: str) -> float:
+    def convert_txrm_to_stack(
+        self, txrm_file: str, stack_file: str, xrm_reference: str | None
+    ) -> float:
         # Read the tilt angles and pixel size from the txrm
         pixel_size_angstroms = 100
         with OleFileIO(txrm_file) as txrm_ole:
@@ -875,7 +878,9 @@ class AreTomoAlign(CommonService):
 
         # Convert the txrm to a tiff stack, then convert to mrc for aretomo
         tifftomo = Path(stack_file).with_suffix(".tiff")
-        convert_and_save(txrm_file, str(tifftomo), custom_reference=None)
+        convert_and_save(
+            txrm_file, str(tifftomo), custom_reference=xrm_reference or None
+        )
         # Let this run, and check later if the output file exists
         subprocess.run(["tif2mrc", str(tifftomo), stack_file])
         tifftomo.unlink(missing_ok=True)
