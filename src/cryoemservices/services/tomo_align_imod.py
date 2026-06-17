@@ -1,27 +1,22 @@
 import subprocess
 from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 
 import mrcfile
+import numpy as np
+from olefile import OleFileIO
 from pydantic import BaseModel, Field, ValidationError
-from txrm2tiff.inspector import Inspector
 from txrm2tiff.main import convert_and_save
-from txrm2tiff.txrm import open_txrm
-from txrm2tiff.txrm_functions.general import read_stream
-from txrm2tiff.xradia_properties.enums import XrmDataTypes
 from workflows.recipe import wrap_subscribe
 
 from cryoemservices.services.common_service import CommonService
 from cryoemservices.util.models import MockRW
-from cryoemservices.util.relion_service_options import (
-    RelionServiceOptions,
-    update_relion_options,
-)
 
 
 class ImodTomoParameters(BaseModel):
     stack_file: str = Field(..., min_length=1)
     txrm_file: str = Field(..., min_length=1)
+    xrm_reference: str | None = None
     pixel_size: float
     vol_z: int = 700
     out_bin: int = 1
@@ -37,7 +32,6 @@ class ImodTomoParameters(BaseModel):
     flip_vol: int = 1
     manual_tilt_offset: Optional[float] = None
     cpus: int = 4
-    relion_options: RelionServiceOptions
 
 
 class ImodTomoAlign(CommonService):
@@ -50,17 +44,6 @@ class ImodTomoAlign(CommonService):
 
     # Job name
     job_type = "relion.reconstructtomograms"
-
-    # Values to extract for ISPyB
-    refined_tilts: List[float]
-    x_shift: List[float]
-    y_shift: List[float]
-    rot_centre_z_list: List[str]
-    tilt_offset: Optional[float] = None
-    thickness_pixels: int | None = None
-    rot: float | None = None
-    mag: float | None = None
-    alignment_quality: Optional[float] = None
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -112,18 +95,16 @@ class ImodTomoAlign(CommonService):
 
         # TODO
         aln_file = "dummy"
-        rot_centre_z = 0
         shift_plot_suffix = "_xy_shift_plot.json"
-
-        # Update the relion options
-        tomo_params.relion_options = update_relion_options(
-            tomo_params.relion_options, dict(tomo_params)
-        )
 
         # Do txrm conversion
         self.log.info(f"Input file {tomo_params.txrm_file}")
         tifftomo = Path(tomo_params.stack_file).with_suffix(".tiff")
-        convert_and_save(tomo_params.txrm_file, str(tifftomo), custom_reference=None)
+        convert_and_save(
+            tomo_params.txrm_file,
+            str(tifftomo),
+            custom_reference=tomo_params.xrm_reference or None,
+        )
         subprocess.run(["tif2mrc", str(tifftomo), tomo_params.stack_file])
         tifftomo.unlink(missing_ok=True)
         if not Path(tomo_params.stack_file).is_file():
@@ -134,16 +115,12 @@ class ImodTomoAlign(CommonService):
             return
 
         # Generate angles file
-        with open_txrm(
-            tomo_params.txrm_file, load_images=False, load_reference=False, strict=False
-        ) as txrm:
-            inspector = Inspector(txrm)
-            angles = read_stream(
-                inspector.txrm.ole,
-                "ImageInfo/Angles",
-                XrmDataTypes.XRM_FLOAT,
-                strict=True,
-            )
+        with OleFileIO(tomo_params.txrm_file) as txrm_ole:
+            if txrm_ole.exists("ImageInfo/Angles"):
+                angles = np.frombuffer(
+                    txrm_ole.openstream("ImageInfo/Angles").getvalue(), np.float32
+                ).tolist()
+                angles = dict(enumerate(angles))
         with open(
             Path(tomo_params.stack_file).parent
             / f"{Path(tomo_params.stack_file).stem}.rawtlt",
@@ -187,23 +164,19 @@ class ImodTomoAlign(CommonService):
         ispyb_command_list: list[dict] = [
             {
                 "ispyb_command": "insert_tomogram",
-                "volume_file": str(imod_output_path),
+                "volume_file": str(imod_output_path.name),
                 "stack_file": tomo_params.stack_file,
                 "size_x": int(mrc_header.nx / tomo_params.out_bin),
                 "size_y": int(mrc_header.ny / tomo_params.out_bin),
                 "size_z": int(tomo_params.vol_z / tomo_params.out_bin),
                 "pixel_spacing": tomo_params.pixel_size,
-                "tilt_angle_offset": str(
-                    self.tilt_offset or tomo_params.manual_tilt_offset
-                ),
-                "z_shift": rot_centre_z,
+                "z_shift": 0,
                 "file_directory": str(imod_output_path.parent),
-                "central_slice_image": imod_output_path.name + "_Vol_thumbnail.jpeg",
-                "tomogram_movie": imod_output_path.name + "_Vol_movie.png",
-                "xy_shift_plot": imod_output_path.name + shift_plot_suffix,
-                "proj_xy": imod_output_path.name + "_Vol_projXY.jpeg",
-                "proj_xz": imod_output_path.name + "_Vol_projXZ.jpeg",
-                "alignment_quality": str(self.alignment_quality),
+                "central_slice_image": imod_output_path.stem + "_thumbnail.jpeg",
+                "tomogram_movie": imod_output_path.stem + "_movie.png",
+                "xy_shift_plot": imod_output_path.stem + shift_plot_suffix,
+                "proj_xy": imod_output_path.stem + "_projXY.jpeg",
+                "proj_xz": imod_output_path.stem + "_projYZ.jpeg",
             },
             {
                 "ispyb_command": "insert_processed_tomogram",
@@ -212,7 +185,7 @@ class ImodTomoAlign(CommonService):
             },
             {
                 "ispyb_command": "insert_processed_tomogram",
-                "file_path": f"{imod_output_path.parent}/{imod_output_path.name}_alignment.jpeg",
+                "file_path": f"{imod_output_path.parent}/{imod_output_path.stem}_alignment.jpeg",
                 "processing_type": "Alignment",
             },
         ]
@@ -271,9 +244,9 @@ class ImodTomoAlign(CommonService):
                 "projection": projection_type,
                 "pixel_spacing": tomo_params.pixel_size,
             }
-            if projection_type in ["XZ", "YZ"] and self.thickness_pixels:
+            if projection_type in ["XZ", "YZ"]:
                 images_call_params["thickness_ang"] = (
-                    self.thickness_pixels * tomo_params.pixel_size
+                    tomo_params.vol_z * tomo_params.pixel_size
                 )
             rw.send_to("images", images_call_params)
 
@@ -284,7 +257,7 @@ class ImodTomoAlign(CommonService):
             {
                 "volume": str(imod_output_path),
                 "output_dir": str(imod_output_path.parent.parent / "Denoise"),
-                "relion_options": dict(tomo_params.relion_options),
+                "relion_options": {},
             },
         )
 
