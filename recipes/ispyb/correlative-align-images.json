@@ -1,0 +1,15 @@
+{
+  "1": {
+    "parameters": {
+      "id_ref": "{id_ref}",
+      "image_ref": "{image_ref}",
+      "pixel_size_ref": "{pixel_size_ref}",
+      "id_mov": "{id_mov}",
+      "image_mov": "{image_mov}",
+      "pixel_size_mov": "{pixel_size_mov}"
+    },
+    "queue": "cluster.submission",
+    "service": "CORRELATIVE-ALIGN-IMAGES"
+  },
+  "start": [[1, []]]
+}
