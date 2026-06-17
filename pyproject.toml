@@ -100,6 +100,7 @@ torch = [
     Class2D = "cryoemservices.services.class2d:Class2D"
     Class3D = "cryoemservices.services.class3d:Class3D"
     ClusterSubmission = "cryoemservices.services.cluster_submission:ClusterSubmission"
+    CorrelativeAlignImages = "cryoemservices.services.correlative_align_images:AlignImagesService"
     CrYOLO = "cryoemservices.services.cryolo:CrYOLO"
     Denoise = "cryoemservices.services.denoise:Denoise"
     DenoiseSlurm = "cryoemservices.services.denoise_slurm:DenoiseSlurm"
