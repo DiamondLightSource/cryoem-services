@@ -35,9 +35,8 @@ class ImodTomoParameters(BaseModel):
     patch_size: int = 200
     patch_overlap: float = 0.5
     flip_vol: int = 1
-    flip_vol_post_reconstruction: bool = True
     manual_tilt_offset: Optional[float] = None
-    cpus: int = 2
+    cpus: int = 4
     relion_options: RelionServiceOptions
 
 
@@ -85,7 +84,7 @@ class ImodTomoAlign(CommonService):
             self.log.info("Received a simple message")
             if not isinstance(message, dict):
                 self.log.error("Rejected invalid simple message")
-                self._transport.nack(header)
+                self._reject_message(header, requeue=False)
                 return
 
             # Create a wrapper-like object that can be passed to functions
@@ -108,7 +107,7 @@ class ImodTomoAlign(CommonService):
                 f"and recipe parameters: {rw.recipe_step.get('parameters', {})} "
                 f"with exception: {e}"
             )
-            rw.transport.nack(header)
+            self._reject_message(header, rw.transport, requeue=False)
             return
 
         # TODO
@@ -131,7 +130,7 @@ class ImodTomoAlign(CommonService):
             self.log.error(
                 f"Converting {tomo_params.txrm_file} to {tomo_params.stack_file} failed"
             )
-            rw.transport.nack(header)
+            self._reject_message(header, rw.transport)
             return
 
         # Generate angles file
@@ -181,7 +180,7 @@ class ImodTomoAlign(CommonService):
             )
             # Update failure processing status
             rw.send_to("failure", {})
-            rw.transport.nack(header)
+            self._reject_message(header, rw.transport)
             return
 
         # Insert tomogram into ispyb
@@ -284,7 +283,7 @@ class ImodTomoAlign(CommonService):
             "denoise",
             {
                 "volume": str(imod_output_path),
-                "output_dir": str(imod_output_path.parent.parent.parent / "Denoise"),
+                "output_dir": str(imod_output_path.parent.parent / "Denoise"),
                 "relion_options": dict(tomo_params.relion_options),
             },
         )
