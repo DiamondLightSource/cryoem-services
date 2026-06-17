@@ -9,7 +9,7 @@
       "pixel_size_mov": "{pixel_size_mov}"
     },
     "queue": "cluster.submission",
-    "service": "CORRELATIVE-ALIGN-IMAGES"
+    "service": "CorrelativeAlignImages"
   },
   "start": [[1, []]]
 }
