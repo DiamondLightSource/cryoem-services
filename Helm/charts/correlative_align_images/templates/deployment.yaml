@@ -85,7 +85,7 @@ spec:
     - type: rabbitmq
       metadata:
         host: {{ .Values.global.rmqHost }}
-        queueName: clem.process_raw_tiffs
+        queueName: correlative.align_images
         mode: QueueLength
         value: "{{ .Values.queueLengthTrigger }}"
   minReplicaCount: {{ .Values.minReplicaCount }}
