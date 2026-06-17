@@ -2080,12 +2080,12 @@ def test_tomo_align_service_fail_case(
     offline_transport.send.assert_any_call("failure", {})
 
 
-@mock.patch("cryoemservices.services.tomo_align.subprocess.run")
-@mock.patch("cryoemservices.services.tomo_align.mrcfile")
-@mock.patch("cryoemservices.services.tomo_align.convert_and_save")
-@mock.patch("cryoemservices.services.tomo_align.OleFileIO")
-@mock.patch("cryoemservices.services.tomo_align.resize_tomogram")
-@mock.patch("cryoemservices.services.tomo_align.rotate_tomogram")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.subprocess.run")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.mrcfile")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.convert_and_save")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.OleFileIO")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.resize_tomogram")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.rotate_tomogram")
 def test_tomo_align_service_txrm(
     mock_rotate,
     mock_resize,
@@ -2131,7 +2131,7 @@ def test_tomo_align_service_txrm(
     (tmp_path / "tilt_stack.txrm").touch()
 
     # Set up the mock service
-    service = tomo_align.TomoAlign(
+    service = tomo_align_aretomo.AreTomoAlign(
         environment={"queue": ""}, transport=offline_transport
     )
     service.initializing()
