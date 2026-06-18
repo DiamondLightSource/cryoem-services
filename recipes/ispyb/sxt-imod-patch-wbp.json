@@ -26,7 +26,6 @@
       "out_bin": 1,
       "patch": 1,
       "pixel_size": "{pixel_size}",
-      "relion_options": {},
       "sirt": 0,
       "stack_file": "{stack_file}",
       "tilt_axis": 0,
