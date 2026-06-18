@@ -1,7 +1,8 @@
 from pathlib import Path
+from typing import Any
 
 from pydantic import BaseModel, ValidationError
-from workflows.recipe import wrap_subscribe
+from workflows.recipe import RecipeWrapper, wrap_subscribe
 
 from cryoemservices.services.common_service import CommonService
 from cryoemservices.util.models import MockRW
@@ -25,7 +26,7 @@ class AlignImagesService(CommonService):
 
     def initializing(self):
         """Subscribe to a queue. Received messages must be acknowledged."""
-        self.log.info("CLEM image alignment and merging service starting")
+        self.log.info("Correlative image alignment service starting")
         # Subscribe service to RMQ queue
         wrap_subscribe(
             self._transport,
@@ -35,7 +36,12 @@ class AlignImagesService(CommonService):
             allow_non_recipe_messages=True,
         )
 
-    def call_align_images(self, rw, header, message):
+    def call_align_images(
+        self,
+        rw: RecipeWrapper | None,
+        header: dict[str, Any],
+        message: dict[str, Any] | None,
+    ):
         """Pass incoming message to the relevant plugin function."""
         # Encase message in ReceipeWrapper if none was provided
         if not rw:
