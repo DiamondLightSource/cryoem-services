@@ -1,7 +1,9 @@
 import numpy as np
 import pytest
 
-from cryoemservices.util.align_images_using_orb import align_images_using_orb
+from cryoemservices.util.image_processing.align_images_using_orb import (
+    align_images_using_orb,
+)
 from tests.test_utils.image_processing import create_grayscale_image_with_holes
 
 

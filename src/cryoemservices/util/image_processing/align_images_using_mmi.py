@@ -5,7 +5,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import numpy as np
 import SimpleITK as sitk
 
-from cryoemservices.util.image_processing import is_image_stack
+from cryoemservices.util.image_processing.shared import is_image_stack
 
 logger = logging.getLogger(__name__)
 

@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 import numpy as np
 import pytest
 
-from cryoemservices.util.align_images_using_neighbors import (
+from cryoemservices.util.image_processing.align_images_using_neighbors import (
     AnnotationParameters,
     _determine_annotation_parameters,
     align_images_using_neighbors,

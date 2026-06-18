@@ -5,7 +5,7 @@ from typing import Any, Literal
 import numpy as np
 import pytest
 
-from cryoemservices.util.image_processing import (
+from cryoemservices.util.image_processing.shared import (
     LUT,
     convert_to_rgb,
     flatten_image,

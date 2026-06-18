@@ -3,7 +3,7 @@ from typing import Literal
 import numpy as np
 import pytest
 
-from cryoemservices.util.drift_correct_image import drift_correct_image
+from cryoemservices.util.image_processing.drift_correct_image import drift_correct_image
 from tests.test_utils.image_processing import create_grayscale_image_with_gaussian
 
 

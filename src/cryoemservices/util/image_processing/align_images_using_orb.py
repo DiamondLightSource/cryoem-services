@@ -6,7 +6,7 @@ from typing import cast
 import cv2
 import numpy as np
 
-from cryoemservices.util.image_processing import (
+from cryoemservices.util.image_processing.shared import (
     apply_sobel_edge_filter,
     create_hanning_window,
     is_image_stack,

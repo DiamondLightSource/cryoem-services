@@ -6,7 +6,7 @@ from typing import Literal
 import cv2
 import numpy as np
 
-from cryoemservices.util.image_processing import is_image_stack
+from cryoemservices.util.image_processing.shared import is_image_stack
 
 logger = logging.getLogger(__name__)
 
