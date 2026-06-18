@@ -7,6 +7,7 @@ import pytest
 from pydantic import BaseModel
 
 from cryoemservices.services.bfactor_setup import BFactorParameters
+from cryoemservices.services.correlative_align_images import AlignImagesParameters
 from cryoemservices.services.cryolo import CryoloParameters
 from cryoemservices.services.ctffind import CTFParameters
 from cryoemservices.services.denoise import DenoiseParameters
@@ -70,6 +71,7 @@ known_services = {
     "CLEM-ALIGN-AND-MERGE": AlignAndMergeParameters,
     "CLEM-PROCESS-LIFS": ProcessRawLIFsParameters,
     "CLEM-PROCESS-TIFFS": ProcessRawTIFFsParameters,
+    "CorrelativeAlignImages": AlignImagesParameters,
     "CrYOLO": CryoloParameters,
     "CTFFind": CTFParameters,
     "Denoise": DenoiseParameters,

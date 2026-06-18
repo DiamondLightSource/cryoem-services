@@ -76,6 +76,18 @@ cluster_submission:
   memoryLimit: 256Mi
   scaleOnQueueLength: false
 
+correlative_align_images:
+  replicas: 0
+  image: gcr.io/image/path
+  command: cryoemservices.service -s CorrelativeAlignImages -c /cryoemservices/config/cryoemservices_config.yaml
+  cpuRequest: "4"
+  cpuLimit: "4"
+  memoryLimit: 16Gi
+  scaleOnQueueLength: true
+  queueLengthTrigger: "4"
+  minReplicaCount: 0
+  maxReplicaCount: 4
+
 cryolo:
   replicas: 1
   image: gcr.io/image/path
