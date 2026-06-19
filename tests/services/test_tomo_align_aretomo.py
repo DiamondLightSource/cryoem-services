@@ -2219,7 +2219,8 @@ def test_tomo_align_service_txrm(
             "tif2mrc",
             f"{tmp_path}/Tomograms/stack.tiff",
             f"{tmp_path}/Tomograms/stack.mrc",
-        ]
+        ],
+        capture_output=True,
     )
     mock_subprocess.assert_any_call(
         aretomo_command,

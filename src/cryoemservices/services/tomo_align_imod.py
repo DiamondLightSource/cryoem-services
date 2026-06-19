@@ -55,7 +55,7 @@ class ImodTomoAlign(CommonService):
         self.log.info("TomoAlign service starting")
         wrap_subscribe(
             self._transport,
-            self._environment["queue"] or "tomo_align",
+            self._environment["queue"] or "tomo_align_imod",
             self.tomo_align,
             acknowledgement=True,
             allow_non_recipe_messages=True,
@@ -105,7 +105,9 @@ class ImodTomoAlign(CommonService):
             str(tifftomo),
             custom_reference=tomo_params.xrm_reference or None,
         )
-        subprocess.run(["tif2mrc", str(tifftomo), tomo_params.stack_file])
+        subprocess.run(
+            ["tif2mrc", str(tifftomo), tomo_params.stack_file], capture_output=True
+        )
         tifftomo.unlink(missing_ok=True)
         if not Path(tomo_params.stack_file).is_file():
             self.log.error(
@@ -126,10 +128,11 @@ class ImodTomoAlign(CommonService):
             / f"{Path(tomo_params.stack_file).stem}.rawtlt",
             "w",
         ) as angles_file:
-            for ang in angles:
+            for ang in angles.values():
                 angles_file.write(f"{ang}\n")
 
         # Find the input image dimensions
+        self.log.info(f"Converted {tomo_params.txrm_file} to mrc format")
         with mrcfile.open(tomo_params.stack_file) as mrc:
             mrc_header = mrc.header
 
@@ -137,7 +140,7 @@ class ImodTomoAlign(CommonService):
         adoc_file = write_batch_directive_file(tomo_params)
         imod_output_path = (
             Path(tomo_params.stack_file).parent
-            / f"{Path(tomo_params.stack_file).stem}_rec.mrc"
+            / f"{Path(tomo_params.stack_file).stem}.rec"
         )
         imod_result = subprocess.run(
             [
@@ -149,15 +152,23 @@ class ImodTomoAlign(CommonService):
             ],
             capture_output=True,
         )
-        if imod_result.returncode or not imod_output_path.is_file():
+        if imod_result.returncode:
             self.log.error(
-                f"batchruntomo failed with exitcode {imod_result.returncode}:\n"
+                f"batchruntomo failed with exitcode {imod_result.returncode}"
+            )
+            # Update failure processing status, then try again
+            rw.send_to("failure", {})
+            self._reject_message(header, rw.transport)
+            return
+        elif not imod_output_path.is_file():
+            self.log.error(
+                f"batchruntomo did not produce the output file {imod_output_path}\n"
                 + imod_result.stdout.decode("utf8", "replace")
                 + imod_result.stderr.decode("utf8", "replace")
             )
-            # Update failure processing status
+            # Update failure processing status, but do not try again as return was 0
             rw.send_to("failure", {})
-            self._reject_message(header, rw.transport)
+            self._reject_message(header, rw.transport, requeue=False)
             return
 
         # Insert tomogram into ispyb
@@ -287,7 +298,6 @@ def write_batch_directive_file(tomo_params: ImodTomoParameters):
         # Commands for copytomocoms
         adoc.write(f"setupset.datasetDirectory={adoc_file.parent}\n")
         adoc.write(f"setupset.copyarg.name={Path(tomo_params.stack_file).stem}\n")
-        adoc.write(f"setupset.copyarg.stackext={Path(tomo_params.stack_file).suffix}\n")
         adoc.write("setupset.copyarg.userawtlt=1\n")
         adoc.write("setupset.copyarg.dual=0\n")
         adoc.write(f"setupset.copyarg.pixel={tomo_params.pixel_size / 10}\n")
@@ -299,8 +309,8 @@ def write_batch_directive_file(tomo_params: ImodTomoParameters):
         adoc.write("runtime.Preprocessing.any.removeXrays=1\n")
 
         # Coarse Alignment
-        # if tomo_params.patch:
-        #   adoc.write("comparam.prenewst.newstack.BinByFactor=2\n")
+        if tomo_params.patch:
+            adoc.write("comparam.prenewst.newstack.BinByFactor=2\n")
 
         # Tracking Choices
         adoc.write(f"runtime.Fiducials.any.trackingMethod={tomo_params.patch}\n")

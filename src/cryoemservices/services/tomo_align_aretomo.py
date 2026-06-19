@@ -882,7 +882,7 @@ class AreTomoAlign(CommonService):
             txrm_file, str(tifftomo), custom_reference=xrm_reference or None
         )
         # Let this run, and check later if the output file exists
-        subprocess.run(["tif2mrc", str(tifftomo), stack_file])
+        subprocess.run(["tif2mrc", str(tifftomo), stack_file], capture_output=True)
         tifftomo.unlink(missing_ok=True)
         return pixel_size_angstroms
 
