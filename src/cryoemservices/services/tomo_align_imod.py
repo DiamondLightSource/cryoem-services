@@ -94,7 +94,7 @@ class ImodTomoAlign(CommonService):
             return
 
         # TODO
-        aln_file = "dummy"
+        # aln_file = "dummy"
         shift_plot_suffix = "_xy_shift_plot.json"
 
         # Do txrm conversion
@@ -203,6 +203,8 @@ class ImodTomoAlign(CommonService):
 
         # Forward results to images service
         self.log.info(f"Sending to images service {tomo_params.stack_file}")
+        # TODO
+        """
         rw.send_to(
             "images",
             {
@@ -212,6 +214,7 @@ class ImodTomoAlign(CommonService):
                 "pixel_size": tomo_params.pixel_size,
             },
         )
+        """
         rw.send_to(
             "images",
             {
