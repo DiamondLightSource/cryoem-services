@@ -38,7 +38,7 @@ class AlignAndMergeService(CommonService):
             self.log.info("Received a simple message")
             if not isinstance(message, dict):
                 self.log.error("Rejected invalid simple message")
-                self._transport.nack(header)
+                self._reject_message(header, requeue=False)
                 return
 
             # Create a wrapper-like object that can be passed to functions
@@ -61,7 +61,7 @@ class AlignAndMergeService(CommonService):
                 f"and recipe parameters: {rw.recipe_step.get('parameters', {})} "
                 f"with exception: {e}"
             )
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport, requeue=False)
             return
 
         # Process files and collect output
@@ -73,21 +73,22 @@ class AlignAndMergeService(CommonService):
                 align_self=params.align_self,
                 flatten=params.flatten,
                 align_across=params.align_across,
+                num_procs=params.num_procs,
             )
-        # Log error and nack message if the command fails to execute
+        # Log error and reject message if the command fails to execute
         except Exception:
             self.log.error(
                 f"Exception encountered while aligning and merging images for {params.series_name!r}: \n",
                 exc_info=True,
             )
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport)
             return
         if not result:
             self.log.error(
                 "Failed to complete the aligning and merging process for "
                 f"{params.series_name!r}"
             )
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport)
             return
 
         # Request for PNG image to be created

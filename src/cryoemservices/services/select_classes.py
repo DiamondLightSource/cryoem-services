@@ -101,7 +101,7 @@ class SelectClasses(CommonService):
             self.log.info("Received a simple message")
             if not isinstance(message, dict):
                 self.log.error("Rejected invalid simple message")
-                self._transport.nack(header)
+                self._reject_message(header, requeue=False)
                 return
 
             # Create a wrapper-like object that can be passed to functions
@@ -124,7 +124,7 @@ class SelectClasses(CommonService):
                 f"and recipe parameters: {rw.recipe_step.get('parameters', {})} "
                 f"with exception: {e}"
             )
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport, requeue=False)
             return
 
         # Update the relion options
@@ -146,7 +146,7 @@ class SelectClasses(CommonService):
             select_job_num = int(job_num_search[0][4:]) + 2
         else:
             self.log.warning(f"Invalid job directory in {autoselect_params.input_file}")
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport, requeue=False)
             return
         project_dir = class2d_job_dir.parent.parent
         select_dir = project_dir / f"Select/job{select_job_num:03}"
@@ -327,7 +327,7 @@ class SelectClasses(CommonService):
                 f"2D autoselection failed with exitcode {autoselect_result.returncode}:\n"
                 + autoselect_result.stderr.decode("utf8", "replace")
             )
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport)
             return
 
         # Find which classes were picked
@@ -378,8 +378,18 @@ class SelectClasses(CommonService):
             )
         else:
             combine_star_dir.mkdir(parents=True, exist_ok=True)
-            Path(project_dir / "Select/Best_particles").symlink_to(combine_star_dir)
             self.previous_total_count = 0
+
+        # Check job alias
+        job_alias = Path(project_dir / "Select/Live_best_particles")
+        if not job_alias.exists():
+            job_alias.symlink_to(combine_star_dir)
+        elif not (
+            job_alias.is_symlink() and job_alias.resolve() == combine_star_dir.resolve()
+        ):
+            self.log.error(f"Symlink {job_alias} already exists")
+            self._reject_message(header, transport=rw.transport)
+            return
 
         if not (
             combine_star_dir / f".done_{autoselect_params.particles_file}"
@@ -397,7 +407,7 @@ class SelectClasses(CommonService):
                 ),
                 "stdout": "",
                 "stderr": "",
-                "alias": "Best_particles",
+                "alias": "Live_best_particles",
             }
 
             # Call the combining function and redirect prints to an io object
@@ -438,7 +448,7 @@ class SelectClasses(CommonService):
             # End here if the command failed
             if not combine_node_creator_params["success"]:
                 self.log.error("Star file combination failed")
-                rw.transport.nack(header)
+                self._reject_message(header, transport=rw.transport)
                 return
         else:
             # If combination isn't run the number of particles needs to be found
@@ -527,7 +537,7 @@ class SelectClasses(CommonService):
             ),
             "stdout": "",
             "stderr": "",
-            "alias": "Best_particles",
+            "alias": "Live_best_particles",
         }
 
         # Call the combining function and redirect prints to an io object
@@ -551,7 +561,7 @@ class SelectClasses(CommonService):
         # End here if the command failed
         if not split_node_creator_params["success"]:
             self.log.error("Star file splitting failed")
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport)
             return
 
         # Request selected particles image from images service
@@ -608,7 +618,7 @@ class SelectClasses(CommonService):
             cryolo_output_path = (
                 Path(
                     re.sub(
-                        "MotionCorr/job002/.+",
+                        "MotionCorr/job[0-9]+/.+",
                         f"AutoPick/job{extract_job_number - 1:03}/STAR/",
                         str(motioncorr_file),
                     )

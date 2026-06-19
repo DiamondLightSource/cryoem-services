@@ -69,7 +69,7 @@ class Extract(CommonService):
             self.log.info("Received a simple message")
             if not isinstance(message, dict):
                 self.log.error("Rejected invalid simple message")
-                self._transport.nack(header)
+                self._reject_message(header, requeue=False)
                 return
 
             # Create a wrapper-like object that can be passed to functions
@@ -92,7 +92,7 @@ class Extract(CommonService):
                 f"and recipe parameters: {rw.recipe_step.get('parameters', {})} "
                 f"with exception: {e}"
             )
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport, requeue=False)
             return
 
         self.log.info(
@@ -113,7 +113,7 @@ class Extract(CommonService):
             job_dir = Path(job_dir_search[0])
         else:
             self.log.warning(f"Invalid job directory in {extract_params.output_file}")
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport, requeue=False)
             return
         project_dir = job_dir.parent.parent
         if not Path(extract_params.output_file).parent.exists():
@@ -122,6 +122,15 @@ class Extract(CommonService):
             Path(extract_params.output_file).parent
             / Path(extract_params.micrographs_file).with_suffix(".mrcs").name
         )
+
+        # Check job alias
+        job_alias = job_dir.parent / "Live_all_particles"
+        if not job_alias.exists():
+            job_alias.symlink_to(job_dir)
+        elif not (job_alias.is_symlink() and job_alias.resolve() == job_dir.resolve()):
+            self.log.error(f"Symlink {job_alias} already exists")
+            self._reject_message(header, transport=rw.transport)
+            return
 
         # If no background radius set diameter as 75% of box
         if extract_params.bg_radius == -1:
@@ -209,9 +218,7 @@ class Extract(CommonService):
                     "0.0",
                 ]
             )
-        extracted_parts_doc.write_file(
-            extract_params.output_file, style=cif.Style.Simple
-        )
+        extracted_parts_doc.write_file(extract_params.output_file)
 
         # Extraction
         with mrcfile.open(extract_params.micrographs_file) as input_micrograph:
@@ -389,15 +396,14 @@ class Extract(CommonService):
         self.log.info(f"Sending {self.job_type} to node creator")
         node_creator_parameters = {
             "job_type": self.job_type,
-            "input_file": extract_params.coord_list_file
-            + ":"
-            + extract_params.ctf_image,
+            "input_file": f"{extract_params.ctf_image}:{extract_params.coord_list_file}:",
             "output_file": extract_params.output_file,
             "relion_options": dict(extract_params.relion_options),
             "command": "",
             "stdout": "",
             "stderr": "",
             "results": {"box_size": box_len},
+            "alias": "Live_all_particles",
         }
         rw.send_to("node_creator", node_creator_parameters)
 

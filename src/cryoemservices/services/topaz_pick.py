@@ -62,7 +62,7 @@ class TopazPick(CommonService):
             self.log.info("Received a simple message")
             if not isinstance(message, dict):
                 self.log.error("Rejected invalid simple message")
-                self._transport.nack(header)
+                self._reject_message(header, requeue=False)
                 return
 
             # Create a wrapper-like object that can be passed to functions
@@ -85,7 +85,7 @@ class TopazPick(CommonService):
                 f"and recipe parameters: {rw.recipe_step.get('parameters', {})} "
                 f"with exception: {e}"
             )
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport, requeue=False)
             return
 
         # Check if this file has been run before
@@ -106,7 +106,26 @@ class TopazPick(CommonService):
             job_number = int(job_num_search[0][4:7])
         else:
             self.log.warning(f"Invalid job directory in {topaz_params.output_path}")
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport, requeue=False)
+            return
+
+        # Check job alias
+        job_alias = Path(
+            re.sub(
+                f"AutoPick/job{job_number:03}/.+",
+                "AutoPick/Live_topaz_picking/",
+                topaz_params.output_path,
+            )
+        )
+        if not job_alias.exists():
+            job_alias.symlink_to(job_alias.parent / f"job{job_number:03}")
+        elif not (
+            job_alias.is_symlink()
+            and job_alias.resolve()
+            == (job_alias.parent / f"job{job_number:03}").resolve()
+        ):
+            self.log.error(f"Symlink {job_alias} already exists")
+            self._reject_message(header, transport=rw.transport)
             return
 
         # Construct a command to run topaz with the given parameters
@@ -189,6 +208,7 @@ class TopazPick(CommonService):
             "command": " ".join(command),
             "stdout": "",
             "stderr": "",
+            "alias": "Live_topaz_picking",
             "success": True,
         }
         if not job_is_rerun:
@@ -224,7 +244,7 @@ class TopazPick(CommonService):
             "extract_file": str(
                 Path(
                     re.sub(
-                        "MotionCorr/job002/.+",
+                        "MotionCorr/job[0-9]+/.+",
                         f"Extract/job{job_number + 1:03}/Movies/",
                         topaz_params.input_path,
                     )

@@ -92,7 +92,7 @@ def _global_tilt_series_file(
             ],
         )
         global_loop.add_row(tilt_series_line)
-        output_cif.write_file(str(global_tilt_star), style=cif.Style.Simple)
+        output_cif.write_file(str(global_tilt_star))
     else:
         tilts_cif = cif.read_file(str(global_tilt_star))
         tilts_loop = list(tilts_cif.find_block("global").find_loop("_rlnTomoName"))
@@ -153,7 +153,7 @@ def _import_output_files(
             ],
         )
         movies_loop.add_row(added_line)
-        output_cif.write_file(str(movies_file), style=cif.Style.Simple)
+        output_cif.write_file(str(movies_file))
     else:
         with open(movies_file, "a") as output_cif:
             output_cif.write(" ".join(added_line) + "\n")
@@ -224,7 +224,7 @@ def _motioncorr_output_files(
             ],
         )
         movies_loop.add_row(added_line)
-        output_cif.write_file(str(movies_file), style=cif.Style.Simple)
+        output_cif.write_file(str(movies_file))
     else:
         with open(movies_file, "a") as output_cif:
             output_cif.write(" ".join(added_line) + "\n")
@@ -306,7 +306,7 @@ def _ctffind_output_files(
             ],
         )
         movies_loop.add_row(added_line)
-        output_cif.write_file(str(movies_file), style=cif.Style.Simple)
+        output_cif.write_file(str(movies_file))
     else:
         with open(movies_file, "a") as output_cif:
             output_cif.write(" ".join(added_line) + "\n")
@@ -396,7 +396,7 @@ def _exclude_tilt_output_files(
             ],
         )
         movies_loop.add_row(added_line)
-        output_cif.write_file(str(movies_file), style=cif.Style.Simple)
+        output_cif.write_file(str(movies_file))
     else:
         tilt_cif_doc = cif.read_file(str(movies_file))
         tilt_loop = list(tilt_cif_doc.sole_block().find_loop("_rlnMicrographName"))
@@ -521,7 +521,7 @@ def _align_tilt_output_files(
             ],
         )
         movies_loop.add_row(added_line)
-        output_cif.write_file(str(movies_file), style=cif.Style.Simple)
+        output_cif.write_file(str(movies_file))
     else:
         tilt_cif_doc = cif.read_file(str(movies_file))
         tilt_loop = list(tilt_cif_doc.sole_block().find_loop("_rlnMicrographName"))
@@ -596,7 +596,7 @@ def _tomogram_output_files(
             ],
         )
         movies_loop.add_row(added_line)
-        output_cif.write_file(str(tomograms_file), style=cif.Style.Simple)
+        output_cif.write_file(str(tomograms_file))
     else:
         with open(tomograms_file, "a") as output_cif:
             output_cif.write(" ".join(added_line) + "\n")
@@ -659,7 +659,7 @@ def _denoising_output_files(
             ],
         )
         movies_loop.add_row(added_line)
-        output_cif.write_file(str(tomograms_file), style=cif.Style.Simple)
+        output_cif.write_file(str(tomograms_file))
     else:
         with open(tomograms_file, "a") as output_cif:
             output_cif.write(" ".join(added_line) + "\n")
@@ -722,7 +722,7 @@ def _membrain_output_files(
             ],
         )
         movies_loop.add_row(added_line)
-        output_cif.write_file(str(tomograms_file), style=cif.Style.Simple)
+        output_cif.write_file(str(tomograms_file))
     else:
         with open(tomograms_file, "a") as output_cif:
             output_cif.write(" ".join(added_line) + "\n")

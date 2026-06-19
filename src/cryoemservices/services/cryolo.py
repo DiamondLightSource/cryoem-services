@@ -112,7 +112,7 @@ class CrYOLO(CommonService):
             self.log.info("Received a simple message")
             if not isinstance(message, dict):
                 self.log.error("Rejected invalid simple message")
-                self._transport.nack(header)
+                self._reject_message(header, requeue=False)
                 return
 
             # Create a wrapper-like object that can be passed to functions
@@ -138,7 +138,7 @@ class CrYOLO(CommonService):
                 f"and recipe parameters: {rw.recipe_step.get('parameters', {})} "
                 f"with exception: {e}"
             )
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport, requeue=False)
             return
 
         # Check if this file has been run before
@@ -160,7 +160,16 @@ class CrYOLO(CommonService):
             job_number = int(job_num_search[0][4:7])
         else:
             self.log.warning(f"Invalid job directory in {cryolo_params.output_path}")
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport, requeue=False)
+            return
+
+        # Check job alias
+        job_alias = job_dir.parent / "Live_cryolo"
+        if not job_alias.exists():
+            job_alias.symlink_to(job_dir)
+        elif not (job_alias.is_symlink() and job_alias.resolve() == job_dir.resolve()):
+            self.log.error(f"Symlink {job_alias} already exists")
+            self._reject_message(header, transport=rw.transport)
             return
 
         Path(cryolo_params.output_path).unlink(missing_ok=True)
@@ -267,6 +276,7 @@ class CrYOLO(CommonService):
             "stdout": result.stdout.decode("utf8", "replace"),
             "stderr": result.stderr.decode("utf8", "replace"),
             "experiment_type": cryolo_params.experiment_type,
+            "alias": "Live_cryolo",
         }
         if (
             result.returncode
@@ -292,7 +302,7 @@ class CrYOLO(CommonService):
                 f"crYOLO failed with exitcode {result.returncode}:\n"
                 + result.stderr.decode("utf8", "replace")
             )
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport)
             return
 
         # If this is tomo then make an image and stop here
@@ -460,7 +470,7 @@ class CrYOLO(CommonService):
             "extract_file": str(
                 Path(
                     re.sub(
-                        "MotionCorr/job002/.+",
+                        "MotionCorr/job[0-9]+/.+",
                         f"Extract/job{job_number + 1:03}/Movies/",
                         cryolo_params.input_path,
                     )
@@ -541,11 +551,20 @@ def grid_bar_histogram(
 ) -> Optional[np.ndarray]:
     # Bin the image
     full_shape = np.shape(full_image)
-    small_image = (
-        full_image.reshape((int(full_shape[0] / 4), 4, int(full_shape[1] / 4), 4))
-        .mean(-1)
-        .mean(1)
-    )
+    if full_shape[0] % 4 != 0 or full_shape[1] % 4 != 0:
+        clip_image = full_image[full_shape[0] % 4 :, full_shape[1] % 4 :]
+        clip_shape = np.shape(clip_image)
+        small_image = (
+            clip_image.reshape((int(clip_shape[0] / 4), 4, int(clip_shape[1] / 4), 4))
+            .mean(-1)
+            .mean(1)
+        )
+    else:
+        small_image = (
+            full_image.reshape((int(full_shape[0] / 4), 4, int(full_shape[1] / 4), 4))
+            .mean(-1)
+            .mean(1)
+        )
 
     # Make histogram and find turning points in it
     hist = plt.hist(small_image.flatten(), bins=100)

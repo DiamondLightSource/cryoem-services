@@ -47,11 +47,11 @@ RUN yum install openmpi fftw-devel libtiff-devel libpng-devel libjpeg-devel zlib
 COPY --from="${relionbuild}" --chown="${userid}":"${groupid}" /install/relion5.0 /install/relion5.0
 ENV PATH="/install/relion5.0/bin:${PATH}"
 
-# Copy python environment (from Relion build)
-COPY --from=relion-build --chown="${userid}":"${groupid}" /install/venv /install/venv
+# Copy python environment
+COPY --from=conda-build --chown="${userid}":"${groupid}" /install/venv /install/venv
 ENV PATH="/install/venv/bin:${PATH}"
 
 # Copy Relion torch models
-COPY --from=relion-build --chown="${userid}":"${groupid}" /torch_home /torch_home
+COPY --from="${relionbuild}" --chown="${userid}":"${groupid}" /torch_home /torch_home
 ENV RELION_PYTHON_EXECUTABLE="/install/venv/bin/python"
 ENV TORCH_HOME="/torch_home"

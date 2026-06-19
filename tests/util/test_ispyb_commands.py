@@ -879,6 +879,7 @@ def test_insert_processed_tomogram(mock_models):
             "tomogram_id": 801,
             "file_path": "/path/to/processed/tomogram",
             "processing_type": "Denoised",
+            "feature": "nuclear_envelope",
         }
         return tomogram_parameters[p]
 
@@ -893,6 +894,35 @@ def test_insert_processed_tomogram(mock_models):
         tomogramId=801,
         filePath="/path/to/processed/tomogram",
         processingType="Denoised",
+        feature="Nuclear envelope",
+    )
+    mock_session.add.assert_called()
+    mock_session.commit.assert_called()
+
+
+@mock.patch("cryoemservices.util.ispyb_commands.models")
+def test_insert_processed_tomogram_no_feature(mock_models):
+    def mock_tomogram_parameters(p):
+        tomogram_parameters = {
+            "tomogram_id": 801,
+            "file_path": "/path/to/processed/tomogram",
+            "processing_type": "Denoised",
+            "feature": None,
+        }
+        return tomogram_parameters[p]
+
+    mock_session = mock.MagicMock()
+    return_value = ispyb_commands.insert_processed_tomogram(
+        {}, mock_tomogram_parameters, mock_session
+    )
+    assert return_value.get("success")
+    assert return_value["return_value"]
+
+    mock_models.ProcessedTomogram.assert_called_with(
+        tomogramId=801,
+        filePath="/path/to/processed/tomogram",
+        processingType="Denoised",
+        feature=None,
     )
     mock_session.add.assert_called()
     mock_session.commit.assert_called()

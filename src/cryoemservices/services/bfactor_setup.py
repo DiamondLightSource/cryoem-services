@@ -54,7 +54,7 @@ class BFactor(CommonService):
             self.log.info("Received a simple message")
             if not isinstance(message, dict):
                 self.log.error("Rejected invalid simple message")
-                self._transport.nack(header)
+                self._reject_message(header, requeue=False)
                 return
 
             # Create a wrapper-like object that can be passed to functions
@@ -77,7 +77,7 @@ class BFactor(CommonService):
                 f"and recipe parameters: {rw.recipe_step.get('parameters', {})} "
                 f"with exception: {e}"
             )
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport, requeue=False)
             return
 
         self.log.info(
@@ -102,7 +102,7 @@ class BFactor(CommonService):
         linked_class_particles.unlink(missing_ok=True)
         linked_class_particles.symlink_to(
             project_dir
-            / f"Extract/Reextract_class{bfactor_params.class_number}/particles.star"
+            / f"Extract/Live_reextract_class{bfactor_params.class_number}/particles.star"
         )
 
         (bfactor_dir / "Extract").unlink(missing_ok=True)

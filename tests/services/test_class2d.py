@@ -330,7 +330,7 @@ def test_class2d_service_complete_batch(mock_subprocess, offline_transport, tmp_
 
     # Check the expected command was run
     class2d_command = [
-        "srun",
+        "mpirun",
         "-n",
         "5",
         "relion_refine_mpi",

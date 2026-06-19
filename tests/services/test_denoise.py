@@ -399,9 +399,18 @@ def test_denoise_slurm_service(
 
     def write_denoised_files(**kwargs):
         # Touch the expected output files
-        (tmp_path / "Denoise/job007/denoised/test_stack_aretomo.denoised.mrc").touch()
-        (tmp_path / "Denoise/job007/denoised/test_stack_aretomo.denoised.out").touch()
-        (tmp_path / "Denoise/job007/denoised/test_stack_aretomo.denoised.err").touch()
+        (
+            tmp_path
+            / "cm12345-6/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc"
+        ).touch()
+        (
+            tmp_path
+            / "cm12345-6/Denoise/job007/denoised/test_stack_aretomo.denoised.out"
+        ).touch()
+        (
+            tmp_path
+            / "cm12345-6/Denoise/job007/denoised/test_stack_aretomo.denoised.err"
+        ).touch()
 
     mock_transfer.return_value = ["test_stack_aretomo.mrc"]
     mock_retrieve.side_effect = write_denoised_files
@@ -411,8 +420,8 @@ def test_denoise_slurm_service(
         "subscription": mock.sentinel,
     }
     denoise_test_message = {
-        "volume": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
-        "output_dir": f"{tmp_path}/Denoise/job007/denoised",
+        "volume": f"{tmp_path}/cm12345-6/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
+        "output_dir": f"{tmp_path}/cm12345-6/Denoise/job007/denoised",
         "cleanup_output": False,
         "relion_options": {"pixel_size_downscaled": 1},
     }
@@ -452,9 +461,9 @@ def test_denoise_slurm_service(
     denoise_command = [
         "topaz",
         "denoise3d",
-        f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
+        f"{tmp_path}/cm12345-6/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
         "-o",
-        f"{tmp_path}/Denoise/job007/denoised",
+        f"{tmp_path}/cm12345-6/Denoise/job007/denoised",
         "--suffix",
         ".denoised",
     ]
@@ -482,9 +491,9 @@ def test_denoise_slurm_service(
             ),
             "job": {
                 "cpus_per_task": 1,
-                "current_working_directory": f"{tmp_path}/Denoise/job007/denoised",
-                "standard_output": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.out",
-                "standard_error": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.err",
+                "current_working_directory": f"{tmp_path}/cm12345-6/Denoise/job007/denoised",
+                "standard_output": f"{tmp_path}/cm12345-6/Denoise/job007/denoised/test_stack_aretomo.denoised.out",
+                "standard_error": f"{tmp_path}/cm12345-6/Denoise/job007/denoised/test_stack_aretomo.denoised.err",
                 "environment": ["USER=user", "HOME=/home"],
                 "name": "Denoising",
                 "nodes": "1",
@@ -504,12 +513,14 @@ def test_denoise_slurm_service(
     # Check file transfer and retrieval
     assert mock_transfer.call_count == 1
     mock_transfer.assert_any_call(
-        [tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo.mrc"]
+        [tmp_path / "cm12345-6/Tomograms/job006/tomograms/test_stack_aretomo.mrc"]
     )
     assert mock_retrieve.call_count == 1
     mock_retrieve.assert_any_call(
-        job_directory=tmp_path / "Denoise/job007/denoised",
-        files_to_skip=[tmp_path / "Tomograms/job006/tomograms/test_stack_aretomo.mrc"],
+        job_directory=tmp_path / "cm12345-6/Denoise/job007/denoised",
+        files_to_skip=[
+            tmp_path / "cm12345-6/Tomograms/job006/tomograms/test_stack_aretomo.mrc"
+        ],
         basepath="test_stack_aretomo",
     )
 
@@ -520,8 +531,8 @@ def test_denoise_slurm_service(
         {
             "experiment_type": "tomography",
             "job_type": "relion.denoisetomo",
-            "input_file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
-            "output_file": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
+            "input_file": f"{tmp_path}/cm12345-6/Tomograms/job006/tomograms/test_stack_aretomo.mrc",
+            "output_file": f"{tmp_path}/cm12345-6/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
             "relion_options": output_relion_options,
             "command": " ".join(denoise_command),
             "stdout": "",
@@ -533,29 +544,29 @@ def test_denoise_slurm_service(
         "images",
         {
             "image_command": "mrc_central_slice",
-            "file": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
+            "file": f"{tmp_path}/cm12345-6/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
         },
     )
     offline_transport.send.assert_any_call(
         "movie",
         {
             "image_command": "mrc_to_apng",
-            "file": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
+            "file": f"{tmp_path}/cm12345-6/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
         },
     )
     offline_transport.send.assert_any_call(
         "ispyb_connector",
         {
             "ispyb_command": "insert_processed_tomogram",
-            "file_path": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
+            "file_path": f"{tmp_path}/cm12345-6/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
             "processing_type": "Denoised",
         },
     )
     offline_transport.send.assert_any_call(
         "segmentation",
         {
-            "tomogram": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
-            "output_dir": f"{tmp_path}/Segmentation/job008/tomograms",
+            "tomogram": f"{tmp_path}/cm12345-6/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
+            "output_dir": f"{tmp_path}/cm12345-6/Segmentation/job008/tomograms",
             "pixel_size": "1.0",
             "relion_options": output_relion_options,
         },
@@ -563,8 +574,8 @@ def test_denoise_slurm_service(
     offline_transport.send.assert_any_call(
         "cryolo",
         {
-            "input_path": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
-            "output_path": f"{tmp_path}/AutoPick/job009/CBOX_3D/test_stack_aretomo.denoised.cbox",
+            "input_path": f"{tmp_path}/cm12345-6/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
+            "output_path": f"{tmp_path}/cm12345-6/AutoPick/job009/CBOX_3D/test_stack_aretomo.denoised.cbox",
             "experiment_type": "tomography",
             "cryolo_box_size": 40,
             "relion_options": output_relion_options,

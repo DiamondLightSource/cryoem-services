@@ -49,7 +49,7 @@ class SelectParticles(CommonService):
             self.log.info("Received a simple message")
             if not isinstance(message, dict):
                 self.log.error("Rejected invalid simple message")
-                self._transport.nack(header)
+                self._reject_message(header, requeue=False)
                 return
 
             # Create a wrapper-like object that can be passed to functions
@@ -72,7 +72,7 @@ class SelectParticles(CommonService):
                 f"and recipe parameters: {rw.recipe_step.get('parameters', {})} "
                 f"with exception: {e}"
             )
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport, requeue=False)
             return
 
         self.log.info(f"Inputs: {select_params.input_file}")
@@ -85,11 +85,22 @@ class SelectParticles(CommonService):
             select_job_num = int(job_num_search[0][4:7]) + 1
         else:
             self.log.warning(f"Invalid job directory in {select_params.input_file}")
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport, requeue=False)
             return
         project_dir = extract_job_dir.parent.parent
         select_dir = project_dir / f"Select/job{select_job_num:03}"
         select_dir.mkdir(parents=True, exist_ok=True)
+
+        # Check job alias
+        job_alias = select_dir.parent / "Live_particle_batches"
+        if not job_alias.exists():
+            job_alias.symlink_to(select_dir)
+        elif not (
+            job_alias.is_symlink() and job_alias.resolve() == select_dir.resolve()
+        ):
+            self.log.error(f"Symlink {job_alias} already exists")
+            self._reject_message(header, transport=rw.transport)
+            return
 
         extracted_parts_file = cif.read_file(select_params.input_file)
         extracted_parts_block = extracted_parts_file.sole_block()
@@ -209,6 +220,7 @@ class SelectParticles(CommonService):
                 "command": "",
                 "stdout": "",
                 "stderr": "",
+                "alias": "Live_particle_batches",
             }
             rw.send_to("node_creator", node_creator_params)
 

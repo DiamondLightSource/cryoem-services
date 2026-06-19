@@ -25,8 +25,8 @@ class CTFParameters(BaseModel):
     ampl_spectrum: int = 512
     min_res: float = 30.0
     max_res: float = 5.0
-    min_defocus: float = 5000.0
-    max_defocus: float = 50000.0
+    min_defocus: float = 2000.0
+    max_defocus: float = 90000.0
     defocus_step: float = 100.0
     astigmatism_known: str = "no"
     slow_search: str = "no"
@@ -117,7 +117,7 @@ class CTFFind(CommonService):
             self.log.info("Received a simple message")
             if not isinstance(message, dict):
                 self.log.error("Rejected invalid simple message")
-                self._transport.nack(header)
+                self._reject_message(header, requeue=False)
                 return
 
             # Create a wrapper-like object that can be passed to functions
@@ -138,12 +138,12 @@ class CTFFind(CommonService):
                 f"and recipe parameters: {rw.recipe_step.get('parameters', {})} "
                 f"with exception: {e}"
             )
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport, requeue=False)
             return
 
         if ctf_params.ctffind_version not in [4, 5]:
             self.log.error(f"Cannot use CTFFind version {ctf_params.ctffind_version}")
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport, requeue=False)
             return
         self.log.info(f"Using CTFFind version {ctf_params.ctffind_version}")
 
@@ -159,6 +159,34 @@ class CTFFind(CommonService):
             job_is_rerun = False
             Path(ctf_params.output_image).parent.mkdir(parents=True, exist_ok=True)
             Path(ctf_params.output_image).with_suffix(".tmp").touch(exist_ok=True)
+
+        # Check job alias
+        job_number_search = re.search("/job[0-9]+/", ctf_params.output_image)
+        if job_number_search:
+            ctf_job_number = int(job_number_search[0][4:7])
+        else:
+            self.log.warning(
+                f"Could not determine job number in {ctf_params.output_image}"
+            )
+            self._reject_message(header, transport=rw.transport, requeue=False)
+            return
+        job_alias = Path(
+            re.sub(
+                f"CtfFind/job{ctf_job_number:03}/.+",
+                "CtfFind/Live_ctffind/",
+                ctf_params.output_image,
+            )
+        )
+        if not job_alias.exists():
+            job_alias.symlink_to(job_alias.parent / f"job{ctf_job_number:03}")
+        elif not (
+            job_alias.is_symlink()
+            and job_alias.resolve()
+            == (job_alias.parent / f"job{ctf_job_number:03}").resolve()
+        ):
+            self.log.error(f"Symlink {job_alias} already exists")
+            self._reject_message(header, transport=rw.transport)
+            return
 
         parameters_list = [
             ctf_params.input_image,
@@ -227,6 +255,7 @@ class CTFFind(CommonService):
                 ),
                 "stdout": result.stdout.decode("utf8", "replace"),
                 "stderr": result.stderr.decode("utf8", "replace"),
+                "alias": "Live_ctffind",
             }
             if result.returncode:
                 node_creator_parameters["success"] = False
@@ -242,7 +271,7 @@ class CTFFind(CommonService):
                 f"CTFFind failed with exitcode {result.returncode}:\n"
                 + result.stderr.decode("utf8", "replace")
             )
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport)
             return
 
         # Write stdout to logfile
@@ -296,15 +325,10 @@ class CTFFind(CommonService):
             # Forward results to particle picking
             self.log.info(f"Sending to autopicking: {ctf_params.input_image}")
             ctf_params.autopick["input_path"] = ctf_params.input_image
-            job_number_search = re.search("/job[0-9]+/", ctf_params.output_image)
-            if job_number_search:
-                ctf_job_number = int(job_number_search[0][4:7])
-            else:
-                ctf_job_number = 6
             ctf_params.autopick["output_path"] = str(
                 Path(
                     re.sub(
-                        "MotionCorr/job002/.+",
+                        "MotionCorr/job[0-9]+/.+",
                         f"AutoPick/job{ctf_job_number + 1:03}/STAR/",
                         ctf_params.input_image,
                     )
@@ -330,7 +354,8 @@ class CTFFind(CommonService):
                 rw.send_to(
                     "smartem",
                     {
-                        "ctf_max_resolution_estimate": self.estimated_resolution,
+                        "register": "spa.ctf_estimated",
+                        "ctf_max_resolution": self.estimated_resolution,
                         "ice_ring_density": ice_ring_density,
                         "app_id": ctf_params.app_id,
                         "mc_uuid": ctf_params.mc_uuid,

@@ -14,6 +14,7 @@ class ServiceConfig(BaseModel):
     slurm_credentials: dict[str, Path] = {}
     graylog_host: str = ""
     graylog_port: Optional[int] = None
+    database_url: str = ""
 
     @model_validator(mode="before")
     @classmethod

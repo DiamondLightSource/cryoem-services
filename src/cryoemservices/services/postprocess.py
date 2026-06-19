@@ -35,7 +35,7 @@ class PostProcessParameters(BaseModel):
     postprocess_lowres: float = 10
     symmetry: str = "C1"
     particles_file: str = ""
-    picker_id: int
+    picker_id: int | None = None
     refined_grp_uuid: int
     refined_class_uuid: int
     relion_options: RelionServiceOptions
@@ -69,7 +69,7 @@ class PostProcess(CommonService):
             self.log.info("Received a simple message")
             if not isinstance(message, dict):
                 self.log.error("Rejected invalid simple message")
-                self._transport.nack(header)
+                self._reject_message(header, requeue=False)
                 return
 
             # Create a wrapper-like object that can be passed to functions
@@ -92,7 +92,7 @@ class PostProcess(CommonService):
                 f"and recipe parameters: {rw.recipe_step.get('parameters', {})} "
                 f"with exception: {e}"
             )
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport, requeue=False)
             return
 
         # Run in the project directory
@@ -108,7 +108,7 @@ class PostProcess(CommonService):
             self.log.error(
                 f"Can't determine job number from {postprocess_params.job_dir}"
             )
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport, requeue=False)
             return
 
         # Update the relion options
@@ -195,7 +195,7 @@ class PostProcess(CommonService):
                 f"{postprocess_result.returncode}:\n"
                 + postprocess_result.stderr.decode("utf8", "replace")
             )
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport)
             return
 
         # Copy the angular distribution from Refinement
@@ -229,7 +229,7 @@ class PostProcess(CommonService):
             self.log.error(
                 f"Unable to read bfactor and resolution in {postprocess_params.job_dir}"
             )
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport)
             return
 
         # Send refinement job information to ispyb
@@ -272,7 +272,7 @@ class PostProcess(CommonService):
                     f"{Path(postprocess_params.half_map).parent}/run_model.star "
                     f"does not exist"
                 )
-                rw.transport.nack(header)
+                self._reject_message(header, transport=rw.transport)
                 return
 
             data = cif.read_file(

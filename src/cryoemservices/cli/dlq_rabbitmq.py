@@ -79,7 +79,7 @@ def dlq_purge(queue: str, rabbitmq_credentials: Path) -> list[Path]:
             f"{queue}-"
             + time.strftime("%Y%m%d-%H%M%S", timestamp)
             + "-"
-            + str(header["message-id"])
+            + str(time.time_ns())
         )
 
         dlqmsg = {

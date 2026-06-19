@@ -208,7 +208,12 @@ def generate_service_options(
 
     job_options["icebreaker.micrograph_analysis.particles"] = {"nr_threads": "10"}
 
-    job_options["relion.ctffind.ctffind4"] = {"nr_mpi": 40}
+    job_options["relion.ctffind.ctffind4"] = {
+        "nr_mpi": 40,
+        "dfmin": 2000,
+        "dfmax": 90000,
+        "dfstep": 100,
+    }
 
     job_options["cryolo.autopick"] = {
         "model_path": relion_options.cryolo_model_weights,
@@ -259,7 +264,6 @@ def generate_service_options(
     }
 
     job_options["relion.select.class2dauto"] = {
-        "python_exe": "/dls_sw/apps/EM/relion/4.0/conda/bin/python",
         "rank_threshold": relion_options.autoselect_min_score,
         "other_args": "--select_min_nr_particles 500",
     }

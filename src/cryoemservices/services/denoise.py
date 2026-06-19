@@ -48,6 +48,7 @@ class DenoiseParameters(BaseModel):
     patch_padding: Optional[int] = None  # 48
     device: Optional[int] = None  # -2
     cleanup_output: bool = True
+    visits_for_slurm: Optional[list] = ["bi", "cm", "nr", "nt"]
     relion_options: RelionServiceOptions
 
     @field_validator("model")
@@ -94,6 +95,10 @@ class Denoise(CommonService):
             allow_non_recipe_messages=True,
         )
 
+    @staticmethod
+    def check_visit(denoise_params: DenoiseParameters):
+        return True
+
     def run_topaz(
         self,
         topaz_command: List[str],
@@ -137,7 +142,7 @@ class Denoise(CommonService):
             self.log.info("Received a simple message")
             if not isinstance(message, dict):
                 self.log.error("Rejected invalid simple message")
-                self._transport.nack(header)
+                self._reject_message(header, requeue=False)
                 return
 
             # Create a wrapper-like object that can be passed to functions
@@ -160,7 +165,13 @@ class Denoise(CommonService):
                 f"and recipe parameters: {rw.recipe_step.get('parameters', {})} "
                 f"with exception: {e}"
             )
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport, requeue=False)
+            return
+
+        if not self.check_visit(denoise_params):
+            # This one should infinitely nack
+            self.log.warning(f"Visit rejected for {denoise_params.volume}")
+            rw.transport.nack(header, requeue=True)
             return
 
         command = [
@@ -245,7 +256,7 @@ class Denoise(CommonService):
         # Stop here if the job failed
         if result.returncode:
             self.log.error("Denoising failed to run")
-            rw.transport.nack(header)
+            self._reject_message(header, transport=rw.transport)
             return
 
         # Clean up the slurm files

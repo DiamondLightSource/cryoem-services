@@ -68,7 +68,7 @@ class RefineParameters(BaseModel):
     mask_lowpass: float = 15
     mask_extend: int = 3
     mask_soft_edge: int = 3
-    mpi_run_command: str = "srun -n 5"
+    mpi_run_command: str = "mpirun -n 5"
     dont_correct_greyscale: bool = True
     initial_lowpass: float = 20.0
     dont_combine_weights_via_disc: bool = True
@@ -91,6 +91,7 @@ class RefineParameters(BaseModel):
     symmetry: str = "C1"
     do_norm: bool = True
     do_scale: bool = True
+    seed: int | None = None
     threads: int = 8
     gpus: str = "0:1:2:3"
     relion_options: RelionServiceOptions
@@ -183,6 +184,7 @@ def run_refinement(refine_params: RefineParameters, send_to_rabbitmq: Callable):
         "symmetry": "--sym",
         "do_norm": "--norm",
         "do_scale": "--scale",
+        "seed": "--random_seed",
         "threads": "--j",
         "gpus": "--gpu",
     }

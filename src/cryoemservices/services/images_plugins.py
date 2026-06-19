@@ -14,7 +14,7 @@ import tifffile as tf
 from PIL import ImageDraw, ImageEnhance, ImageFilter, ImageFont
 
 from cryoemservices.services.cryolo import grid_bar_histogram
-from cryoemservices.util.clem_array_functions import convert_to_rgb
+from cryoemservices.util.image_processing import convert_to_rgb
 
 logger = logging.getLogger("cryoemservices.services.images_plugins")
 logger.setLevel(logging.INFO)
@@ -884,17 +884,38 @@ def tilt_series_alignment(plugin_params: Callable):
         )
 
     # Text to record outliers and colour key
+    text_scaling = flat_size[0] / 4096
     if outliers:
         dim.text(
-            (100, cen[1] * 2 - 200),
+            (100 * text_scaling, cen[1] * 2 - 200 * text_scaling),
             "Outliers (deg): " + " ".join(outliers),
             fill="#f52407",
-            font_size=150,
+            font_size=150 * text_scaling,
         )
-    dim.text((100, 10), "Shift over 100 nm", fill="#f52407", font_size=150)
-    dim.text((100, 160), "Shift 10 to 100 nm", fill="#f5a927", font_size=150)
-    dim.text((100, 320), "Shift 1 to 10 nm", fill="#f5e90a", font_size=150)
-    dim.text((100, 460), "Shift under 1 nm", fill="#0af549", font_size=150)
+    dim.text(
+        (100 * text_scaling, 10),
+        "Shift over 100 nm",
+        fill="#f52407",
+        font_size=150 * text_scaling,
+    )
+    dim.text(
+        (100 * text_scaling, 10 + 150 * text_scaling),
+        "Shift 10 to 100 nm",
+        fill="#f5a927",
+        font_size=150 * text_scaling,
+    )
+    dim.text(
+        (100 * text_scaling, 10 + 300 * text_scaling),
+        "Shift 1 to 10 nm",
+        fill="#f5e90a",
+        font_size=150 * text_scaling,
+    )
+    dim.text(
+        (100 * text_scaling, 10 + 450 * text_scaling),
+        "Shift under 1 nm",
+        fill="#0af549",
+        font_size=150 * text_scaling,
+    )
     colour_im.thumbnail((1024, 1024))
     colour_im.save(outfile)
     timing = time.perf_counter() - start

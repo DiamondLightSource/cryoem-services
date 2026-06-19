@@ -30,11 +30,10 @@ def test_align_and_merge_with_optional_args(mocker: MockerFixture, tmp_path: Pat
         "--crop-to-n-frames",
         "5",
         "--align-self",
-        "enabled",
         "--flatten",
-        "min",
         "--align-across",
-        "enabled",
+        "--num-procs",
+        "4",
         "--debug",
     ]
     clem_align_and_merge.run()
@@ -44,9 +43,10 @@ def test_align_and_merge_with_optional_args(mocker: MockerFixture, tmp_path: Pat
         images=[tmp_path / "file1", tmp_path / "file2"],
         metadata=Path("metadata.xml"),
         crop_to_n_frames=5,
-        align_self="enabled",
-        flatten="min",
-        align_across="enabled",
+        align_self=True,
+        flatten=True,
+        align_across=True,
+        num_procs=4,
     )
 
 
@@ -72,9 +72,10 @@ def test_align_and_merge_with_default_args(mocker: MockerFixture, tmp_path: Path
         images=[tmp_path / "file1"],
         metadata=None,
         crop_to_n_frames=None,
-        align_self="",
-        flatten="mean",
-        align_across="",
+        align_self=False,
+        flatten=False,
+        align_across=False,
+        num_procs=1,
     )
 
 
@@ -99,9 +100,10 @@ def test_align_and_merge_string_list(mocker: MockerFixture, tmp_path):
         images=[tmp_path / "file1", tmp_path / "file2"],
         metadata=None,
         crop_to_n_frames=None,
-        align_self="",
-        flatten="mean",
-        align_across="",
+        align_self=False,
+        flatten=False,
+        align_across=False,
+        num_procs=1,
     )
 
 
@@ -123,6 +125,7 @@ def test_align_and_merge_exists():
     )
     assert cleaned_help_line == (
         "usage:clem.align_and_merge[-h][--metadataMETADATA]"
-        "[--crop-to-n-framesCROP_TO_N_FRAMES][--align-selfALIGN_SELF]"
-        "[--flattenFLATTEN][--align-acrossALIGN_ACROSS][--debug]images[images...]"
+        "[--crop-to-n-framesCROP_TO_N_FRAMES][--align-self]"
+        "[--flatten][--align-across]"
+        "[--num-procsNUM_PROCS][--debug]images[images...]"
     )
