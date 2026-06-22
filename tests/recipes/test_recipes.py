@@ -7,6 +7,7 @@ import pytest
 from pydantic import BaseModel
 
 from cryoemservices.services.bfactor_setup import BFactorParameters
+from cryoemservices.services.correlative_align_images import AlignImagesParameters
 from cryoemservices.services.cryolo import CryoloParameters
 from cryoemservices.services.ctffind import CTFParameters
 from cryoemservices.services.denoise import DenoiseParameters
@@ -19,7 +20,8 @@ from cryoemservices.services.motioncorr import MotionCorrParameters
 from cryoemservices.services.postprocess import PostProcessParameters
 from cryoemservices.services.select_classes import SelectClassesParameters
 from cryoemservices.services.select_particles import SelectParticlesParameters
-from cryoemservices.services.tomo_align import TomoParameters
+from cryoemservices.services.tomo_align_aretomo import AreTomoParameters
+from cryoemservices.services.tomo_align_imod import ImodTomoParameters
 from cryoemservices.wrappers.class2d_wrapper import Class2DParameters
 from cryoemservices.wrappers.class3d_wrapper import Class3DParameters
 from cryoemservices.wrappers.clem_align_and_merge import AlignAndMergeParameters
@@ -62,6 +64,7 @@ class MurfeyParameters(BaseModel):
 
 FIXTURE_DIR = Path(__file__).parent.parent.parent.resolve()
 known_services = {
+    "AreTomoAlign": AreTomoParameters,
     "BFactor": BFactorParameters,
     "Class2D": Class2DParameters,
     "Class3D": Class3DParameters,
@@ -70,6 +73,7 @@ known_services = {
     "CLEM-ALIGN-AND-MERGE": AlignAndMergeParameters,
     "CLEM-PROCESS-LIFS": ProcessRawLIFsParameters,
     "CLEM-PROCESS-TIFFS": ProcessRawTIFFsParameters,
+    "CorrelativeAlignImages": AlignImagesParameters,
     "CrYOLO": CryoloParameters,
     "CTFFind": CTFParameters,
     "Denoise": DenoiseParameters,
@@ -79,6 +83,7 @@ known_services = {
     "ExtractClass": ExtractClassParameters,
     "IceBreaker": IceBreakerParameters,
     "Images": BaseModel,
+    "ImodTomoAlign": ImodTomoParameters,
     "MembrainSeg": MembrainSegParameters,
     "MotionCorr": MotionCorrParameters,
     "Murfey": MurfeyParameters,
@@ -89,7 +94,6 @@ known_services = {
     "RefineWrapper": RefineParameters,
     "SelectClasses": SelectClassesParameters,
     "SelectParticles": SelectParticlesParameters,
-    "TomoAlign": TomoParameters,
 }
 
 

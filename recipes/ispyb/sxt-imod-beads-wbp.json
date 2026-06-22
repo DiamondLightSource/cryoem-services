@@ -5,10 +5,7 @@
       "dcid": "{dcid}",
       "ispyb_command": "insert_tomogram",
       "program_id": "{appid}",
-      "store_result": "ispyb_tomogram_id",
-      "pixel_location_x": "{x_location}",
-      "pixel_location_y": "{y_location}",
-      "grid_square_id": "{search_map_id}"
+      "store_result": "ispyb_tomogram_id"
     },
     "queue": "ispyb_connector",
     "service": "EMISPyB"
@@ -20,25 +17,23 @@
       "images": 6,
       "ispyb_connector": 4,
       "movie": 6,
-      "node_creator": 12,
       "projxy": 6,
       "projxz": 6,
       "success": 7
     },
     "parameters": {
-      "dose_per_frame": "{dose_per_frame}",
-      "frame_count": "{frame_count}",
-      "input_file_list": "{input_file_list}",
-      "kv": "{kv}",
       "manual_tilt_offset": "{manual_tilt_offset}",
-      "path_pattern": "{path_pattern}",
+      "out_bin": 1,
+      "patch": 0,
       "pixel_size": "{pixel_size}",
-      "relion_options": {},
+      "sirt": 0,
       "stack_file": "{stack_file}",
-      "tilt_axis": "{tilt_axis}"
+      "tilt_axis": 0,
+      "txrm_file": "{txrm_file}",
+      "wbp": 1
     },
-    "queue": "tomo_align",
-    "service": "AreTomoAlign"
+    "queue": "tomo_align_imod",
+    "service": "ImodTomoAlign"
   },
   "3": {
     "parameters": {
@@ -62,11 +57,9 @@
   },
   "5": {
     "output": {
-      "cryolo": 10,
       "images": 6,
-      "ispyb_connector": 11,
+      "ispyb_connector": 9,
       "movie": 6,
-      "node_creator": 12,
       "segmentation": 8
     },
     "queue": "denoise",
@@ -88,44 +81,20 @@
   },
   "8": {
     "output": {
-      "easymode": 9,
       "images": 6,
-      "ispyb_connector": 11,
-      "movie": 6,
-      "node_creator": 12
+      "ispyb_connector": 9,
+      "movie": 6
     },
     "queue": "segmentation",
     "service": "MembrainSeg"
   },
   "9": {
-    "output": {
-      "images": 6,
-      "ispyb_connector": 11
-    },
-    "queue": "easymode",
-    "service": "Easymode"
-  },
-  "10": {
-    "output": {
-      "images": 6,
-      "ispyb_connector": 11,
-      "movie": 6,
-      "node_creator": 12
-    },
-    "queue": "cryolo_gpu",
-    "service": "CrYOLO"
-  },
-  "11": {
     "parameters": {
       "ispyb_command": "insert_processed_tomogram",
       "tomogram_id": "$ispyb_tomogram_id"
     },
     "queue": "ispyb_connector",
     "service": "EMISPyB"
-  },
-  "12": {
-    "queue": "node_creator",
-    "service": "NodeCreator"
   },
   "start": [[1, []]]
 }

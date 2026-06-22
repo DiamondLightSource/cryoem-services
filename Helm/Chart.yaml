@@ -8,6 +8,7 @@ dependencies:
   - name: clem_process_raw_lifs
   - name: clem_process_raw_tiffs
   - name: cluster_submission
+  - name: correlative_align_images
   - name: cryolo
   - name: cryolo_gpu
   - name: ctffind
