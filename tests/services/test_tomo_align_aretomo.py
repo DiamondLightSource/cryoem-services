@@ -11,7 +11,7 @@ import numpy as np
 import pytest
 from workflows.transport.offline_transport import OfflineTransport
 
-from cryoemservices.services import tomo_align
+from cryoemservices.services import tomo_align_aretomo
 from cryoemservices.util.relion_service_options import RelionServiceOptions
 
 
@@ -29,11 +29,11 @@ def offline_transport(mocker):
     return transport
 
 
-@mock.patch("cryoemservices.services.tomo_align.subprocess.run")
-@mock.patch("cryoemservices.services.tomo_align.mrcfile")
-@mock.patch("cryoemservices.services.tomo_align.create_tilt_stack")
-@mock.patch("cryoemservices.services.tomo_align.resize_tomogram")
-@mock.patch("cryoemservices.services.tomo_align.rotate_tomogram")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.subprocess.run")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.mrcfile")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.create_tilt_stack")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.resize_tomogram")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.rotate_tomogram")
 def test_tomo_align_service_file_list_aretomo3(
     mock_rotate,
     mock_resize,
@@ -44,7 +44,7 @@ def test_tomo_align_service_file_list_aretomo3(
     tmp_path,
 ):
     """
-    Send a test message to TomoAlign (AreTomo3)
+    Send a test message to AreTomoAlign (AreTomo3)
     This should call the mock subprocess then send messages on to
     the denoising, ispyb_connector and images services.
     """
@@ -105,7 +105,7 @@ def test_tomo_align_service_file_list_aretomo3(
     (tmp_path / "MotionCorr/job002/Movies/Position_1_001_0.0.mrc").touch()
 
     # Set up the mock service
-    service = tomo_align.TomoAlign(
+    service = tomo_align_aretomo.AreTomoAlign(
         environment={"queue": ""}, transport=offline_transport
     )
     service.initializing()
@@ -372,9 +372,9 @@ def test_tomo_align_service_file_list_aretomo3(
     offline_transport.send.assert_any_call("success", {})
 
 
-@mock.patch("cryoemservices.services.tomo_align.subprocess.run")
-@mock.patch("cryoemservices.services.tomo_align.mrcfile")
-@mock.patch("cryoemservices.services.tomo_align.create_tilt_stack")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.subprocess.run")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.mrcfile")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.create_tilt_stack")
 def test_tomo_align_service_file_list_aretomo2(
     mock_tilt_stack,
     mock_mrcfile,
@@ -383,7 +383,7 @@ def test_tomo_align_service_file_list_aretomo2(
     tmp_path,
 ):
     """
-    Send a test message to TomoAlign (AreTomo2)
+    Send a test message to AreTomoAlign (AreTomo2)
     This should call the mock subprocess then send messages on to
     the denoising, ispyb_connector and images services.
     """
@@ -441,7 +441,7 @@ def test_tomo_align_service_file_list_aretomo2(
     (tmp_path / "MotionCorr/job002/Movies/Position_1_001_0.0.mrc").touch()
 
     # Set up the mock service
-    service = tomo_align.TomoAlign(
+    service = tomo_align_aretomo.AreTomoAlign(
         environment={"queue": ""}, transport=offline_transport
     )
     service.initializing()
@@ -693,11 +693,11 @@ def test_tomo_align_service_file_list_aretomo2(
     offline_transport.send.assert_any_call("success", {})
 
 
-@mock.patch("cryoemservices.services.tomo_align.subprocess.run")
-@mock.patch("cryoemservices.services.tomo_align.mrcfile")
-@mock.patch("cryoemservices.services.tomo_align.create_tilt_stack")
-@mock.patch("cryoemservices.services.tomo_align.resize_tomogram")
-@mock.patch("cryoemservices.services.tomo_align.rotate_tomogram")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.subprocess.run")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.mrcfile")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.create_tilt_stack")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.resize_tomogram")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.rotate_tomogram")
 def test_tomo_align_service_file_list_repeated_tilt(
     mock_rotate,
     mock_resize,
@@ -708,7 +708,7 @@ def test_tomo_align_service_file_list_repeated_tilt(
     tmp_path,
 ):
     """
-    Send a test message to TomoAlign with a duplicated tilt angle
+    Send a test message to AreTomoAlign with a duplicated tilt angle
     Only the newest one of the duplicated tilts should be used
     """
     mock_mrcfile.open().__enter__().header = MrcFileHeader(3000, 4000)
@@ -747,7 +747,7 @@ def test_tomo_align_service_file_list_repeated_tilt(
     (tmp_path / "MotionCorr/job002/Movies/Position_1_003_0.0.mrc").touch()
 
     # Set up the mock service
-    service = tomo_align.TomoAlign(
+    service = tomo_align_aretomo.AreTomoAlign(
         environment={"queue": ""}, transport=offline_transport
     )
     service.initializing()
@@ -836,11 +836,11 @@ def test_tomo_align_service_file_list_repeated_tilt(
     offline_transport.send.assert_any_call("success", {})
 
 
-@mock.patch("cryoemservices.services.tomo_align.subprocess.run")
-@mock.patch("cryoemservices.services.tomo_align.mrcfile")
-@mock.patch("cryoemservices.services.tomo_align.create_tilt_stack")
-@mock.patch("cryoemservices.services.tomo_align.resize_tomogram")
-@mock.patch("cryoemservices.services.tomo_align.rotate_tomogram")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.subprocess.run")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.mrcfile")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.create_tilt_stack")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.resize_tomogram")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.rotate_tomogram")
 def test_tomo_align_service_file_list_zero_rotation(
     mock_rotate,
     mock_resize,
@@ -851,7 +851,7 @@ def test_tomo_align_service_file_list_zero_rotation(
     tmp_path,
 ):
     """
-    Send a test message to TomoAlign with a tilt axis of zero to test rotation of volume
+    Send a test message to AreTomoAlign with a tilt axis of zero to test rotation of volume
     """
     mock_mrcfile.open().__enter__().header = MrcFileHeader(3000, 4000)
 
@@ -877,7 +877,7 @@ def test_tomo_align_service_file_list_zero_rotation(
     (tmp_path / "MotionCorr/job002/Movies/Position_1_001_0.0.mrc").touch()
 
     # Set up the mock service
-    service = tomo_align.TomoAlign(
+    service = tomo_align_aretomo.AreTomoAlign(
         environment={"queue": ""}, transport=offline_transport
     )
     service.initializing()
@@ -948,11 +948,11 @@ def test_tomo_align_service_file_list_zero_rotation(
     )
 
 
-@mock.patch("cryoemservices.services.tomo_align.subprocess.run")
-@mock.patch("cryoemservices.services.tomo_align.mrcfile")
-@mock.patch("cryoemservices.services.tomo_align.create_tilt_stack")
-@mock.patch("cryoemservices.services.tomo_align.resize_tomogram")
-@mock.patch("cryoemservices.services.tomo_align.rotate_tomogram")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.subprocess.run")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.mrcfile")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.create_tilt_stack")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.resize_tomogram")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.rotate_tomogram")
 def test_tomo_align_service_file_list_bad_tilts(
     mock_rotate,
     mock_resize,
@@ -963,7 +963,7 @@ def test_tomo_align_service_file_list_bad_tilts(
     tmp_path,
 ):
     """
-    Send a test message to TomoAlign with a tilts with bad motion correction
+    Send a test message to AreTomoAlign with a tilts with bad motion correction
     This tilt should be removed
     """
     mock_mrcfile.open().__enter__().header = MrcFileHeader(3000, 4000)
@@ -1017,7 +1017,7 @@ def test_tomo_align_service_file_list_bad_tilts(
         (tmp_path / f"MotionCorr/job002/Movies/Position_1_00{i}_0.0.mrc").touch()
 
     # Set up the mock service
-    service = tomo_align.TomoAlign(
+    service = tomo_align_aretomo.AreTomoAlign(
         environment={"queue": ""}, transport=offline_transport
     )
     service.initializing()
@@ -1111,11 +1111,11 @@ def test_tomo_align_service_file_list_bad_tilts(
     offline_transport.send.assert_any_call("success", {})
 
 
-@mock.patch("cryoemservices.services.tomo_align.subprocess.run")
-@mock.patch("cryoemservices.services.tomo_align.mrcfile")
-@mock.patch("cryoemservices.services.tomo_align.create_tilt_stack")
-@mock.patch("cryoemservices.services.tomo_align.resize_tomogram")
-@mock.patch("cryoemservices.services.tomo_align.rotate_tomogram")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.subprocess.run")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.mrcfile")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.create_tilt_stack")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.resize_tomogram")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.rotate_tomogram")
 def test_tomo_align_service_file_list_rerun(
     mock_rotate,
     mock_resize,
@@ -1126,7 +1126,7 @@ def test_tomo_align_service_file_list_rerun(
     tmp_path,
 ):
     """
-    Send a test message to TomoAlign for a rerun tomogram
+    Send a test message to AreTomoAlign for a rerun tomogram
     This should call the mock subprocess then send messages on to
     the denoising, ispyb_connector and images services.
     Should not do a node creator send
@@ -1163,7 +1163,7 @@ def test_tomo_align_service_file_list_rerun(
     (tmp_path / "MotionCorr/job002/Movies/Position_1_001_0.0.mrc").touch()
 
     # Set up the mock service
-    service = tomo_align.TomoAlign(
+    service = tomo_align_aretomo.AreTomoAlign(
         environment={"queue": ""}, transport=offline_transport
     )
     service.initializing()
@@ -1344,11 +1344,11 @@ def test_tomo_align_service_file_list_rerun(
     offline_transport.send.assert_any_call("success", {})
 
 
-@mock.patch("cryoemservices.services.tomo_align.subprocess.run")
-@mock.patch("cryoemservices.services.tomo_align.mrcfile")
-@mock.patch("cryoemservices.services.tomo_align.create_tilt_stack")
-@mock.patch("cryoemservices.services.tomo_align.resize_tomogram")
-@mock.patch("cryoemservices.services.tomo_align.rotate_tomogram")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.subprocess.run")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.mrcfile")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.create_tilt_stack")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.resize_tomogram")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.rotate_tomogram")
 def test_tomo_align_service_path_pattern(
     mock_rotate,
     mock_resize,
@@ -1359,7 +1359,7 @@ def test_tomo_align_service_path_pattern(
     tmp_path,
 ):
     """
-    Send a test message to TomoAlign
+    Send a test message to AreTomoAlign
     This should call the mock subprocess then send messages on to
     the denoising, ispyb_connector and images services.
     """
@@ -1414,7 +1414,7 @@ def test_tomo_align_service_path_pattern(
     output_relion_options["vol_z"] = 600
 
     # Set up the mock service
-    service = tomo_align.TomoAlign(
+    service = tomo_align_aretomo.AreTomoAlign(
         environment={"queue": ""}, transport=offline_transport
     )
     service.initializing()
@@ -1545,10 +1545,10 @@ def test_tomo_align_service_path_pattern(
     offline_transport.send.assert_any_call("success", {})
 
 
-@mock.patch("cryoemservices.services.tomo_align.subprocess.run")
-@mock.patch("cryoemservices.services.tomo_align.mrcfile")
-@mock.patch("cryoemservices.services.tomo_align.create_tilt_stack")
-@mock.patch("cryoemservices.services.tomo_align.resize_tomogram")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.subprocess.run")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.mrcfile")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.create_tilt_stack")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.resize_tomogram")
 def test_tomo_align_service_dark_images(
     mock_resize,
     mock_tilt_stack,
@@ -1558,7 +1558,7 @@ def test_tomo_align_service_dark_images(
     tmp_path,
 ):
     """
-    Send a test message to TomoAlign for a case with dark images which are removed
+    Send a test message to AreTomoAlign for a case with dark images which are removed
     """
     mock_mrcfile.open().__enter__().header = MrcFileHeader(3000, 4000)
 
@@ -1602,7 +1602,7 @@ def test_tomo_align_service_dark_images(
         (tmp_path / f"MotionCorr/job002/Movies/Position_1_00{i}_0.0.mrc").touch()
 
     # Set up the mock service
-    service = tomo_align.TomoAlign(
+    service = tomo_align_aretomo.AreTomoAlign(
         environment={"queue": ""}, transport=offline_transport
     )
     service.initializing()
@@ -1806,9 +1806,9 @@ def test_tomo_align_service_dark_images(
     offline_transport.send.assert_any_call("success", {})
 
 
-@mock.patch("cryoemservices.services.tomo_align.subprocess.run")
-@mock.patch("cryoemservices.services.tomo_align.mrcfile")
-@mock.patch("cryoemservices.services.tomo_align.create_tilt_stack")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.subprocess.run")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.mrcfile")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.create_tilt_stack")
 def test_tomo_align_service_all_dark(
     mock_tilt_stack,
     mock_mrcfile,
@@ -1817,7 +1817,7 @@ def test_tomo_align_service_all_dark(
     tmp_path,
 ):
     """
-    Send a test message to TomoAlign for a case where all images are dark
+    Send a test message to AreTomoAlign for a case where all images are dark
     """
     mock_mrcfile.open().__enter__().header = MrcFileHeader(3000, 4000)
 
@@ -1850,7 +1850,7 @@ def test_tomo_align_service_all_dark(
         (tmp_path / f"MotionCorr/job002/Movies/Position_1_00{i}_0.0.mrc").touch()
 
     # Set up the mock service
-    service = tomo_align.TomoAlign(
+    service = tomo_align_aretomo.AreTomoAlign(
         environment={"queue": ""}, transport=offline_transport
     )
     service.initializing()
@@ -1948,9 +1948,9 @@ def test_tomo_align_service_all_dark(
     offline_transport.send.assert_any_call("success", {})
 
 
-@mock.patch("cryoemservices.services.tomo_align.subprocess.run")
-@mock.patch("cryoemservices.services.tomo_align.mrcfile")
-@mock.patch("cryoemservices.services.tomo_align.create_tilt_stack")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.subprocess.run")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.mrcfile")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.create_tilt_stack")
 def test_tomo_align_service_fail_case(
     mock_tilt_stack,
     mock_mrcfile,
@@ -1959,7 +1959,7 @@ def test_tomo_align_service_fail_case(
     tmp_path,
 ):
     """
-    Send a test message to TomoAlign with a simulated failure of AreTomo3
+    Send a test message to AreTomoAlign with a simulated failure of AreTomo3
     """
     mock_mrcfile.open().__enter__().header = MrcFileHeader(3000, 4000)
 
@@ -2001,7 +2001,7 @@ def test_tomo_align_service_fail_case(
     (tmp_path / "MotionCorr/job002/Movies/Position_1_001_0.0.mrc").touch()
 
     # Set up the mock service
-    service = tomo_align.TomoAlign(
+    service = tomo_align_aretomo.AreTomoAlign(
         environment={"queue": ""}, transport=offline_transport
     )
     service.initializing()
@@ -2080,12 +2080,12 @@ def test_tomo_align_service_fail_case(
     offline_transport.send.assert_any_call("failure", {})
 
 
-@mock.patch("cryoemservices.services.tomo_align.subprocess.run")
-@mock.patch("cryoemservices.services.tomo_align.mrcfile")
-@mock.patch("cryoemservices.services.tomo_align.convert_and_save")
-@mock.patch("cryoemservices.services.tomo_align.OleFileIO")
-@mock.patch("cryoemservices.services.tomo_align.resize_tomogram")
-@mock.patch("cryoemservices.services.tomo_align.rotate_tomogram")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.subprocess.run")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.mrcfile")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.convert_and_save")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.OleFileIO")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.resize_tomogram")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.rotate_tomogram")
 def test_tomo_align_service_txrm(
     mock_rotate,
     mock_resize,
@@ -2131,7 +2131,7 @@ def test_tomo_align_service_txrm(
     (tmp_path / "tilt_stack.txrm").touch()
 
     # Set up the mock service
-    service = tomo_align.TomoAlign(
+    service = tomo_align_aretomo.AreTomoAlign(
         environment={"queue": ""}, transport=offline_transport
     )
     service.initializing()
@@ -2219,7 +2219,8 @@ def test_tomo_align_service_txrm(
             "tif2mrc",
             f"{tmp_path}/Tomograms/stack.tiff",
             f"{tmp_path}/Tomograms/stack.mrc",
-        ]
+        ],
+        capture_output=True,
     )
     mock_subprocess.assert_any_call(
         aretomo_command,
@@ -2355,12 +2356,12 @@ def test_parse_tomo_align_output(offline_transport):
     Send test lines to the output parser
     to check the rotations and offsets are being read in
     """
-    service = tomo_align.TomoAlign(
+    service = tomo_align_aretomo.AreTomoAlign(
         environment={"queue": ""}, transport=offline_transport
     )
     service.initializing()
 
-    tomo_align.TomoAlign.parse_tomo_output(
+    tomo_align_aretomo.AreTomoAlign.parse_tomo_output(
         service,
         "Rot center Z 100.0 200.0 300.0\n"
         "Rot center Z 150.0 250.0 350.0\n"
@@ -2382,7 +2383,7 @@ def test_resize_tomogram(tmp_path):
         mrc.header.mz = 4
         mrc.header.cella = (100, 50, 20)
 
-    tomo_align.resize_tomogram(tmp_path / "test.mrc", 2)
+    tomo_align_aretomo.resize_tomogram(tmp_path / "test.mrc", 2)
 
     with mrcfile.open(tmp_path / "test.mrc") as mrc:
         data = mrc.data
@@ -2406,7 +2407,7 @@ def test_rotate_tomogram_axis90(tmp_path):
         mrc.header.mz = 8
         mrc.header.cella = (100, 50, 20)
 
-    tomo_align.rotate_tomogram(tmp_path / "test.mrc", 85)
+    tomo_align_aretomo.rotate_tomogram(tmp_path / "test.mrc", 85)
 
     with mrcfile.open(tmp_path / "test.mrc") as mrc:
         data = mrc.data
@@ -2430,7 +2431,7 @@ def test_rotate_tomogram_axis0(tmp_path):
         mrc.header.mz = 8
         mrc.header.cella = (100, 50, 20)
 
-    tomo_align.rotate_tomogram(tmp_path / "test.mrc", 5)
+    tomo_align_aretomo.rotate_tomogram(tmp_path / "test.mrc", 5)
 
     with mrcfile.open(tmp_path / "test.mrc") as mrc:
         data = mrc.data
@@ -2457,7 +2458,9 @@ def test_create_stack_file(tmp_path):
             mrc.header.mz = 1
             mrc.header.cella = (100, 50, 20)
 
-    tomo_align.create_tilt_stack(input_file_list_of_lists, tmp_path / "output_file.mrc")
+    tomo_align_aretomo.create_tilt_stack(
+        input_file_list_of_lists, tmp_path / "output_file.mrc"
+    )
 
     assert (tmp_path / "output_file.mrc").is_file()
     with mrcfile.open(tmp_path / "output_file.mrc") as mrc:

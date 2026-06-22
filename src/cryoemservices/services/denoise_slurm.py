@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import List
 
 from cryoemservices.services.denoise import Denoise, DenoiseParameters
-from cryoemservices.services.tomo_align_slurm import (
+from cryoemservices.services.tomo_align_aretomo_slurm import (
     get_iris_state,
     retrieve_files,
     transfer_files,

@@ -34,7 +34,7 @@
       "xrm_reference": "{xrm_reference}"
     },
     "queue": "tomo_align",
-    "service": "TomoAlign"
+    "service": "AreTomoAlign"
   },
   "3": {
     "parameters": {

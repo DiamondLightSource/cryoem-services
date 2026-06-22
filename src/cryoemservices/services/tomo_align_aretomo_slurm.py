@@ -10,7 +10,7 @@ from typing import List
 
 import requests
 
-from cryoemservices.services.tomo_align import TomoAlign, TomoParameters
+from cryoemservices.services.tomo_align_aretomo import AreTomoAlign, AreTomoParameters
 from cryoemservices.util.slurm_submission import slurm_submission_for_services
 
 
@@ -85,13 +85,13 @@ def get_iris_state(logger, wait=True) -> str:
     return "unknown"
 
 
-class TomoAlignSlurm(TomoAlign):
+class AreTomoAlignSlurm(AreTomoAlign):
     """
     A service for submitting AreTomo2 jobs to a slurm cluster via RestAPI
     """
 
     # Logger name
-    _logger_name = "cryoemservices.services.tomo_align_slurm"
+    _logger_name = "cryoemservices.services.tomo_align_aretomo_slurm"
 
     def initializing(self):
         if not get_iris_state(self.log):
@@ -99,7 +99,7 @@ class TomoAlignSlurm(TomoAlign):
         super().initializing()
 
     @staticmethod
-    def check_visit(tomo_params: TomoParameters):
+    def check_visit(tomo_params: AreTomoParameters):
         # Requeue visits that should not be sent via slurm
         visit_search = re.search(
             "/[a-z]{2}[0-9]{5}-[0-9]{1,3}/", tomo_params.stack_file
@@ -128,7 +128,7 @@ class TomoAlignSlurm(TomoAlign):
 
     def aretomo(
         self,
-        tomo_parameters: TomoParameters,
+        tomo_parameters: AreTomoParameters,
         aretomo_output_path: Path,
         angle_file: Path,
     ):
