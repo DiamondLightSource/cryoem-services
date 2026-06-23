@@ -35,9 +35,9 @@ ENV LD_LIBRARY_PATH=/install/venv/lib:${LD_LIBRARY_PATH}
 
 # Install IMOD, currently needs version 4
 RUN mkdir imod_install && \
-    curl https://bio3d.colorado.edu/imod/AMD64-RHEL5/imod_4.12.62_RHEL8-64_CUDA12.0.sh > imod_4.12.62_RHEL8-64_CUDA12.0.sh && \
-    chmod +x imod_4.12.62_RHEL8-64_CUDA12.0.shh && \
+    curl https://bio3d.colorado.edu/imod/AMD64-RHEL5/imod_5.1.9_RHEL8-64_CUDA12.0.sh > imod_5.1.9_RHEL8-64_CUDA12.0.sh && \
+    chmod +x imod_5.1.9_RHEL8-64_CUDA12.0.shh && \
     ln -s /install/venv/bin/python /usr/bin/python3 && \
-    ./imod_4.12.62_RHEL8-64_CUDA12.0.sh -dir imod_install -skip -y
+    ./imod_5.1.9_RHEL8-64_CUDA12.0.sh -dir imod_install -skip -y
 ENV PATH=/imod_install/IMOD/bin:${PATH}
 ENV IMOD_DIR=/imod_install/IMOD
