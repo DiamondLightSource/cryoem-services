@@ -69,7 +69,7 @@ def test_tomo_align_imod(
     (tmp_path / "test.txrm").touch()
     (tmp_path / "recipe/Tomograms").mkdir(parents=True)
     (tmp_path / "recipe/Tomograms/test_stack.mrc").touch()
-    (tmp_path / "recipe/Tomograms/test_stack.rec").touch()
+    (tmp_path / "recipe/Tomograms/test_stack_rec.mrc").touch()
 
     # Set up the mock service
     service = tomo_align_imod.ImodTomoAlign(
@@ -115,7 +115,7 @@ def test_tomo_align_imod(
 
     """# Check the shift plot
     with open(
-        tmp_path / "recipe/Tomograms/test_stack.rec/test_stack_xy_shift_plot.json"
+        tmp_path / "recipe/Tomograms/test_stack_rec.mrc/test_stack_xy_shift_plot.json"
     ) as shift_plot:
         shift_data = json.load(shift_plot)
     assert shift_data["data"][0]["x"] == [1.2]
@@ -152,21 +152,21 @@ def test_tomo_align_imod(
         "images",
         {
             "image_command": "mrc_central_slice",
-            "file": f"{tmp_path}/recipe/Tomograms/test_stack.rec",
+            "file": f"{tmp_path}/recipe/Tomograms/test_stack_rec.mrc",
         },
     )
     offline_transport.send.assert_any_call(
         "images",
         {
             "image_command": "mrc_to_apng",
-            "file": f"{tmp_path}/recipe/Tomograms/test_stack.rec",
+            "file": f"{tmp_path}/recipe/Tomograms/test_stack_rec.mrc",
         },
     )
     offline_transport.send.assert_any_call(
         "images",
         {
             "image_command": "mrc_projection",
-            "file": f"{tmp_path}/recipe/Tomograms/test_stack.rec",
+            "file": f"{tmp_path}/recipe/Tomograms/test_stack_rec.mrc",
             "projection": "XY",
             "pixel_spacing": 106,
         },
@@ -175,7 +175,7 @@ def test_tomo_align_imod(
         "images",
         {
             "image_command": "mrc_projection",
-            "file": f"{tmp_path}/recipe/Tomograms/test_stack.rec",
+            "file": f"{tmp_path}/recipe/Tomograms/test_stack_rec.mrc",
             "projection": "YZ",
             "pixel_spacing": 106,
             "thickness_ang": 500 * 106,
@@ -184,7 +184,7 @@ def test_tomo_align_imod(
     offline_transport.send.assert_any_call(
         "denoise",
         {
-            "volume": f"{tmp_path}/recipe/Tomograms/test_stack.rec",
+            "volume": f"{tmp_path}/recipe/Tomograms/test_stack_rec.mrc",
             "output_dir": f"{tmp_path}/recipe/Denoise",
             "relion_options": {},
         },
@@ -196,7 +196,7 @@ def test_tomo_align_imod(
             "ispyb_command_list": [
                 {
                     "ispyb_command": "insert_tomogram",
-                    "volume_file": "test_stack.rec",
+                    "volume_file": "test_stack_rec.mrc",
                     "stack_file": tomo_align_test_message["stack_file"],
                     "size_x": 4000,
                     "size_y": 3000,
@@ -204,11 +204,11 @@ def test_tomo_align_imod(
                     "pixel_spacing": 106.0,
                     "z_shift": 0,
                     "file_directory": f"{tmp_path}/recipe/Tomograms",
-                    "central_slice_image": "test_stack_thumbnail.jpeg",
-                    "tomogram_movie": "test_stack_movie.png",
-                    "xy_shift_plot": "test_stack_xy_shift_plot.json",
-                    "proj_xy": "test_stack_projXY.jpeg",
-                    "proj_xz": "test_stack_projYZ.jpeg",
+                    "central_slice_image": "test_stack_rec_thumbnail.jpeg",
+                    "tomogram_movie": "test_stack_rec_movie.png",
+                    "xy_shift_plot": "test_stack_rec_xy_shift_plot.json",
+                    "proj_xy": "test_stack_rec_projXY.jpeg",
+                    "proj_xz": "test_stack_rec_projYZ.jpeg",
                 },
                 {
                     "ispyb_command": "insert_processed_tomogram",
@@ -217,7 +217,7 @@ def test_tomo_align_imod(
                 },
                 {
                     "ispyb_command": "insert_processed_tomogram",
-                    "file_path": f"{tmp_path}/recipe/Tomograms/test_stack_alignment.jpeg",
+                    "file_path": f"{tmp_path}/recipe/Tomograms/test_stack_rec_alignment.jpeg",
                     "processing_type": "Alignment",
                 },
             ],

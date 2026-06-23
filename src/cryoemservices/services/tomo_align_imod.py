@@ -29,6 +29,7 @@ class ImodTomoParameters(BaseModel):
     patch: int = 1
     patch_size: int = 200
     patch_overlap: float = 0.5
+    local_alignment: int = 0
     flip_vol: int = 1
     manual_tilt_offset: Optional[float] = None
     cpus: int = 4
@@ -140,7 +141,7 @@ class ImodTomoAlign(CommonService):
         adoc_file = write_batch_directive_file(tomo_params)
         imod_output_path = (
             Path(tomo_params.stack_file).parent
-            / f"{Path(tomo_params.stack_file).stem}.rec"
+            / f"{Path(tomo_params.stack_file).stem}_rec.mrc"
         )
         imod_result = subprocess.run(
             [
@@ -301,6 +302,7 @@ def write_batch_directive_file(tomo_params: ImodTomoParameters):
         # Commands for copytomocoms
         adoc.write(f"setupset.datasetDirectory={adoc_file.parent}\n")
         adoc.write(f"setupset.copyarg.name={Path(tomo_params.stack_file).stem}\n")
+        adoc.write("setupset.copyarg.stackext=mrc\n")
         adoc.write("setupset.copyarg.userawtlt=1\n")
         adoc.write("setupset.copyarg.dual=0\n")
         adoc.write(f"setupset.copyarg.pixel={tomo_params.pixel_size / 10}\n")
@@ -350,11 +352,14 @@ def write_batch_directive_file(tomo_params: ImodTomoParameters):
 
         # Alignment
         adoc.write("comparam.align.tiltalign.SurfacesToAnalyze=1\n")
-        adoc.write("comparam.align.tiltalign.LocalAlignments=1\n")
+        adoc.write(
+            f"comparam.align.tiltalign.LocalAlignments={tomo_params.local_alignment}\n"
+        )
         adoc.write("comparam.align.tiltalign.MagOption=3\n")
         adoc.write("comparam.align.tiltalign.TiltOption=5\n")
         adoc.write("comparam.align.tiltalign.RotOption=3\n")
         adoc.write("comparam.align.tiltalign.RobustFitting=1\n")
+        adoc.write("comparam.restrictalign.restrictalign.UseCrossValidation=0\n")
 
         # Aligned Stack Parameters
         adoc.write("runtime.AlignedStack.any.linearInterpolation=1\n")
