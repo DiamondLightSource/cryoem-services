@@ -33,11 +33,16 @@ COPY --from=conda-build --chown="${userid}":"${groupid}" /install/venv /install/
 ENV PATH=/install/venv/bin:${PATH}
 ENV LD_LIBRARY_PATH=/install/venv/lib:${LD_LIBRARY_PATH}
 
-# Install IMOD, currently needs version 4
+# Install IMOD
 RUN mkdir imod_install && \
     curl https://bio3d.colorado.edu/imod/AMD64-RHEL5/imod_5.1.9_RHEL8-64_CUDA12.0.sh > imod_5.1.9_RHEL8-64_CUDA12.0.sh && \
-    chmod +x imod_5.1.9_RHEL8-64_CUDA12.0.shh && \
+    chmod +x imod_5.1.9_RHEL8-64_CUDA12.0.sh && \
     ln -s /install/venv/bin/python /usr/bin/python3 && \
     ./imod_5.1.9_RHEL8-64_CUDA12.0.sh -dir imod_install -skip -y
 ENV PATH=/imod_install/IMOD/bin:${PATH}
 ENV IMOD_DIR=/imod_install/IMOD
+
+# Install AreTomo
+COPY --chown="${userid}":"${groupid}" packages/AreTomo2 /AreTomo2
+ENV PATH=/AreTomo2:${PATH}
+RUN chmod +x /AreTomo2
