@@ -291,22 +291,22 @@ select_particles:
   memoryLimit: 1Gi
   scaleOnQueueLength: false
 
-tomo_align:
+tomo_align_aretomo:
   replicas: 1
   image: gcr.io/image/path
-  command: cryoemservices.service -s TomoAlign -c /cryoemservices/config/cryoemservices_config.yaml
+  command: cryoemservices.service -s AreTomoAlign -c /cryoemservices/config/cryoemservices_config.yaml
   cpuRequest: "1"
   cpuLimit: "1"
   memoryLimit: 20Gi
   scaleOnQueueLength: false
 
-tomo_align_slurm:
+tomo_align_aretomo_slurm:
   aretomo2Exectable: /path/to/AreTomo2
   aretomo3Exectable: /path/to/AreTomo3
   extraLibraries: /path/to/aretomo/lib
   replicas: 1
   image: gcr.io/image/path
-  command: cryoemservices.service -s TomoAlignSlurm -c /cryoemservices/config/cryoemservices_config.yaml
+  command: cryoemservices.service -s AreTomoAlignSlurm -c /cryoemservices/config/cryoemservices_config.yaml
   cpuRequest: "0.75"
   cpuLimit: "1"
   memoryLimit: 4Gi
@@ -314,3 +314,12 @@ tomo_align_slurm:
   queueLengthTrigger: "2"
   minReplicaCount: 0
   maxReplicaCount: 3
+
+tomo_align_imod:
+  replicas: 1
+  image: gcr.io/image/path
+  command: cryoemservices.service -s ImodTomoAlign -c /cryoemservices/config/cryoemservices_config.yaml
+  cpuRequest: "4"
+  cpuLimit: "4"
+  memoryLimit: 20Gi
+  scaleOnQueueLength: false
