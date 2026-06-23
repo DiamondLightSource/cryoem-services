@@ -18,7 +18,7 @@ import numpy as np
 from pydantic import BaseModel, ValidationError
 from readlif.reader import LifFile
 
-from cryoemservices.util.image_processing import (
+from cryoemservices.util.image_processing.shared import (
     LIFImageLoader,
     get_percentiles,
     load_and_convert_image,
