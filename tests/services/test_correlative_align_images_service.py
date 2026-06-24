@@ -9,30 +9,76 @@ from workflows.transport.offline_transport import OfflineTransport
 from cryoemservices.services.correlative_align_images import (
     AlignImagesParameters,
     AlignImagesService,
+    _get_atlas_dcg_experiment_type,
 )
 from cryoemservices.util.models import MockRW
+
+
+def test_get_atlas_dcg_experiment_type(mocker: MockerFixture):
+    # Create mock return results
+    mock_atlas = MagicMock()
+    mock_dcg = MagicMock()
+    mock_experiment = MagicMock()
+
+    mock_result = MagicMock()
+    mock_result.Atlas = mock_atlas
+    mock_result.DataCollectionGroup = mock_dcg
+    mock_result.ExperimentType = mock_experiment
+
+    # Create the mock SQLAlchemy session
+    mock_session = MagicMock()
+    mock_session.execute.return_value.one.return_value = mock_result
+
+    # Run the function
+    assert _get_atlas_dcg_experiment_type(mock_session, 1) == (
+        mock_atlas,
+        mock_dcg,
+        mock_experiment,
+    )
 
 
 @pytest.fixture
 def offline_transport(mocker: MockerFixture):
     transport = OfflineTransport()
     mocker.spy(transport, "send")
+    mocker.spy(transport, "nack")
     return transport
 
 
+@pytest.fixture
+def mock_config_file(tmp_path: Path):
+    config_file = tmp_path / "config.yaml"
+    lines = [
+        "rabbitmq_credentials: rmq_creds",
+        f"recipe_directory: {tmp_path}/recipes",
+        f"ispyb_credentials: {tmp_path}/ispyb.cfg",
+    ]
+    with open(config_file, "w") as file:
+        for line in lines:
+            file.write(line + "\n")
+    return config_file
+
+
 @pytest.mark.parametrize(
-    "use_recwrap",
-    (
-        True,
-        False,
+    "test_params",
+    (  # Use recwrap | Ref type | Mov type
+        (True, "Tomography", "FIB"),
+        (False, "Tomography", "FIB"),
+        (True, "Tomography", "Single Particle"),
+        (False, "Tomography", "Single Particle"),
+        (True, "Tomography", "CLEM"),
+        (False, "Tomography", "CLEM"),
     ),
 )
 def test_align_images_service(
+    mocker: MockerFixture,
     tmp_path: Path,
+    mock_config_file: Path,
     offline_transport: OfflineTransport,
-    use_recwrap: bool,
+    test_params: tuple[bool, str, str],
 ):
     # Set up the message parameters
+    use_recwrap, ref_type, mov_type = test_params
     header = {
         "message-id": mock.sentinel,
         "subscription": mock.sentinel,
@@ -41,14 +87,44 @@ def test_align_images_service(
         "id_ref": 1,
         "image_ref": str(tmp_path / "ref.png"),
         "pixel_size_ref": 1e-6,
-        "id_mov": 1,
+        "id_mov": 2,
         "image_mov": str(tmp_path / "mov.png"),
         "pixel_size_mov": 1e-6,
     }
     params = AlignImagesParameters(**align_images_test_message)
 
+    # Mock the ISPyB session creation logic
+    mock_sqlalchemy = mocker.patch(
+        "cryoemservices.services.correlative_align_images.sqlalchemy"
+    )
+    mocker.patch("cryoemservices.services.correlative_align_images.ispyb.sqlalchemy")
+    mock_ispyb_session = MagicMock()
+    mock_sqlalchemy.orm.sessionmaker()().__enter__.return_value = mock_ispyb_session
+
+    # Mock the query function and its returns
+    mock_atlas_ref = MagicMock()
+    mock_dcg_ref = MagicMock()
+    mock_experiment_ref = MagicMock()
+    mock_experiment_ref.name = ref_type
+
+    mock_atlas_mov = MagicMock()
+    mock_dcg_mov = MagicMock()
+    mock_experiment_mov = MagicMock()
+    mock_experiment_mov.name = mov_type
+
+    mock_get = mocker.patch(
+        "cryoemservices.services.correlative_align_images._get_atlas_dcg_experiment_type",
+        side_effect=[
+            (mock_atlas_ref, mock_dcg_ref, mock_experiment_ref),
+            (mock_atlas_mov, mock_dcg_mov, mock_experiment_mov),
+        ],
+    )
+
     # Set up and run the service
-    service = AlignImagesService(environment={"queue": ""}, transport=offline_transport)
+    service = AlignImagesService(
+        environment={"config": str(mock_config_file), "queue": ""},
+        transport=offline_transport,
+    )
     service.log = MagicMock()  # Mock the logger to evaluate calls
     service.initializing()
     if use_recwrap:
@@ -66,8 +142,20 @@ def test_align_images_service(
             message=align_images_test_message,
         )
 
-    # Check that the main block in the function was run
-    service.log.info.assert_called_with(
-        "Running image alignment with the following parameters:\n"
-        f"{params.model_dump(mode='json')}"
+    # Queries for the Atlas, DCG, and ExperimentType were made
+    mock_get.assert_any_call(
+        session=mock_ispyb_session,
+        atlas_id=params.id_ref,
     )
+    mock_get.assert_any_call(
+        session=mock_ispyb_session,
+        atlas_id=params.id_mov,
+    )
+    # It goes into the correct case block
+    match (ref_type, mov_type):
+        case ("Tomography", "FIB"):
+            service.log.info.assert_called_with("Aligning FIB atlas to tomography one")
+        case _:
+            service.log.info.assert_called_with(
+                "No image alignment algorithm implemented for this case yet"
+            )
