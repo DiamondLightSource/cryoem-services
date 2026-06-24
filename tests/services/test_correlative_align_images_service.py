@@ -9,8 +9,32 @@ from workflows.transport.offline_transport import OfflineTransport
 from cryoemservices.services.correlative_align_images import (
     AlignImagesParameters,
     AlignImagesService,
+    _get_atlas_dcg_experiment_type,
 )
 from cryoemservices.util.models import MockRW
+
+
+def test_get_atlas_dcg_experiment_type(mocker: MockerFixture):
+    # Create mock return results
+    mock_atlas = MagicMock()
+    mock_dcg = MagicMock()
+    mock_experiment = MagicMock()
+
+    mock_result = MagicMock()
+    mock_result.Atlas = mock_atlas
+    mock_result.DataCollectionGroup = mock_dcg
+    mock_result.ExperimentType = mock_experiment
+
+    # Create the mock SQLAlchemy session
+    mock_session = MagicMock()
+    mock_session.execute.return_value.one.return_value = mock_result
+
+    # Run the function
+    assert _get_atlas_dcg_experiment_type(mock_session, 1) == (
+        mock_atlas,
+        mock_dcg,
+        mock_experiment,
+    )
 
 
 @pytest.fixture
