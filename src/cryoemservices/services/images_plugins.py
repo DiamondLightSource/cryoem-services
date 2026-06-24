@@ -10,8 +10,10 @@ import numpy as np
 import pandas as pd
 import PIL.Image
 import starfile
+import tifffile
 import tifffile as tf
 from PIL import ImageDraw, ImageEnhance, ImageFilter, ImageFont
+from txrm2tiff.main import convert_and_save
 
 from cryoemservices.services.cryolo import grid_bar_histogram
 from cryoemservices.util.image_processing.shared import convert_to_rgb
@@ -924,3 +926,21 @@ def tilt_series_alignment(plugin_params: Callable):
         extra={"image-processing-time": timing},
     )
     return outfile
+
+
+def xrm_to_jpeg(plugin_params: Callable):
+    if not required_parameters(plugin_params, ["xrm_file", "tiff_destination"]):
+        return False
+    xrm_path = Path(plugin_params("xrm_file"))
+    tiff_path = Path(plugin_params("tiff_destination"))
+    if not xrm_path.is_file():
+        logger.error(f"File {xrm_path} not found")
+        return False
+
+    convert_and_save(xrm_path, tiff_path, plugin_params("annotate") or False)
+    data = tifffile.imread(tiff_path)
+    with PIL.Image.fromarray(data) as thumb_im:
+        thumb_im.thumbnail((1024, 1024))
+        thumbnail_jpg = tiff_path.parent / (tiff_path.stem + "_thumbnail.jpg")
+        thumb_im.save(thumbnail_jpg)
+    return tiff_path
