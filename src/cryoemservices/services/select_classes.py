@@ -136,6 +136,12 @@ class SelectClasses(CommonService):
         if job_dir_search and job_num_search:
             class2d_job_dir = Path(job_dir_search[0])
             class2d_job_num = int(job_num_search[0][4:])
+            # The autoselect Select job runs immediately after this batch's
+            # Class2D job, with an IceBreaker job in between only when icebreaker
+            # is enabled. Each batch has its own autoselect job (unlike the
+            # shared combine job), so the offset must stay relative to the
+            # per-batch Class2D number. The previous fixed +2 left a gap — and
+            # collided with the combine job — whenever icebreaker was disabled.
             select_job_num = class2d_job_num + (
                 2 if autoselect_params.relion_options.do_icebreaker_jobs else 1
             )

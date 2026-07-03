@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import copy
+import os
+import time
 from pathlib import Path
 from unittest import mock
 
@@ -85,6 +87,26 @@ def setup_and_run_node_creation(
     assert (project_dir / job_dir / ".CCPEM_pipeliner_jobinfo").exists()
     if experiment_type == "spa" and not skip_short_pipeline:
         assert (project_dir / "short_pipeline.star").exists()
+
+
+def test_clear_stale_pipeline_locks(tmp_path):
+    """Only abandoned (aged-out) .relion_lock dirs are removed; live ones are kept."""
+    fresh = tmp_path / "fresh" / ".relion_lock"
+    stale = tmp_path / "stale" / ".relion_lock"
+    fresh.mkdir(parents=True)
+    stale.mkdir(parents=True)
+    missing = tmp_path / "missing" / ".relion_lock"
+
+    # Backdate the stale lock well past the threshold so it looks abandoned.
+    old = time.time() - (node_creator.STALE_LOCK_AGE_SECONDS + 60)
+    os.utime(stale, (old, old))
+
+    removed = node_creator.clear_stale_pipeline_locks(fresh, stale, missing)
+
+    assert removed == [stale]
+    assert not stale.exists()  # abandoned lock cleared
+    assert fresh.is_dir()  # live lock left intact
+    assert not missing.exists()  # missing dir is a no-op
 
 
 # General tests

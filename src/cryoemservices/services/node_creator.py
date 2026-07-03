@@ -4,7 +4,6 @@ import datetime
 import os
 import re
 import time
-from functools import lru_cache
 from pathlib import Path
 from typing import Optional
 
@@ -31,7 +30,34 @@ from cryoemservices.util.spa_output_files import create_spa_output_files
 from cryoemservices.util.tomo_output_files import create_tomo_output_files
 
 
-@lru_cache(maxsize=4)
+# A .relion_lock is only ever held for the fraction of a second pipeliner spends
+# rewriting a STAR file. A lock older than this was abandoned by a killed process and
+# can be cleared; a younger one may be live, so removing it would break the
+# cross-process mutual exclusion the lock exists to provide.
+STALE_LOCK_AGE_SECONDS = 120.0
+
+
+def clear_stale_pipeline_locks(
+    *lock_dirs: Path, max_age: float = STALE_LOCK_AGE_SECONDS
+) -> list[Path]:
+    """Remove only abandoned (older than ``max_age``) ``.relion_lock`` directories."""
+    removed: list[Path] = []
+    now = time.time()
+    for lock_dir in lock_dirs:
+        try:
+            age = now - lock_dir.stat().st_mtime
+        except FileNotFoundError:
+            continue
+        if age < max_age:
+            continue
+        try:
+            lock_dir.rmdir()
+        except OSError:
+            continue
+        removed.append(lock_dir)
+    return removed
+
+
 class CachedProjectGraph(ProjectGraph):
     def __enter__(self):
         if not self._lock:
@@ -504,23 +530,18 @@ class NodeCreator(CommonService):
             rw.transport.ack(header)
             return
 
-        # Check the lock status
-        if (
-            Path(project_dir / ".relion_lock").is_dir()
-            or Path(job_dir / ".relion_lock").is_dir()
+        # Clear only abandoned locks (older than STALE_LOCK_AGE_SECONDS) left by a
+        # previously killed process. A younger lock may be held by a live writer
+        # (Doppio, the murfey job-number reservation, or a relion job); removing it
+        # would break mutual exclusion and corrupt the shared pipeline, so leave it
+        # for CachedProjectGraph's own lock acquisition (which waits up to 60s).
+        for removed_lock in clear_stale_pipeline_locks(
+            project_dir / ".relion_lock", job_dir / ".relion_lock"
         ):
-            self.log.warning("WARNING: Relion lock found")
-            time.sleep(5)
-            try:
-                Path(project_dir / ".relion_lock").rmdir()
-                self.log.warning("Relion project lock has been removed")
-            except FileNotFoundError:
-                self.log.warning("No project lock found to remove")
-            try:
-                Path(job_dir / ".relion_lock").rmdir()
-                self.log.warning("Relion job lock has been removed")
-            except FileNotFoundError:
-                self.log.warning("No job lock found to remove")
+            self.log.warning(
+                "Removed stale Relion lock %s left by a previous unclean shutdown",
+                removed_lock,
+            )
 
         # Create the node and default_pipeline.star files in the project directory
         with CachedProjectGraph(
