@@ -22,6 +22,7 @@
       "success": 7
     },
     "parameters": {
+      "copy_output": true,
       "manual_tilt_offset": "{manual_tilt_offset}",
       "out_bin": 1,
       "patch": 1,

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import shutil
 import subprocess
 from pathlib import Path
 from typing import List, Optional
@@ -48,6 +49,7 @@ class DenoiseParameters(BaseModel):
     patch_padding: Optional[int] = None  # 48
     device: Optional[int] = None  # -2
     cleanup_output: bool = True
+    copy_output: bool = False
     visits_for_slurm: Optional[list] = ["bi", "cm", "nr", "nt"]
     relion_options: RelionServiceOptions
 
@@ -305,6 +307,7 @@ class Denoise(CommonService):
             "tomogram": str(denoised_full_path),
             "output_dir": str(segmentation_dir),
             "pixel_size": str(denoise_params.relion_options.pixel_size_downscaled),
+            "copy_output": denoise_params.copy_output,
             "relion_options": dict(denoise_params.relion_options),
         }
         cryolo_parameters = {
@@ -324,6 +327,14 @@ class Denoise(CommonService):
             "processing_type": "Denoised",
         }
         rw.send_to("ispyb_connector", ispyb_parameters)
+
+        # Optionally copy output file
+        if denoise_params.copy_output:
+            shutil.copy(
+                denoised_full_path,
+                denoised_full_path.parent.parent.parent
+                / f"{denoised_full_path.parent.parent}_denoised.mrc",
+            )
 
         self.log.info(f"Done denoising for {denoise_params.volume}")
         rw.transport.ack(header)

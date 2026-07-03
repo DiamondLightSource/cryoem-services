@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 import subprocess
 from pathlib import Path
 from typing import Optional
@@ -36,6 +37,7 @@ class MembrainSegParameters(BaseModel):
     segmentation_threshold: float = 0.0
     cleanup_output: bool = True
     submit_to_slurm: bool = False
+    copy_output: bool = False
     relion_options: RelionServiceOptions
 
 
@@ -265,6 +267,14 @@ class MembrainSeg(CommonService):
                 "relion_options": dict(membrain_seg_params.relion_options),
             },
         )
+
+        # Optionally copy output file
+        if membrain_seg_params.copy_output:
+            shutil.copy(
+                segmented_path,
+                segmented_path.parent.parent.parent
+                / f"{segmented_path.parent.parent}_segmented.mrc",
+            )
 
         self.log.info(f"Done segmentation for {membrain_seg_params.tomogram}")
         rw.transport.ack(header)
