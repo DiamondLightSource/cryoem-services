@@ -836,7 +836,7 @@ def test_xrm_to_jpeg(mock_convert, tmp_path):
     mock_convert.assert_called_once_with(
         input_xrm, f"{tmp_path}/example.tiff", annotate=True
     )
-    assert (tmp_path / "example_Annotated_thumbnail.jpeg").is_file()
+    assert (tmp_path / "example_Annotated_thumbnail.jpg").is_file()
 
 
 def test_interfaces_without_keys():
