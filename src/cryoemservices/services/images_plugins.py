@@ -933,12 +933,15 @@ def xrm_to_jpeg(plugin_params: Callable):
         return False
     xrm_path = Path(plugin_params("xrm_file"))
     tiff_path = Path(plugin_params("tiff_destination"))
+    annotate = plugin_params("annotate")
     if not xrm_path.is_file():
         logger.error(f"File {xrm_path} not found")
         return False
 
-    convert_and_save(xrm_path, tiff_path, plugin_params("annotate") or False)
-    data = tifffile.imread(tiff_path)
+    convert_and_save(
+        xrm_path, str(tiff_path).replace("_Annotated", ""), annotate=annotate or False
+    )
+    data = tifffile.imread(tiff_path)[0]
     with PIL.Image.fromarray(data) as thumb_im:
         thumb_im.thumbnail((1024, 1024))
         thumbnail_jpg = tiff_path.parent / (tiff_path.stem + "_thumbnail.jpg")

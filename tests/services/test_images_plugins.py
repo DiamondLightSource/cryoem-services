@@ -21,6 +21,7 @@ from cryoemservices.services.images_plugins import (
     picked_particles_3d_central_slice,
     tiff_to_apng,
     tilt_series_alignment,
+    xrm_to_jpeg,
 )
 from cryoemservices.util.image_processing.shared import convert_to_rgb
 
@@ -97,6 +98,19 @@ def plugin_params_tomo_pick(input_file, coords_file, command):
             "file": input_file,
             "coordinates_file": coords_file,
             "box_size": 40,
+        }
+        return p.get(key)
+
+    return params
+
+
+def plugin_params_xrm(input_file, output_file, command):
+    def params(key):
+        p = {
+            "parameters": {"images_command", command},
+            "xrm_file": input_file,
+            "tiff_destination": output_file,
+            "annotate": True,
         }
         return p.get(key)
 
@@ -808,6 +822,23 @@ def test_tilt_image_alignment_works_2d(mock_imagedraw, tmp_path):
     assert ellipse_calls[1][1] == {"width": 20, "outline": "#f5a927"}
 
 
+@mock.patch("cryoemservices.services.images_plugins.convert_and_save")
+def test_xrm_to_jpeg(mock_convert, tmp_path):
+    input_xrm = tmp_path / "example.xrm"
+    input_xrm.touch()
+    output_tiff = tmp_path / "example_Annotated.tiff"
+    data_2d = np.linspace(0, 255, 100).reshape((10, 10))
+    im = PIL.Image.fromarray(data_2d)
+    im.convert("RGB").save(output_tiff)
+
+    assert xrm_to_jpeg(plugin_params_xrm(input_xrm, output_tiff, "xrm_to_tiff"))
+
+    mock_convert.assert_called_once_with(
+        input_xrm, f"{tmp_path}/example.tiff", annotate=True
+    )
+    assert (tmp_path / "example_Annotated_thumbnail.jpeg").is_file()
+
+
 def test_interfaces_without_keys():
     """Test that file path keys are required"""
     assert not mrc_to_jpeg(lambda x: None)
@@ -818,6 +849,7 @@ def test_interfaces_without_keys():
     assert not picked_particles_3d_central_slice(lambda x: None)
     assert not picked_particles_3d_apng(lambda x: None)
     assert not tilt_series_alignment(lambda x: None)
+    assert not xrm_to_jpeg(lambda x: None)
 
 
 def test_interfaces_without_files(tmp_path):
@@ -853,3 +885,6 @@ def test_interfaces_without_files(tmp_path):
         )
     )
     assert not tilt_series_alignment(plugin_params(tmp_path / "not.mrc", True, 1))
+    assert not xrm_to_jpeg(
+        plugin_params_xrm(tmp_path / "not.xrm", tmp_path / "out.tiff", "xrm_to_tiff")
+    )
