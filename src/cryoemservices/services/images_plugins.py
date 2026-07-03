@@ -11,7 +11,6 @@ import pandas as pd
 import PIL.Image
 import starfile
 import tifffile
-import tifffile as tf
 from PIL import ImageDraw, ImageEnhance, ImageFilter, ImageFont
 from txrm2tiff.main import convert_and_save
 
@@ -688,7 +687,7 @@ def tiff_to_apng(plugin_params: Callable):
     img = PIL.Image.open(input_file)
 
     # Determine number of frames in image
-    with tf.TiffFile(input_file) as tiff_file:
+    with tifffile.TiffFile(input_file) as tiff_file:
         num_frames = len(tiff_file.pages)
 
     # Collect image frames
