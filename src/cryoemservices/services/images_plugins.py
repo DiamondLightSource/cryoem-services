@@ -940,7 +940,10 @@ def xrm_to_jpeg(plugin_params: Callable):
     convert_and_save(
         xrm_path, str(tiff_path).replace("_Annotated", ""), annotate=annotate or False
     )
-    data = tifffile.imread(tiff_path)[0]
+    data = tifffile.imread(tiff_path)
+    if len(data.shape) == 4:
+        # Take first frame if 3D RGB
+        data = data[0]
     with PIL.Image.fromarray(data) as thumb_im:
         thumb_im.thumbnail((1024, 1024))
         thumbnail_jpg = tiff_path.parent / (tiff_path.stem + "_thumbnail.jpg")
