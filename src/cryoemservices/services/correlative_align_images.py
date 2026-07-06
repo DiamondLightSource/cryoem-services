@@ -15,11 +15,11 @@ from cryoemservices.util.models import MockRW
 
 class AlignImagesParameters(BaseModel):
     id_ref: int  # ISPyB Atlas atlasId
-    image_ref: Path
-    pixel_size_ref: float
+    image_ref: Path | None = None
+    pixel_size_ref: float | None = None
     id_mov: int  # ISPyB Atlas atlasId
-    image_mov: Path
-    pixel_size_mov: float
+    image_mov: Path | None = None
+    pixel_size_mov: float | None = None
 
 
 def _get_atlas_dcg_experiment_type(session: sqlalchemy.orm.Session, atlas_id: int):
