@@ -63,6 +63,7 @@ def test_tomo_align_imod(
         "vol_z": 500,
         "out_bin": 1,
         "cpus": 2,
+        "copy_output": True,
     }
 
     # Touch the expected input/output and stack files
@@ -109,9 +110,13 @@ def test_tomo_align_imod(
             f"{tmp_path}/recipe/Tomograms/test_stack.adoc",
             "-cpus",
             "2",
+            "-bypass",
         ],
         capture_output=True,
     )
+
+    # Check output copy
+    assert (tmp_path / "recipe_volume.mrc").is_file()
 
     """# Check the shift plot
     with open(
@@ -187,6 +192,7 @@ def test_tomo_align_imod(
             "volume": f"{tmp_path}/recipe/Tomograms/test_stack_rec.mrc",
             "output_dir": f"{tmp_path}/recipe/Denoise",
             "relion_options": {},
+            "copy_output": True,
         },
     )
     offline_transport.send.assert_any_call(

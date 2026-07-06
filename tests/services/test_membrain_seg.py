@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import subprocess
 from unittest import mock
 
 import pytest
@@ -159,9 +160,20 @@ def test_membrain_seg_service_local_subprocess(
     Send a test message to membrain-seg for the local version
     This should call the mock subprocess then send messages to the images service.
     """
-    mock_subprocess().returncode = 0
-    mock_subprocess().stdout = "stdout".encode("ascii")
-    mock_subprocess().stderr = "stderr".encode("ascii")
+
+    def touch_membrain_output(*args, **kwargs):
+        (
+            tmp_path
+            / "Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented.mrc"
+        ).touch()
+        return subprocess.CompletedProcess(
+            "",
+            returncode=0,
+            stdout="stdout".encode("ascii"),
+            stderr="stderr".encode("ascii"),
+        )
+
+    mock_subprocess.side_effect = touch_membrain_output
 
     header = {
         "message-id": mock.sentinel,
@@ -179,6 +191,7 @@ def test_membrain_seg_service_local_subprocess(
         "window_size": 100,
         "connected_component_threshold": 2,
         "segmentation_threshold": 4,
+        "copy_output": True,
         "relion_options": {},
     }
     output_relion_options = dict(RelionServiceOptions())
@@ -213,8 +226,12 @@ def test_membrain_seg_service_local_subprocess(
         "--store-probabilities",
         "--store-connected-components",
     ]
-    assert mock_subprocess.call_count == 4
-    mock_subprocess.assert_any_call(membrain_command, capture_output=True)
+    mock_subprocess.assert_called_once_with(membrain_command, capture_output=True)
+
+    # Check output copy
+    assert (
+        tmp_path / "Segmentation/test_stack_aretomo.denoised_segmented.mrc"
+    ).is_file()
 
     # Check the images service request
     assert offline_transport.send.call_count == 5

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 from pathlib import Path
 from typing import Optional
 
+import numpy as np
 from pydantic import BaseModel, Field, ValidationError
 from workflows.recipe import wrap_subscribe
 
@@ -270,11 +272,15 @@ class MembrainSeg(CommonService):
 
         # Optionally copy output file
         if membrain_seg_params.copy_output:
-            shutil.copy(
-                segmented_path,
-                segmented_path.parent.parent.parent
-                / f"{segmented_path.parent.parent}_segmented.mrc",
+            # Take file name for Relion-type projects, or folder name for SXT-style
+            tomo_name = (
+                segmented_path.name
+                if np.array(
+                    [re.match("job[0-9]+", p) for p in segmented_path.parts]
+                ).any()
+                else f"{segmented_path.parent.parent}_segmented.mrc"
             )
+            shutil.copy(segmented_path, segmented_path.parent.parent.parent / tomo_name)
 
         self.log.info(f"Done segmentation for {membrain_seg_params.tomogram}")
         rw.transport.ack(header)

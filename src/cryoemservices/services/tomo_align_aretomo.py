@@ -857,15 +857,26 @@ class AreTomoAlign(CommonService):
 
         # Optionally copy output file
         if tomo_params.copy_output:
-            shutil.copy(
-                Path(tomo_params.stack_file),
-                project_dir.parent
-                / f"{Path(tomo_params.stack_file).parent.parent}_stack.mrc",
+            # Take file name for Relion-type projects, or folder name for SXT-style
+            stack_name = (
+                Path(tomo_params.stack_file).name
+                if np.array(
+                    [
+                        re.match("job[0-9]+", p)
+                        for p in Path(tomo_params.stack_file).parts
+                    ]
+                ).any()
+                else f"{Path(tomo_params.stack_file).parent.parent}_stack.mrc"
             )
-            shutil.copy(
-                aretomo_output_path,
-                project_dir.parent / f"{aretomo_output_path.parent.parent}_volume.mrc",
+            tomo_name = (
+                aretomo_output_path.name
+                if np.array(
+                    [re.match("job[0-9]+", p) for p in aretomo_output_path.parts]
+                ).any()
+                else f"{aretomo_output_path.parent.parent}_volume.mrc"
             )
+            shutil.copy(Path(tomo_params.stack_file), project_dir.parent / stack_name)
+            shutil.copy(aretomo_output_path, project_dir.parent / tomo_name)
 
         # Update success processing status
         rw.send_to("success", {})

@@ -6,6 +6,7 @@ import subprocess
 from pathlib import Path
 from typing import List, Optional
 
+import numpy as np
 from pydantic import BaseModel, Field, ValidationError, field_validator
 from workflows.recipe import wrap_subscribe
 
@@ -330,10 +331,16 @@ class Denoise(CommonService):
 
         # Optionally copy output file
         if denoise_params.copy_output:
+            # Take file name for Relion-type projects, or folder name for SXT-style
+            tomo_name = (
+                denoised_full_path.name
+                if np.array(
+                    [re.match("job[0-9]+", p) for p in denoised_full_path.parts]
+                ).any()
+                else f"{denoised_full_path.parent.parent}_denoised.mrc"
+            )
             shutil.copy(
-                denoised_full_path,
-                denoised_full_path.parent.parent.parent
-                / f"{denoised_full_path.parent.parent}_denoised.mrc",
+                denoised_full_path, denoised_full_path.parent.parent.parent / tomo_name
             )
 
         self.log.info(f"Done denoising for {denoise_params.volume}")
