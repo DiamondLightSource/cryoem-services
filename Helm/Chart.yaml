@@ -1,13 +1,14 @@
 apiVersion: v2
 name: cryoem-services
 description: An umbrella Helm chart for EM processing services
-version: 1.3.7
+version: 1.4.0
 dependencies:
   - name: bfactor_setup
   - name: clem_align_and_merge
   - name: clem_process_raw_lifs
   - name: clem_process_raw_tiffs
   - name: cluster_submission
+  - name: correlative_align_images
   - name: cryolo
   - name: cryolo_gpu
   - name: ctffind
@@ -26,5 +27,6 @@ dependencies:
   - name: process_recipe
   - name: select_classes
   - name: select_particles
-  - name: tomo_align
-  - name: tomo_align_slurm
+  - name: tomo_align_aretomo
+  - name: tomo_align_aretomo_slurm
+  - name: tomo_align_imod

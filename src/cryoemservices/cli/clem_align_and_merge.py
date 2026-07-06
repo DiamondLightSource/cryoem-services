@@ -83,35 +83,23 @@ def run():
     # Align image stacks before flattening
     parser.add_argument(
         "--align-self",
-        default="",
-        type=str,
-        help=(
-            "Choose whether to align the image stacks individually before flattening. \n"
-            "VALUES:    'enabled', '' \n"
-            "DEFAULT:   ''"
-        ),
+        action="store_true",
+        default=False,
+        help=("If set, aligns the image stacks individually before flattening."),
     )
     # Determine how the image is flattened
     parser.add_argument(
         "--flatten",
-        default="mean",
-        type=str,
-        help=(
-            "Choose whether to flatten the image stacks. \n"
-            "VALUES:    'mean', 'min', 'max', '' \n"
-            "DEFAULT:   'mean'"
-        ),
+        action="store_true",
+        default=False,
+        help=("If set, flattens the image stacks."),
     )
     # Determine what image registration protocol to implement
     parser.add_argument(
         "--align-across",
-        default="",
-        type=str,
-        help=(
-            "Choose whether to align the image stacks to one another before merging. \n"
-            "VALUES:    'enabled', '' \n"
-            "DEFAULT:   ''"
-        ),
+        action="store_true",
+        default=False,
+        help=("If set, aligns the image stacks to one another before merging. \n"),
     )
     # Determine number of processes to use
     parser.add_argument(

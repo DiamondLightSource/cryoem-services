@@ -253,6 +253,9 @@ class IceBreaker(CommonService):
                 if slurm_outcome.returncode:
                     # Mark failures only as success is True by default above
                     icebreaker_success = False
+                    self.log.error(
+                        f"IceBreaker slurm submission failed with {slurm_outcome.stderr.decode('utf8')}"
+                    )
         else:
             self.log.warning(
                 f"Unknown IceBreaker job type {icebreaker_params.icebreaker_type}"

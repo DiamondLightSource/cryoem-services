@@ -20,7 +20,7 @@ import numpy as np
 from defusedxml.ElementTree import parse
 from pydantic import BaseModel, ValidationError, field_validator, model_validator
 
-from cryoemservices.util.image_processing import (
+from cryoemservices.util.image_processing.shared import (
     TIFFImageLoader,
     get_percentiles,
     load_and_convert_image,
