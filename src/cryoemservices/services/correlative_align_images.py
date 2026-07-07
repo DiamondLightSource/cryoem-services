@@ -20,13 +20,19 @@ from cryoemservices.util.models import MockRW
 
 class AlignImagesParameters(BaseModel):
     # ISPyB Atlas atlasId values
-    id_ref: int
-    id_mov: int
+    id_ref: int | None = None
+    id_mov: int | None = None
     # Optional keys for manual testing
+    # Reference image
     image_ref: Path | None = None
     pixel_size_ref: float | None = None
+    visit_ref: str | None = None
+    experiment_type_ref: str | None = None
+    # Moving image
     image_mov: Path | None = None
     pixel_size_mov: float | None = None
+    visit_mov: str | None = None
+    experiment_type_mov: str | None = None
     save_dir: Path | None = None
 
 
@@ -145,41 +151,95 @@ class AlignImagesService(CommonService):
         ###############################################################################
 
         # Load the ISPyB Atlas entries using the provided IDs
-        try:
-            with self._database_session_maker() as session:
-                atlas_ref, proposal_ref, bl_session_ref, experiment_type_ref = (
-                    _get_atlas_proposal_session_experiment_type(
-                        session=session, atlas_id=params.id_ref
+        if params.id_ref and params.id_mov:
+            try:
+                with self._database_session_maker() as session:
+                    atlas_ref, proposal_ref, bl_session_ref, experiment_type_ref = (
+                        _get_atlas_proposal_session_experiment_type(
+                            session=session, atlas_id=params.id_ref
+                        )
                     )
-                )
-                atlas_mov, proposal_mov, bl_session_mov, experiment_type_mov = (
-                    _get_atlas_proposal_session_experiment_type(
-                        session=session, atlas_id=params.id_mov
+                    atlas_mov, proposal_mov, bl_session_mov, experiment_type_mov = (
+                        _get_atlas_proposal_session_experiment_type(
+                            session=session, atlas_id=params.id_mov
+                        )
                     )
-                )
-                # Construct visit names
-                visit_ref = f"{proposal_ref.proposalCode}{proposal_ref.proposalNumber}-{bl_session_ref.visit_number}"
-                visit_mov = f"{proposal_mov.proposalCode}{proposal_mov.proposalNumber}-{bl_session_mov.visit_number}"
-        except Exception:
-            self.log.error(
-                "Uncaught exception {e!r} while querying ISPyB, "
-                "quarantining message and shutting down instance.",
-                exc_info=True,
-            )
-            self._reject_message(header, transport=rw.transport)
-            return
+                    # Extract and construct needed values
+                    visit_ref = f"{proposal_ref.proposalCode}{proposal_ref.proposalNumber}-{bl_session_ref.visit_number}"
+                    experiment_name_ref = experiment_type_ref.name
+                    image_ref = Path(atlas_ref.atlasImage)
+                    pixel_size_ref = atlas_ref.pixelSize
 
-        # Align images differently depending on which data types are being compared
+                    visit_mov = f"{proposal_mov.proposalCode}{proposal_mov.proposalNumber}-{bl_session_mov.visit_number}"
+                    experiment_name_mov = experiment_type_mov.name
+                    image_mov = Path(atlas_mov.atlasImage)
+                    pixel_size_mov = atlas_mov.pixelSize
+
+            except Exception:
+                self.log.error(
+                    "Uncaught exception {e!r} while querying ISPyB, "
+                    "quarantining message and shutting down instance.",
+                    exc_info=True,
+                )
+                self._reject_message(header, transport=rw.transport)
+                return
+        # Use the directly provided values in the message
+        else:
+            if (
+                params.visit_ref is not None
+                and params.experiment_type_ref is not None
+                and params.image_ref is not None
+                and params.pixel_size_ref is not None
+                and params.visit_mov is not None
+                and params.experiment_type_mov is not None
+                and params.image_mov is not None
+                and params.pixel_size_mov is not None
+            ):
+                # Extract and construct needed values
+                visit_ref = params.visit_ref
+                experiment_name_ref = params.experiment_type_ref
+                image_ref = params.image_ref
+                pixel_size_ref = params.pixel_size_ref
+
+                visit_mov = params.visit_mov
+                experiment_name_mov = params.experiment_type_mov
+                image_mov = params.image_mov
+                pixel_size_mov = params.pixel_size_mov
+            else:
+                self.log.error(
+                    "Missing values needed to perform image correlation:\n"
+                    f"visit_ref: {params.visit_ref}\n"
+                    f"experiment_type_ref: {params.experiment_type_ref}\n"
+                    f"image_ref: {params.image_ref}\n"
+                    f"pixel_size_ref: {params.pixel_size_ref}\n"
+                    f"visit_mov: {params.visit_mov}\n"
+                    f"experiment_type_mov: {params.experiment_type_mov}\n"
+                    f"image_mov: {params.image_mov}\n"
+                    f"pixel_size_mov: {params.pixel_size_mov}\n"
+                )
+                self._reject_message(header, transport=rw.transport)
+                return
+
         try:
-            match sorted((experiment_type_ref.name, experiment_type_mov.name)):
+            # Construct the save directory for the outputs
+            visit_dir = image_ref.parents[-(image_ref.parts.index(visit_ref) + 1)]
+            save_dir = (
+                visit_dir / "processed" / "correlation" / visit_mov / image_mov.stem
+            )
+            if not save_dir.exists():
+                save_dir.mkdir(parents=True)
+                self.log.info(f"Created save directory at {save_dir}")
+
+            # Align images differently depending on which data types are being compared
+            match sorted((experiment_name_ref, experiment_name_mov)):
                 case ["FIB", "Tomography"] | ["FIB", "Lamella Tomography"]:
                     self.log.info("Aligning FIB atlas to tomography atlas")
                     result = self._handle_fib_tomo_case(
-                        params,
-                        atlas_ref,
-                        visit_ref,
-                        atlas_mov,
-                        visit_mov,
+                        image_ref,
+                        pixel_size_ref,
+                        image_mov,
+                        pixel_size_mov,
+                        save_dir,
                     )
                     if result["transform"] is not None:
                         self.log.info(
@@ -201,65 +261,16 @@ class AlignImagesService(CommonService):
 
     def _handle_fib_tomo_case(
         self,
-        params: AlignImagesParameters,
-        atlas_ref: ISPyBDB.Atlas,
-        visit_ref: str,
-        atlas_mov: ISPyBDB.Atlas,
-        visit_mov: str,
+        image_ref: Path,
+        pixel_size_ref: float,
+        image_mov: Path,
+        pixel_size_mov: float,
+        save_dir: Path,
     ):
-        # Ensure image path and pixel size are present as params or in the atlas tables
-        if not (
-            (
-                (atlas_ref.atlasImage and atlas_ref.pixelSize)
-                or (params.image_ref and params.pixel_size_ref)
-            )
-            and (
-                (atlas_mov.atlasImage and atlas_mov.pixelSize)
-                or (params.image_mov and params.pixel_size_mov)
-            )
-        ):
-            raise ValueError(
-                "Could not determine the file path or pixel size for "
-                "either the reference or moving image"
-            )
         # Load image files and pixel sizes
         # Load from params, then fall back to table (useful for testing)
-        file_ref = (
-            params.image_ref
-            if params.image_ref is not None
-            else Path(atlas_ref.atlasImage)
-        )
-        img_ref = cv2.imread(file_ref, flags=cv2.IMREAD_GRAYSCALE)
-        pixel_size_ref = (
-            params.pixel_size_ref
-            if params.pixel_size_ref is not None
-            else atlas_ref.pixelSize
-        )
-        file_mov = (
-            params.image_mov
-            if params.image_mov is not None
-            else Path(atlas_mov.atlasImage)
-        )
-        img_mov = cv2.imread(file_mov, flags=cv2.IMREAD_GRAYSCALE)
-        pixel_size_mov = (
-            params.pixel_size_mov
-            if params.pixel_size_mov is not None
-            else atlas_mov.pixelSize
-        )
-
-        # Get save directory from message
-        save_dir = params.save_dir
-        # Fall back to constructing a save directory using ISPyB-derived data
-        if save_dir is None:
-            visit_dir = file_ref.parents[-(file_ref.parts.index(visit_ref) + 1)]
-            save_dir = (
-                visit_dir / "processed" / "correlation" / visit_mov / file_mov.stem
-            )
-
-        # Store images under the visit name of the moving image
-        if not save_dir.exists():
-            save_dir.mkdir(parents=True)
-            self.log.info(f"Created save directory at {save_dir}")
+        img_ref = cv2.imread(image_ref, flags=cv2.IMREAD_GRAYSCALE)
+        img_mov = cv2.imread(image_mov, flags=cv2.IMREAD_GRAYSCALE)
 
         # Rescale images to same pixel size and crop to the same dimensions
         pixel_size_target = 4.0e-6
