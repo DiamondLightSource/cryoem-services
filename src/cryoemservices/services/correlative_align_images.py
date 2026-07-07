@@ -172,13 +172,9 @@ class AlignImagesService(CommonService):
         # Align images differently depending on which data types are being compared
         try:
             match sorted((experiment_type_ref.name, experiment_type_mov.name)):
-                case (
-                    ["FIB", "Tomography"]
-                    | ["FIB", "Lamella Tomography"]
-                    | ["FIB", "Single Particle"]
-                ):
-                    self.log.info("Aligning FIB atlas to TEM one")
-                    result = self._handle_fib_tem_case(
+                case ["FIB", "Tomography"] | ["FIB", "Lamella Tomography"]:
+                    self.log.info("Aligning FIB atlas to tomography atlas")
+                    result = self._handle_fib_tomo_case(
                         params,
                         atlas_ref,
                         visit_ref,
@@ -186,7 +182,9 @@ class AlignImagesService(CommonService):
                         visit_mov,
                     )
                     if result["transform"] is not None:
-                        self.log.info("Successfully aligned FIB atlas to TEM atlas")
+                        self.log.info(
+                            "Successfully aligned FIB atlas to tomography atlas"
+                        )
                 case _:
                     self.log.info(
                         "No image alignment algorithm implemented for this case yet"
@@ -201,7 +199,7 @@ class AlignImagesService(CommonService):
         rw.transport.ack(header)
         return
 
-    def _handle_fib_tem_case(
+    def _handle_fib_tomo_case(
         self,
         params: AlignImagesParameters,
         atlas_ref: ISPyBDB.Atlas,

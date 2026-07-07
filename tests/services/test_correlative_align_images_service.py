@@ -158,12 +158,10 @@ def test_align_images_service(
     )
     # It goes into the correct case block
     match sorted((ref_type, mov_type)):
-        case (
-            ["FIB", "Tomography"]
-            | ["FIB", "Lamella Tomography"]
-            | ["FIB", "Single Particle"]
-        ):
-            service.log.info.assert_called_with("Aligning FIB atlas to TEM one")
+        case ["FIB", "Tomography"] | ["FIB", "Lamella Tomography"]:
+            service.log.info.assert_called_with(
+                "Aligning FIB atlas to tomography atlas"
+            )
         case _:
             service.log.info.assert_called_with(
                 "No image alignment algorithm implemented for this case yet"
