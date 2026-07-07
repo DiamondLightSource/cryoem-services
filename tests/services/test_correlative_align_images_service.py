@@ -176,6 +176,11 @@ def test_align_images_service(
         ],
     )
 
+    # Mock the '_handle_fib_tomo_case' class function
+    mock_handle_fib_tomo = mocker.patch(
+        "cryoemservices.services.correlative_align_images.AlignImagesService._handle_fib_tomo_case"
+    )
+
     # Set up and run the service
     service = AlignImagesService(
         environment={"config": str(mock_config_file), "queue": ""},
@@ -214,8 +219,12 @@ def test_align_images_service(
     # It goes into the correct case block
     match sorted((ref_type, mov_type)):
         case ["FIB", "Tomography"] | ["FIB", "Lamella Tomography"]:
-            service.log.info.assert_called_with(
-                "Aligning FIB atlas to tomography atlas"
+            mock_handle_fib_tomo.assert_called_with(
+                image_ref,
+                pixel_size_ref,
+                image_mov,
+                pixel_size_mov,
+                save_dir,
             )
         case _:
             service.log.info.assert_called_with(
