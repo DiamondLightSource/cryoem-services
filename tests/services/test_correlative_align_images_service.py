@@ -1,7 +1,9 @@
 from pathlib import Path
+from typing import cast
 from unittest import mock
 from unittest.mock import MagicMock
 
+import numpy as np
 import pytest
 from pytest_mock import MockerFixture
 from workflows.transport.offline_transport import OfflineTransport
@@ -230,3 +232,65 @@ def test_align_images_service(
             service.log.info.assert_called_with(
                 "No image alignment algorithm implemented for this case yet"
             )
+
+
+def test_handle_fib_tomo_case(
+    mocker: MockerFixture,
+    tmp_path: Path,
+    mock_config_file: Path,
+    offline_transport: OfflineTransport,
+):
+    # Patch the 'cv2.imread' function
+    mocker.patch(
+        "cryoemservices.services.correlative_align_images.cv2.imread",
+        side_effect=[
+            np.random.randint(0, 256, (400, 600), dtype=np.uint8),
+            np.random.randint(0, 256, (600, 400), dtype=np.uint8),
+        ],
+    )
+
+    # Mock the image alignment function
+    mock_align = mocker.patch(
+        "cryoemservices.services.correlative_align_images.align_images_using_neighbors"
+    )
+    save_dir = tmp_path / "dummy"
+
+    # Set up the service and run the function
+    service = AlignImagesService(
+        environment={"config": str(mock_config_file), "queue": ""},
+        transport=offline_transport,
+    )
+    service._handle_fib_tomo_case(
+        tmp_path / "dummy.png", 1e-6, tmp_path / "dummy.png", 1e-6, save_dir
+    )
+
+    # Check that the expected calls were made
+    mock_align.assert_called_once_with(
+        mock.ANY,
+        mock.ANY,
+        median_blur=None,
+        gaussian_blur=0.5,
+        sobel_kernel=3,
+        use_hanning=False,
+        min_component_area=20,
+        threshold_percentile=98.5,
+        morph_close_kernel=10,
+        morph_open_kernel=2,
+        min_feature_area=20,
+        max_feature_area=1000,
+        min_solidity=0.6,
+        min_ellipse_fit=0.4,
+        max_aspect_ratio=0.95,
+        max_neighbor_distance=200,
+        min_score=0.3,
+        ransac_threshold=5,
+        save_images=True,
+        save_tables=True,
+        save_dir=save_dir,
+    )
+    # Unpack the mocks to check that the arrays have been resized and cropped correctly
+    # Calculate the expected output shape of the array
+    num_pixels = int(400 * (1e-6 / 4e-6))
+    image_ref, image_mov = mock_align.call_args.args[:2]
+    assert cast(np.ndarray, image_ref).shape == (num_pixels, num_pixels)
+    assert cast(np.ndarray, image_mov).shape == (num_pixels, num_pixels)
