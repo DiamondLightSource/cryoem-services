@@ -24,15 +24,15 @@ class AlignImagesParameters(BaseModel):
     id_mov: int | None = None
     # Optional keys for manual testing
     # Reference image
-    image_ref: Path | None = None
-    pixel_size_ref: float | None = None
     visit_ref: str | None = None
     experiment_type_ref: str | None = None
+    image_ref: Path | None = None
+    pixel_size_ref: float | None = None
     # Moving image
-    image_mov: Path | None = None
-    pixel_size_mov: float | None = None
     visit_mov: str | None = None
     experiment_type_mov: str | None = None
+    image_mov: Path | None = None
+    pixel_size_mov: float | None = None
     save_dir: Path | None = None
 
 
