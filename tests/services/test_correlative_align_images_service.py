@@ -64,13 +64,15 @@ def mock_config_file(tmp_path: Path):
 
 @pytest.mark.parametrize(
     "test_params",
-    (  # Use recwrap | Ref type | Mov type
-        (True, "Tomography", "FIB"),
-        (False, "Tomography", "FIB"),
-        (True, "Tomography", "Single Particle"),
-        (False, "Tomography", "Single Particle"),
-        (True, "Tomography", "CLEM"),
-        (False, "Tomography", "CLEM"),
+    (  # Use recwrap | Use ISPyB | Ref type | Mov type
+        (True, True, "Tomography", "FIB"),
+        (False, True, "Tomography", "FIB"),
+        (True, False, "Tomography", "Single Particle"),
+        (False, False, "Tomography", "Single Particle"),
+        (True, True, "Tomography", "CLEM"),
+        (False, True, "Tomography", "CLEM"),
+        (True, True, "Lamella Tomography", "FIB"),
+        (False, True, "Lamella Tomography", "FIB"),
     ),
 )
 def test_align_images_service(
@@ -78,21 +80,47 @@ def test_align_images_service(
     tmp_path: Path,
     mock_config_file: Path,
     offline_transport: OfflineTransport,
-    test_params: tuple[bool, str, str],
+    test_params: tuple[bool, bool, str, str],
 ):
     # Set up the message parameters
-    use_recwrap, ref_type, mov_type = test_params
+    use_recwrap, use_ispyb, ref_type, mov_type = test_params
+
+    # Set up reference image and moving image parameters
+    id_ref = 1
+    id_mov = 2
+
+    proposal_code = "cm"
+    proposal_number = "12345"
+
+    visit_ref = f"{proposal_code}{proposal_number}-{id_ref}"
+    image_ref = tmp_path / visit_ref / "processed" / "atlas" / "test.png"
+    pixel_size_ref = 1e-6
+
+    visit_mov = f"{proposal_code}{proposal_number}-{id_mov}"
+    image_mov = tmp_path / visit_mov / "processed" / "atlas" / "test.png"
+    pixel_size_mov = 1e-6
+
+    save_dir = (
+        tmp_path / visit_ref / "processed" / "correlation" / visit_mov / image_mov.stem
+    )
+
+    # Populate message based on whether to use ISPyB
     header = {
         "message-id": mock.sentinel,
         "subscription": mock.sentinel,
     }
     align_images_test_message = {
-        "id_ref": 1,
-        "image_ref": str(tmp_path / "ref.png"),
-        "pixel_size_ref": 1e-6,
-        "id_mov": 2,
-        "image_mov": str(tmp_path / "mov.png"),
-        "pixel_size_mov": 1e-6,
+        "id_ref": id_ref if use_ispyb else None,
+        "id_mov": id_mov if use_ispyb else None,
+        "visit_ref": None if use_ispyb else visit_ref,
+        "experiment_type_ref": None if use_ispyb else ref_type,
+        "image_ref": None if use_ispyb else str(image_ref),
+        "pixel_size_ref": None if use_ispyb else pixel_size_ref,
+        "visit_mov": None if use_ispyb else visit_mov,
+        "experiment_type_mov": None if use_ispyb else mov_type,
+        "image_mov": None if use_ispyb else str(image_mov),
+        "pixel_size_mov": None if use_ispyb else pixel_size_mov,
+        "save_dir": None if use_ispyb else save_dir,
     }
     params = AlignImagesParameters(**align_images_test_message)
 
@@ -107,21 +135,44 @@ def test_align_images_service(
     # Mock the query function and its returns
     mock_atlas_ref = MagicMock()
     mock_proposal_ref = MagicMock()
-    mock_session_ref = MagicMock()
+    mock_bl_session_ref = MagicMock()
     mock_experiment_ref = MagicMock()
-    mock_experiment_ref.name = ref_type
 
     mock_atlas_mov = MagicMock()
     mock_proposal_mov = MagicMock()
-    mock_session_mov = MagicMock()
+    mock_bl_session_mov = MagicMock()
     mock_experiment_mov = MagicMock()
-    mock_experiment_mov.name = mov_type
 
-    mock_get = mocker.patch(
+    if use_ispyb:
+        mock_atlas_ref.atlasImage = str(image_ref)
+        mock_atlas_ref.pixelSize = pixel_size_ref
+        mock_proposal_ref.proposalCode = proposal_code
+        mock_proposal_ref.proposalNumber = proposal_number
+        mock_bl_session_ref.visit_number = id_ref
+        mock_experiment_ref.name = ref_type
+
+        mock_atlas_mov.atlasImage = str(image_mov)
+        mock_atlas_mov.pixelSize = pixel_size_mov
+        mock_proposal_mov.proposalCode = proposal_code
+        mock_proposal_mov.proposalNumber = proposal_number
+        mock_bl_session_mov.visit_number = id_mov
+        mock_experiment_mov.name = mov_type
+
+    mock_get_ispyb = mocker.patch(
         "cryoemservices.services.correlative_align_images._get_atlas_proposal_session_experiment_type",
         side_effect=[
-            (mock_atlas_ref, mock_proposal_ref, mock_session_ref, mock_experiment_ref),
-            (mock_atlas_mov, mock_proposal_mov, mock_session_mov, mock_experiment_mov),
+            (
+                mock_atlas_ref,
+                mock_proposal_ref,
+                mock_bl_session_ref,
+                mock_experiment_ref,
+            ),
+            (
+                mock_atlas_mov,
+                mock_proposal_mov,
+                mock_bl_session_mov,
+                mock_experiment_mov,
+            ),
         ],
     )
 
@@ -148,14 +199,18 @@ def test_align_images_service(
         )
 
     # Queries for the Atlas, DCG, and ExperimentType were made
-    mock_get.assert_any_call(
-        session=mock_ispyb_session,
-        atlas_id=params.id_ref,
-    )
-    mock_get.assert_any_call(
-        session=mock_ispyb_session,
-        atlas_id=params.id_mov,
-    )
+    if use_ispyb:
+        mock_get_ispyb.assert_any_call(
+            session=mock_ispyb_session,
+            atlas_id=params.id_ref,
+        )
+        mock_get_ispyb.assert_any_call(
+            session=mock_ispyb_session,
+            atlas_id=params.id_mov,
+        )
+    else:
+        mock_get_ispyb.assert_not_called()
+
     # It goes into the correct case block
     match sorted((ref_type, mov_type)):
         case ["FIB", "Tomography"] | ["FIB", "Lamella Tomography"]:
