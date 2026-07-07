@@ -9,7 +9,7 @@ from workflows.transport.offline_transport import OfflineTransport
 from cryoemservices.services.correlative_align_images import (
     AlignImagesParameters,
     AlignImagesService,
-    _get_atlas_dcg_experiment_type,
+    _get_atlas_proposal_session_experiment_type,
 )
 from cryoemservices.util.models import MockRW
 
@@ -17,12 +17,14 @@ from cryoemservices.util.models import MockRW
 def test_get_atlas_dcg_experiment_type(mocker: MockerFixture):
     # Create mock return results
     mock_atlas = MagicMock()
-    mock_dcg = MagicMock()
+    mock_proposal = MagicMock()
+    mock_bl_session = MagicMock()
     mock_experiment = MagicMock()
 
     mock_result = MagicMock()
     mock_result.Atlas = mock_atlas
-    mock_result.DataCollectionGroup = mock_dcg
+    mock_result.Proposal = mock_proposal
+    mock_result.BLSession = mock_bl_session
     mock_result.ExperimentType = mock_experiment
 
     # Create the mock SQLAlchemy session
@@ -30,9 +32,10 @@ def test_get_atlas_dcg_experiment_type(mocker: MockerFixture):
     mock_session.execute.return_value.one.return_value = mock_result
 
     # Run the function
-    assert _get_atlas_dcg_experiment_type(mock_session, 1) == (
+    assert _get_atlas_proposal_session_experiment_type(mock_session, 1) == (
         mock_atlas,
-        mock_dcg,
+        mock_proposal,
+        mock_bl_session,
         mock_experiment,
     )
 
@@ -103,20 +106,22 @@ def test_align_images_service(
 
     # Mock the query function and its returns
     mock_atlas_ref = MagicMock()
-    mock_dcg_ref = MagicMock()
+    mock_proposal_ref = MagicMock()
+    mock_session_ref = MagicMock()
     mock_experiment_ref = MagicMock()
     mock_experiment_ref.name = ref_type
 
     mock_atlas_mov = MagicMock()
-    mock_dcg_mov = MagicMock()
+    mock_proposal_mov = MagicMock()
+    mock_session_mov = MagicMock()
     mock_experiment_mov = MagicMock()
     mock_experiment_mov.name = mov_type
 
     mock_get = mocker.patch(
-        "cryoemservices.services.correlative_align_images._get_atlas_dcg_experiment_type",
+        "cryoemservices.services.correlative_align_images._get_atlas_proposal_session_experiment_type",
         side_effect=[
-            (mock_atlas_ref, mock_dcg_ref, mock_experiment_ref),
-            (mock_atlas_mov, mock_dcg_mov, mock_experiment_mov),
+            (mock_atlas_ref, mock_proposal_ref, mock_session_ref, mock_experiment_ref),
+            (mock_atlas_mov, mock_proposal_mov, mock_session_mov, mock_experiment_mov),
         ],
     )
 
@@ -152,9 +157,13 @@ def test_align_images_service(
         atlas_id=params.id_mov,
     )
     # It goes into the correct case block
-    match (ref_type, mov_type):
-        case ("Tomography", "FIB"):
-            service.log.info.assert_called_with("Aligning FIB atlas to tomography one")
+    match sorted((ref_type, mov_type)):
+        case (
+            ["FIB", "Tomography"]
+            | ["FIB", "Lamella Tomography"]
+            | ["FIB", "Single Particle"]
+        ):
+            service.log.info.assert_called_with("Aligning FIB atlas to TEM one")
         case _:
             service.log.info.assert_called_with(
                 "No image alignment algorithm implemented for this case yet"
