@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 from pydantic import ValidationError
 from workflows.recipe import wrap_subscribe
 
@@ -66,6 +69,10 @@ class Refine3D(CommonService):
             self._reject_message(header, transport=rw.transport, requeue=False)
             return
 
+        Path(refine_params.class3d_dir).mkdir(exist_ok=True, parents=True)
+        with open(f"{refine_params.class3d_dir}/recipe.json", "w") as recipe_file:
+            json.dump({"header": header, "message": message}, recipe_file)
+
         # Acknowledge the message and disconnect from rabbitmq
         self.log.info(
             f"Running disconnected Refine3D job for {refine_params.particles_file}"
@@ -81,8 +88,12 @@ class Refine3D(CommonService):
             self.log.error(f"Failed to run refinement due to {e}", exc_info=True)
             successful_run = False
         except KeyboardInterrupt:
-            rw.send_to("refine3d", message)
+            self.initializing()
+            self._transport.send_to("refine3d", message)
             raise KeyboardInterrupt
+
+        # Reconnect to rabbitmq
+        self.initializing()
         if successful_run:
             self.log.error(
                 f"Refinement job completed for {refine_params.particles_file}"
@@ -91,8 +102,5 @@ class Refine3D(CommonService):
             self.log.error(f"Refinement job failed for {refine_params.particles_file}")
             # Send back to the queue but mark a failure in the message
             message["requeue"] = message.get("requeue", 0) + 1
-            rw.send_to("refine3d", message)
-
-        # Reconnect to rabbitmq
-        self.initializing()
+            self._transport.send_to("refine3d", message)
         return True

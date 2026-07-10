@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 from pydantic import ValidationError
 from workflows.recipe import wrap_subscribe
 
@@ -66,6 +69,10 @@ class Class3D(CommonService):
             self._reject_message(header, transport=rw.transport, requeue=False)
             return
 
+        Path(class3d_params.class3d_dir).mkdir(exist_ok=True, parents=True)
+        with open(f"{class3d_params.class3d_dir}/recipe.json", "w") as recipe_file:
+            json.dump({"header": header, "message": message}, recipe_file)
+
         # Acknowledge the message and disconnect from rabbitmq
         self.log.info(
             f"Running disconnected Class3D job for {class3d_params.particles_file}"
@@ -81,16 +88,17 @@ class Class3D(CommonService):
             self.log.error(f"Failed to run class3d due to {e}", exc_info=True)
             successful_run = False
         except KeyboardInterrupt:
-            rw.send_to("class3d", message)
+            self.initializing()
+            self._transport.send_to("class3d", message)
             raise KeyboardInterrupt
+
+        # Reconnect to rabbitmq
+        self.initializing()
         if successful_run:
             self.log.error(f"Class3D job completed for {class3d_params.particles_file}")
         else:
             self.log.error(f"Class3D job failed for {class3d_params.particles_file}")
             # Send back to the queue but mark a failure in the message
             message["requeue"] = message.get("requeue", 0) + 1
-            rw.send_to("class3d", message)
-
-        # Reconnect to rabbitmq
-        self.initializing()
+            self._transport.send_to("class3d", message)
         return True
