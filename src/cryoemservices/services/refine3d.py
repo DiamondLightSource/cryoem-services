@@ -69,9 +69,12 @@ class Refine3D(CommonService):
             self._reject_message(header, transport=rw.transport, requeue=False)
             return
 
-        Path(refine_params.class3d_dir).mkdir(exist_ok=True, parents=True)
-        with open(f"{refine_params.class3d_dir}/recipe.json", "w") as recipe_file:
-            json.dump({"header": header, "message": message}, recipe_file)
+        Path(refine_params.refine_job_dir).mkdir(exist_ok=True, parents=True)
+        with open(f"{refine_params.refine_job_dir}/recipe.json", "w") as recipe_file:
+            json.dump(
+                {"header": header, "message": refine_params.model_dump(mode="json")},
+                recipe_file,
+            )
 
         # Acknowledge the message and disconnect from rabbitmq
         self.log.info(
@@ -89,7 +92,7 @@ class Refine3D(CommonService):
             successful_run = False
         except KeyboardInterrupt:
             self.initializing()
-            self._transport.send_to("refine3d", message)
+            self._transport.send("refine3d", message)
             raise KeyboardInterrupt
 
         # Reconnect to rabbitmq
@@ -102,5 +105,5 @@ class Refine3D(CommonService):
             self.log.error(f"Refinement job failed for {refine_params.particles_file}")
             # Send back to the queue but mark a failure in the message
             message["requeue"] = message.get("requeue", 0) + 1
-            self._transport.send_to("refine3d", message)
+            self._transport.send("refine3d", message)
         return True

@@ -51,10 +51,7 @@ def test_refine3d_service_with_mask(
     ]
 
     # Example recipe wrapper message to run the service with a few parameters varied
-    header = {
-        "message-id": mock.sentinel,
-        "subscription": mock.sentinel,
-    }
+    header = {"message-id": 1, "subscription": 2}
     refine3d_test_message = {
         "recipe": {
             "start": [[1, []]],
@@ -230,10 +227,7 @@ def test_refine3d_service_no_scaling(offline_transport, tmp_path):
     """Not requesting rescaling properly should lead to rejection of the message"""
 
     # Set up the parameters
-    header = {
-        "message-id": mock.sentinel,
-        "subscription": mock.sentinel,
-    }
+    header = {"message-id": 1, "subscription": 2}
     refine_test_message = {
         "batch_size": 50000,
         "class_number": 1,
@@ -270,10 +264,7 @@ def test_refine3d_service_failed_resends(mock_refine3d, offline_transport, tmp_p
     mock_refine3d.side_effect = raise_exception
 
     # Set up the parameters
-    header = {
-        "message-id": mock.sentinel,
-        "subscription": mock.sentinel,
-    }
+    header = {"message-id": 1, "subscription": 2}
     refine_test_message = {
         "batch_size": 50000,
         "class_number": 1,

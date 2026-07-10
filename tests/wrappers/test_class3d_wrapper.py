@@ -114,6 +114,7 @@ def test_class3d_wrapper_do_initial_model(
     output_relion_options.batch_size = 50000
     output_relion_options.initial_lowpass = 20
     output_relion_options.symmetry = "C3"
+    output_relion_options.initial_model_iterations = 10
     output_relion_options = dict(output_relion_options)
 
     # Create the expected output files
