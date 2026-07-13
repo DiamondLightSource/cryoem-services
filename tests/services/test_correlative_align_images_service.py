@@ -227,6 +227,7 @@ def test_align_images_service(
                 image_mov,
                 pixel_size_mov,
                 save_dir,
+                params,
             )
         case _:
             service.log.info.assert_called_with(
@@ -261,7 +262,12 @@ def test_handle_fib_tomo_case(
         transport=offline_transport,
     )
     service._handle_fib_tomo_case(
-        tmp_path / "dummy.png", 1e-6, tmp_path / "dummy.png", 1e-6, save_dir
+        tmp_path / "dummy.png",
+        1e-6,
+        tmp_path / "dummy.png",
+        1e-6,
+        save_dir,
+        AlignImagesParameters(),
     )
 
     # Check that the expected calls were made
