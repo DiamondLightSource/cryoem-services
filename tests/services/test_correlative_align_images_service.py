@@ -66,15 +66,15 @@ def mock_config_file(tmp_path: Path):
 
 @pytest.mark.parametrize(
     "test_params",
-    (  # Use recwrap | Use ISPyB | Ref type | Mov type
-        (True, True, "Tomography", "FIB"),
-        (False, True, "Tomography", "FIB"),
-        (True, False, "Tomography", "Single Particle"),
-        (False, False, "Tomography", "Single Particle"),
-        (True, True, "Tomography", "CLEM"),
-        (False, True, "Tomography", "CLEM"),
-        (True, True, "Lamella Tomography", "FIB"),
-        (False, True, "Lamella Tomography", "FIB"),
+    (  # Use recwrap | Use ISPyB | Ref type | Mov type | Alignment successful
+        (True, True, "Tomography", "FIB", True),
+        (False, True, "Tomography", "FIB", False),
+        (True, False, "Tomography", "Single Particle", True),
+        (False, False, "Tomography", "Single Particle", False),
+        (True, True, "Tomography", "CLEM", True),
+        (False, True, "Tomography", "CLEM", False),
+        (True, True, "Lamella Tomography", "FIB", True),
+        (False, True, "Lamella Tomography", "FIB", False),
     ),
 )
 def test_align_images_service(
@@ -82,10 +82,10 @@ def test_align_images_service(
     tmp_path: Path,
     mock_config_file: Path,
     offline_transport: OfflineTransport,
-    test_params: tuple[bool, bool, str, str],
+    test_params: tuple[bool, bool, str, str, bool],
 ):
     # Set up the message parameters
-    use_recwrap, use_ispyb, ref_type, mov_type = test_params
+    use_recwrap, use_ispyb, ref_type, mov_type, alignment_successful = test_params
 
     # Set up reference image and moving image parameters
     id_ref = 1
@@ -178,10 +178,18 @@ def test_align_images_service(
         ],
     )
 
+    # Mock the '_reject_message' function
+    mock_reject = mocker.patch(
+        "cryoemservices.services.common_service.CommonService._reject_message"
+    )
+
     # Mock the '_handle_fib_tomo_case' class function
     mock_handle_fib_tomo = mocker.patch(
         "cryoemservices.services.correlative_align_images.AlignImagesService._handle_fib_tomo_case"
     )
+    mock_handle_fib_tomo.return_value = {
+        "transform": np.ones((3, 3), dtype=np.float32) if alignment_successful else None
+    }
 
     # Set up and run the service
     service = AlignImagesService(
@@ -229,10 +237,21 @@ def test_align_images_service(
                 save_dir,
                 params,
             )
+            if alignment_successful:
+                service.log.info.assert_called_with(
+                    "Successfully aligned FIB atlas to tomography atlas"
+                )
+                mock_reject.assert_not_called()
+            else:
+                service.log.error.assert_called_with(
+                    "Could not align FIB atlas to tomography atlas"
+                )
+                mock_reject.assert_called()
         case _:
             service.log.info.assert_called_with(
                 "No image alignment algorithm implemented for this case yet"
             )
+            mock_reject.assert_not_called()
 
 
 def test_handle_fib_tomo_case(
