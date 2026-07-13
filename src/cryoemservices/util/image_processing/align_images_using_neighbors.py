@@ -823,7 +823,7 @@ def align_images_using_neighbors(
     # Similarity calculation and registration
     max_neighbor_distance: float | None = 400,
     min_score: float | None = 0.2,
-    ransac_threshold: float = 10,
+    ransac_threshold: float = 5,
     # Debug options
     save_images: bool = False,
     save_tables: bool = False,
