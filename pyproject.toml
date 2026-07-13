@@ -29,6 +29,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
+    "ccpem-pipeliner",
     "defusedxml", # CLEM workflow
     "gemmi",
     "graypy",
