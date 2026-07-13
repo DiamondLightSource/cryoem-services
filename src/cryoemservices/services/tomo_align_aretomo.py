@@ -860,12 +860,12 @@ class AreTomoAlign(CommonService):
             # Take file name for Relion-type projects, or folder name for SXT-style
             stack_name = (
                 Path(tomo_params.stack_file).name
-                if re.match("job[0-9]+", tomo_params.stack_file)
+                if re.match(".*/job[0-9]+/.*", tomo_params.stack_file)
                 else f"{Path(tomo_params.stack_file).parent.parent}_stack.mrc"
             )
             tomo_name = (
                 aretomo_output_path.name
-                if re.match("job[0-9]+", str(aretomo_output_path))
+                if re.match(".*/job[0-9]+/.*", str(aretomo_output_path))
                 else f"{aretomo_output_path.parent.parent}_volume.mrc"
             )
             shutil.copy(Path(tomo_params.stack_file), project_dir.parent / stack_name)

@@ -274,7 +274,7 @@ class MembrainSeg(CommonService):
             # Take file name for Relion-type projects, or folder name for SXT-style
             tomo_name = (
                 segmented_path.name
-                if re.match("/job[0-9]+/", str(segmented_path))
+                if re.match(".*/job[0-9]+/.*", str(segmented_path))
                 else f"{segmented_path.parent.parent}_segmented.mrc"
             )
             shutil.copy(segmented_path, segmented_path.parent.parent.parent / tomo_name)

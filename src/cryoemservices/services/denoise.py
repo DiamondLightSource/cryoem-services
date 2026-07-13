@@ -333,7 +333,7 @@ class Denoise(CommonService):
             # Take file name for Relion-type projects, or folder name for SXT-style
             tomo_name = (
                 denoised_full_path.name
-                if re.match("/job[0-9]+/", str(denoised_full_path))
+                if re.match(".*/job[0-9]+/.*", str(denoised_full_path))
                 else f"{denoised_full_path.parent.parent}_denoised.mrc"
             )
             shutil.copy(
