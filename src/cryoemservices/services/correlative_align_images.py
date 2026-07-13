@@ -226,9 +226,8 @@ class AlignImagesService(CommonService):
             save_dir = (
                 visit_dir / "processed" / "correlation" / visit_mov / image_mov.stem
             )
-            if not save_dir.exists():
-                save_dir.mkdir(parents=True)
-                self.log.info(f"Created save directory at {save_dir}")
+            save_dir.mkdir(parents=True, exist_ok=True)
+            self.log.info(f"Created save directory at {save_dir}")
 
             # Align images differently depending on which data types are being compared
             match sorted((experiment_name_ref, experiment_name_mov)):
