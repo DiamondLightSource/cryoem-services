@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import subprocess
 from unittest import mock
 
 import pytest
@@ -188,6 +189,7 @@ def test_denoise_local_topaz_service(
             "tomogram": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
             "output_dir": f"{tmp_path}/Segmentation/job008/tomograms",
             "pixel_size": "1.0",
+            "copy_output": False,
             "relion_options": output_relion_options,
         },
     )
@@ -216,9 +218,18 @@ def test_denoise_local_subprocess_service(
     This should call the mock subprocess then send messages on to
     the membrain-seg and images services.
     """
-    mock_subprocess().returncode = 0
-    mock_subprocess().stdout = "stdout".encode("ascii")
-    mock_subprocess().stderr = "stderr".encode("ascii")
+
+    def touch_denoise_output(*args, **kwargs):
+        (tmp_path / "Denoise/job007/denoised").mkdir(parents=True, exist_ok=True)
+        (tmp_path / "Denoise/job007/denoised/test_stack_aretomo.denoised.mrc").touch()
+        return subprocess.CompletedProcess(
+            "",
+            returncode=0,
+            stdout="stdout".encode("ascii"),
+            stderr="stderr".encode("ascii"),
+        )
+
+    mock_subprocess.side_effect = touch_denoise_output
 
     header = {
         "message-id": mock.sentinel,
@@ -250,6 +261,7 @@ def test_denoise_local_subprocess_service(
         "patch_size": 96,
         "patch_padding": 48,
         "device": "-2",
+        "copy_output": True,
         "relion_options": {"pixel_size_downscaled": 1},
     }
     output_relion_options = dict(RelionServiceOptions())
@@ -310,7 +322,10 @@ def test_denoise_local_subprocess_service(
         "-d",
         "-2",
     ]
-    mock_subprocess.assert_any_call(denoise_command, capture_output=True)
+    mock_subprocess.assert_called_once_with(denoise_command, capture_output=True)
+
+    # Check output copy
+    assert (tmp_path / "Denoise/test_stack_aretomo.denoised.mrc").is_file()
 
     # Check the images service request
     assert offline_transport.send.call_count == 6
@@ -356,6 +371,7 @@ def test_denoise_local_subprocess_service(
             "tomogram": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
             "output_dir": f"{tmp_path}/Segmentation/job008/tomograms",
             "pixel_size": "1.0",
+            "copy_output": True,
             "relion_options": output_relion_options,
         },
     )
@@ -568,6 +584,7 @@ def test_denoise_slurm_service(
             "tomogram": f"{tmp_path}/cm12345-6/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
             "output_dir": f"{tmp_path}/cm12345-6/Segmentation/job008/tomograms",
             "pixel_size": "1.0",
+            "copy_output": False,
             "relion_options": output_relion_options,
         },
     )
@@ -654,6 +671,7 @@ def test_denoise_local_topaz_service_rerun(
             "tomogram": f"{tmp_path}/Denoise/job007/denoised/test_stack_aretomo.denoised.mrc",
             "output_dir": f"{tmp_path}/Segmentation/job008/tomograms",
             "pixel_size": "1.0",
+            "copy_output": False,
             "relion_options": output_relion_options,
         },
     )

@@ -22,6 +22,7 @@
       "success": 7
     },
     "parameters": {
+      "copy_output": true,
       "manual_tilt_offset": "{manual_tilt_offset}",
       "out_bin": 1,
       "patch": 1,
@@ -30,7 +31,8 @@
       "stack_file": "{stack_file}",
       "tilt_axis": 0,
       "txrm_file": "{txrm_file}",
-      "wbp": 1
+      "wbp": 1,
+      "xrm_reference": "{xrm_reference}"
     },
     "queue": "tomo_align_imod",
     "service": "ImodTomoAlign"

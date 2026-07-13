@@ -4,6 +4,7 @@ import ast
 import json
 import os.path
 import re
+import shutil
 import subprocess
 import time
 from pathlib import Path
@@ -135,6 +136,7 @@ class AreTomoParameters(BaseModel):
     interpolation_correction: int | None = None
     dark_tol: float | None = None
     manual_tilt_offset: float | None = None
+    copy_output: bool = False
     visits_for_slurm: list | None = ["bi", "cm", "nr", "nt"]
     relion_options: RelionServiceOptions
 
@@ -835,6 +837,7 @@ class AreTomoAlign(CommonService):
                 "volume": str(aretomo_output_path),
                 "output_dir": str(denoise_dir),
                 "relion_options": dict(tomo_params.relion_options),
+                "copy_output": tomo_params.copy_output,
             },
         )
 
@@ -851,6 +854,22 @@ class AreTomoAlign(CommonService):
             f"{Path(tomo_params.stack_file).stem}*~"
         ):
             tmp_file.unlink()
+
+        # Optionally copy output file
+        if tomo_params.copy_output:
+            # Take file name for Relion-type projects, or folder name for SXT-style
+            stack_name = (
+                Path(tomo_params.stack_file).name
+                if re.match(".*/job[0-9]+/.*", tomo_params.stack_file)
+                else f"{Path(tomo_params.stack_file).parent.parent}_stack.mrc"
+            )
+            tomo_name = (
+                aretomo_output_path.name
+                if re.match(".*/job[0-9]+/.*", str(aretomo_output_path))
+                else f"{aretomo_output_path.parent.parent}_volume.mrc"
+            )
+            shutil.copy(Path(tomo_params.stack_file), project_dir.parent / stack_name)
+            shutil.copy(aretomo_output_path, project_dir.parent / tomo_name)
 
         # Update success processing status
         rw.send_to("success", {})

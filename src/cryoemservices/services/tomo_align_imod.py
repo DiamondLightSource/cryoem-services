@@ -1,3 +1,4 @@
+import shutil
 import subprocess
 from pathlib import Path
 from typing import Optional
@@ -32,6 +33,7 @@ class ImodTomoParameters(BaseModel):
     local_alignment: int = 0
     flip_vol: int = 1
     manual_tilt_offset: Optional[float] = None
+    copy_output: bool = False
     cpus: int = 4
 
 
@@ -150,6 +152,7 @@ class ImodTomoAlign(CommonService):
                 str(adoc_file),
                 "-cpus",
                 str(tomo_params.cpus),
+                "-bypass",
             ],
             capture_output=True,
         )
@@ -272,6 +275,7 @@ class ImodTomoAlign(CommonService):
             {
                 "volume": str(imod_output_path),
                 "output_dir": str(imod_output_path.parent.parent / "Denoise"),
+                "copy_output": tomo_params.copy_output,
                 "relion_options": {},
             },
         )
@@ -289,6 +293,14 @@ class ImodTomoAlign(CommonService):
             f"{Path(tomo_params.stack_file).stem}*~"
         ):
             tmp_file.unlink()
+
+        # Optionally copy output file
+        if tomo_params.copy_output:
+            shutil.copy(
+                imod_output_path,
+                imod_output_path.parent.parent.parent
+                / f"{imod_output_path.parent.parent}_volume.mrc",
+            )
 
         # Update success processing status
         rw.send_to("success", {})
