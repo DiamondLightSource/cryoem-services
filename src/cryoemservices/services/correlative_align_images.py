@@ -270,6 +270,10 @@ class AlignImagesService(CommonService):
                         self.log.info(
                             "Successfully aligned FIB atlas to tomography atlas"
                         )
+                    else:
+                        self.log.error("Could not align FIB atlas to tomography atlas")
+                        self._reject_message(header, transport=rw.transport)
+                        return
                 case _:
                     self.log.info(
                         "No image alignment algorithm implemented for this case yet"
@@ -279,6 +283,7 @@ class AlignImagesService(CommonService):
                 "Error while attempting to perform image alignment", exc_info=True
             )
             self._reject_message(header, transport=rw.transport)
+            return
 
         # Ack message after completion
         rw.transport.ack(header)
