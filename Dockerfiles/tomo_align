@@ -1,4 +1,4 @@
-# This Dockerfile is used for GPU AreTomo2 processing
+# This Dockerfile is used for GPU AreTomo3 or IMOD processing
 FROM rockylinux:8 AS conda-build
 
 # Set up conda environment

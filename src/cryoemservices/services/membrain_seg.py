@@ -6,7 +6,6 @@ import subprocess
 from pathlib import Path
 from typing import Optional
 
-import numpy as np
 from pydantic import BaseModel, Field, ValidationError
 from workflows.recipe import wrap_subscribe
 
@@ -275,9 +274,7 @@ class MembrainSeg(CommonService):
             # Take file name for Relion-type projects, or folder name for SXT-style
             tomo_name = (
                 segmented_path.name
-                if np.array(
-                    [re.match("job[0-9]+", p) for p in segmented_path.parts]
-                ).any()
+                if re.match("/job[0-9]+/", str(segmented_path))
                 else f"{segmented_path.parent.parent}_segmented.mrc"
             )
             shutil.copy(segmented_path, segmented_path.parent.parent.parent / tomo_name)

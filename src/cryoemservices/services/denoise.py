@@ -6,7 +6,6 @@ import subprocess
 from pathlib import Path
 from typing import List, Optional
 
-import numpy as np
 from pydantic import BaseModel, Field, ValidationError, field_validator
 from workflows.recipe import wrap_subscribe
 
@@ -334,9 +333,7 @@ class Denoise(CommonService):
             # Take file name for Relion-type projects, or folder name for SXT-style
             tomo_name = (
                 denoised_full_path.name
-                if np.array(
-                    [re.match("job[0-9]+", p) for p in denoised_full_path.parts]
-                ).any()
+                if re.match("/job[0-9]+/", str(denoised_full_path))
                 else f"{denoised_full_path.parent.parent}_denoised.mrc"
             )
             shutil.copy(
