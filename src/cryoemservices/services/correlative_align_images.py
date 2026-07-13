@@ -22,7 +22,9 @@ class AlignImagesParameters(BaseModel):
     # ISPyB Atlas atlasId values
     id_ref: int | None = None
     id_mov: int | None = None
+
     # Optional keys for manual testing
+    # --------------------------------
     # Reference image
     visit_ref: str | None = None
     experiment_type_ref: str | None = None
@@ -33,7 +35,30 @@ class AlignImagesParameters(BaseModel):
     experiment_type_mov: str | None = None
     image_mov: Path | None = None
     pixel_size_mov: float | None = None
+    # Save directory
     save_dir: Path | None = None
+    # Image alignment params
+    # These parameters have been empirically determined to work with a target pixel
+    # size of 4e-6
+    target_pixel_size: float = 4e-6
+    median_blur: int | None = None
+    gaussian_blur: float | None = 0.5
+    sobel_kernel: int | None = 3
+    use_hanning: bool = False
+    min_component_area: int | None = 20
+    threshold_percentile: float | None = 98.5
+    morph_close_kernel: int | None = 10
+    morph_open_kernel: int | None = 2
+    min_feature_area: int | None = 20
+    max_feature_area: int | None = 1000
+    min_solidity: float | None = 0.6
+    min_ellipse_fit: float | None = 0.4
+    max_aspect_ratio: float | None = 0.95
+    max_neighbor_distance: int | None = 200
+    min_score: float | None = 0.3
+    ransac_threshold: float = 5
+    save_images: bool = True
+    save_tables: bool = True
 
 
 def _get_atlas_proposal_session_experiment_type(
@@ -239,6 +264,7 @@ class AlignImagesService(CommonService):
                         image_mov,
                         pixel_size_mov,
                         save_dir,
+                        params,
                     )
                     if result["transform"] is not None:
                         self.log.info(
@@ -265,6 +291,7 @@ class AlignImagesService(CommonService):
         image_mov: Path,
         pixel_size_mov: float,
         save_dir: Path,
+        params: AlignImagesParameters,
     ):
         # Load image files and pixel sizes
         # Load from params, then fall back to table (useful for testing)
@@ -272,21 +299,20 @@ class AlignImagesService(CommonService):
         img_mov = cv2.imread(image_mov, flags=cv2.IMREAD_GRAYSCALE)
 
         # Rescale images to same pixel size and crop to the same dimensions
-        pixel_size_target = 4.0e-6
         resized_ref = cv2.resize(
             img_ref,
             dsize=None,
             dst=None,
-            fx=pixel_size_ref / pixel_size_target,
-            fy=pixel_size_ref / pixel_size_target,
+            fx=pixel_size_ref / params.target_pixel_size,
+            fy=pixel_size_ref / params.target_pixel_size,
             interpolation=cv2.INTER_AREA,
         )
         resized_mov = cv2.resize(
             img_mov,
             dsize=None,
             dst=None,
-            fx=pixel_size_mov / pixel_size_target,
-            fy=pixel_size_mov / pixel_size_target,
+            fx=pixel_size_mov / params.target_pixel_size,
+            fy=pixel_size_mov / params.target_pixel_size,
             interpolation=cv2.INTER_AREA,
         )
         height = min(resized_ref.shape[0], resized_mov.shape[0])
@@ -295,27 +321,26 @@ class AlignImagesService(CommonService):
         cropped_mov = crop_image(resized_mov, width=width, height=height)
 
         # Perform image alignment
-        # Parameters empirically determined to work for a pixel size of ~4.0e-6
         return align_images_using_neighbors(
             cropped_ref,
             cropped_mov,
-            median_blur=None,
-            gaussian_blur=0.5,
-            sobel_kernel=3,
-            use_hanning=False,
-            min_component_area=20,
-            threshold_percentile=98.5,
-            morph_close_kernel=10,
-            morph_open_kernel=2,
-            min_feature_area=20,
-            max_feature_area=1000,
-            min_solidity=0.6,
-            min_ellipse_fit=0.4,
-            max_aspect_ratio=0.95,
-            max_neighbor_distance=200,
-            min_score=0.3,
-            ransac_threshold=5,
-            save_images=True,
-            save_tables=True,
+            median_blur=params.median_blur,
+            gaussian_blur=params.gaussian_blur,
+            sobel_kernel=params.sobel_kernel,
+            use_hanning=params.use_hanning,
+            min_component_area=params.min_component_area,
+            threshold_percentile=params.threshold_percentile,
+            morph_close_kernel=params.morph_close_kernel,
+            morph_open_kernel=params.morph_open_kernel,
+            min_feature_area=params.min_feature_area,
+            max_feature_area=params.max_feature_area,
+            min_solidity=params.min_solidity,
+            min_ellipse_fit=params.min_ellipse_fit,
+            max_aspect_ratio=params.max_aspect_ratio,
+            max_neighbor_distance=params.max_neighbor_distance,
+            min_score=params.min_score,
+            ransac_threshold=params.ransac_threshold,
+            save_images=params.save_images,
+            save_tables=params.save_tables,
             save_dir=save_dir,
         )
