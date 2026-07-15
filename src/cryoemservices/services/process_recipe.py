@@ -100,7 +100,7 @@ class ProcessRecipe(CommonService):
                 )
             except Exception as e:
                 self.log.info(f"Rejected message due to filter {name} error: {e}")
-                self._reject_message(header, transport=rw.transport)
+                self._reject_message(header, requeue=False)
                 return
 
         self.log.info(f"Filtered processing request: {str(message)}")
