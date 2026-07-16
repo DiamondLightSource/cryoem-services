@@ -62,6 +62,27 @@ class ImodTomoAlign(CommonService):
             allow_non_recipe_messages=True,
         )
 
+    def extract_from_xf(self, stack_file: str, plot_path: Path) -> Path | None:
+        xf_file = Path(stack_file).with_suffix(".xf")
+
+        if not xf_file.exists():
+            return None
+
+        with open(xf_file) as xf:
+            lines = xf.readlines()
+        self.x_shift = [l.split()[4] for l in lines]
+        self.y_shift = [l.split()[5] for l in lines]
+        if self.x_shift and self.y_shift:
+            fig = px.scatter(x=self.x_shift, y=self.y_shift)
+            fig_as_json = {
+                "data": [json.loads(fig["data"][0].to_json())],
+                "layout": json.loads(fig["layout"].to_json()),
+            }
+            with open(plot_path, "w") as plot_json:
+                json.dump(fig_as_json, plot_json)
+        return xf_file
+
+
     def tomo_align(self, rw, header: dict, message: dict):
         """Main function which interprets and processes received messages"""
         if not rw:
@@ -137,10 +158,12 @@ class ImodTomoAlign(CommonService):
         with mrcfile.open(tomo_params.stack_file) as mrc:
             mrc_header = mrc.header
 
+        output_dir = Path(tomo_params.stack_file).parent
+
         # Run batchruntomo
         adoc_file = write_batch_directive_file(tomo_params)
         imod_output_path = (
-            Path(tomo_params.stack_file).parent
+            output_dir
             / f"{Path(tomo_params.stack_file).stem}_rec.mrc"
         )
         imod_result = subprocess.run(
@@ -171,6 +194,9 @@ class ImodTomoAlign(CommonService):
             rw.send_to("failure", {})
             self._reject_message(header, rw.transport, requeue=False)
             return
+
+        plot_path = output_dir / (Path(tomo_params.stack_file).stem + shift_plot_suffix)
+        self.extract_from_xf(tomo_params.stack_file, plot_path)
 
         # Insert tomogram into ispyb
         ispyb_command_list: list[dict] = [
