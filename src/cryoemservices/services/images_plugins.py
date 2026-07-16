@@ -35,6 +35,10 @@ def mrc_to_jpeg(plugin_params: Callable):
         return False
     filepath = Path(plugin_params("file"))
     allframes = plugin_params("all_frames")
+    thumbnail_x = plugin_params("thumbnail_x")
+    thumbnail_y = plugin_params("thumbnail_y")
+    flip = plugin_params("flip")
+    output_suffix = plugin_params("output_suffix")
     if not filepath.is_file():
         logger.error(f"File {filepath} not found")
         return False
@@ -47,7 +51,9 @@ def mrc_to_jpeg(plugin_params: Callable):
             f"File {filepath} could not be opened. It may be corrupted or not in mrc format"
         )
         return False
-    outfile = filepath.with_suffix(".jpeg")
+    if flip:
+        data = data[::-1]
+    outfile = filepath.with_suffix(output_suffix or ".jpeg")
     outfiles = []
     if len(data.shape) == 2:
         mean = np.mean(data)
@@ -82,7 +88,7 @@ def mrc_to_jpeg(plugin_params: Callable):
             colour_im.save(outfile)
         else:
             # Apply thumbnailing if 2D image without text overlay
-            im.thumbnail((1024, 1024))
+            im.thumbnail((thumbnail_x or 1024, thumbnail_y or 1024))
             im.save(outfile)
     elif len(data.shape) == 3:
         if allframes:
@@ -91,7 +97,9 @@ def mrc_to_jpeg(plugin_params: Callable):
                 frame = frame / frame.max() * 255
                 frame = frame.astype("uint8")
                 im = PIL.Image.fromarray(frame)
-                frame_outfile = outfile.parent / f"{outfile.stem}_{i + 1}.jpeg"
+                frame_outfile = (
+                    outfile.parent / f"{outfile.stem}_{i + 1}{output_suffix or '.jpeg'}"
+                )
                 im.save(frame_outfile)
                 outfiles.append(frame_outfile)
         else:
