@@ -451,8 +451,18 @@ class SelectClasses(CommonService):
             new_batch_multiple = (
                 self.total_count // autoselect_params.class3d_batch_size
             )
-            if new_batch_multiple > previous_batch_multiple:
+            self.log.info(
+                f"{self.total_count}, {autoselect_params.class3d_batch_size}, {np.log(new_batch_multiple) / np.log(2)}"
+            )
+            if new_batch_multiple > previous_batch_multiple and (
+                previous_batch_multiple == 0
+                or (np.log(new_batch_multiple) / np.log(2)).is_integer()
+                or int((np.log(new_batch_multiple) / np.log(2)))
+                != int(np.log(previous_batch_multiple) / np.log(2))
+            ):
                 # Do 3D classification if a batch threshold has been crossed
+                # Batch thresholds are done as multiples of 2 from the batch size
+                # With the defaults this leads to 50000, 100000, 200000
                 send_to_3d_classification = True
                 # Set the batch size from the total count, but do not exceed the maximum
                 next_batch_size = (
