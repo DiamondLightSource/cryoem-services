@@ -36,7 +36,7 @@ class SelectClassesParameters(BaseModel):
     autoselect_min_score: float = 0
     min_particles: int = 500
     class3d_batch_size: int = 50000
-    class3d_max_size: int = 200000
+    class3d_max_size: int | None = None
     class_uuids: str
     relion_options: RelionServiceOptions
     app_id: Optional[int] = None
@@ -440,7 +440,10 @@ class SelectClasses(CommonService):
             if self.total_count > autoselect_params.class3d_batch_size:
                 # Do 3D classification if there are more particles than the batch size
                 send_to_3d_classification = True
-        elif self.previous_total_count >= autoselect_params.class3d_max_size:
+        elif (
+            autoselect_params.class3d_max_size is not None
+            and self.previous_total_count >= autoselect_params.class3d_max_size
+        ):
             # Iterations beyond those where 3D classification is run
             next_batch_size = autoselect_params.class3d_max_size
         else:
@@ -468,7 +471,10 @@ class SelectClasses(CommonService):
                 next_batch_size = (
                     new_batch_multiple * autoselect_params.class3d_batch_size
                 )
-                if next_batch_size > autoselect_params.class3d_max_size:
+                if (
+                    autoselect_params.class3d_max_size is not None
+                    and next_batch_size > autoselect_params.class3d_max_size
+                ):
                     next_batch_size = autoselect_params.class3d_max_size
             else:
                 # Otherwise just get the next threshold
