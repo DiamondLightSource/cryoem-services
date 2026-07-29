@@ -135,7 +135,10 @@ class SelectClasses(CommonService):
         job_num_search = re.search("/job[0-9]+", autoselect_params.input_file)
         if job_dir_search and job_num_search:
             class2d_job_dir = Path(job_dir_search[0])
-            select_job_num = int(job_num_search[0][4:]) + 2
+            class2d_job_num = int(job_num_search[0][4:])
+            select_job_num = class2d_job_num + (
+                2 if autoselect_params.relion_options.do_icebreaker_jobs else 1
+            )
         else:
             self.log.warning(f"Invalid job directory in {autoselect_params.input_file}")
             self._reject_message(header, transport=rw.transport, requeue=False)

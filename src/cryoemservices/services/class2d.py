@@ -19,7 +19,7 @@ class Class2D(CommonService):
     def initializing(self):
         """Subscribe to a queue. Received messages must be acknowledged."""
         self.log.info("Class2D service starting")
-        wrap_subscribe(
+        self.subscription_id = wrap_subscribe(
             self._transport,
             self._environment["queue"] or "class2d",
             self.class2d,
@@ -60,31 +60,14 @@ class Class2D(CommonService):
             self._reject_message(header, transport=rw.transport, requeue=False)
             return
 
-        # In this setup we cannot reject messages on failure, so instead check here
-        if message.get("requeue", 0) >= 5:
-            self.log.warning(f"Rejecting requeued file {class2d_params.particles_file}")
-            self._reject_message(header, transport=rw.transport, requeue=False)
-            return
-
-        # Acknowledge the message and disconnect from rabbitmq
-        self.log.info(
-            f"Running disconnected Class2D job for {class2d_params.particles_file}"
-        )
-        rw.transport.ack(header)
-
         # Run the class2d job
+        self.log.info(f"Running Class2D job for {class2d_params.particles_file}")
         try:
             successful_run = run_class2d(class2d_params, send_to_rabbitmq=rw.send_to)
         except Exception as e:
             self.log.error(f"Failed to run class2d due to {e}", exc_info=True)
             successful_run = False
-        except KeyboardInterrupt:
-            rw.send_to("class2d", message)
-            raise KeyboardInterrupt
         if successful_run:
-            self.log.info(f"Class2D job completed for {class2d_params.particles_file}")
+            rw.transport.ack(header)
         else:
-            self.log.error(f"Class2D job failed for {class2d_params.particles_file}")
-            # Send back to the queue but mark a failure in the message
-            message["requeue"] = message.get("requeue", 0) + 1
-            rw.send_to("class2d", message)
+            self._reject_message(header, transport=rw.transport, requeue=True)

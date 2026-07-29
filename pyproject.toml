@@ -67,6 +67,9 @@ easymode = [
 murfey_db = [
     "murfey[server]",
 ]
+pipeliner = [
+    "ccpem-pipeliner",
+]
 torch = [
     "membrain-seg",
     "topaz-em",

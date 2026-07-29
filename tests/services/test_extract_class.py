@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import sys
 from unittest import mock
 
 import pytest
@@ -19,7 +18,6 @@ def offline_transport(mocker):
     return transport
 
 
-@pytest.mark.skipif(sys.platform == "win32", reason="does not run on windows")
 @mock.patch("cryoemservices.util.slurm_submission.requests")
 def test_extract_class_service(mock_requests, offline_transport, tmp_path):
     """
@@ -70,6 +68,7 @@ def test_extract_class_service(mock_requests, offline_transport, tmp_path):
         "downscale": True,
         "normalise": True,
         "invert_contrast": True,
+        "submit_to_slurm": True,
         "relion_options": {},
     }
     output_relion_options = RelionServiceOptions()

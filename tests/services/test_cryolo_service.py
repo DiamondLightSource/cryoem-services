@@ -498,6 +498,7 @@ def test_job_reruns(
     """
     Send a test message to cryolo for job reruns to check node creator sends
     """
+    mock_flatten.return_value = "MotionCorr/job002/sample.mrc"
     make_output, make_tmp_file, expect_node_creator = test_params
 
     mock_subprocess().returncode = 0
