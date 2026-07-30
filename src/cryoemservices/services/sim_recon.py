@@ -105,7 +105,7 @@ class PySIMReconParameters(BaseModel):
     output_dir: Path
 
 
-class SIMReconstructionService(CommonService):
+class PySIMReconService(CommonService):
     """
     A service that will run PySIMRecon with the desired parameters on the incoming
     SIM data files.
