@@ -215,6 +215,7 @@ def test_tomo_align_imod(
                     "xy_shift_plot": "test_stack_rec_xy_shift_plot.json",
                     "proj_xy": "test_stack_rec_projXY.jpeg",
                     "proj_xz": "test_stack_rec_projYZ.jpeg",
+                    "thickness": 500 * 106 / 10,
                 },
                 {
                     "ispyb_command": "insert_processed_tomogram",

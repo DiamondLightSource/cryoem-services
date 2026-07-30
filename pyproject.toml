@@ -35,7 +35,7 @@ dependencies = [
     "healpy",
     "icebreaker-em",
     "imagecodecs", # CLEM workflow
-    "ispyb>=11.1.2",
+    "ispyb>=12.1.1",
     "mrcfile",
     "numpy",
     "pillow",

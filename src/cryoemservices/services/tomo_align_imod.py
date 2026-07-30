@@ -192,6 +192,7 @@ class ImodTomoAlign(CommonService):
                 "xy_shift_plot": imod_output_path.stem + shift_plot_suffix,
                 "proj_xy": imod_output_path.stem + "_projXY.jpeg",
                 "proj_xz": imod_output_path.stem + "_projYZ.jpeg",
+                "thickness": tomo_params.vol_z * tomo_params.pixel_size / 10,
             },
             {
                 "ispyb_command": "insert_processed_tomogram",
