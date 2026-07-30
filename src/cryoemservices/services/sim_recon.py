@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import ast
+import json
 from pathlib import Path
 
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import BaseModel, ValidationError, field_validator
 from workflows.recipe import RecipeWrapper, wrap_subscribe
 
 from cryoemservices.services.common_service import CommonService
@@ -81,6 +83,9 @@ class WavelengthParameters(BaseModel):
     path to its OTF file.
     """
 
+    # General
+    wavelength: int
+
     # OTF values
     ls: float | None = None  # Line spacing
     beaddiam: float | None = None  # Bead diameter
@@ -90,19 +95,30 @@ class WavelengthParameters(BaseModel):
 
 
 class PySIMReconParameters(BaseModel):
-    blue_params: WavelengthParameters = Field(
-        alias="452", default=WavelengthParameters()
-    )
-    green_params: WavelengthParameters = Field(
-        alias="525", default=WavelengthParameters()
-    )
-    red_params: WavelengthParameters = Field(
-        alias="605", default=WavelengthParameters()
-    )
-    far_red_params: WavelengthParameters = Field(
-        alias="655", default=WavelengthParameters()
-    )
+    blue_params: WavelengthParameters = WavelengthParameters(wavelength=452)
+    green_params: WavelengthParameters = WavelengthParameters(wavelength=525)
+    red_params: WavelengthParameters = WavelengthParameters(wavelength=605)
+    far_red_params: WavelengthParameters = WavelengthParameters(wavelength=655)
     output_dir: Path
+
+    @field_validator(
+        "blue_params", "green_params", "red_params", "far_red_params", mode="before"
+    )
+    @classmethod
+    def parse_stringified_dict(cls, value):
+        # Parse strings as dicts
+        if isinstance(value, str):
+            try:
+                # Evaluate as a JSON string first
+                return json.loads(value)
+            except Exception:
+                try:
+                    # Evaluate as a Python literal
+                    return ast.literal_eval(value)
+                except Exception as e:
+                    raise ValueError(f"Could not evaluate {value} as a dict") from e
+        # Return as-is
+        return value
 
 
 class PySIMReconService(CommonService):
