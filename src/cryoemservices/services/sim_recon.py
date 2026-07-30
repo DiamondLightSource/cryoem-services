@@ -164,4 +164,7 @@ class PySIMReconService(CommonService):
             self._reject_message(header, transport=rw.transport, requeue=False)
             return
 
-        self.log.debug(f"Received the following parameters:\n{params.model_dump()}")
+        self.log.info(
+            "Running PySIMRecon with the following parameters:\n"
+            f"{params.model_dump(mode='json')}"
+        )
