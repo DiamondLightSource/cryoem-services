@@ -7,6 +7,7 @@ from typing import Callable
 
 import ispyb.sqlalchemy as models
 import sqlalchemy.exc
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from cryoemservices.util import ispyb_buffer
@@ -593,22 +594,41 @@ def insert_tomogram(message: dict, parameters: Callable, session: Session):
             pixelLocationY=full_parameters("pixel_location_y"),
             thickness=full_parameters("thickness"),
         )
-        tomogram_row = (
-            session.query(models.Tomogram)
-            .filter(
-                models.Tomogram.tomogramId == values.tomogramId,
+
+        if session.execute(
+            select(models.Tomogram).where(
+                models.Tomogram.tomogramId == values.tomogramId
             )
-            .first()
-        )
-        if tomogram_row:
-            session.query(models.Tomogram).filter(
-                models.Tomogram.tomogramId == values.tomogramId,
-            ).update(
-                {
-                    k: v
-                    for k, v in values.__dict__.items()
-                    if k not in ["_sa_instance_state", "tomogramId"] and v is not None
-                }
+        ).one_or_none():
+            session.execute(
+                update(models.Tomogram)
+                .where(models.Tomogram.tomogramId == values.tomogramId)
+                .values(
+                    {
+                        k: v
+                        for k, v in values.__dict__.items()
+                        if k not in ["_sa_instance_state", "tomogramId"]
+                        and v is not None
+                    }
+                )
+            )
+        elif session.execute(
+            select(models.Tomogram)
+            .where(models.Tomogram.autoProcProgramId == values.autoProcProgramId)
+            .where(models.Tomogram.volumeFile == values.volumeFile)
+        ).one_or_none():
+            session.execute(
+                update(models.Tomogram)
+                .where(models.Tomogram.autoProcProgramId == values.autoProcProgramId)
+                .where(models.Tomogram.volumeFile == values.volumeFile)
+                .values(
+                    {
+                        k: v
+                        for k, v in values.__dict__.items()
+                        if k not in ["_sa_instance_state", "tomogramId"]
+                        and v is not None
+                    }
+                )
             )
         else:
             session.add(values)
