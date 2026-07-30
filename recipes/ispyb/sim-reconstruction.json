@@ -1,0 +1,24 @@
+{
+  "1": {
+    "parameters": {
+      "452": "{blue_params}",
+      "525": "{green_params}",
+      "605": "{red_params}",
+      "655": "{far_red_params}",
+      "output_dir": "{output_dir}"
+    },
+    "output": {
+      "murfey_feedback": 2
+    },
+    "queue": "cluster.submission",
+    "service": "SIM-RECONSTRUCTION"
+  },
+  "2": {
+    "parameters": {
+      "session_id": "{session_id}"
+    },
+    "queue": "{feedback_queue}",
+    "service": "Murfey"
+  },
+  "start": [[1, []]]
+}
