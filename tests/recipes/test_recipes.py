@@ -20,6 +20,7 @@ from cryoemservices.services.motioncorr import MotionCorrParameters
 from cryoemservices.services.postprocess import PostProcessParameters
 from cryoemservices.services.select_classes import SelectClassesParameters
 from cryoemservices.services.select_particles import SelectParticlesParameters
+from cryoemservices.services.sim_recon import PySIMReconParameters
 from cryoemservices.services.tomo_align_aretomo import AreTomoParameters
 from cryoemservices.services.tomo_align_imod import ImodTomoParameters
 from cryoemservices.wrappers.class2d_wrapper import Class2DParameters
@@ -90,6 +91,7 @@ known_services = {
     "MurfeyDBConnector": ISPyBParameters,
     "NodeCreator": NodeCreatorParameters,
     "PostProcess": PostProcessParameters,
+    "PySIMRecon": PySIMReconParameters,
     "Refine3D": RefineParameters,
     "RefineWrapper": RefineParameters,
     "SelectClasses": SelectClassesParameters,
