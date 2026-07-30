@@ -283,6 +283,7 @@ def test_tomo_align_service_file_list_aretomo3(
                     "proj_xy": "test_stack_Vol_projXY.jpeg",
                     "proj_xz": "test_stack_Vol_projXZ.jpeg",
                     "alignment_quality": "0.5",
+                    "thickness": 1130 * 1.1 / 10,
                 },
                 {
                     "ispyb_command": "insert_tilt_image_alignment",
@@ -606,6 +607,7 @@ def test_tomo_align_service_file_list_aretomo2(
                     "proj_xy": "test_stack_Vol_projXY.jpeg",
                     "proj_xz": "test_stack_Vol_projXZ.jpeg",
                     "alignment_quality": "0.5",
+                    "thickness": None,
                 },
                 {
                     "ispyb_command": "insert_tilt_image_alignment",
@@ -1768,6 +1770,7 @@ def test_tomo_align_service_dark_images(
                     "proj_xy": "test_stack_Vol_projXY.jpeg",
                     "proj_xz": "test_stack_Vol_projXZ.jpeg",
                     "alignment_quality": "0.5",
+                    "thickness": 113,
                 },
                 {
                     "ispyb_command": "insert_tilt_image_alignment",
@@ -1934,6 +1937,7 @@ def test_tomo_align_service_all_dark(
                     "proj_xy": "test_stack_Vol_projXY.jpeg",
                     "proj_xz": "test_stack_Vol_projXZ.jpeg",
                     "alignment_quality": "0.5",
+                    "thickness": None,
                 },
                 {
                     "ispyb_command": "insert_processed_tomogram",
@@ -2277,6 +2281,7 @@ def test_tomo_align_service_txrm(
                     "proj_xy": "stack_Vol_projXY.jpeg",
                     "proj_xz": "stack_Vol_projYZ.jpeg",
                     "alignment_quality": "0.5",
+                    "thickness": 130 * 100 / 10,
                 },
                 {
                     "ispyb_command": "insert_processed_tomogram",

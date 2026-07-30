@@ -630,6 +630,9 @@ class AreTomoAlign(CommonService):
                 "proj_xy": stack_name + "_Vol_projXY.jpeg",
                 "proj_xz": stack_name + f"_Vol_proj{side_projection}.jpeg",
                 "alignment_quality": str(self.alignment_quality),
+                "thickness": self.thickness_pixels * tomo_params.pixel_size / 10
+                if self.thickness_pixels
+                else None,
             }
         ]
 

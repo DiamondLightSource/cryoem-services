@@ -749,6 +749,7 @@ def test_insert_tomogram_new(mock_models):
             "grid_square_id": 12345,
             "pixel_location_x": 200,
             "pixel_location_y": 400,
+            "thickness": 50.5,
         }
         return tomogram_parameters[p]
 
@@ -791,6 +792,7 @@ def test_insert_tomogram_new(mock_models):
         gridSquareId=12345,
         pixelLocationX=200,
         pixelLocationY=400,
+        thickness=50.5,
     )
     mock_session.add.assert_called()
     mock_session.commit.assert_called()
@@ -823,6 +825,7 @@ def test_insert_tomogram_update():
             "grid_square_id": 12345,
             "pixel_location_x": 200,
             "pixel_location_y": 400,
+            "thickness": 50.5,
         }
         return tomogram_parameters[p]
 
@@ -866,6 +869,7 @@ def test_insert_tomogram_update():
             "gridSquareId": 12345,
             "pixelLocationX": 200,
             "pixelLocationY": 400,
+            "thickness": 50.5,
         }
     )
     mock_session.add.assert_not_called()
