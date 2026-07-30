@@ -1,0 +1,167 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+from pydantic import BaseModel, Field, ValidationError
+from workflows.recipe import RecipeWrapper, wrap_subscribe
+
+from cryoemservices.services.common_service import CommonService
+from cryoemservices.util.models import MockRW
+
+
+class SIMOTFConfig:
+    """
+    These are the shared values used by PySIMRecon to run the 'sim-otf' function.
+    These are read in from a config file under the section '[otf config]'.
+
+    Source:
+    https://github.com/DiamondLightSource/PySIMRecon/commit/c039b09cbe3b510c032462c6817a517d2d7b2f99
+    """
+
+    # Number of phases, by default 5.
+    nphases: int = 5
+    # The diameter of the bead in microns, by default 0.12.
+    beaddiam: float = 0.17
+    # The k0 vector angle with which the PSF is taken, by default 0.
+    angle: float = -0.264228
+    # Do not perform bead size compensation, default False (do perform).
+    nocompen: bool = False
+    # The starting and end pixel for interpolation along kr axis, by default (2, 9).
+    fixorigin: tuple[int, int] = (2, 9)
+    # The (effective) NA of the objective, by default 1.4.
+    na: float = 0.9
+    # The index of refraction of the immersion liquid, by default 1.515 (1 for air/gaseous N2).
+    nimm: float = 1
+    # User-supplied number as the background to subtract. If `None`, background will be estimated from image, by default `None`.
+    background: int = 500
+
+
+class SIMReconConfig:
+    """
+    These are the shared values used by PySIMRecon to run the 'sim-recon' function.
+    These are read in from a config file under the section '[recon config]'.
+
+    Source:
+    https://github.com/DiamondLightSource/PySIMRecon/commit/c039b09cbe3b510c032462c6817a517d2d7b2f99
+    """
+
+    # Refractive index of air (or gaseous N2) is ~1.
+    nimm: float = 1
+    # Equivalent of 'bias offset' in softworx. Often left at 0 as small comapred to signal - a residual from when EMCCD had biases of 2000 or more.
+    background: int = 200
+    # Small means less smoothing, more chance of hammer stroke noise but higher resolution. Good estimate is the heuristic from SIMCheck.
+    wiener: float = 0.0010
+    # Use these pattern vector k0 angles for all directions (instead of inferring the rest of the angles from angle0).
+    k0angles: tuple[float, float, float] = (-0.264228, 1.829976, -2.353254)
+    # Number of SIM  directions.
+    ndirs: int = 3
+    # Number of pattern phases per SIM direction.
+    nphases: int = 5
+    # Detection objective's numerical aperture.
+    na: float = 0.9
+    # Using rotationally averaged OTF; otherwise using 3/2D OTF for 3/2D raw data.
+    otfRA: int = 1
+    # Dampen order-0 in final assembly; do not use for 2D SIM; good choice for high-background images.
+    dampenOrder0: float = 0
+    # Lateral zoom factor in the output over the input images.
+    zoomfact: float = 2
+    # Axial zoom factor.
+    zzoom: float = 1
+    # Output apodization gamma; 1.0 means triangular apo; lower value means less dampening of high-resolution info at the tradeoff of higher noise.
+    gammaApo: float = 1
+    # 1 = do not perform any bleach correction
+    norescale: int = 1
+    # z pixel size of PSF
+    zresPSF: float = 0.125
+
+
+class WavelengthParameters(BaseModel):
+    """
+    Override values for the individual wavelengths used in the SIM, along with the
+    path to its OTF file.
+    """
+
+    # OTF values
+    ls: float | None = None  # Line spacing
+    beaddiam: float | None = None  # Bead diameter
+
+    # OTF path
+    otf_path: Path | None = None  # Path to OTF file
+
+
+class PySIMReconParameters(BaseModel):
+    blue_params: WavelengthParameters = Field(
+        alias="452", default=WavelengthParameters()
+    )
+    green_params: WavelengthParameters = Field(
+        alias="525", default=WavelengthParameters()
+    )
+    red_params: WavelengthParameters = Field(
+        alias="605", default=WavelengthParameters()
+    )
+    far_red_params: WavelengthParameters = Field(
+        alias="655", default=WavelengthParameters()
+    )
+    output_dir: Path
+
+
+class SIMReconstructionService(CommonService):
+    """
+    A service that will run PySIMRecon with the desired parameters on the incoming
+    SIM data files.
+    """
+
+    _log_name = "cryoemservices.services.sim_recon"
+
+    def initializing(self):
+        """
+        Subscribe to a queue. Received messages must be acknowledged.
+        """
+        self.log.info("SIM reconstruction service starting")
+        # Subscribe service to RMQ queue
+        wrap_subscribe(
+            self._transport,
+            self._environment["queue"] or "sim.reconstruction",
+            self.call_pysimrecon,
+            acknowledgement=True,
+            allow_non_recipe_messages=True,
+        )
+
+    def call_pysimrecon(
+        self,
+        rw: RecipeWrapper | None,
+        header: dict,
+        message: dict,
+    ):
+        """
+        Pass incoming message to the relevant plugin function
+        """
+        if not rw:
+            self.log.info("Received a simple message")
+            if not isinstance(message, dict):
+                self.log.error("Rejected invalid simple message")
+                self._reject_message(header, requeue=False)
+                return
+
+            # Create a wrapper-like object that can be passed to functions
+            # as if a recipe wrapper was present.
+            rw = MockRW(self._transport)
+            rw.recipe_step = {"parameters": message}
+
+        try:
+            if isinstance(message, dict):
+                params = PySIMReconParameters(
+                    **{**rw.recipe_step.get("parameters", {}), **message}
+                )
+            else:
+                params = PySIMReconParameters(**rw.recipe_step.get("parameters", {}))
+        except (ValidationError, TypeError) as e:
+            self.log.warning(
+                f"PySIMReconParameters validation failed for message: {message} "
+                f"and recipe parameters: {rw.recipe_step.get('parameters', {})} "
+                f"with exception: {e}"
+            )
+            self._reject_message(header, transport=rw.transport, requeue=False)
+            return
+
+        self.log.debug(f"Received the following parameters:\n{params.model_dump()}")
