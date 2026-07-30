@@ -591,6 +591,7 @@ def insert_tomogram(message: dict, parameters: Callable, session: Session):
             gridSquareId=full_parameters("grid_square_id"),
             pixelLocationX=full_parameters("pixel_location_x"),
             pixelLocationY=full_parameters("pixel_location_y"),
+            thickness=full_parameters("thickness"),
         )
         tomogram_row = (
             session.query(models.Tomogram)

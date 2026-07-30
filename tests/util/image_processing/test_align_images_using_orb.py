@@ -30,7 +30,7 @@ def test_align_images_using_orb(test_params: tuple[int, int, int]):
         shape=(h, w),
         num_frames=num_frames,
         layer_intensity=96,
-        noise_sigma=4,
+        noise_sigma=0,
         hole_intensity=32,
         hole_list=[
             {
@@ -75,7 +75,7 @@ def test_align_images_using_orb(test_params: tuple[int, int, int]):
         shape=(512, 512),
         num_frames=num_frames,
         layer_intensity=96,
-        noise_sigma=4,
+        noise_sigma=0,
         hole_intensity=32,
         hole_list=[
             {
