@@ -123,6 +123,7 @@ torch = [
     PostProcess = "cryoemservices.services.postprocess:PostProcess"
     ProcessRecipe = "cryoemservices.services.process_recipe:ProcessRecipe"
     Refine3D = "cryoemservices.services.refine3d:Refine3D"
+    SIMReconstruction = "cryoemservices.services.sim_recon:SIMReconstructionService"
     SelectClasses = "cryoemservices.services.select_classes:SelectClasses"
     SelectParticles = "cryoemservices.services.select_particles:SelectParticles"
     TopazPick = "cryoemservices.services.topaz_pick:TopazPick"
