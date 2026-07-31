@@ -950,7 +950,7 @@ def xrm_to_jpeg(plugin_params: Callable):
     with OleFileIO(xrm_path) as xrm_ole:
         if xrm_ole.exists("ImageInfo/ImagesTaken"):
             image_count = np.frombuffer(
-                xrm_ole.openstream("ImageInfo/ImagesTaken").getvalue(), np.float32
+                xrm_ole.openstream("ImageInfo/ImagesTaken").getvalue(), np.int16
             ).tolist()
     if image_count and image_count[0] == 0:
         # Skip conversion if there are no images
