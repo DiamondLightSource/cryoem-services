@@ -107,7 +107,7 @@ def test_tomo_align_imod(
         [
             "batchruntomo",
             "-directive",
-            f"{tmp_path}/recipe/Tomograms/test_stack.adoc",
+            f"{tmp_path}/recipe/Tomograms/batchDirective.adoc",
             "-cpus",
             "2",
             "-bypass",
@@ -250,7 +250,7 @@ def test_write_batch_directive_patch_wbp(tmp_path):
             }
         )
     )
-    assert returned_adoc == tmp_path / "stack.adoc"
+    assert returned_adoc == tmp_path / "batchDirective.adoc"
     with open(returned_adoc) as f:
         adoc_lines = f.readlines()
 
@@ -289,7 +289,7 @@ def test_write_batch_directive_beads_sirt(tmp_path):
             }
         )
     )
-    assert returned_adoc == tmp_path / "stack.adoc"
+    assert returned_adoc == tmp_path / "batchDirective.adoc"
     with open(returned_adoc) as f:
         adoc_lines = f.readlines()
 
