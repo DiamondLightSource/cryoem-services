@@ -458,7 +458,7 @@ class SelectClasses(CommonService):
                 f"{self.total_count}, {autoselect_params.class3d_batch_size}, {np.log(new_batch_multiple) / np.log(2)}"
             )
             if new_batch_multiple > previous_batch_multiple and (
-                previous_batch_multiple == 0
+                not previous_batch_multiple
                 or (np.log(new_batch_multiple) / np.log(2)).is_integer()
                 or int((np.log(new_batch_multiple) / np.log(2)))
                 != int(np.log(previous_batch_multiple) / np.log(2))
