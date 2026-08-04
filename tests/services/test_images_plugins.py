@@ -822,8 +822,12 @@ def test_tilt_image_alignment_works_2d(mock_imagedraw, tmp_path):
     assert ellipse_calls[1][1] == {"width": 20, "outline": "#f5a927"}
 
 
+@mock.patch("cryoemservices.services.images_plugins.OleFileIO")
 @mock.patch("cryoemservices.services.images_plugins.convert_and_save")
-def test_xrm_to_jpeg(mock_convert, tmp_path):
+def test_xrm_to_jpeg(mock_convert, mock_olefile, tmp_path):
+    mock_olefile().__enter__().openstream().getvalue.return_value = np.array(
+        [10], dtype=np.int16
+    ).tobytes()
     input_xrm = tmp_path / "example.xrm"
     input_xrm.touch()
     output_tiff = tmp_path / "example_Annotated.tiff"
@@ -833,6 +837,9 @@ def test_xrm_to_jpeg(mock_convert, tmp_path):
 
     assert xrm_to_jpeg(plugin_params_xrm(input_xrm, output_tiff, "xrm_to_tiff"))
 
+    mock_olefile.assert_any_call(input_xrm)
+    mock_olefile().__enter__().exists.assert_any_call("ImageInfo/ImagesTaken")
+    mock_olefile().__enter__().openstream.assert_any_call("ImageInfo/ImagesTaken")
     mock_convert.assert_called_once_with(
         input_xrm, f"{tmp_path}/example.tiff", annotate=True
     )

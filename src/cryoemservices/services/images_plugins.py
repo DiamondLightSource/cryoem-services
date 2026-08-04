@@ -11,6 +11,7 @@ import pandas as pd
 import PIL.Image
 import starfile
 import tifffile
+from olefile import OleFileIO
 from PIL import ImageDraw, ImageEnhance, ImageFilter, ImageFont
 from txrm2tiff.main import convert_and_save
 
@@ -945,15 +946,40 @@ def xrm_to_jpeg(plugin_params: Callable):
         logger.error(f"File {xrm_path} not found")
         return False
 
-    convert_and_save(
-        xrm_path, str(tiff_path).replace("_Annotated", ""), annotate=annotate or False
-    )
-    data = tifffile.imread(tiff_path)
-    if len(data.shape) == 4:
-        # Take first frame if 3D RGB
+    image_count: list | None = None
+    with OleFileIO(xrm_path) as xrm_ole:
+        if xrm_ole.exists("ImageInfo/ImagesTaken"):
+            image_count = np.frombuffer(
+                xrm_ole.openstream("ImageInfo/ImagesTaken").getvalue(), np.int16
+            ).tolist()
+    if image_count and image_count[0] == 0:
+        # Skip conversion if there are no images
+        logger.warning(f"xrm file {xrm_path} has no images")
+        return xrm_path
+
+    try:
+        convert_and_save(
+            xrm_path,
+            str(tiff_path).replace("_Annotated", ""),
+            annotate=annotate or False,
+        )
+    except Exception as e:
+        logger.error(f"Failed xrm to tiff conversion due to {e}")
+        return False
+    if tiff_path.is_file():
+        data = tifffile.imread(tiff_path)
+    elif Path(str(tiff_path).replace("_Annotated", "")).is_file():
+        data = tifffile.imread(str(tiff_path).replace("_Annotated", ""))
+    else:
+        logger.error(f"File {tiff_path} not found")
+        return False
+    logger.info(data.shape)
+    if len(data.shape) == 4 or len(data.shape) == 3:
+        # Take first frame if 3D RGB or 3D greyscale
         data = data[0]
     with PIL.Image.fromarray(data) as thumb_im:
-        thumb_im.thumbnail((1024, 1024))
+        colour_im = thumb_im.convert(mode="RGB")
+        colour_im.thumbnail((1024, 1024))
         thumbnail_jpg = tiff_path.parent / (tiff_path.stem + "_thumbnail.jpg")
-        thumb_im.save(thumbnail_jpg)
+        colour_im.save(thumbnail_jpg)
     return tiff_path
