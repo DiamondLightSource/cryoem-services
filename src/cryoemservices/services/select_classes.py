@@ -36,7 +36,7 @@ class SelectClassesParameters(BaseModel):
     autoselect_min_score: float = 0
     min_particles: int = 500
     class3d_batch_size: int = 50000
-    class3d_max_size: int = 200000
+    class3d_max_size: int | None = None
     class_uuids: str
     relion_options: RelionServiceOptions
     app_id: Optional[int] = None
@@ -443,7 +443,10 @@ class SelectClasses(CommonService):
             if self.total_count > autoselect_params.class3d_batch_size:
                 # Do 3D classification if there are more particles than the batch size
                 send_to_3d_classification = True
-        elif self.previous_total_count >= autoselect_params.class3d_max_size:
+        elif (
+            autoselect_params.class3d_max_size is not None
+            and self.previous_total_count >= autoselect_params.class3d_max_size
+        ):
             # Iterations beyond those where 3D classification is run
             next_batch_size = autoselect_params.class3d_max_size
         else:
@@ -454,14 +457,27 @@ class SelectClasses(CommonService):
             new_batch_multiple = (
                 self.total_count // autoselect_params.class3d_batch_size
             )
-            if new_batch_multiple > previous_batch_multiple:
+            self.log.info(
+                f"{self.total_count}, {autoselect_params.class3d_batch_size}, {np.log(new_batch_multiple) / np.log(2)}"
+            )
+            if new_batch_multiple > previous_batch_multiple and (
+                not previous_batch_multiple
+                or (np.log(new_batch_multiple) / np.log(2)).is_integer()
+                or int((np.log(new_batch_multiple) / np.log(2)))
+                != int(np.log(previous_batch_multiple) / np.log(2))
+            ):
                 # Do 3D classification if a batch threshold has been crossed
+                # Batch thresholds are done as multiples of 2 from the batch size
+                # With the defaults this leads to 50000, 100000, 200000
                 send_to_3d_classification = True
                 # Set the batch size from the total count, but do not exceed the maximum
                 next_batch_size = (
                     new_batch_multiple * autoselect_params.class3d_batch_size
                 )
-                if next_batch_size > autoselect_params.class3d_max_size:
+                if (
+                    autoselect_params.class3d_max_size is not None
+                    and next_batch_size > autoselect_params.class3d_max_size
+                ):
                     next_batch_size = autoselect_params.class3d_max_size
             else:
                 # Otherwise just get the next threshold

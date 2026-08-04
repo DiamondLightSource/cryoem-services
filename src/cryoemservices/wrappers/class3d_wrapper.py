@@ -625,10 +625,8 @@ def run_class3d(class3d_params: Class3DParameters, send_to_rabbitmq: Callable) -
         class_sorting_array, order=("resolutions", "efficiencies", "particles")
     )
     for cid in class_sorting:
-        if (
-            class3d_params.batch_size == 200000
-            and class_resolutions[cid] < 11
-            and (class_efficiencies[cid] > 0.65 or class3d_params.symmetry != "C1")
+        if class_resolutions[cid] < 11 and (
+            class_efficiencies[cid] > 0.65 or class3d_params.symmetry != "C1"
         ):
             murfey_params["do_refinement"] = True
             murfey_params["best_class"] = class_ids[cid]

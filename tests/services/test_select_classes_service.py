@@ -106,7 +106,7 @@ def select_classes_common_setup(
         "min_score": 0,
         "min_particles": 500,
         "class3d_batch_size": 50000,
-        "class3d_max_size": 200000,
+        "class3d_max_size": None,
         "class_uuids": "{'1': '1', '2': '2'}",
         "relion_options": {},
     }
@@ -499,6 +499,7 @@ def test_select_classes_service_last_threshold(
     select_test_message, relion_options = select_classes_common_setup(
         tmp_path, initial_particle_count=190000, particles_to_add=70000
     )
+    select_test_message["class3d_max_size"] = 200000
 
     # Set up the mock service and send the message to it
     service = select_classes.SelectClasses(
@@ -587,7 +588,49 @@ def test_select_classes_service_past_maximum(
         "subscription": mock.sentinel,
     }
     select_test_message, relion_options = select_classes_common_setup(
-        tmp_path, initial_particle_count=290000, particles_to_add=20000
+        tmp_path, initial_particle_count=390000, particles_to_add=20000
+    )
+    select_test_message["class3d_max_size"] = 200000
+
+    # Set up the mock service and send the message to it
+    service = select_classes.SelectClasses(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
+    service.select_classes(None, header=header, message=select_test_message)
+
+    # Check the correct particle counts were found and split files made
+    assert service.previous_total_count == 390000
+    assert service.total_count == 410000
+    assert (tmp_path / "Select/job013/particles_split1.star").is_file()
+    assert (tmp_path / "Select/job013/particles_split2.star").is_file()
+    assert len(list(tmp_path.glob("Select/job013/particles_batch_*"))) == 0
+
+    # Don't bother to check the auto-selection calls here, they are checked above
+    # Do check the Murfey 3D calls
+    assert len(offline_transport.send.call_args_list) == 7
+
+
+@mock.patch("cryoemservices.services.select_classes.subprocess.run")
+def test_select_classes_service_no_maximum(
+    mock_subprocess, offline_transport, tmp_path
+):
+    """
+    Test the service for the case where the existing particle count exceeds 200000
+    with no maximum set. (Same as previous test but no maximum)
+    In this case particles_all.star already exists so should be appended to,
+    and 3D classification should be requested at 400000.
+    """
+    mock_subprocess().returncode = 0
+    mock_subprocess().stdout = "stdout".encode("ascii")
+    mock_subprocess().stderr = "stderr".encode("ascii")
+
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+    select_test_message, relion_options = select_classes_common_setup(
+        tmp_path, initial_particle_count=390000, particles_to_add=20000
     )
 
     # Set up the mock service and send the message to it
@@ -598,15 +641,25 @@ def test_select_classes_service_past_maximum(
     service.select_classes(None, header=header, message=select_test_message)
 
     # Check the correct particle counts were found and split files made
-    assert service.previous_total_count == 290000
-    assert service.total_count == 310000
+    assert service.previous_total_count == 390000
+    assert service.total_count == 410000
     assert (tmp_path / "Select/job013/particles_split1.star").is_file()
     assert (tmp_path / "Select/job013/particles_split2.star").is_file()
-    assert len(list(tmp_path.glob("Select/job013/particles_batch_*"))) == 0
+    assert (tmp_path / "Select/job013/particles_batch_400000.star").is_file()
 
     # Don't bother to check the auto-selection calls here, they are checked above
     # Do check the Murfey 3D calls
-    assert len(offline_transport.send.call_args_list) == 7
+    offline_transport.send.assert_any_call(
+        "murfey_feedback",
+        {
+            "register": "run_class3d",
+            "class3d_message": {
+                "particles_file": f"{tmp_path}/Select/job013/particles_batch_400000.star",
+                "class3d_dir": f"{tmp_path}/Class3D/job",
+                "batch_size": 400000,
+            },
+        },
+    )
 
 
 @mock.patch("cryoemservices.services.select_classes.subprocess.run")

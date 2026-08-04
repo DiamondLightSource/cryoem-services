@@ -140,7 +140,7 @@ def test_class3d_wrapper_do_initial_model(
             "_rlnReferenceImage\n_Fraction\n_Rotation\n_Translation\n"
             "_Resolution\n_Completeness\n_OffsetX\n_OffsetY\n"
             "1@Class3D/job015/run_it020_classes.mrcs 0.4 30.3 33.3 12.2 1.0 0.6 0.01\n"
-            "2@Class3D/job015/run_it020_classes.mrcs 0.6 20.2 22.2 10.0 0.9 -0.5 -0.02"
+            "2@Class3D/job015/run_it020_classes.mrcs 0.6 20.2 22.2 11.1 0.9 -0.5 -0.02"
         )
 
     # Create a recipe wrapper with the test message
@@ -366,7 +366,7 @@ def test_class3d_wrapper_do_initial_model(
                         f"{tmp_path}/Class3D/job015/run_it025_class002.mrc"
                     ),
                     "class_number": 2,
-                    "estimated_resolution": 10.0,
+                    "estimated_resolution": 11.1,
                     "ispyb_command": "buffer",
                     "overall_fourier_completeness": 0.9,
                     "particles_per_class": 30000.0,
@@ -723,8 +723,8 @@ def test_class3d_wrapper_initial_model_star_file(
             "register": "done_3d_batch",
             "refine_dir": f"{tmp_path}/Refine3D/job",
             "class3d_dir": f"{tmp_path}/Class3D/job015",
-            "best_class": 0,
-            "do_refinement": False,
+            "best_class": 2,
+            "do_refinement": True,
         },
     )
 
