@@ -132,7 +132,7 @@ class ImodTomoAlign(CommonService):
             "w",
         ) as angles_file:
             for ang in angles.values():
-                angles_file.write(f"{ang}\n")
+                angles_file.write(f"{round(ang, 4):.4f}\n")
 
         # Find the input image dimensions
         self.log.info(f"Converted {tomo_params.txrm_file} to mrc format")
@@ -310,7 +310,7 @@ class ImodTomoAlign(CommonService):
 
 
 def write_batch_directive_file(tomo_params: ImodTomoParameters):
-    adoc_file = Path(tomo_params.stack_file).with_suffix(".adoc")
+    adoc_file = Path(tomo_params.stack_file).parent / "batchDirective.adoc"
     with open(adoc_file, "w") as adoc:
         # Commands for copytomocoms
         adoc.write(f"setupset.datasetDirectory={adoc_file.parent}\n")
