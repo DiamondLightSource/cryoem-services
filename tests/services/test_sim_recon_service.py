@@ -11,6 +11,8 @@ from workflows.transport.offline_transport import OfflineTransport
 from cryoemservices.services.sim_recon import (
     PySIMReconParameters,
     PySIMReconService,
+    SIMOTFParameters,
+    SIMReconParameters,
 )
 from cryoemservices.util.models import MockRW
 
@@ -83,6 +85,8 @@ def test_align_images_service(
     assert params.green_params.model_dump(exclude_none=True) == green_params
     assert params.red_params.model_dump(exclude_none=True) == red_params
     assert params.far_red_params.model_dump(exclude_none=True) == far_red_params
+    assert params.sim_otf_params.model_dump() == SIMOTFParameters().model_dump()
+    assert params.sim_recon_params.model_dump() == SIMReconParameters().model_dump()
 
     # Set up and run the service
     service = PySIMReconService(environment={"queue": ""}, transport=offline_transport)

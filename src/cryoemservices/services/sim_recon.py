@@ -11,10 +11,14 @@ from cryoemservices.services.common_service import CommonService
 from cryoemservices.util.models import MockRW
 
 
-class SIMOTFConfig:
+class SIMOTFParameters(BaseModel):
     """
     These are the shared values used by PySIMRecon to run the 'sim-otf' function.
-    These are read in from a config file under the section '[otf config]'.
+    These are read in from a config file under the '[otf config] section.
+
+    It is currently unsure if they are needed by the 'sim-recon' function, but
+    a warning does appear if they are omitted from the config file read in by
+    'sim-recon', so we are including it for now.
 
     Source:
     https://github.com/DiamondLightSource/PySIMRecon/commit/c039b09cbe3b510c032462c6817a517d2d7b2f99
@@ -38,7 +42,7 @@ class SIMOTFConfig:
     background: int = 500
 
 
-class SIMReconConfig:
+class SIMReconParameters(BaseModel):
     """
     These are the shared values used by PySIMRecon to run the 'sim-recon' function.
     These are read in from a config file under the section '[recon config]'.
@@ -101,6 +105,8 @@ class PySIMReconParameters(BaseModel):
     green_params: WavelengthParameters = WavelengthParameters(wavelength=525)
     red_params: WavelengthParameters = WavelengthParameters(wavelength=605)
     far_red_params: WavelengthParameters = WavelengthParameters(wavelength=655)
+    sim_otf_params: SIMOTFParameters = SIMOTFParameters()
+    sim_recon_params: SIMReconParameters = SIMReconParameters()
 
     @field_validator(
         "blue_params", "green_params", "red_params", "far_red_params", mode="before"
