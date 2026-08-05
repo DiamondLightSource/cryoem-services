@@ -95,11 +95,12 @@ class WavelengthParameters(BaseModel):
 
 
 class PySIMReconParameters(BaseModel):
+    file: Path
+    output_dir: Path
     blue_params: WavelengthParameters = WavelengthParameters(wavelength=452)
     green_params: WavelengthParameters = WavelengthParameters(wavelength=525)
     red_params: WavelengthParameters = WavelengthParameters(wavelength=605)
     far_red_params: WavelengthParameters = WavelengthParameters(wavelength=655)
-    output_dir: Path
 
     @field_validator(
         "blue_params", "green_params", "red_params", "far_red_params", mode="before"
@@ -147,7 +148,7 @@ class PySIMReconService(CommonService):
         self,
         rw: RecipeWrapper | None,
         header: dict,
-        message: dict,
+        message: dict | None,
     ):
         """
         Pass incoming message to the relevant plugin function
