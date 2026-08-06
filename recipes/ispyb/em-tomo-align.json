@@ -112,7 +112,7 @@
       "movie": 6,
       "node_creator": 12
     },
-    "queue": "cryolo_gpu",
+    "queue": "cryolo_tomo",
     "service": "CrYOLO"
   },
   "11": {
