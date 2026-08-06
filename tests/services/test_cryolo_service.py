@@ -113,6 +113,10 @@ def test_cryolo_service_spa(mock_flatten, mock_subprocess, offline_transport, tm
             "0",
             "--norm_margin",
             "0",
+            "--prediction_batch_size",
+            "3",
+            "--num_cpu",
+            "1",
         ],
         cwd=tmp_path / "AutoPick/job007",
         capture_output=True,
@@ -200,7 +204,7 @@ def test_cryolo_service_spa(mock_flatten, mock_subprocess, offline_transport, tm
                 f"--conf {tmp_path}/AutoPick/job007/cryolo_config.json "
                 f"-o {tmp_path}/AutoPick/job007 --otf "
                 f"--weights sample_weights --threshold 0.15 "
-                "--distance 0 --norm_margin 0"
+                "--distance 0 --norm_margin 0 --prediction_batch_size 3 --num_cpu 1"
             ),
             "stdout": "stdout",
             "stderr": "stderr",
@@ -238,9 +242,11 @@ def test_cryolo_service_tomography(mock_subprocess, offline_transport, tmp_path)
         "retained_fraction": 0.5,
         "min_particles": 0,
         "particle_diameter": 1.1,
+        "batch_size": 4,
         "tomo_tracing_min_frames": 5,
         "tomo_tracing_missing_frames": 0,
         "tomo_tracing_search_range": -1,
+        "cpu_count": 2,
         "ctf_values": {"dummy": "dummy"},
         "cryolo_command": "cryolo_predict.py",
         "relion_options": {},
@@ -273,8 +279,6 @@ def test_cryolo_service_tomography(mock_subprocess, offline_transport, tmp_path)
             "0",
             "-tmin",
             "5",
-            "--gpus",
-            "0",
             "--weights",
             "sample_weights",
             "--threshold",
@@ -283,6 +287,10 @@ def test_cryolo_service_tomography(mock_subprocess, offline_transport, tmp_path)
             "0",
             "--norm_margin",
             "0",
+            "--prediction_batch_size",
+            "4",
+            "--num_cpu",
+            "2",
         ],
         cwd=tmp_path / "AutoPick/job007",
         capture_output=True,
@@ -342,9 +350,9 @@ def test_cryolo_service_tomography(mock_subprocess, offline_transport, tmp_path)
                 "cryolo_predict.py -i MotionCorr/job002/sample.mrc "
                 f"--conf {tmp_path}/AutoPick/job007/cryolo_config.json "
                 f"-o {tmp_path}/AutoPick/job007 "
-                f"--tomogram -tsr -1 -tmem 0 -tmin 5 --gpus 0 "
+                f"--tomogram -tsr -1 -tmem 0 -tmin 5 "
                 "--weights sample_weights --threshold 0.15 "
-                "--distance 0 --norm_margin 0"
+                "--distance 0 --norm_margin 0 --prediction_batch_size 4 --num_cpu 2"
             ),
             "stdout": "stdout",
             "stderr": "stderr",
