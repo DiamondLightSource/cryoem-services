@@ -112,6 +112,9 @@
       "movie": 6,
       "node_creator": 12
     },
+    "parameters": {
+      "cpu_count": 8
+    },
     "queue": "cryolo_tomo",
     "service": "CrYOLO"
   },
