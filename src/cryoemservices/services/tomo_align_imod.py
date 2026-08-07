@@ -1,3 +1,4 @@
+import json
 import shutil
 import subprocess
 from pathlib import Path
@@ -5,6 +6,7 @@ from typing import Optional
 
 import mrcfile
 import numpy as np
+import plotly.express as px
 from olefile import OleFileIO
 from pydantic import BaseModel, Field, ValidationError
 from txrm2tiff.main import convert_and_save
@@ -72,10 +74,10 @@ class ImodTomoAlign(CommonService):
 
         with open(xf_file) as xf:
             lines = xf.readlines()
-        self.x_shift = [l.split()[4] for l in lines]
-        self.y_shift = [l.split()[5] for l in lines]
-        if self.x_shift and self.y_shift:
-            fig = px.scatter(x=self.x_shift, y=self.y_shift)
+        x_shift = [l.split()[4] for l in lines]
+        y_shift = [l.split()[5] for l in lines]
+        if x_shift and y_shift:
+            fig = px.scatter(x=x_shift, y=y_shift)
             fig_as_json = {
                 "data": [json.loads(fig["data"][0].to_json())],
                 "layout": json.loads(fig["layout"].to_json()),
@@ -83,7 +85,6 @@ class ImodTomoAlign(CommonService):
             with open(plot_path, "w") as plot_json:
                 json.dump(fig_as_json, plot_json)
         return xf_file
-
 
     def tomo_align(self, rw, header: dict, message: dict):
         """Main function which interprets and processes received messages"""
@@ -116,10 +117,6 @@ class ImodTomoAlign(CommonService):
             )
             self._reject_message(header, rw.transport, requeue=False)
             return
-
-        # TODO
-        # aln_file = "dummy"
-        shift_plot_suffix = "_xy_shift_plot.json"
 
         # Do txrm conversion
         self.log.info(f"Input file {tomo_params.txrm_file}")
@@ -164,10 +161,7 @@ class ImodTomoAlign(CommonService):
 
         # Run batchruntomo
         adoc_file = write_batch_directive_file(tomo_params)
-        imod_output_path = (
-            output_dir
-            / f"{Path(tomo_params.stack_file).stem}_rec.mrc"
-        )
+        imod_output_path = output_dir / f"{Path(tomo_params.stack_file).stem}_rec.mrc"
         imod_result = subprocess.run(
             [
                 "batchruntomo",
@@ -198,8 +192,14 @@ class ImodTomoAlign(CommonService):
             self._reject_message(header, rw.transport, requeue=False)
             return
 
-        plot_path = output_dir / (Path(tomo_params.stack_file).stem + shift_plot_suffix)
-        self.extract_from_xf(tomo_params.stack_file, plot_path)
+        # Generate shift plot for ispyb
+        plot_file = imod_output_path.stem + "_xy_shift_plot.json"
+        plot_path = output_dir / plot_file
+        xf_file = self.extract_from_xf(tomo_params.stack_file, plot_path)
+        if not xf_file:
+            self.log.error("Failed to read alignment file")
+            self._reject_message(header, transport=rw.transport)
+            return
 
         # Insert tomogram into ispyb
         ispyb_command_list: list[dict] = [
@@ -215,7 +215,7 @@ class ImodTomoAlign(CommonService):
                 "file_directory": str(imod_output_path.parent),
                 "central_slice_image": imod_output_path.stem + "_thumbnail.jpeg",
                 "tomogram_movie": imod_output_path.stem + "_movie.png",
-                "xy_shift_plot": imod_output_path.stem + shift_plot_suffix,
+                "xy_shift_plot": plot_file,
                 "proj_xy": imod_output_path.stem + "_projXY.jpeg",
                 "proj_xz": imod_output_path.stem + "_projYZ.jpeg",
                 "thickness": tomo_params.vol_z * tomo_params.pixel_size / 10,
@@ -234,18 +234,15 @@ class ImodTomoAlign(CommonService):
 
         # Forward results to images service
         self.log.info(f"Sending to images service {tomo_params.stack_file}")
-        # TODO
-        """
         rw.send_to(
             "images",
             {
                 "image_command": "tilt_series_alignment",
                 "file": tomo_params.stack_file,
-                "aln_file": str(aln_file),
+                "xf_file": str(xf_file),
                 "pixel_size": tomo_params.pixel_size,
             },
         )
-        """
         rw.send_to(
             "images",
             {
