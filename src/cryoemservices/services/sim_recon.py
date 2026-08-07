@@ -13,32 +13,32 @@ from cryoemservices.util.models import MockRW
 
 class SIMOTFParameters(BaseModel):
     """
-    These are the shared values used by PySIMRecon to run the 'sim-otf' function.
-    These are read in from a config file under the '[otf config] section.
+    These are the shared values used by PySIMRecon to run the 'sim-otf' function. These
+    are read in from a config file under the section '[otf config]'.
 
-    It is currently unsure if they are needed by the 'sim-recon' function, but
-    a warning does appear if they are omitted from the config file read in by
-    'sim-recon', so we are including it for now.
+    The values listed are the default values used by PySIMRecon. 'cudasirecon', which
+    PySIMRecon runs under the hood, has a different set of preset values, which are
+    overridden by these ones.
 
     Source:
     https://github.com/DiamondLightSource/PySIMRecon/commit/c039b09cbe3b510c032462c6817a517d2d7b2f99
     """
 
-    # Number of phases, by default 5.
+    # Number of phases
     nphases: int = 5
-    # The diameter of the bead in microns, by default 0.12.
+    # The diameter of the bead in microns
     beaddiam: float = 0.17
-    # The k0 vector angle with which the PSF is taken, by default 0.
+    # The k0 vector angle with which the PSF is taken
     angle: float = -0.264228
     # Do not perform bead size compensation, default False (do perform).
     nocompen: bool = False
-    # The starting and end pixel for interpolation along kr axis, by default (2, 9).
+    # The starting and end pixel for interpolation along kr axis
     fixorigin: tuple[int, int] = (2, 9)
-    # The (effective) NA of the objective, by default 1.4.
+    # The (effective) NA of the objective
     na: float = 0.9
-    # The index of refraction of the immersion liquid, by default 1.515 (1 for air/gaseous N2).
+    # The index of refraction of the immersion liquid.
     nimm: float = 1
-    # User-supplied number as the background to subtract. If `None`, background will be estimated from image, by default `None`.
+    # User-supplied number as the background to subtract. If `None`, background will be estimated from image.
     background: int = 500
 
 
