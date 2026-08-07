@@ -774,3 +774,20 @@ def threshold_image(
         type=cv2.THRESH_BINARY + (0 if percentile is not None else cv2.THRESH_OTSU),
     )
     return cast(np.ndarray, binary).astype(np.uint8)
+
+
+def crop_image(
+    array: np.ndarray,
+    width: int,
+    height: int,
+):
+    """
+    Crops a 2D image around its center to the desired shape and returns it.
+    """
+    h, w = array.shape[:2]
+    if height > h or width > w:
+        raise ValueError("Crop size exceeds image dimensions")
+    left = (w - width) // 2
+    top = (h - height) // 2
+    arr = array[top : top + height, left : left + width]
+    return arr

@@ -722,7 +722,8 @@ def test_insert_bfactor_update():
 
 
 @mock.patch("cryoemservices.util.ispyb_commands.models")
-def test_insert_tomogram_new(mock_models):
+@mock.patch("cryoemservices.util.ispyb_commands.select")
+def test_insert_tomogram_new(mock_select, mock_models):
     def mock_tomogram_parameters(p):
         tomogram_parameters = {
             "dcid": 10,
@@ -749,12 +750,13 @@ def test_insert_tomogram_new(mock_models):
             "grid_square_id": 12345,
             "pixel_location_x": 200,
             "pixel_location_y": 400,
+            "thickness": 50.5,
         }
         return tomogram_parameters[p]
 
     # Mock which returns None for existing objects
     mock_session = mock.MagicMock()
-    mock_session.query().filter().first.return_value = None
+    mock_session.execute().one_or_none.return_value = None
 
     return_value = ispyb_commands.insert_tomogram(
         {}, mock_tomogram_parameters, mock_session
@@ -762,9 +764,9 @@ def test_insert_tomogram_new(mock_models):
     assert return_value.get("success")
     assert return_value["return_value"]
 
-    assert mock_session.query.call_count == 2
-    assert mock_session.query().filter.call_count == 2
-    assert mock_session.query().filter().first.call_count == 1
+    assert mock_select.call_count == 2
+    assert mock_session.execute.call_count == 3
+    assert mock_session.execute().one_or_none.call_count == 2
 
     mock_models.Tomogram.assert_called_with(
         tomogramId=801,
@@ -791,12 +793,14 @@ def test_insert_tomogram_new(mock_models):
         gridSquareId=12345,
         pixelLocationX=200,
         pixelLocationY=400,
+        thickness=50.5,
     )
     mock_session.add.assert_called()
     mock_session.commit.assert_called()
 
 
-def test_insert_tomogram_update():
+@mock.patch("cryoemservices.util.ispyb_commands.update")
+def test_insert_tomogram_update_on_id(mock_update):
     def mock_tomogram_parameters(p):
         tomogram_parameters = {
             "dcid": 10,
@@ -823,12 +827,13 @@ def test_insert_tomogram_update():
             "grid_square_id": 12345,
             "pixel_location_x": 200,
             "pixel_location_y": 400,
+            "thickness": 50.5,
         }
         return tomogram_parameters[p]
 
     # Mock which returns an existing object
     mock_session = mock.MagicMock()
-    mock_session.query().filter().first.return_value = 1
+    mock_session.execute().one_or_none.return_value = 1
 
     return_value = ispyb_commands.insert_tomogram(
         {}, mock_tomogram_parameters, mock_session
@@ -836,12 +841,11 @@ def test_insert_tomogram_update():
     assert return_value.get("success")
     assert return_value["return_value"]
 
-    assert mock_session.query.call_count == 3
-    assert mock_session.query().filter.call_count == 3
-    assert mock_session.query().filter().first.call_count == 1
+    assert mock_session.execute.call_count == 3
+    mock_session.execute().one_or_none.assert_called_once()
 
     # Don't check the model call here, instead look at the update
-    mock_session.query().filter().update.assert_called_with(
+    mock_update().where().values.assert_called_with(
         {
             "dataCollectionId": 10,
             "autoProcProgramId": 1,
@@ -866,6 +870,85 @@ def test_insert_tomogram_update():
             "gridSquareId": 12345,
             "pixelLocationX": 200,
             "pixelLocationY": 400,
+            "thickness": 50.5,
+        }
+    )
+    mock_session.add.assert_not_called()
+    mock_session.commit.assert_called()
+
+
+@mock.patch("cryoemservices.util.ispyb_commands.update")
+def test_insert_tomogram_update_on_volume_name(mock_update):
+    def mock_tomogram_parameters(p):
+        tomogram_parameters = {
+            "dcid": 10,
+            "tomogram_id": 801,
+            "program_id": 1,
+            "volume_file": "/path/to/volume",
+            "stack_file": "/path/to/stack",
+            "size_x": 512,
+            "size_y": 400,
+            "size_z": 300,
+            "pixel_spacing": 5.2,
+            "residual_error_mean": 1.3,
+            "residual_error_sd": 0.4,
+            "x_axis_correction": 4.3,
+            "tilt_angle_offset": 1.5,
+            "z_shift": 3.2,
+            "file_directory": "/tomogram/directory",
+            "central_slice_image": "/path/to/central/slice",
+            "tomogram_movie": "/path/to/movie",
+            "xy_shift_plot": "/path/to/shift/plot",
+            "proj_xy": "/path/to/xy",
+            "proj_xz": "/path/to/xz",
+            "alignment_quality": 0.2,
+            "grid_square_id": 12345,
+            "pixel_location_x": 200,
+            "pixel_location_y": 400,
+            "thickness": 50.5,
+        }
+        return tomogram_parameters[p]
+
+    # Mock which returns an existing object
+    mock_session = mock.MagicMock()
+    mock_session.execute().one_or_none.side_effect = [0, 1]
+
+    return_value = ispyb_commands.insert_tomogram(
+        {}, mock_tomogram_parameters, mock_session
+    )
+    assert return_value.get("success")
+    assert return_value["return_value"]
+
+    assert mock_session.execute.call_count == 4
+    assert mock_session.execute().one_or_none.call_count == 2
+
+    # Don't check the model call here, instead look at the update
+    mock_update().where().where().values.assert_called_with(
+        {
+            "dataCollectionId": 10,
+            "autoProcProgramId": 1,
+            "volumeFile": "/path/to/volume",
+            "stackFile": "/path/to/stack",
+            "sizeX": 512,
+            "sizeY": 400,
+            "sizeZ": 300,
+            "pixelSpacing": 5.2,
+            "residualErrorMean": 1.3,
+            "residualErrorSD": 0.4,
+            "xAxisCorrection": 4.3,
+            "tiltAngleOffset": 1.5,
+            "zShift": 3.2,
+            "fileDirectory": "/tomogram/directory",
+            "centralSliceImage": "/path/to/central/slice",
+            "tomogramMovie": "/path/to/movie",
+            "xyShiftPlot": "/path/to/shift/plot",
+            "projXY": "/path/to/xy",
+            "projXZ": "/path/to/xz",
+            "globalAlignmentQuality": 0.2,
+            "gridSquareId": 12345,
+            "pixelLocationX": 200,
+            "pixelLocationY": 400,
+            "thickness": 50.5,
         }
     )
     mock_session.add.assert_not_called()

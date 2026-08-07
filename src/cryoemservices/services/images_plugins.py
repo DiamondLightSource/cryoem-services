@@ -10,8 +10,10 @@ import numpy as np
 import pandas as pd
 import PIL.Image
 import starfile
-import tifffile as tf
+import tifffile
+from olefile import OleFileIO
 from PIL import ImageDraw, ImageEnhance, ImageFilter, ImageFont
+from txrm2tiff.main import convert_and_save
 
 from cryoemservices.services.cryolo import grid_bar_histogram
 from cryoemservices.util.image_processing.shared import convert_to_rgb
@@ -34,6 +36,10 @@ def mrc_to_jpeg(plugin_params: Callable):
         return False
     filepath = Path(plugin_params("file"))
     allframes = plugin_params("all_frames")
+    thumbnail_x = plugin_params("thumbnail_x")
+    thumbnail_y = plugin_params("thumbnail_y")
+    flip = plugin_params("flip")
+    output_suffix = plugin_params("output_suffix")
     if not filepath.is_file():
         logger.error(f"File {filepath} not found")
         return False
@@ -46,7 +52,9 @@ def mrc_to_jpeg(plugin_params: Callable):
             f"File {filepath} could not be opened. It may be corrupted or not in mrc format"
         )
         return False
-    outfile = filepath.with_suffix(".jpeg")
+    if flip:
+        data = data[::-1]
+    outfile = filepath.with_suffix(output_suffix or ".jpeg")
     outfiles = []
     if len(data.shape) == 2:
         mean = np.mean(data)
@@ -81,7 +89,7 @@ def mrc_to_jpeg(plugin_params: Callable):
             colour_im.save(outfile)
         else:
             # Apply thumbnailing if 2D image without text overlay
-            im.thumbnail((1024, 1024))
+            im.thumbnail((thumbnail_x or 1024, thumbnail_y or 1024))
             im.save(outfile)
     elif len(data.shape) == 3:
         if allframes:
@@ -90,7 +98,9 @@ def mrc_to_jpeg(plugin_params: Callable):
                 frame = frame / frame.max() * 255
                 frame = frame.astype("uint8")
                 im = PIL.Image.fromarray(frame)
-                frame_outfile = outfile.parent / f"{outfile.stem}_{i + 1}.jpeg"
+                frame_outfile = (
+                    outfile.parent / f"{outfile.stem}_{i + 1}{output_suffix or '.jpeg'}"
+                )
                 im.save(frame_outfile)
                 outfiles.append(frame_outfile)
         else:
@@ -686,7 +696,7 @@ def tiff_to_apng(plugin_params: Callable):
     img = PIL.Image.open(input_file)
 
     # Determine number of frames in image
-    with tf.TiffFile(input_file) as tiff_file:
+    with tifffile.TiffFile(input_file) as tiff_file:
         num_frames = len(tiff_file.pages)
 
     # Collect image frames
@@ -924,3 +934,52 @@ def tilt_series_alignment(plugin_params: Callable):
         extra={"image-processing-time": timing},
     )
     return outfile
+
+
+def xrm_to_jpeg(plugin_params: Callable):
+    if not required_parameters(plugin_params, ["xrm_file", "tiff_destination"]):
+        return False
+    xrm_path = Path(plugin_params("xrm_file"))
+    tiff_path = Path(plugin_params("tiff_destination"))
+    annotate = plugin_params("annotate")
+    if not xrm_path.is_file():
+        logger.error(f"File {xrm_path} not found")
+        return False
+
+    image_count: list | None = None
+    with OleFileIO(xrm_path) as xrm_ole:
+        if xrm_ole.exists("ImageInfo/ImagesTaken"):
+            image_count = np.frombuffer(
+                xrm_ole.openstream("ImageInfo/ImagesTaken").getvalue(), np.int16
+            ).tolist()
+    if image_count and image_count[0] == 0:
+        # Skip conversion if there are no images
+        logger.warning(f"xrm file {xrm_path} has no images")
+        return xrm_path
+
+    try:
+        convert_and_save(
+            xrm_path,
+            str(tiff_path).replace("_Annotated", ""),
+            annotate=annotate or False,
+        )
+    except Exception as e:
+        logger.error(f"Failed xrm to tiff conversion due to {e}")
+        return False
+    if tiff_path.is_file():
+        data = tifffile.imread(tiff_path)
+    elif Path(str(tiff_path).replace("_Annotated", "")).is_file():
+        data = tifffile.imread(str(tiff_path).replace("_Annotated", ""))
+    else:
+        logger.error(f"File {tiff_path} not found")
+        return False
+    logger.info(data.shape)
+    if len(data.shape) == 4 or len(data.shape) == 3:
+        # Take first frame if 3D RGB or 3D greyscale
+        data = data[0]
+    with PIL.Image.fromarray(data) as thumb_im:
+        colour_im = thumb_im.convert(mode="RGB")
+        colour_im.thumbnail((1024, 1024))
+        thumbnail_jpg = tiff_path.parent / (tiff_path.stem + "_thumbnail.jpg")
+        colour_im.save(thumbnail_jpg)
+    return tiff_path

@@ -38,10 +38,7 @@ def test_class3d_service_has_initial_model(
     mock_efficiency.return_value = 0.6
 
     # Example recipe wrapper message to run the service with a few parameters varied
-    header = {
-        "message-id": mock.sentinel,
-        "subscription": mock.sentinel,
-    }
+    header = {"message-id": 1, "subscription": 2}
     class3d_test_message = {
         "recipe": {
             "start": [[1, []]],
@@ -265,10 +262,7 @@ def test_class3d_service_rerun(
     mock_efficiency.return_value = 0.6
 
     # Example recipe wrapper message to run the service with a few parameters varied
-    header = {
-        "message-id": mock.sentinel,
-        "subscription": mock.sentinel,
-    }
+    header = {"message-id": 1, "subscription": 2}
     class3d_test_message = {
         "recipe": {
             "start": [[1, []]],
@@ -492,10 +486,7 @@ def test_class3d_service_failed_resends(mock_class3d, offline_transport, tmp_pat
     mock_class3d.side_effect = raise_exception
 
     # Set up the parameters
-    header = {
-        "message-id": mock.sentinel,
-        "subscription": mock.sentinel,
-    }
+    header = {"message-id": 1, "subscription": 2}
     class3d_test_message = {
         "batch_size": "100000",
         "class_uuids": "{'0': 10, '1': 11}",

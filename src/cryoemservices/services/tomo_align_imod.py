@@ -1,3 +1,4 @@
+import shutil
 import subprocess
 from pathlib import Path
 from typing import Optional
@@ -32,6 +33,7 @@ class ImodTomoParameters(BaseModel):
     local_alignment: int = 0
     flip_vol: int = 1
     manual_tilt_offset: Optional[float] = None
+    copy_output: bool = False
     cpus: int = 4
 
 
@@ -151,7 +153,7 @@ class ImodTomoAlign(CommonService):
             "w",
         ) as angles_file:
             for ang in angles.values():
-                angles_file.write(f"{ang}\n")
+                angles_file.write(f"{round(ang, 4):.4f}\n")
 
         # Find the input image dimensions
         self.log.info(f"Converted {tomo_params.txrm_file} to mrc format")
@@ -173,6 +175,7 @@ class ImodTomoAlign(CommonService):
                 str(adoc_file),
                 "-cpus",
                 str(tomo_params.cpus),
+                "-bypass",
             ],
             capture_output=True,
         )
@@ -215,6 +218,7 @@ class ImodTomoAlign(CommonService):
                 "xy_shift_plot": imod_output_path.stem + shift_plot_suffix,
                 "proj_xy": imod_output_path.stem + "_projXY.jpeg",
                 "proj_xz": imod_output_path.stem + "_projYZ.jpeg",
+                "thickness": tomo_params.vol_z * tomo_params.pixel_size / 10,
             },
             {
                 "ispyb_command": "insert_processed_tomogram",
@@ -298,6 +302,7 @@ class ImodTomoAlign(CommonService):
             {
                 "volume": str(imod_output_path),
                 "output_dir": str(imod_output_path.parent.parent / "Denoise"),
+                "copy_output": tomo_params.copy_output,
                 "relion_options": {},
             },
         )
@@ -316,6 +321,14 @@ class ImodTomoAlign(CommonService):
         ):
             tmp_file.unlink()
 
+        # Optionally copy output file
+        if tomo_params.copy_output:
+            shutil.copy(
+                imod_output_path,
+                imod_output_path.parent.parent.parent
+                / f"{imod_output_path.parent.parent}_volume.mrc",
+            )
+
         # Update success processing status
         rw.send_to("success", {})
         self.log.info(f"Done tomogram alignment for {tomo_params.stack_file}")
@@ -323,7 +336,7 @@ class ImodTomoAlign(CommonService):
 
 
 def write_batch_directive_file(tomo_params: ImodTomoParameters):
-    adoc_file = Path(tomo_params.stack_file).with_suffix(".adoc")
+    adoc_file = Path(tomo_params.stack_file).parent / "batchDirective.adoc"
     with open(adoc_file, "w") as adoc:
         # Commands for copytomocoms
         adoc.write(f"setupset.datasetDirectory={adoc_file.parent}\n")

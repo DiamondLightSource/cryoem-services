@@ -63,6 +63,7 @@ def test_tomo_align_imod(
         "vol_z": 500,
         "out_bin": 1,
         "cpus": 2,
+        "copy_output": True,
     }
 
     # Touch the expected input/output and stack files
@@ -106,12 +107,16 @@ def test_tomo_align_imod(
         [
             "batchruntomo",
             "-directive",
-            f"{tmp_path}/recipe/Tomograms/test_stack.adoc",
+            f"{tmp_path}/recipe/Tomograms/batchDirective.adoc",
             "-cpus",
             "2",
+            "-bypass",
         ],
         capture_output=True,
     )
+
+    # Check output copy
+    assert (tmp_path / "recipe_volume.mrc").is_file()
 
     """# Check the shift plot
     with open(
@@ -187,6 +192,7 @@ def test_tomo_align_imod(
             "volume": f"{tmp_path}/recipe/Tomograms/test_stack_rec.mrc",
             "output_dir": f"{tmp_path}/recipe/Denoise",
             "relion_options": {},
+            "copy_output": True,
         },
     )
     offline_transport.send.assert_any_call(
@@ -209,6 +215,7 @@ def test_tomo_align_imod(
                     "xy_shift_plot": "test_stack_rec_xy_shift_plot.json",
                     "proj_xy": "test_stack_rec_projXY.jpeg",
                     "proj_xz": "test_stack_rec_projYZ.jpeg",
+                    "thickness": 500 * 106 / 10,
                 },
                 {
                     "ispyb_command": "insert_processed_tomogram",
@@ -243,7 +250,7 @@ def test_write_batch_directive_patch_wbp(tmp_path):
             }
         )
     )
-    assert returned_adoc == tmp_path / "stack.adoc"
+    assert returned_adoc == tmp_path / "batchDirective.adoc"
     with open(returned_adoc) as f:
         adoc_lines = f.readlines()
 
@@ -282,7 +289,7 @@ def test_write_batch_directive_beads_sirt(tmp_path):
             }
         )
     )
-    assert returned_adoc == tmp_path / "stack.adoc"
+    assert returned_adoc == tmp_path / "batchDirective.adoc"
     with open(returned_adoc) as f:
         adoc_lines = f.readlines()
 

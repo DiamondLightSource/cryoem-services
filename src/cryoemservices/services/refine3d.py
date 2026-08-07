@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 from pydantic import ValidationError
 from workflows.recipe import wrap_subscribe
 
@@ -19,7 +22,7 @@ class Refine3D(CommonService):
     def initializing(self):
         """Subscribe to a queue. Received messages must be acknowledged."""
         self.log.info("Refine3D service starting")
-        wrap_subscribe(
+        self.subscription_id = wrap_subscribe(
             self._transport,
             self._environment["queue"] or "refine3d",
             self.refine3d,
@@ -66,11 +69,20 @@ class Refine3D(CommonService):
             self._reject_message(header, transport=rw.transport, requeue=False)
             return
 
+        Path(refine_params.refine_job_dir).mkdir(exist_ok=True, parents=True)
+        with open(f"{refine_params.refine_job_dir}/recipe.json", "w") as recipe_file:
+            json.dump(
+                {"header": header, "message": refine_params.model_dump(mode="json")},
+                recipe_file,
+            )
+
         # Acknowledge the message and disconnect from rabbitmq
         self.log.info(
             f"Running disconnected Refine3D job for {refine_params.particles_file}"
         )
         rw.transport.ack(header)
+        rw.transport.unsubscribe(self.subscription_id)
+        rw.transport.drop_callback_reference(self.subscription_id)
 
         # Run the refinement job
         try:
@@ -79,8 +91,12 @@ class Refine3D(CommonService):
             self.log.error(f"Failed to run refinement due to {e}", exc_info=True)
             successful_run = False
         except KeyboardInterrupt:
-            rw.send_to("refine3d", message)
+            self.initializing()
+            self._transport.send("refine3d", message)
             raise KeyboardInterrupt
+
+        # Reconnect to rabbitmq
+        self.initializing()
         if successful_run:
             self.log.error(
                 f"Refinement job completed for {refine_params.particles_file}"
@@ -89,4 +105,5 @@ class Refine3D(CommonService):
             self.log.error(f"Refinement job failed for {refine_params.particles_file}")
             # Send back to the queue but mark a failure in the message
             message["requeue"] = message.get("requeue", 0) + 1
-            rw.send_to("refine3d", message)
+            self._transport.send("refine3d", message)
+        return True

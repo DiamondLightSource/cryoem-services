@@ -7,7 +7,7 @@ requires = [
 
 [project]
 name = "cryoemservices"
-version = "1.4.0"
+version = "1.4.1"
 description = "Services for CryoEM processing"
 readme = "README.md"
 keywords = [
@@ -35,7 +35,7 @@ dependencies = [
     "healpy",
     "icebreaker-em",
     "imagecodecs", # CLEM workflow
-    "ispyb>=11.1.2",
+    "ispyb>=12.1.1",
     "mrcfile",
     "numpy",
     "pillow",
@@ -66,6 +66,9 @@ easymode = [
 ]
 murfey_db = [
     "murfey[server]",
+]
+pipeliner = [
+    "ccpem-pipeliner",
 ]
 torch = [
     "membrain-seg",
@@ -119,6 +122,7 @@ torch = [
     NodeCreator = "cryoemservices.services.node_creator:NodeCreator"
     PostProcess = "cryoemservices.services.postprocess:PostProcess"
     ProcessRecipe = "cryoemservices.services.process_recipe:ProcessRecipe"
+    PySIMRecon = "cryoemservices.services.sim_recon:PySIMReconService"
     Refine3D = "cryoemservices.services.refine3d:Refine3D"
     SelectClasses = "cryoemservices.services.select_classes:SelectClasses"
     SelectParticles = "cryoemservices.services.select_particles:SelectParticles"
@@ -134,6 +138,7 @@ torch = [
     "picked_particles_3d_central_slice" = "cryoemservices.services.images_plugins:picked_particles_3d_central_slice"
     "tiff_to_apng" = "cryoemservices.services.images_plugins:tiff_to_apng"
     "tilt_series_alignment" = "cryoemservices.services.images_plugins:tilt_series_alignment"
+    "xrm_to_jpeg" = "cryoemservices.services.images_plugins:xrm_to_jpeg"
 [project.entry-points."cryoemservices.services.process_recipe.filters"]
     ispyb = "cryoemservices.util.process_recipe_tools:ispyb_filter"
 [project.entry-points."cryoemservices.wrappers"]

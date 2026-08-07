@@ -132,6 +132,7 @@ class RelionServiceOptions(BaseModel):
     class2d_nr_classes: int = 50
     class2d_nr_iter: int = 25
     class2d_mini_batches: int = 150
+    initial_model_iterations: int = 200
     class3d_nr_classes: int = 4
     class3d_nr_iter: int = 25
 
@@ -275,6 +276,7 @@ def generate_service_options(
 
     job_options["relion.initialmodel"] = {
         "nr_classes": relion_options.class3d_nr_classes,
+        "nr_iter": relion_options.initial_model_iterations,
         "sym_name": relion_options.symmetry,
         "particle_diameter": relion_options.mask_diameter,
         "do_preread_images": True,

@@ -22,12 +22,13 @@
       "success": 7
     },
     "parameters": {
+      "bead_count": 4,
       "copy_output": true,
       "manual_tilt_offset": "{manual_tilt_offset}",
       "out_bin": 1,
-      "patch": 1,
+      "patch": 0,
       "pixel_size": "{pixel_size}",
-      "sirt": 0,
+      "sirt": 1,
       "stack_file": "{stack_file}",
       "tilt_axis": 0,
       "txrm_file": "{txrm_file}",

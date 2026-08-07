@@ -579,7 +579,7 @@ class MotionCorr(CommonService):
             )
             if mc_params.do_icebreaker_jobs and not icebreaker_output.is_file():
                 # Three IceBreaker jobs: CtfFind job is MC+4
-                ctf_job_number = 6
+                ctf_job_number = job_number + 4
 
                 # Both IceBreaker micrographs and flattening inherit from motioncorr
                 self.log.info(
@@ -624,10 +624,10 @@ class MotionCorr(CommonService):
                 ctf_job_number = job_number + 4
             else:
                 # No IceBreaker jobs: CtfFind job is MC+1
-                ctf_job_number = 3
+                ctf_job_number = job_number + 1
         else:
             # Tomography: CtfFind job is MC+1
-            ctf_job_number = 3
+            ctf_job_number = job_number + 1
 
         # Forward results to ctffind (in both SPA and tomography)
         self.log.info(f"Sending to ctf: {mc_params.mrc_out}")

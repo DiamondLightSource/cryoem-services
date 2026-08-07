@@ -1,0 +1,25 @@
+{
+  "1": {
+    "parameters": {
+      "file": "{file}",
+      "output_dir": "{output_dir}",
+      "blue_params": "{blue_params}",
+      "green_params": "{green_params}",
+      "red_params": "{red_params}",
+      "far_red_params": "{far_red_params}"
+    },
+    "output": {
+      "murfey_feedback": 2
+    },
+    "queue": "cluster.submission",
+    "service": "PySIMRecon"
+  },
+  "2": {
+    "parameters": {
+      "session_id": "{session_id}"
+    },
+    "queue": "{feedback_queue}",
+    "service": "Murfey"
+  },
+  "start": [[1, []]]
+}

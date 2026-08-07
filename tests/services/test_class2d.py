@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import copy
 from unittest import mock
 
 import pytest
@@ -406,7 +405,7 @@ def test_class2d_service_complete_batch(mock_subprocess, offline_transport, tmp_
 
 @mock.patch("cryoemservices.services.class2d.run_class2d")
 def test_class2d_service_failed_resends(mock_class2d, offline_transport, tmp_path):
-    """Failures of the processing should lead to reinjection of the message"""
+    """Failures of the processing should lead to nacking of the message"""
 
     def raise_exception(*args, **kwargs):
         raise ValueError
@@ -431,16 +430,14 @@ def test_class2d_service_failed_resends(mock_class2d, offline_transport, tmp_pat
         "picker_id": "6",
         "relion_options": {},
     }
-    end_message = copy.deepcopy(class2d_test_message)
 
     # Set up and run the service
     service = Class2D(environment={"queue": ""}, transport=offline_transport)
     service.initializing()
     service.class2d(None, header=header, message=class2d_test_message)
 
-    end_message["requeue"] = 1
-    offline_transport.send.assert_any_call("class2d", end_message)
-    offline_transport.ack.assert_called_once()
+    assert offline_transport.send.call_count == 0
+    offline_transport.nack.assert_called_once()
 
 
 def test_class2d_service_nack_on_requeue(offline_transport, tmp_path):

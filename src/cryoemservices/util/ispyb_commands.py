@@ -7,7 +7,8 @@ from typing import Callable
 
 import ispyb.sqlalchemy as models
 import sqlalchemy.exc
-import sqlalchemy.orm
+from sqlalchemy import select, update
+from sqlalchemy.orm import Session
 
 from cryoemservices.util import ispyb_buffer
 
@@ -36,27 +37,35 @@ def parameters_with_replacement(param: str, message: dict, all_parameters: Calla
     return value_to_return
 
 
-def multipart_message(
-    message: dict, parameters: Callable, session: sqlalchemy.orm.Session
-):
+def multipart_message(message: dict, parameters: Callable, session: Session):
     """
     The multipart_message command allows the recipe or client to specify a
     list of API calls to run.
     Each API call may have a return value that can be stored and passed on.
     """
     commands = parameters("ispyb_command_list")
-    step = message.get("checkpoint", 0) + 1
     if not commands or not isinstance(commands, list):
         logger.error("Received multipart message containing no command list")
         return False
 
     current_command = commands[0]
-    command = globals().get(current_command.get("ispyb_command"))
+    command: Callable | None = globals().get(current_command.get("ispyb_command"))
     if not command:
         logger.error(
             f"Multipart command {current_command} does not have a valid ispyb_command"
         )
         return False
+    return run_multipart_command(message, parameters, session, command)
+
+
+def run_multipart_command(
+    message: dict, parameters: Callable, session: Session, command: Callable
+):
+    """Run specific commands from a multipart message"""
+    # Get the commands and steps again
+    commands = parameters("ispyb_command_list")
+    step = message.get("checkpoint", 0) + 1
+    current_command = commands[0]
     logger.info(
         f"Processing step {step} of multipart message ({current_command}) "
         f"with {len(commands) - 1} further steps",
@@ -102,7 +111,7 @@ def multipart_message(
     }
 
 
-def buffer(message: dict, parameters: Callable, session: sqlalchemy.orm.Session):
+def buffer(message: dict, parameters: Callable, session: Session):
     """
     The buffer command supports running buffer lookups before running
     a command, and storing the result in a buffer after running the command.
@@ -171,7 +180,7 @@ def buffer(message: dict, parameters: Callable, session: sqlalchemy.orm.Session)
     return result
 
 
-def insert_movie(message: dict, parameters: Callable, session: sqlalchemy.orm.Session):
+def insert_movie(message: dict, parameters: Callable, session: Session):
     try:
         foil_hole_id = (
             parameters("foil_hole_id") if parameters("foil_hole_id") != "None" else None
@@ -205,9 +214,7 @@ def insert_movie(message: dict, parameters: Callable, session: sqlalchemy.orm.Se
         return False
 
 
-def insert_motion_correction(
-    message: dict, parameters: Callable, session: sqlalchemy.orm.Session
-):
+def insert_motion_correction(message: dict, parameters: Callable, session: Session):
     def full_parameters(param):
         return parameters_with_replacement(param, message, parameters)
 
@@ -265,7 +272,7 @@ def insert_motion_correction(
 
 
 def insert_relative_ice_thickness(
-    message: dict, parameters: Callable, session: sqlalchemy.orm.Session
+    message: dict, parameters: Callable, session: Session
 ):
     def full_parameters(param):
         return parameters_with_replacement(param, message, parameters)
@@ -292,7 +299,7 @@ def insert_relative_ice_thickness(
         return False
 
 
-def insert_ctf(message: dict, parameters: Callable, session: sqlalchemy.orm.Session):
+def insert_ctf(message: dict, parameters: Callable, session: Session):
     def full_parameters(param):
         return parameters_with_replacement(param, message, parameters)
 
@@ -330,9 +337,7 @@ def insert_ctf(message: dict, parameters: Callable, session: sqlalchemy.orm.Sess
         return False
 
 
-def insert_particle_picker(
-    message: dict, parameters: Callable, session: sqlalchemy.orm.Session
-):
+def insert_particle_picker(message: dict, parameters: Callable, session: Session):
     def full_parameters(param):
         return parameters_with_replacement(param, message, parameters)
 
@@ -359,7 +364,7 @@ def insert_particle_picker(
 
 
 def insert_particle_classification(
-    message: dict, parameters: Callable, session: sqlalchemy.orm.Session
+    message: dict, parameters: Callable, session: Session
 ):
     def full_parameters(param):
         return parameters_with_replacement(param, message, parameters)
@@ -421,7 +426,7 @@ def insert_particle_classification(
 
 
 def insert_particle_classification_group(
-    message: dict, parameters: Callable, session: sqlalchemy.orm.Session
+    message: dict, parameters: Callable, session: Session
 ):
     def full_parameters(param):
         return parameters_with_replacement(param, message, parameters)
@@ -479,9 +484,7 @@ def insert_particle_classification_group(
         return False
 
 
-def insert_cryoem_initial_model(
-    message: dict, parameters: Callable, session: sqlalchemy.orm.Session
-):
+def insert_cryoem_initial_model(message: dict, parameters: Callable, session: Session):
     def full_parameters(param):
         return parameters_with_replacement(param, message, parameters)
 
@@ -513,9 +516,7 @@ def insert_cryoem_initial_model(
         return False
 
 
-def insert_bfactor_fit(
-    message: dict, parameters: Callable, session: sqlalchemy.orm.Session
-):
+def insert_bfactor_fit(message: dict, parameters: Callable, session: Session):
     def full_parameters(param):
         return parameters_with_replacement(param, message, parameters)
 
@@ -558,9 +559,7 @@ def insert_bfactor_fit(
         return False
 
 
-def insert_tomogram(
-    message: dict, parameters: Callable, session: sqlalchemy.orm.Session
-):
+def insert_tomogram(message: dict, parameters: Callable, session: Session):
     if not message:
         message = {}
 
@@ -593,23 +592,43 @@ def insert_tomogram(
             gridSquareId=full_parameters("grid_square_id"),
             pixelLocationX=full_parameters("pixel_location_x"),
             pixelLocationY=full_parameters("pixel_location_y"),
+            thickness=full_parameters("thickness"),
         )
-        tomogram_row = (
-            session.query(models.Tomogram)
-            .filter(
-                models.Tomogram.tomogramId == values.tomogramId,
+
+        if session.execute(
+            select(models.Tomogram).where(
+                models.Tomogram.tomogramId == values.tomogramId
             )
-            .first()
-        )
-        if tomogram_row:
-            session.query(models.Tomogram).filter(
-                models.Tomogram.tomogramId == values.tomogramId,
-            ).update(
-                {
-                    k: v
-                    for k, v in values.__dict__.items()
-                    if k not in ["_sa_instance_state", "tomogramId"] and v is not None
-                }
+        ).one_or_none():
+            session.execute(
+                update(models.Tomogram)
+                .where(models.Tomogram.tomogramId == values.tomogramId)
+                .values(
+                    {
+                        k: v
+                        for k, v in values.__dict__.items()
+                        if k not in ["_sa_instance_state", "tomogramId"]
+                        and v is not None
+                    }
+                )
+            )
+        elif session.execute(
+            select(models.Tomogram)
+            .where(models.Tomogram.autoProcProgramId == values.autoProcProgramId)
+            .where(models.Tomogram.volumeFile == values.volumeFile)
+        ).one_or_none():
+            session.execute(
+                update(models.Tomogram)
+                .where(models.Tomogram.autoProcProgramId == values.autoProcProgramId)
+                .where(models.Tomogram.volumeFile == values.volumeFile)
+                .values(
+                    {
+                        k: v
+                        for k, v in values.__dict__.items()
+                        if k not in ["_sa_instance_state", "tomogramId"]
+                        and v is not None
+                    }
+                )
             )
         else:
             session.add(values)
@@ -624,9 +643,7 @@ def insert_tomogram(
         return False
 
 
-def insert_processed_tomogram(
-    message: dict, parameters: Callable, session: sqlalchemy.orm.Session
-):
+def insert_processed_tomogram(message: dict, parameters: Callable, session: Session):
     def full_parameters(param):
         return parameters_with_replacement(param, message, parameters)
 
@@ -651,9 +668,7 @@ def insert_processed_tomogram(
         return False
 
 
-def insert_tilt_image_alignment(
-    message: dict, parameters: Callable, session: sqlalchemy.orm.Session
-):
+def insert_tilt_image_alignment(message: dict, parameters: Callable, session: Session):
     def full_parameters(param):
         return parameters_with_replacement(param, message, parameters)
 
@@ -706,9 +721,7 @@ def insert_tilt_image_alignment(
         return False
 
 
-def update_processing_status(
-    message: dict, parameters: Callable, session: sqlalchemy.orm.Session
-):
+def update_processing_status(message: dict, parameters: Callable, session: Session):
     def full_parameters(param):
         return parameters_with_replacement(param, message, parameters)
 
@@ -755,9 +768,7 @@ def update_processing_status(
 
 
 # These are needed for the old relion-zocalo wrapper
-def add_program_attachment(
-    message: dict, parameters: Callable, session: sqlalchemy.orm.Session
-):
+def add_program_attachment(message: dict, parameters: Callable, session: Session):
     file_name = parameters("file_name")
     file_path = parameters("file_path")
     logger.error(
@@ -767,9 +778,7 @@ def add_program_attachment(
     return {"success": True, "return_value": 0}
 
 
-def register_processing(
-    message: dict, parameters: Callable, session: sqlalchemy.orm.Session
-):
+def register_processing(message: dict, parameters: Callable, session: Session):
     program = parameters("program")
     cmdline = parameters("cmdline")
     environment = parameters("environment") or ""
