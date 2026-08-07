@@ -1,0 +1,62 @@
+# This Dockerfile is used to run PySIMRecon with a GPU
+FROM rockylinux:8 AS conda-build
+
+# Install git and other tools
+RUN echo "Installing system and build dependencies..." && \
+    dnf -y update && \
+    dnf -y install \
+        git && \
+    dnf clean all
+
+# Install MiniForge (use local installer before attempting to download it from online)
+ENV PATH=/conda/bin:${PATH}
+RUN --mount=type=bind,source=installers,target=/mnt/installers,U \
+    echo "Installing MiniForge3..." && \
+    MINIFORGE_INSTALLER="Miniforge3-$(uname)-$(uname -m).sh" && \
+    if [ -f "/mnt/installers/${MINIFORGE_INSTALLER}" ]; then \
+        cp "/mnt/installers/${MINIFORGE_INSTALLER}" "/tmp/${MINIFORGE_INSTALLER}"; \
+    else \
+        curl -L \
+            -o "/tmp/${MINIFORGE_INSTALLER}" \
+            "https://github.com/conda-forge/miniforge/releases/latest/download/${MINIFORGE_INSTALLER}"; \
+    fi && \
+    bash "/tmp/${MINIFORGE_INSTALLER}" -b -p conda
+
+# Install PySIMRecon
+RUN echo "Installing PySIMRecon..." && \
+    git clone https://github.com/DiamondLightSource/PySIMRecon.git /tmp/pysimrecon && \
+    conda create \
+        -c conda-forge \
+        -p /install/pysimrecon \
+            python=3.12.* \
+            pip \
+        --file /tmp/pysimrecon/conda_requirements.txt \
+        --override-channels -y && \
+    /install/pysimrecon/bin/pip install /tmp/pysimrecon
+
+# Install cryoem-services
+RUN --mount=type=bind,source=.,target=/mnt/cryoemservices,U \
+    echo "Installing cryoemservices..." && \
+    cp -r /mnt/cryoemservices /tmp/cryoemservices && \
+    conda create \
+        -c conda-forge \
+        -p /install/cryoemservices \
+            python=3.12.* \
+            pip \
+        --override-channels -y && \
+    /install/cryoemservices/bin/pip install /tmp/cryoemservices
+
+# Copy the installed Python environments to the runner image
+FROM nvidia/cuda:12.9.2-runtime-rockylinux8
+
+# Create EM user
+ARG groupid
+ARG userid
+ARG groupname
+RUN groupadd -r -g "${groupid}" "${groupname}" && \
+    useradd -r -M "${groupname}" -u "${userid}" -g "${groupname}"
+
+# Copy the Python environments in
+COPY --from=conda-build --chown="${userid}":"${groupid}" /install /install
+ENV PATH=/install/pysimrecon/bin:/install/cryoemservices/bin:${PATH}
+ENV LD_LIBRARY_PATH=/install/pysimrecon/lib:/install/cryoemservices/lib:${LD_LIBRARY_PATH}
