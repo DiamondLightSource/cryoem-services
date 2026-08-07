@@ -74,8 +74,8 @@ class ImodTomoAlign(CommonService):
 
         with open(xf_file) as xf:
             lines = xf.readlines()
-        x_shift = [l.split()[4] for l in lines]
-        y_shift = [l.split()[5] for l in lines]
+        x_shift = [float(l.split()[4]) for l in lines]
+        y_shift = [float(l.split()[5]) for l in lines]
         if x_shift and y_shift:
             fig = px.scatter(x=x_shift, y=y_shift)
             fig_as_json = {
@@ -202,6 +202,11 @@ class ImodTomoAlign(CommonService):
             return
 
         # Insert tomogram into ispyb
+        side_projection = (
+            "YZ"
+            if tomo_params.tilt_axis is not None and -45 < tomo_params.tilt_axis < 45
+            else "XZ"
+        )
         ispyb_command_list: list[dict] = [
             {
                 "ispyb_command": "insert_tomogram",
@@ -217,7 +222,7 @@ class ImodTomoAlign(CommonService):
                 "tomogram_movie": imod_output_path.stem + "_movie.png",
                 "xy_shift_plot": plot_file,
                 "proj_xy": imod_output_path.stem + "_projXY.jpeg",
-                "proj_xz": imod_output_path.stem + "_projYZ.jpeg",
+                "proj_xz": imod_output_path.stem + f"_proj{side_projection}.jpeg",
                 "thickness": tomo_params.vol_z * tomo_params.pixel_size / 10,
             },
             {
@@ -241,6 +246,7 @@ class ImodTomoAlign(CommonService):
                 "file": tomo_params.stack_file,
                 "xf_file": str(xf_file),
                 "pixel_size": tomo_params.pixel_size,
+                "direction": side_projection,
             },
         )
         rw.send_to(
@@ -274,11 +280,6 @@ class ImodTomoAlign(CommonService):
         )
 
         self.log.info("Sending to images service for XY and XZ projections")
-        side_projection = (
-            "YZ"
-            if tomo_params.tilt_axis is not None and -45 < tomo_params.tilt_axis < 45
-            else "XZ"
-        )
         for projection_type in ["XY", side_projection]:
             images_call_params: dict[str, str | float] = {
                 "image_command": "mrc_projection",
