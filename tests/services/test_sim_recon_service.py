@@ -11,6 +11,8 @@ from workflows.transport.offline_transport import OfflineTransport
 from cryoemservices.services.sim_recon import (
     PySIMReconParameters,
     PySIMReconService,
+    SIMOTFParameters,
+    SIMReconParameters,
 )
 from cryoemservices.util.models import MockRW
 
@@ -46,6 +48,8 @@ def test_align_images_service(
         "message-id": mock.sentinel,
         "subscription": mock.sentinel,
     }
+    test_file = tmp_path / "raw" / "some_dir" / "test_file"
+    output_dir = tmp_path / "processed" / "some_dir"
     blue_params = {
         "wavelength": 452,
         "ls": 0.330,
@@ -65,19 +69,24 @@ def test_align_images_service(
     }
 
     pysimrecon_test_message = {
+        "file": str(test_file),
+        "output_dir": str(output_dir),
         "blue_params": func(blue_params) if func else blue_params,
         "green_params": func(green_params) if func else green_params,
         "red_params": func(red_params) if func else red_params,
         "far_red_params": func(far_red_params) if func else far_red_params,
-        "output_dir": str(tmp_path / "dummy"),
     }
     params = PySIMReconParameters(**pysimrecon_test_message)
 
     # Check that the values were parsed correctly
+    assert params.file == test_file
+    assert params.output_dir == output_dir
     assert params.blue_params.model_dump(exclude_none=True) == blue_params
     assert params.green_params.model_dump(exclude_none=True) == green_params
     assert params.red_params.model_dump(exclude_none=True) == red_params
     assert params.far_red_params.model_dump(exclude_none=True) == far_red_params
+    assert params.sim_otf_params.model_dump() == SIMOTFParameters().model_dump()
+    assert params.sim_recon_params.model_dump() == SIMReconParameters().model_dump()
 
     # Set up and run the service
     service = PySIMReconService(environment={"queue": ""}, transport=offline_transport)
