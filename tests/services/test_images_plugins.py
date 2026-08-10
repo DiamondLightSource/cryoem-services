@@ -163,10 +163,12 @@ def test_mrc_to_jpeg_3d_ack_not_all_frames(tmp_path):
     assert (tmp_path / "convert_test.jpeg").is_file()
 
 
-def test_picked_particles_processes_when_basefile_exists(tmp_path):
+@mock.patch("cryoemservices.services.images_plugins.grid_bar_histogram")
+def test_picked_particles_processes_when_basefile_exists(mock_flatten, tmp_path):
     base_mrc_path = tmp_path / "base.mrc"
     out_jpeg_path = tmp_path / "processed.jpeg"
     test_data = np.arange(16, dtype=np.int8).reshape(4, 4)
+    mock_flatten.return_value = test_data
     with mrcfile.new(base_mrc_path) as mrc:
         mrc.set_data(test_data)
     assert (
