@@ -246,7 +246,7 @@ class ImodTomoAlign(CommonService):
                 "file": tomo_params.stack_file,
                 "xf_file": str(xf_file),
                 "pixel_size": tomo_params.pixel_size,
-                "direction": side_projection,
+                "projection": side_projection,
             },
         )
         rw.send_to(

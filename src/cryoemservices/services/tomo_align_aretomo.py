@@ -777,7 +777,7 @@ class AreTomoAlign(CommonService):
                 "file": tomo_params.stack_file,
                 "aln_file": str(aln_file),
                 "pixel_size": tomo_params.pixel_size,
-                "direction": side_projection,
+                "projection": side_projection,
             },
         )
         rw.send_to(

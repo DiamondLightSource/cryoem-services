@@ -745,12 +745,12 @@ def tiff_to_apng(plugin_params: Callable):
 
 
 def tilt_series_alignment(plugin_params: Callable):
-    if not required_parameters(plugin_params, ["file", "direction"]):
+    if not required_parameters(plugin_params, ["file", "projection"]):
         return False
     filepath = Path(plugin_params("file"))
     aln_file = Path(plugin_params("aln_file")) if plugin_params("aln_file") else None
     xf_file = Path(plugin_params("xf_file")) if plugin_params("xf_file") else None
-    direction = plugin_params("direction")
+    projection = plugin_params("projection")
     if not filepath.is_file():
         logger.error(f"File {filepath} not found")
         return False
@@ -852,7 +852,7 @@ def tilt_series_alignment(plugin_params: Callable):
         shifted_cen_y = cen[1] + y_shifts[tid]
 
         # Find distance to edge of image, accounting for x or y tilt
-        if direction == "XZ":
+        if projection == "XZ":
             x_half_width = flat_size[1] / 2
             y_half_width = (flat_size[0] * np.cos(tlt * np.pi / 180)) / 2
         else:

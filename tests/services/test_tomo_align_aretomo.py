@@ -313,7 +313,7 @@ def test_tomo_align_service_file_list_aretomo3(
             "file": tomo_align_test_message["stack_file"],
             "aln_file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack.aln",
             "pixel_size": tomo_align_test_message["pixel_size"],
-            "direction": "XZ",
+            "projection": "XZ",
         },
     )
     offline_transport.send.assert_any_call(
@@ -638,7 +638,7 @@ def test_tomo_align_service_file_list_aretomo2(
             "file": tomo_align_test_message["stack_file"],
             "aln_file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack.aln",
             "pixel_size": tomo_align_test_message["pixel_size"],
-            "direction": "XZ",
+            "projection": "XZ",
         },
     )
     offline_transport.send.assert_any_call(
@@ -1290,7 +1290,7 @@ def test_tomo_align_service_file_list_rerun(
             "file": tomo_align_test_message["stack_file"],
             "aln_file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack.aln",
             "pixel_size": tomo_align_test_message["pixel_size"],
-            "direction": "XZ",
+            "projection": "XZ",
         },
     )
     offline_transport.send.assert_any_call(
@@ -2306,7 +2306,7 @@ def test_tomo_align_service_txrm(
             "file": tomo_align_test_message["stack_file"],
             "aln_file": f"{tmp_path}/recipe/Tomograms/stack.aln",
             "pixel_size": tomo_align_test_message["pixel_size"],
-            "direction": "YZ",
+            "projection": "YZ",
         },
     )
     offline_transport.send.assert_any_call(

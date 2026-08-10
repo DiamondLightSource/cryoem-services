@@ -139,7 +139,7 @@ def test_tomo_align_imod(
             "file": tomo_align_test_message["stack_file"],
             "xf_file": f"{tmp_path}/recipe/Tomograms/test_stack.xf",
             "pixel_size": tomo_align_test_message["pixel_size"],
-            "direction": "YZ",
+            "projection": "YZ",
         },
     )
     offline_transport.send.assert_any_call(
