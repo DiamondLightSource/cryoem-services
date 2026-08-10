@@ -38,6 +38,7 @@ def plugin_params(
             "parameters": {"images_command": "mrc_to_jpeg"},
             "file": jpeg_path.with_suffix(".mrc"),
             "aln_file": jpeg_path.with_suffix(".aln"),
+            "xf_file": jpeg_path.with_suffix(".xf"),
             "all_frames": all_frames,
             "pixel_spacing": pixel_size,
             "pixel_size": pixel_size,
@@ -732,7 +733,7 @@ def test_tiff_to_apng(
 
 
 @mock.patch("cryoemservices.services.images_plugins.ImageDraw")
-def test_tilt_image_alignment_works_3d(mock_imagedraw, tmp_path):
+def test_tilt_image_alignment_works_3d_aln(mock_imagedraw, tmp_path):
     tmp_mrc_path = tmp_path / "tmp.mrc"
     aln_file = tmp_path / "tmp.aln"
 
@@ -754,20 +755,20 @@ def test_tilt_image_alignment_works_3d(mock_imagedraw, tmp_path):
         )
 
     # Send to image creation
-    assert tilt_series_alignment(plugin_params(tmp_mrc_path, True, 2)) == str(
-        tmp_path / "tmp_alignment.jpeg"
-    )
+    assert tilt_series_alignment(
+        plugin_params(tmp_mrc_path, True, 2, projection="XZ")
+    ) == str(tmp_path / "tmp_alignment.jpeg")
 
-    # Check that the expected picking ellipses were drawn
+    # Check that the expected picking tilt boxes were drawn
     mock_imagedraw.Draw.assert_called()
     assert mock_imagedraw.Draw().polygon.call_count == 2
     ellipse_calls = mock_imagedraw.Draw().polygon.call_args_list
     assert ellipse_calls[0][1] == {"width": 19, "outline": "#0af549"}
     assert ellipse_calls[1][1] == {"width": 20, "outline": "#f52407"}
 
-    # Check the box corners are right for the first ellipse
-    x_cen_a = 2.5 - 1.5 / 2
-    y_cen_a = 1 + 2.5 / 2
+    # Check the box corners are right for the first tilt boxes
+    x_cen_a = 2.5 - 1.5
+    y_cen_a = 1 + 2.5
     x_shift_1 = 2.5 * rotation_matrix[0][0]
     y_shift_a1 = rotation_matrix[0][1] * np.cos(-3 * np.pi / 180)
     x_shift_2 = 2.5 * rotation_matrix[1][0]
@@ -781,9 +782,9 @@ def test_tilt_image_alignment_works_3d(mock_imagedraw, tmp_path):
     assert np.isclose(ellipse_calls[0][0][0][3][0], x_cen_a + x_shift_1 - y_shift_a1)
     assert np.isclose(ellipse_calls[0][0][0][3][1], y_cen_a + x_shift_2 - y_shift_a2)
 
-    # Check the box corners are right for the second ellipse
-    x_cen_b = 2.5 + 1022.2 / 2
-    y_cen_b = 1 + 21.2 / 2
+    # Check the box corners are right for the second tilt boxes
+    x_cen_b = 2.5 + 1022.2
+    y_cen_b = 1 + 21.2
     y_shift_b1 = rotation_matrix[0][1] * np.cos(6 * np.pi / 180)
     y_shift_b2 = rotation_matrix[1][1] * np.cos(6 * np.pi / 180)
     assert np.isclose(ellipse_calls[1][0][0][0][0], x_cen_b + x_shift_1 + y_shift_b1)
@@ -794,6 +795,59 @@ def test_tilt_image_alignment_works_3d(mock_imagedraw, tmp_path):
     assert np.isclose(ellipse_calls[1][0][0][2][1], y_cen_b - x_shift_2 - y_shift_b2)
     assert np.isclose(ellipse_calls[1][0][0][3][0], x_cen_b + x_shift_1 - y_shift_b1)
     assert np.isclose(ellipse_calls[1][0][0][3][1], y_cen_b + x_shift_2 - y_shift_b2)
+
+
+@mock.patch("cryoemservices.services.images_plugins.ImageDraw")
+def test_tilt_image_alignment_works_3d_xf(mock_imagedraw, tmp_path):
+    tmp_mrc_path = tmp_path / "tmp.mrc"
+    xf_file = tmp_path / "tmp.xf"
+
+    # Rotation of tomogram relative to tilts
+    angle = 42.7
+    rotation_matrix = [
+        [np.cos(angle * np.pi / 180), -np.sin(angle * np.pi / 180)],
+        [np.sin(angle * np.pi / 180), np.cos(angle * np.pi / 180)],
+    ]
+
+    # Construct mrc and xf file
+    data_3d = np.linspace(-1000, 1000, 20, dtype=np.int16).reshape((2, 2, 5))
+    with mrcfile.new(tmp_mrc_path, overwrite=True) as mrc:
+        mrc.set_data(data_3d)
+    with open(xf_file, "w") as xf:
+        xf.write(
+            f"1 {np.sin(angle * np.pi / 180)} 0 1 -1.5 2.5\n"
+            f"1 {np.sin(angle * np.pi / 180)} 0 1 1022.2 21.2\n"
+        )
+    with open(xf_file.with_suffix(".rawtlt"), "w") as tlt:
+        tlt.write("-3.0\n6.0")
+
+    # Send to image creation
+    assert tilt_series_alignment(
+        plugin_params(tmp_mrc_path, True, 2, projection="YZ")
+    ) == str(tmp_path / "tmp_alignment.jpeg")
+
+    # Check that the expected tilt boxes were drawn
+    mock_imagedraw.Draw.assert_called()
+    assert mock_imagedraw.Draw().polygon.call_count == 2
+    ellipse_calls = mock_imagedraw.Draw().polygon.call_args_list
+    assert ellipse_calls[0][1] == {"width": 19, "outline": "#0af549"}
+    assert ellipse_calls[1][1] == {"width": 20, "outline": "#f52407"}
+
+    # Check the box corners are right for the first tilt boxes
+    x_cen_a = 2.5 - 1.5
+    y_cen_a = 1 + 2.5
+    x_shift_a1 = 2.5 * rotation_matrix[0][0] * np.cos(-3 * np.pi / 180)
+    y_shift_1 = rotation_matrix[0][1]
+    x_shift_a2 = 2.5 * rotation_matrix[1][0] * np.cos(-3 * np.pi / 180)
+    y_shift_2 = rotation_matrix[1][1]
+    assert np.isclose(ellipse_calls[0][0][0][0][0], x_cen_a + x_shift_a1 + y_shift_1)
+    assert np.isclose(ellipse_calls[0][0][0][0][1], y_cen_a + x_shift_a2 + y_shift_2)
+    assert np.isclose(ellipse_calls[0][0][0][1][0], x_cen_a - x_shift_a1 + y_shift_1)
+    assert np.isclose(ellipse_calls[0][0][0][1][1], y_cen_a - x_shift_a2 + y_shift_2)
+    assert np.isclose(ellipse_calls[0][0][0][2][0], x_cen_a - x_shift_a1 - y_shift_1)
+    assert np.isclose(ellipse_calls[0][0][0][2][1], y_cen_a - x_shift_a2 - y_shift_2)
+    assert np.isclose(ellipse_calls[0][0][0][3][0], x_cen_a + x_shift_a1 - y_shift_1)
+    assert np.isclose(ellipse_calls[0][0][0][3][1], y_cen_a + x_shift_a2 - y_shift_2)
 
 
 @mock.patch("cryoemservices.services.images_plugins.ImageDraw")
@@ -812,9 +866,9 @@ def test_tilt_image_alignment_works_2d(mock_imagedraw, tmp_path):
         )
 
     # Send to image creation
-    assert tilt_series_alignment(plugin_params(tmp_mrc_path, True, 2)) == str(
-        tmp_path / "tmp_alignment.jpeg"
-    )
+    assert tilt_series_alignment(
+        plugin_params(tmp_mrc_path, True, 2, projection="XZ")
+    ) == str(tmp_path / "tmp_alignment.jpeg")
 
     # Check that the expected picking ellipses were drawn - skip checking all the rest
     mock_imagedraw.Draw.assert_called()
