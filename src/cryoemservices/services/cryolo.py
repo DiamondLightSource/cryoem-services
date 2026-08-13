@@ -23,23 +23,25 @@ class CryoloParameters(BaseModel):
     input_path: str = Field(..., min_length=1)
     output_path: str = Field(..., min_length=1)
     experiment_type: str
-    pixel_size: Optional[float] = None
+    pixel_size: float | None = None
     cryolo_box_size: int = 160
     cryolo_model_weights: str = "gmodel_phosnet_202005_N63_c17.h5"
     cryolo_threshold: float = 0.3
     retained_fraction: float = 1
     min_particles: int = 30
     cryolo_command: str = "cryolo_predict.py"
-    particle_diameter: Optional[float] = None
+    particle_diameter: float | None = None
     min_distance: float = 0
     normalization_margin: float = 0
+    batch_size: int = 3
     tomo_tracing_min_frames: int = 5
     tomo_tracing_missing_frames: int = 0
     tomo_tracing_search_range: int = -1
+    cpu_count: int = 1
     on_the_fly: bool = True
-    mc_uuid: Optional[int] = None
-    app_id: Optional[int] = None
-    picker_uuid: Optional[int] = None
+    mc_uuid: int | None = None
+    app_id: int | None = None
+    picker_uuid: int | None = None
     relion_options: RelionServiceOptions
     ctf_values: dict = {}
 
@@ -164,6 +166,7 @@ class CrYOLO(CommonService):
             return
 
         # Check job alias
+        job_dir.mkdir(parents=True, exist_ok=True)
         job_alias = job_dir.parent / "Live_cryolo"
         if not job_alias.exists():
             job_alias.symlink_to(job_dir)
@@ -192,34 +195,32 @@ class CrYOLO(CommonService):
 
         # Construct a command to run cryolo with the given parameters
         command = cryolo_params.cryolo_command.split()
-        command.extend((["-i", scaled_input_path]))
-        command.extend((["--conf", str(job_dir / "cryolo_config.json")]))
-        command.extend((["-o", str(job_dir)]))
+        command.extend(["-i", scaled_input_path])
+        command.extend(["--conf", str(job_dir / "cryolo_config.json")])
+        command.extend(["-o", str(job_dir)])
         if cryolo_params.on_the_fly and cryolo_params.experiment_type == "spa":
-            command.extend((["--otf"]))
+            command.extend(["--otf"])
         if cryolo_params.experiment_type == "tomography":
             command.extend(
-                (
-                    [
-                        "--tomogram",
-                        "-tsr",
-                        str(cryolo_params.tomo_tracing_search_range),
-                        "-tmem",
-                        str(cryolo_params.tomo_tracing_missing_frames),
-                        "-tmin",
-                        str(cryolo_params.tomo_tracing_min_frames),
-                        "--gpus",
-                        "0",
-                    ]
-                )
+                [
+                    "--tomogram",
+                    "-tsr",
+                    str(cryolo_params.tomo_tracing_search_range),
+                    "-tmem",
+                    str(cryolo_params.tomo_tracing_missing_frames),
+                    "-tmin",
+                    str(cryolo_params.tomo_tracing_min_frames),
+                ]
             )
 
         cryolo_flags = {
             "cryolo_model_weights": "--weights",
             "cryolo_threshold": "--threshold",
-            "cryolo_gpus": "--gpu",
+            "cryolo_gpus": "-g",
+            "cpu_count": "--num_cpu",
             "min_distance": "--distance",
             "normalization_margin": "--norm_margin",
+            "batch_size": "--prediction_batch_size",
         }
 
         for k, v in cryolo_params.model_dump().items():

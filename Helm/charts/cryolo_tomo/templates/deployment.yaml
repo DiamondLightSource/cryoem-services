@@ -1,33 +1,31 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: cryolo-gpu
+  name: cryolo-tomo
   namespace: {{ .Values.global.namespace }}
 spec:
   replicas: {{ .Values.replicas }}
   selector:
     matchLabels:
-      app: cryolo-gpu
+      app: cryolo-tomo
   template:
     metadata:
       labels:
-        app: cryolo-gpu
+        app: cryolo-tomo
     spec:
       securityContext:
         runAsUser: {{ .Values.global.runAsUser }}
         runAsGroup: {{ .Values.global.runAsGroup }}
       containers:
-      - name: cryolo-gpu-runner
+      - name: cryolo-tomo-runner
         image: {{ .Values.image }}
         imagePullPolicy: Always
         resources:
           requests:
             cpu: {{ .Values.cpuRequest }}
-            nvidia.com/gpu: "1"
           limits:
             cpu: {{ .Values.cpuLimit }}
             memory: {{ .Values.memoryLimit }}
-            nvidia.com/gpu: "1"
         command: ["/bin/sh"]
         args:
           - -c
@@ -60,15 +58,8 @@ spec:
 {{- if .Values.extraVolumes }}
 {{ toYaml .Values.extraVolumes | indent 6 }}
 {{ end }}
-      tolerations:
-      - effect: NoSchedule
-        key: nvidia.com/gpu
-        operator: Exists
-      - effect: NoSchedule
-        key: nodetype
-        operator: Equal
-        value: gpu
 {{- if .Values.global.tolerations }}
+      tolerations:
 {{ toYaml .Values.global.tolerations | indent 6 }}
 {{ end }}
 {{- if .Values.global.nodeSelector }}
@@ -85,16 +76,16 @@ spec:
 apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
 metadata:
-  name: cryolo-gpu
+  name: cryolo-tomo
   namespace: {{ .Values.global.namespace }}
 spec:
   scaleTargetRef:
-    name: cryolo-gpu
+    name: cryolo-tomo
   triggers:
     - type: rabbitmq
       metadata:
         host: {{ .Values.global.rmqHost }}
-        queueName: cryolo_gpu
+        queueName: cryolo_tomo
         mode: QueueLength
         value: "{{ .Values.queueLengthTrigger }}"
   minReplicaCount: {{ .Values.minReplicaCount }}

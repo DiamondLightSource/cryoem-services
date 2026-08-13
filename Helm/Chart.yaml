@@ -10,7 +10,7 @@ dependencies:
   - name: cluster_submission
   - name: correlative_align_images
   - name: cryolo
-  - name: cryolo_gpu
+  - name: cryolo_tomo
   - name: ctffind
   - name: denoise
   - name: denoise_slurm
