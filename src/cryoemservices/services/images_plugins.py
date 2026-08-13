@@ -745,13 +745,14 @@ def tiff_to_apng(plugin_params: Callable):
 
 
 def tilt_series_alignment(plugin_params: Callable):
-    if not required_parameters(plugin_params, ["file", "aln_file", "pixel_size"]):
+    if not required_parameters(plugin_params, ["file", "projection"]):
         return False
     filepath = Path(plugin_params("file"))
-    aln_file = Path(plugin_params("aln_file"))
-    pixel_size = float(plugin_params("pixel_size"))
-    if not filepath.is_file() or not aln_file.is_file():
-        logger.error(f"File {filepath} or {aln_file} not found")
+    aln_file = Path(plugin_params("aln_file")) if plugin_params("aln_file") else None
+    xf_file = Path(plugin_params("xf_file")) if plugin_params("xf_file") else None
+    projection = plugin_params("projection")
+    if not filepath.is_file():
+        logger.error(f"File {filepath} not found")
         return False
     start = time.perf_counter()
     try:
@@ -781,16 +782,37 @@ def tilt_series_alignment(plugin_params: Callable):
     angles = []
     x_shifts = []
     y_shifts = []
-    with open(aln_file) as alns:
-        while True:
-            line = alns.readline()
-            if not line:
-                break
-            if not line.startswith("#"):
-                tilts.append(float(line.split()[-1]))
-                angles.append(float(line.split()[1]))
-                x_shifts.append(float(line.split()[3]))
-                y_shifts.append(float(line.split()[4]))
+    if aln_file and aln_file.is_file():
+        with open(aln_file) as alns:
+            while True:
+                line = alns.readline()
+                if not line:
+                    break
+                if not line.startswith("#"):
+                    tilts.append(float(line.split()[-1]))
+                    angles.append(float(line.split()[1]))
+                    x_shifts.append(float(line.split()[3]))
+                    y_shifts.append(float(line.split()[4]))
+    elif xf_file and xf_file.is_file():
+        with open(xf_file) as xf:
+            lines = xf.readlines()
+            angles = [np.asin(float(l.split()[1])) * 180 / np.pi for l in lines]
+            x_shifts = [float(l.split()[4]) for l in lines]
+            y_shifts = [float(l.split()[5]) for l in lines]
+        if xf_file.with_suffix(".rawtlt").is_file():
+            with open(xf_file.with_suffix(".rawtlt")) as rawtlt:
+                lines = rawtlt.readlines()
+                tilts = [float(l.strip()) for l in lines]
+        elif xf_file.with_suffix(".tlt").is_file():
+            with open(xf_file.with_suffix(".tlt")) as rawtlt:
+                lines = rawtlt.readlines()
+                tilts = [float(l.strip()) for l in lines]
+        else:
+            logger.error(f"Cannot find tlt or rawtlt file for {xf_file}")
+            return False
+    else:
+        logger.error(f"aln file {aln_file} or xf file {xf_file} not found")
+        return False
 
     # Pad the image to make the shifts more visible - x and y end up flipped here
     flat_size = central_slice_data.shape
@@ -826,12 +848,16 @@ def tilt_series_alignment(plugin_params: Callable):
     outliers = []
     for tid, tlt in enumerate(tilts):
         # Apply the shifts to the centre position
-        shifted_cen_x = cen[0] + x_shifts[tid] / pixel_size
-        shifted_cen_y = cen[1] + y_shifts[tid] / pixel_size
+        shifted_cen_x = cen[0] + x_shifts[tid]
+        shifted_cen_y = cen[1] + y_shifts[tid]
 
-        # Find distance to edge of image, accounting for y tilt
-        x_half_width = flat_size[1] / 2
-        y_half_width = (flat_size[0] * np.cos(tlt * np.pi / 180)) / 2
+        # Find distance to edge of image, accounting for x or y tilt
+        if projection == "XZ":
+            x_half_width = flat_size[1] / 2
+            y_half_width = (flat_size[0] * np.cos(tlt * np.pi / 180)) / 2
+        else:
+            x_half_width = (flat_size[1] * np.cos(tlt * np.pi / 180)) / 2
+            y_half_width = flat_size[0] / 2
 
         # Flip the angles if greater than 45 degrees
         if angles[tid] > 45:
@@ -889,7 +915,7 @@ def tilt_series_alignment(plugin_params: Callable):
                     shifted_cen_y + y_corners[3],
                 ),
             ],
-            width=int(20 - np.abs(len(tilts) / 2 - tid)),
+            width=max(int(20 - np.abs(len(tilts) / 2 - tid)), 1),
             outline=outline_colour,
         )
 
@@ -904,25 +930,25 @@ def tilt_series_alignment(plugin_params: Callable):
         )
     dim.text(
         (100 * text_scaling, 10),
-        "Shift over 100 nm",
+        "Shift over 100 pixels",
         fill="#f52407",
         font_size=150 * text_scaling,
     )
     dim.text(
         (100 * text_scaling, 10 + 150 * text_scaling),
-        "Shift 10 to 100 nm",
+        "Shift 10 to 100 pixels",
         fill="#f5a927",
         font_size=150 * text_scaling,
     )
     dim.text(
         (100 * text_scaling, 10 + 300 * text_scaling),
-        "Shift 1 to 10 nm",
+        "Shift 1 to 10 pixels",
         fill="#f5e90a",
         font_size=150 * text_scaling,
     )
     dim.text(
         (100 * text_scaling, 10 + 450 * text_scaling),
-        "Shift under 1 nm",
+        "Shift under 1 pixels",
         fill="#0af549",
         font_size=150 * text_scaling,
     )

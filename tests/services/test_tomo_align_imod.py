@@ -1,3 +1,4 @@
+import json
 from subprocess import CompletedProcess
 from unittest import mock
 
@@ -44,12 +45,6 @@ def test_tomo_align_imod(
     mock_ole_file().__enter__().openstream().getvalue.return_value = np.array(
         [0.01, 0.3, 0.5], dtype=np.float32
     ).tobytes()
-    mock_subprocess.return_value = CompletedProcess(
-        "",
-        returncode=0,
-        stdout="stdout".encode("ascii"),
-        stderr="stderr".encode("ascii"),
-    )
 
     header = {
         "message-id": mock.sentinel,
@@ -69,14 +64,23 @@ def test_tomo_align_imod(
     # Touch the expected input/output and stack files
     (tmp_path / "test.txrm").touch()
     (tmp_path / "recipe/Tomograms").mkdir(parents=True)
-    (tmp_path / "recipe/Tomograms/test_stack.mrc").touch()
-    (tmp_path / "recipe/Tomograms/test_stack_rec.mrc").touch()
 
     # Set up the mock service
     service = tomo_align_imod.ImodTomoAlign(
         environment={"queue": ""}, transport=offline_transport
     )
     service.initializing()
+
+    def write_imod_outputs(command, capture_output: bool = False):
+        if command[0] != "batchruntomo":
+            (tmp_path / "recipe/Tomograms/test_stack.mrc").touch(exist_ok=True)
+            return CompletedProcess("", returncode=0)
+        (tmp_path / "recipe/Tomograms/test_stack_rec.mrc").touch()
+        with open(tmp_path / "recipe/Tomograms/test_stack.xf", "w") as aln_file:
+            aln_file.write("1 0 0 1 1.2 2.3")
+        return CompletedProcess("", returncode=0)
+
+    mock_subprocess.side_effect = write_imod_outputs
 
     # Send a message to the service
     service.tomo_align(None, header=header, message=tomo_align_test_message)
@@ -118,27 +122,26 @@ def test_tomo_align_imod(
     # Check output copy
     assert (tmp_path / "recipe_volume.mrc").is_file()
 
-    """# Check the shift plot
+    # Check the shift plot
     with open(
-        tmp_path / "recipe/Tomograms/test_stack_rec.mrc/test_stack_xy_shift_plot.json"
+        tmp_path / "recipe/Tomograms/test_stack_rec_xy_shift_plot.json"
     ) as shift_plot:
         shift_data = json.load(shift_plot)
     assert shift_data["data"][0]["x"] == [1.2]
     assert shift_data["data"][0]["y"] == [2.3]
-    """
+
     # Check that the correct messages were sent
-    assert offline_transport.send.call_count == 9  # 10
-    """
+    assert offline_transport.send.call_count == 10
     offline_transport.send.assert_any_call(
         "images",
         {
             "image_command": "tilt_series_alignment",
             "file": tomo_align_test_message["stack_file"],
-            "aln_file": "dummy",  # f"{tmp_path}/Tomograms/job006/tomograms/test_stack.aln",
+            "xf_file": f"{tmp_path}/recipe/Tomograms/test_stack.xf",
             "pixel_size": tomo_align_test_message["pixel_size"],
+            "projection": "YZ",
         },
     )
-    """
     offline_transport.send.assert_any_call(
         "images",
         {
