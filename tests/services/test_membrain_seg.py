@@ -1,8 +1,8 @@
-from __future__ import annotations
-
 import subprocess
 from unittest import mock
 
+import mrcfile
+import numpy as np
 import pytest
 from requests import Response
 from workflows.transport.offline_transport import OfflineTransport
@@ -20,7 +20,9 @@ def offline_transport(mocker):
 
 
 @mock.patch("cryoemservices.services.membrain_seg.segment")
+@mock.patch("cryoemservices.services.membrain_seg.generate_binned_mrc")
 def test_membrain_seg_service_local_memseg(
+    mock_bin_mrc,
     mock_segment,
     offline_transport,
     tmp_path,
@@ -29,6 +31,7 @@ def test_membrain_seg_service_local_memseg(
     Send a test message to membrain-seg for the version running without a subprocess
     This should call the mock subprocess then send messages to the images service.
     """
+    mock_bin_mrc.return_value = f"{tmp_path}/Segmentation/job008/tomograms/binned.mrc"
 
     header = {
         "message-id": mock.sentinel,
@@ -46,6 +49,7 @@ def test_membrain_seg_service_local_memseg(
         "window_size": 100,
         "connected_component_threshold": 2,
         "segmentation_threshold": 4,
+        "display_binning": 8,
         "relion_options": {},
     }
     output_relion_options = dict(RelionServiceOptions())
@@ -95,8 +99,14 @@ def test_membrain_seg_service_local_memseg(
         segmentation_threshold=4.0,
     )
 
+    mock_bin_mrc.assert_called_once_with(
+        tmp_path
+        / "Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented.mrc",
+        8,
+    )
+
     # Check the images service request
-    assert offline_transport.send.call_count == 5
+    assert offline_transport.send.call_count == 6
     offline_transport.send.assert_any_call(
         "node_creator",
         {
@@ -136,6 +146,15 @@ def test_membrain_seg_service_local_memseg(
         },
     )
     offline_transport.send.assert_any_call(
+        "ispyb_connector",
+        {
+            "ispyb_command": "insert_processed_tomogram",
+            "file_path": f"{tmp_path}/Segmentation/job008/tomograms/binned.mrc",
+            "processing_type": "Feature",
+            "feature": "membrane",
+        },
+    )
+    offline_transport.send.assert_any_call(
         "easymode",
         {
             "tomogram": f"{tmp_path}/Denoise/job007/tomograms/test_stack_aretomo.denoised.mrc",
@@ -162,10 +181,12 @@ def test_membrain_seg_service_local_subprocess(
     """
 
     def touch_membrain_output(*args, **kwargs):
-        (
+        segmentation_tomogram = (
             tmp_path
             / "Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented.mrc"
-        ).touch()
+        )
+        with mrcfile.new(segmentation_tomogram) as mrc:
+            mrc.set_data(np.random.random((20, 20, 15)).astype("int8"))
         return subprocess.CompletedProcess(
             "",
             returncode=0,
@@ -234,7 +255,7 @@ def test_membrain_seg_service_local_subprocess(
     ).is_file()
 
     # Check the images service request
-    assert offline_transport.send.call_count == 5
+    assert offline_transport.send.call_count == 6
     offline_transport.send.assert_any_call(
         "node_creator",
         {
@@ -285,9 +306,26 @@ def test_membrain_seg_service_local_subprocess(
         },
     )
 
+    mini_seg_path = (
+        tmp_path
+        / "Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented_bin4.mrc"
+    )
+    assert mini_seg_path.is_file()
+    offline_transport.send.assert_any_call(
+        "ispyb_connector",
+        {
+            "ispyb_command": "insert_processed_tomogram",
+            "file_path": str(mini_seg_path),
+            "processing_type": "Feature",
+            "feature": "membrane",
+        },
+    )
+
 
 @mock.patch("cryoemservices.util.slurm_submission.requests")
+@mock.patch("cryoemservices.services.membrain_seg.generate_binned_mrc")
 def test_membrain_seg_service_slurm(
+    mock_bin_mrc,
     mock_requests,
     offline_transport,
     tmp_path,
@@ -304,6 +342,7 @@ def test_membrain_seg_service_slurm(
     response_object.status_code = 200
     mock_requests.Session().post.return_value = response_object
     mock_requests.Session().get.return_value = response_object
+    mock_bin_mrc.return_value = "binned_mrc"
 
     header = {
         "message-id": mock.sentinel,
@@ -417,8 +456,14 @@ def test_membrain_seg_service_slurm(
         url="/url/of/slurm/restapi/slurm/v0.0.40/job/1"
     )
 
+    mock_bin_mrc.assert_called_once_with(
+        tmp_path
+        / "Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented.mrc",
+        4,
+    )
+
     # Check the images service request
-    assert offline_transport.send.call_count == 5
+    assert offline_transport.send.call_count == 6
     offline_transport.send.assert_any_call(
         "node_creator",
         {
@@ -455,6 +500,15 @@ def test_membrain_seg_service_slurm(
             "ispyb_command": "insert_processed_tomogram",
             "file_path": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented.mrc",
             "processing_type": "Segmented",
+        },
+    )
+    offline_transport.send.assert_any_call(
+        "ispyb_connector",
+        {
+            "ispyb_command": "insert_processed_tomogram",
+            "file_path": "binned_mrc",
+            "processing_type": "Feature",
+            "feature": "membrane",
         },
     )
     offline_transport.send.assert_any_call(
@@ -503,11 +557,13 @@ def test_membrain_seg_service_local_memseg_rerun(
     output_relion_options = dict(RelionServiceOptions())
 
     # Pre-make the output so this is a rerun
-    (tmp_path / "Segmentation/job008/tomograms").mkdir(parents=True)
-    (
+    segmentation_tomogram = (
         tmp_path
         / "Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented.mrc"
-    ).touch()
+    )
+    segmentation_tomogram.parent.mkdir(parents=True)
+    with mrcfile.new(segmentation_tomogram) as mrc:
+        mrc.set_data(np.random.random((20, 20, 15)).astype("int8"))
 
     # Set up the mock service and send a message to it
     service = membrain_seg.MembrainSeg(
@@ -517,7 +573,7 @@ def test_membrain_seg_service_local_memseg_rerun(
     service.membrain_seg(None, header=header, message=segmentation_test_message)
 
     # Check the images service request
-    assert offline_transport.send.call_count == 4
+    assert offline_transport.send.call_count == 5
     offline_transport.send.assert_any_call(
         "images",
         {
@@ -551,5 +607,20 @@ def test_membrain_seg_service_local_memseg_rerun(
             "segmentation_apng": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented_movie.png",
             "pixel_size": 1.0,
             "relion_options": output_relion_options,
+        },
+    )
+
+    mini_seg_path = (
+        tmp_path
+        / "Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented_bin4.mrc"
+    )
+    assert mini_seg_path.is_file()
+    offline_transport.send.assert_any_call(
+        "ispyb_connector",
+        {
+            "ispyb_command": "insert_processed_tomogram",
+            "file_path": str(mini_seg_path),
+            "processing_type": "Feature",
+            "feature": "membrane",
         },
     )

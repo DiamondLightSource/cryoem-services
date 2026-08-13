@@ -132,7 +132,7 @@ def test_easymode_service_with_mask(
     ).is_file()
 
     # Check the images service request
-    assert offline_transport.send.call_count == 4
+    assert offline_transport.send.call_count == 3
     offline_transport.send.assert_any_call(
         "images",
         {
@@ -146,19 +146,6 @@ def test_easymode_service_with_mask(
             "mask": str(
                 f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo_easymode_void.mrc",
             ),
-        },
-    )
-    mini_seg_path = (
-        tmp_path / "Segmentation/job008/tomograms/test_stack_aretomo_segmented_bin8.mrc"
-    )
-    assert (mini_seg_path).is_file()
-    offline_transport.send.assert_any_call(
-        "ispyb_connector",
-        {
-            "ispyb_command": "insert_processed_tomogram",
-            "file_path": str(mini_seg_path),
-            "processing_type": "Feature",
-            "feature": "membrane",
         },
     )
     for feature in ["ribosome", "tric"]:
