@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field, ValidationError
 from workflows.recipe import wrap_subscribe
 
 from cryoemservices.services.common_service import CommonService
+from cryoemservices.util.display_images import generate_binned_mrc
 from cryoemservices.util.models import MockRW
 from cryoemservices.util.relion_service_options import RelionServiceOptions
 from cryoemservices.util.slurm_submission import slurm_submission_for_services
@@ -39,6 +40,7 @@ class MembrainSegParameters(BaseModel):
     cleanup_output: bool = True
     submit_to_slurm: bool = False
     copy_output: bool = False
+    display_binning: int = 4
     relion_options: RelionServiceOptions
 
 
@@ -255,6 +257,20 @@ class MembrainSeg(CommonService):
             "processing_type": "Segmented",
         }
         rw.send_to("ispyb_connector", ispyb_parameters)
+
+        # Forward binned tomogram to ispyb
+        mini_membrain_mrc = generate_binned_mrc(
+            segmented_path, membrain_seg_params.display_binning
+        )
+        rw.send_to(
+            "ispyb_connector",
+            {
+                "ispyb_command": "insert_processed_tomogram",
+                "file_path": str(mini_membrain_mrc),
+                "processing_type": "Feature",
+                "feature": "membrane",
+            },
+        )
 
         # Send on to easymode for further segmentation
         rw.send_to(
