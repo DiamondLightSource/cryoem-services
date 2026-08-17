@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Callable
@@ -151,6 +152,7 @@ def buffer(message: dict, parameters: Callable, session: Session):
                 continue
 
             logger.warning(f"Buffer entry {entry} not found for program {program_id}.")
+            time.sleep(5)
             return False
 
     # Run the actual command
