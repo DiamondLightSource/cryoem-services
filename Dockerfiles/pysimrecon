@@ -16,13 +16,13 @@ RUN \
     dnf clean all && \
     echo "Installing MiniForge3..." && \
     if [ -f "/mnt/cryoemservices/installers/${MINIFORGE_INSTALLER}" ]; then \
-        cp "/mnt/cryoemservices/installers/${MINIFORGE_INSTALLER}" "/tmp/${MINIFORGE_INSTALLER}"; \
+        bash "/mnt/cryoemservices/installers/${MINIFORGE_INSTALLER}" -b -p conda; \
     else \
         curl -L \
             -o "/tmp/${MINIFORGE_INSTALLER}" \
             "https://github.com/conda-forge/miniforge/releases/latest/download/${MINIFORGE_INSTALLER}"; \
+        bash "/tmp/${MINIFORGE_INSTALLER}" -b -p conda; \
     fi && \
-    bash "/tmp/${MINIFORGE_INSTALLER}" -b -p conda && \
     echo "Installing PySIMRecon..." && \
     git clone https://github.com/DiamondLightSource/PySIMRecon.git /tmp/pysimrecon && \
     conda create \
