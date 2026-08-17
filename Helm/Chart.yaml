@@ -27,6 +27,7 @@ dependencies:
   - name: process_recipe
   - name: select_classes
   - name: select_particles
+  - name: sim_recon
   - name: tomo_align_aretomo
   - name: tomo_align_aretomo_slurm
   - name: tomo_align_imod

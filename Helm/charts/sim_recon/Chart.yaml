@@ -1,0 +1,4 @@
+apiVersion: v2
+name: sim_recon
+description: A Helm chart for the cryo-SIM service to run PySIMRecon with
+version: 1.4.1

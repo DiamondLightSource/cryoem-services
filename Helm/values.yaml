@@ -276,6 +276,14 @@ process_recipe:
   minReplicaCount: 1
   maxReplicaCount: 4
 
+sim_recon:
+  image: gcr.io/image/path
+  command: cryoemservices.service -s SIMRecon -c /cryoemservices/config/cryoemservices_config.yaml
+  cpuRequest: "0.75"
+  cpuLimit: "1"
+  memoryLimit: 16Gi
+  scaleOnQueueLength: false
+
 select_classes:
   replicas: 1
   image: gcr.io/image/path
