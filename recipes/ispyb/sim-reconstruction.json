@@ -12,7 +12,7 @@
       "murfey_feedback": 2
     },
     "queue": "cluster.submission",
-    "service": "PySIMRecon"
+    "service": "SIMRecon"
   },
   "2": {
     "parameters": {

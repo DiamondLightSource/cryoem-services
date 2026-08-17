@@ -10,9 +10,9 @@ from workflows.transport.offline_transport import OfflineTransport
 
 from cryoemservices.services.sim_recon import (
     PySIMReconParameters,
-    PySIMReconService,
     SIMOTFParameters,
     SIMReconParameters,
+    SIMReconService,
 )
 from cryoemservices.util.models import MockRW
 
@@ -89,7 +89,7 @@ def test_align_images_service(
     assert params.sim_recon_params.model_dump() == SIMReconParameters().model_dump()
 
     # Set up and run the service
-    service = PySIMReconService(environment={"queue": ""}, transport=offline_transport)
+    service = SIMReconService(environment={"queue": ""}, transport=offline_transport)
     service.log = MagicMock()  # Mock the logger to evaluate calls
     service.initializing()
     if use_recwrap:

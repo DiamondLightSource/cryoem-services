@@ -91,7 +91,7 @@ known_services = {
     "MurfeyDBConnector": ISPyBParameters,
     "NodeCreator": NodeCreatorParameters,
     "PostProcess": PostProcessParameters,
-    "PySIMRecon": PySIMReconParameters,
+    "SIMRecon": PySIMReconParameters,
     "Refine3D": RefineParameters,
     "RefineWrapper": RefineParameters,
     "SelectClasses": SelectClassesParameters,

@@ -128,7 +128,7 @@ class PySIMReconParameters(BaseModel):
         return value
 
 
-class PySIMReconService(CommonService):
+class SIMReconService(CommonService):
     """
     A service that will run PySIMRecon with the desired parameters on the incoming
     SIM data files.
