@@ -194,7 +194,10 @@ def test_tomo_align_imod(
         {
             "volume": f"{tmp_path}/recipe/Tomograms/test_stack_rec.mrc",
             "output_dir": f"{tmp_path}/recipe/Denoise",
-            "relion_options": {},
+            "relion_options": {
+                "pixel_size": 10,
+                "pixel_size_downscaled": 10,
+            },
             "copy_output": True,
         },
     )
