@@ -21,6 +21,7 @@ from cryoemservices.util.models import MockRW
 def offline_transport(mocker: MockerFixture):
     transport = OfflineTransport()
     mocker.spy(transport, "send")
+    mocker.spy(transport, "ack")
     return transport
 
 
@@ -112,3 +113,4 @@ def test_align_images_service(
         "Running PySIMRecon with the following parameters:\n"
         f"{params.model_dump(mode='json')}"
     )
+    offline_transport.ack.assert_called_once()

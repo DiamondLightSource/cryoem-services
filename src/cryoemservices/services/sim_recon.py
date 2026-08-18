@@ -191,3 +191,7 @@ class SIMReconService(CommonService):
             "Running PySIMRecon with the following parameters:\n"
             f"{params.model_dump(mode='json')}"
         )
+
+        # Ack message after completion
+        rw.transport.ack(header)
+        return
