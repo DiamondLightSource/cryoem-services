@@ -11,7 +11,7 @@
     "output": {
       "murfey_feedback": 2
     },
-    "queue": "cluster.submission",
+    "queue": "sim.reconstruction",
     "service": "SIMRecon"
   },
   "2": {
