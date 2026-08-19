@@ -128,7 +128,7 @@ class PySIMReconParameters(BaseModel):
         return value
 
 
-class PySIMReconService(CommonService):
+class SIMReconService(CommonService):
     """
     A service that will run PySIMRecon with the desired parameters on the incoming
     SIM data files.
@@ -191,3 +191,7 @@ class PySIMReconService(CommonService):
             "Running PySIMRecon with the following parameters:\n"
             f"{params.model_dump(mode='json')}"
         )
+
+        # Ack message after completion
+        rw.transport.ack(header)
+        return

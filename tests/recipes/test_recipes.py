@@ -68,8 +68,8 @@ known_services = {
     "AreTomoAlign": AreTomoParameters,
     "BFactor": BFactorParameters,
     "Class2D": Class2DParameters,
-    "Class3D": Class3DParameters,
     "Class2DWrapper": Class2DParameters,
+    "Class3D": Class3DParameters,
     "Class3DWrapper": Class3DParameters,
     "CLEM-ALIGN-AND-MERGE": AlignAndMergeParameters,
     "CLEM-PROCESS-LIFS": ProcessRawLIFsParameters,
@@ -91,11 +91,11 @@ known_services = {
     "MurfeyDBConnector": ISPyBParameters,
     "NodeCreator": NodeCreatorParameters,
     "PostProcess": PostProcessParameters,
-    "PySIMRecon": PySIMReconParameters,
     "Refine3D": RefineParameters,
     "RefineWrapper": RefineParameters,
     "SelectClasses": SelectClassesParameters,
     "SelectParticles": SelectParticlesParameters,
+    "SIMRecon": PySIMReconParameters,
 }
 
 

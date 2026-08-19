@@ -11,8 +11,8 @@
     "output": {
       "murfey_feedback": 2
     },
-    "queue": "cluster.submission",
-    "service": "PySIMRecon"
+    "queue": "sim.reconstruction",
+    "service": "SIMRecon"
   },
   "2": {
     "parameters": {
