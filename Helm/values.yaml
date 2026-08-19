@@ -295,13 +295,16 @@ select_particles:
   scaleOnQueueLength: false
 
 sim_recon:
-  replicas: 1
+  replicas: 0
   image: gcr.io/image/path
   command: cryoemservices.service -s SIMRecon -c /cryoemservices/config/cryoemservices_config.yaml
-  cpuRequest: "0.75"
-  cpuLimit: "1"
-  memoryLimit: 16Gi
-  scaleOnQueueLength: false
+  cpuRequest: "1"
+  cpuLimit: "2"
+  memoryLimit: 32Gi
+  scaleOnQueueLength: true
+  queueLengthTrigger: "4"
+  minReplicaCount: 0
+  maxReplicaCount: 2
 
 tomo_align_aretomo:
   replicas: 1
