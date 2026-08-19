@@ -35,7 +35,7 @@ class SelectClassesParameters(BaseModel):
     python_exe: str = "python"
     autoselect_min_score: float = 0
     min_particles: int = 500
-    class3d_batch_size: int = 50000
+    class3d_batch_size: int = 25000
     class3d_max_size: int | None = None
     class_uuids: str
     relion_options: RelionServiceOptions

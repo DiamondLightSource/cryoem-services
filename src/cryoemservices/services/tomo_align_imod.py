@@ -215,7 +215,7 @@ class ImodTomoAlign(CommonService):
                 "size_x": int(mrc_header.nx / tomo_params.out_bin),
                 "size_y": int(mrc_header.ny / tomo_params.out_bin),
                 "size_z": int(tomo_params.vol_z / tomo_params.out_bin),
-                "pixel_spacing": tomo_params.pixel_size,
+                "pixel_spacing": tomo_params.pixel_size * tomo_params.out_bin,
                 "z_shift": 0,
                 "file_directory": str(imod_output_path.parent),
                 "central_slice_image": imod_output_path.stem + "_thumbnail.jpeg",
@@ -301,7 +301,14 @@ class ImodTomoAlign(CommonService):
                 "volume": str(imod_output_path),
                 "output_dir": str(imod_output_path.parent.parent / "Denoise"),
                 "copy_output": tomo_params.copy_output,
-                "relion_options": {},
+                "relion_options": {
+                    "pixel_size": 10
+                    if tomo_params.pixel_size > 20
+                    else tomo_params.pixel_size,
+                    "pixel_size_downscaled": 10
+                    if tomo_params.pixel_size > 20
+                    else tomo_params.pixel_size * tomo_params.out_bin,
+                },
             },
         )
 
