@@ -13,13 +13,13 @@ import mrcfile
 import numpy as np
 import starfile
 from gemmi import cif
-from pydantic import BaseModel, Field, ValidationError
-from workflows.recipe import wrap_subscribe
-
-from cryoemservices.pipeliner_plugins.combine_star_files import (
+from pipeliner.scripts.job_scripts.combine_star_files import (
     combine_star_files,
     split_star_file,
 )
+from pydantic import BaseModel, Field, ValidationError
+from workflows.recipe import wrap_subscribe
+
 from cryoemservices.services.common_service import CommonService
 from cryoemservices.util.models import MockRW
 from cryoemservices.util.relion_service_options import RelionServiceOptions
@@ -382,7 +382,7 @@ class SelectClasses(CommonService):
                         combine_star_dir / f".done_{autoselect_params.particles_file}"
                     ).touch()
                     combine_node_creator_params["success"] = True
-                except (IndexError, KeyError):
+                except (IndexError, KeyError, ValueError):
                     combine_node_creator_params["success"] = False
             self.parse_combiner_output(combine_result.getvalue())
 
@@ -511,7 +511,7 @@ class SelectClasses(CommonService):
                     split_size=next_batch_size,
                 )
                 split_node_creator_params["success"] = True
-            except (IndexError, KeyError):
+            except (IndexError, KeyError, ValueError):
                 split_node_creator_params["success"] = False
         self.parse_combiner_output(split_result.getvalue())
 
