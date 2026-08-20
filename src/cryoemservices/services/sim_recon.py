@@ -191,7 +191,7 @@ class SIMReconService(CommonService):
 
         self.log.info(
             "Running PySIMRecon with the following parameters:\n"
-            f"{params.model_dump(mode='json')}"
+            f"{json.dumps(params.model_dump(), indent=2, default=str)}"
         )
 
         try:
@@ -231,6 +231,7 @@ class SIMReconService(CommonService):
             defaults_config = setup_dir / "defaults.cfg"
             with open(defaults_config, "w") as f:
                 f.write("\n".join(defaults_config_lines))
+            self.log.info(f"Created config file {defaults_config}")
 
             # 2. Configs for each wavelength
             # ------------------------------
@@ -272,6 +273,7 @@ class SIMReconService(CommonService):
                 with open(wavelength_config, "w") as f:
                     f.write("\n".join(wavlength_config_lines))
                 wavelength_configs.append(wavelength_config)
+                self.log.info(f"Created config file {wavelength_config}")
 
                 # Extract and add OTF file to dict
                 otf_files[wavelength_params.wavelength] = wavelength_params.otf_path
@@ -302,6 +304,8 @@ class SIMReconService(CommonService):
             master_config = setup_dir / "config.ini"
             with open(master_config, "w") as f:
                 f.write("\n".join(master_config_lines))
+            self.log.info(f"Created config file {master_config}")
+
         except Exception:
             self.log.error("Error creating PySIMRecon config files", exc_info=True)
             self._reject_message(header, transport=rw.transport, requeue=False)

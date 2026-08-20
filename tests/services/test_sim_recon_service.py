@@ -121,9 +121,9 @@ def test_sim_recon_service(
     )
 
     # Check that the main block in the function was run
-    service.log.info.assert_called_with(
+    service.log.info.assert_any_call(
         "Running PySIMRecon with the following parameters:\n"
-        f"{params.model_dump(mode='json')}"
+        f"{json.dumps(params.model_dump(), indent=2, default=str)}"
     )
     # Check that the config files were created
     setup_dir = visit_dir / "setup"
