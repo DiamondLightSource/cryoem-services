@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import Callable
+from typing import Callable, cast
 from unittest import mock
 from unittest.mock import MagicMock
 
@@ -13,6 +13,7 @@ from cryoemservices.services.sim_recon import (
     SIMOTFParameters,
     SIMReconParameters,
     SIMReconService,
+    WavelengthParameters,
 )
 from cryoemservices.util.models import MockRW
 
@@ -50,24 +51,29 @@ def test_sim_recon_service(
         "subscription": mock.sentinel,
     }
     visit_name = "cm12345-6"
-    test_file = tmp_path / "raw" / "some_dir" / "test_file"
+    visit_dir = tmp_path / visit_name
+    test_file = visit_dir / "raw" / "some_dir" / "test_file"
     output_dir = tmp_path / "processed" / "some_dir"
     blue_params = {
         "wavelength": 452,
         "ls": 0.330,
         "beaddiam": 0.220,
+        "otf_path": str(visit_dir / "setup" / "OTFs" / "452.tiff"),
     }
     green_params = {
         "wavelength": 525,
         "ls": 0.394,
+        "otf_path": str(visit_dir / "setup" / "OTFs" / "525.tiff"),
     }
     red_params = {
         "wavelength": 605,
         "ls": 0.451,
+        "otf_path": str(visit_dir / "setup" / "OTFs" / "605.tiff"),
     }
     far_red_params = {
         "wavelength": 655,
         "ls": 0.521,
+        "otf_path": str(visit_dir / "setup" / "OTFs" / "655.tiff"),
     }
 
     pysimrecon_test_message = {
@@ -85,10 +91,17 @@ def test_sim_recon_service(
     assert params.visit_name == visit_name
     assert params.file == test_file
     assert params.output_dir == output_dir
-    assert params.blue_params.model_dump(exclude_none=True) == blue_params
-    assert params.green_params.model_dump(exclude_none=True) == green_params
-    assert params.red_params.model_dump(exclude_none=True) == red_params
-    assert params.far_red_params.model_dump(exclude_none=True) == far_red_params
+    for field_name, wavelength_dict in (
+        ("blue_params", blue_params),
+        ("green_params", green_params),
+        ("red_params", red_params),
+        ("far_red_params", far_red_params),
+    ):
+        wavelength_params = cast(WavelengthParameters, getattr(params, field_name))
+        assert wavelength_params.wavelength == wavelength_dict["wavelength"]
+        assert wavelength_params.ls == wavelength_dict["ls"]
+        assert wavelength_params.beaddiam == wavelength_dict.get("beaddiam")  # Optional
+        assert wavelength_params.otf_path == Path(str(wavelength_dict["otf_path"]))
     assert params.sim_otf_params.model_dump() == SIMOTFParameters().model_dump()
     assert params.sim_recon_params.model_dump() == SIMReconParameters().model_dump()
 
@@ -99,21 +112,29 @@ def test_sim_recon_service(
     if use_recwrap:
         recwrap = MockRW(offline_transport)
         recwrap.recipe_step = {"parameters": pysimrecon_test_message}
-        service.call_pysimrecon(
-            recwrap,
-            header=header,
-            message=None,
-        )
     else:
-        service.call_pysimrecon(
-            None,
-            header=header,
-            message=pysimrecon_test_message,
-        )
+        recwrap = None
+    service.call_pysimrecon(
+        recwrap,
+        header=header,
+        message=pysimrecon_test_message,
+    )
 
     # Check that the main block in the function was run
     service.log.info.assert_called_with(
         "Running PySIMRecon with the following parameters:\n"
         f"{params.model_dump(mode='json')}"
     )
+    # Check that the config files were created
+    setup_dir = visit_dir / "setup"
+    for file_stem in (
+        "452.cfg",
+        "525.cfg",
+        "605.cfg",
+        "655.cfg",
+        "defaults.cfg",
+        "config.ini",
+    ):
+        assert (setup_dir / file_stem).exists() and (setup_dir / file_stem).is_file()
+    # Check that the message was acked
     offline_transport.ack.assert_called_once()
