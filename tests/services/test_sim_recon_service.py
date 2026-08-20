@@ -36,7 +36,7 @@ def offline_transport(mocker: MockerFixture):
         (False, json.dumps),
     ),
 )
-def test_align_images_service(
+def test_sim_recon_service(
     tmp_path: Path,
     offline_transport: OfflineTransport,
     test_params: tuple[bool, Callable | None],
@@ -49,6 +49,7 @@ def test_align_images_service(
         "message-id": mock.sentinel,
         "subscription": mock.sentinel,
     }
+    visit_name = "cm12345-6"
     test_file = tmp_path / "raw" / "some_dir" / "test_file"
     output_dir = tmp_path / "processed" / "some_dir"
     blue_params = {
@@ -70,6 +71,7 @@ def test_align_images_service(
     }
 
     pysimrecon_test_message = {
+        "visit_name": visit_name,
         "file": str(test_file),
         "output_dir": str(output_dir),
         "blue_params": func(blue_params) if func else blue_params,
@@ -80,6 +82,7 @@ def test_align_images_service(
     params = PySIMReconParameters(**pysimrecon_test_message)
 
     # Check that the values were parsed correctly
+    assert params.visit_name == visit_name
     assert params.file == test_file
     assert params.output_dir == output_dir
     assert params.blue_params.model_dump(exclude_none=True) == blue_params

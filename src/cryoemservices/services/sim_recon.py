@@ -99,6 +99,7 @@ class WavelengthParameters(BaseModel):
 
 
 class PySIMReconParameters(BaseModel):
+    visit_name: str
     file: Path
     output_dir: Path
     blue_params: WavelengthParameters = WavelengthParameters(wavelength=452)

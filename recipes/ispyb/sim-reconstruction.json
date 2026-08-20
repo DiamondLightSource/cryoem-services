@@ -1,6 +1,7 @@
 {
   "1": {
     "parameters": {
+      "visit_name": "{visit_name}",
       "file": "{file}",
       "output_dir": "{output_dir}",
       "blue_params": "{blue_params}",
