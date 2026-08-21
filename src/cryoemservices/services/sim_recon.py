@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import ast
 import json
+import uuid
 from pathlib import Path
+from typing import cast
 
 from pydantic import BaseModel, ValidationError, field_validator
 from workflows.recipe import RecipeWrapper, wrap_subscribe
@@ -99,6 +101,7 @@ class WavelengthParameters(BaseModel):
 
 
 class PySIMReconParameters(BaseModel):
+    visit_name: str
     file: Path
     output_dir: Path
     blue_params: WavelengthParameters = WavelengthParameters(wavelength=452)
@@ -179,7 +182,7 @@ class SIMReconService(CommonService):
             else:
                 params = PySIMReconParameters(**rw.recipe_step.get("parameters", {}))
         except (ValidationError, TypeError) as e:
-            self.log.warning(
+            self.log.error(
                 f"PySIMReconParameters validation failed for message: {message} "
                 f"and recipe parameters: {rw.recipe_step.get('parameters', {})} "
                 f"with exception: {e}"
@@ -189,8 +192,130 @@ class SIMReconService(CommonService):
 
         self.log.info(
             "Running PySIMRecon with the following parameters:\n"
-            f"{params.model_dump(mode='json')}"
+            f"{json.dumps(params.model_dump(), indent=2, default=str)}"
         )
+
+        try:
+            # ------------------------------------------------
+            # Create the config files needed to run PySIMRecon
+            # ------------------------------------------------
+
+            # Find the visit directory and create a setup directory
+            visit_idx = params.file.parts.index(params.visit_name)
+            visit_dir = Path(*params.file.parts[: visit_idx + 1])
+            setup_dir = visit_dir / "setup"
+            setup_dir.mkdir(parents=True, exist_ok=True)
+
+            # Generate a UUID to append to all config files for this run
+            uid = uuid.uuid4()
+
+            # 1. 'defaults.cfg'
+            # -----------------
+            defaults_config_lines = []
+            # Construct the OTF and reconstruction sections of the config
+            for section_name, params_name in (
+                ("[otf config]", "sim_otf_params"),
+                ("[recon config]", "sim_recon_params"),
+            ):
+                defaults_config_lines.append(section_name)
+                # Load relevant model from PySIMReconParameters
+                params_section = cast(
+                    SIMOTFParameters | SIMReconParameters,
+                    getattr(params, params_name),
+                )
+                # Load and append values for each field
+                for name in type(params_section).model_fields.keys():
+                    # Serialise any tuple values encountered
+                    if isinstance((value := getattr(params_section, name)), tuple):
+                        value = ",".join([str(i) for i in value])
+                    defaults_config_lines.append(f"{name}={value}")
+                # Add a newline between sections
+                defaults_config_lines.append("")
+            # Save the output to the setup directory
+            defaults_config = setup_dir / f"defaults-{uid}.cfg"
+            with open(defaults_config, "w") as f:
+                f.write("\n".join(defaults_config_lines))
+            self.log.info(f"Created config file {defaults_config}")
+
+            # 2. Configs for each wavelength
+            # ------------------------------
+            wavelength_configs: list[Path] = []
+            otf_files: dict[int, Path] = {}
+            for params_name in (
+                "blue_params",
+                "green_params",
+                "red_params",
+                "far_red_params",
+            ):
+                # Load the relevant model from PySIMReconParameters
+                wavelength_params = cast(
+                    WavelengthParameters, getattr(params, params_name)
+                )
+                wavlength_config_lines = []
+
+                # 'ls' must be provided in order to continue
+                if not wavelength_params.ls:
+                    raise ValueError("No value for 'ls' was provided")
+                # OTF file must also be present
+                if not wavelength_params.otf_path:
+                    raise ValueError("No OTF file path was provided")
+
+                # Add sections and their corresponding values
+                wavlength_config_lines.append("[otf config]")
+                wavlength_config_lines.append(f"ls={wavelength_params.ls}")
+                if wavelength_params.beaddiam:
+                    wavlength_config_lines.append(
+                        f"beaddiam={wavelength_params.beaddiam}"
+                    )
+                wavlength_config_lines.append("")
+                wavlength_config_lines.append("[recon config]")
+                wavlength_config_lines.append(f"ls={wavelength_params.ls}")
+                wavlength_config_lines.append("")
+
+                # Save the output to the setup directory and append file to list
+                wavelength_config = (
+                    setup_dir / f"{wavelength_params.wavelength}-{uid}.cfg"
+                )
+                with open(wavelength_config, "w") as f:
+                    f.write("\n".join(wavlength_config_lines))
+                wavelength_configs.append(wavelength_config)
+                self.log.info(f"Created config file {wavelength_config}")
+
+                # Extract and add OTF file to dict
+                otf_files[wavelength_params.wavelength] = wavelength_params.otf_path
+
+            # 3. 'config.ini'
+            # ---------------
+            master_config_lines = []
+
+            # Populate the 'configs' section
+            master_config_lines.append("[configs]")
+            master_config_lines.append(f"directory={str(setup_dir)}")
+            master_config_lines.append(f"defaults={str(defaults_config.name)}")
+            # Iteratively add files for wavelengths
+            for file in wavelength_configs:
+                master_config_lines.append(f"{file.stem}={file.name}")
+
+            # Populate the 'otfs' section
+            master_config_lines.append("[otfs]")
+            otf_parent: Path | None = None
+            # Iteratively add files for wavelengths
+            for wavelength, otf_file in otf_files.items():
+                if not otf_parent:
+                    otf_parent = otf_file.parent
+                    master_config_lines.append(f"directory={str(otf_parent)}")
+                master_config_lines.append(f"{wavelength}={str(otf_file.name)}")
+
+            # Save the output to the setup directory
+            master_config = setup_dir / f"config-{uid}.ini"
+            with open(master_config, "w") as f:
+                f.write("\n".join(master_config_lines))
+            self.log.info(f"Created config file {master_config}")
+
+        except Exception:
+            self.log.error("Error creating PySIMRecon config files", exc_info=True)
+            self._reject_message(header, transport=rw.transport, requeue=False)
+            return
 
         # Ack message after completion
         rw.transport.ack(header)
