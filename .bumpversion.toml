@@ -43,7 +43,6 @@ filename = "Helm/charts/cluster_submission/Chart.yaml"
 search = 'version: {current_version}'
 replace = 'version: {new_version}'
 
-
 [[tool.bumpversion.files]]
 filename = "Helm/charts/correlative_align_images/Chart.yaml"
 search = 'version: {current_version}'

@@ -30,6 +30,16 @@ repos:
         name: Formatting the pyproject.toml file
         additional_dependencies: ["tox>=4.9"]
 
+  # Regenerate the .bumpversion.toml file
+  - repo: local
+    hooks:
+      - id: update-bumpversion-toml
+        name: Updating the .bumpversion.toml file
+        entry: python scripts/update_bumpversion_toml.py
+        language: system
+        always_run: true
+        pass_filenames: false
+
   # Format and lint using Ruff
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.14.0
