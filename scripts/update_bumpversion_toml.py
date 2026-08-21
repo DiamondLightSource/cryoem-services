@@ -4,6 +4,8 @@ Script to update the '.bumpversion.toml' file whenever it is run as part of the 
 
 from pathlib import Path
 
+import cryoemservices
+
 cwd = Path(__file__).parent.parent  # Start with 'cryoem-services' as the working dir
 
 
@@ -15,7 +17,7 @@ helm_charts = [
 # Construct lines to write to file
 bumpversion_toml_lines = [
     "[tool.bumpversion]",
-    'current_version = "1.4.1"',
+    f'current_version = "{cryoemservices.__version__}"',
     "commit = true",
     "tag = true",
     "",
