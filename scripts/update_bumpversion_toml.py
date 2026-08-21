@@ -2,12 +2,25 @@
 Script to update the '.bumpversion.toml' file whenever it is run as part of the pre-commit checks.
 """
 
+import ast
 from pathlib import Path
-
-import cryoemservices
 
 cwd = Path(__file__).parent.parent  # Start with 'cryoem-services' as the working dir
 
+
+# Get the version without needing to install cryoemservices
+def get_version(path: Path):
+    tree = ast.parse(path.read_text())
+
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            for target in node.targets:
+                if isinstance(target, ast.Name) and target.id == "__version__":
+                    return ast.literal_eval(node.value)
+    raise ValueError(f"Could not find '__version__' in {path}")
+
+
+version = get_version(cwd / "src/cryoemservices/__init__.py")
 
 # Find Helm charts
 helm_charts = [
@@ -17,7 +30,7 @@ helm_charts = [
 # Construct lines to write to file
 bumpversion_toml_lines = [
     "[tool.bumpversion]",
-    f'current_version = "{cryoemservices.__version__}"',
+    f'current_version = "{version}"',
     "commit = true",
     "tag = true",
     "",
