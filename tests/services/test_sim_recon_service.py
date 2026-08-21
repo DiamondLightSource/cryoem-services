@@ -1,4 +1,5 @@
 import json
+import uuid
 from pathlib import Path
 from typing import Callable, cast
 from unittest import mock
@@ -38,6 +39,7 @@ def offline_transport(mocker: MockerFixture):
     ),
 )
 def test_sim_recon_service(
+    mocker: MockerFixture,
     tmp_path: Path,
     offline_transport: OfflineTransport,
     test_params: tuple[bool, Callable | None],
@@ -105,6 +107,10 @@ def test_sim_recon_service(
     assert params.sim_otf_params.model_dump() == SIMOTFParameters().model_dump()
     assert params.sim_recon_params.model_dump() == SIMReconParameters().model_dump()
 
+    # Pre-emptively generate UUIDs for the config files to be created
+    uid = uuid.uuid4()
+    mocker.patch("cryoemservices.services.sim_recon.uuid.uuid4", return_value=uid)
+
     # Set up and run the service
     service = SIMReconService(environment={"queue": ""}, transport=offline_transport)
     service.log = MagicMock()  # Mock the logger to evaluate calls
@@ -128,13 +134,15 @@ def test_sim_recon_service(
     # Check that the config files were created
     setup_dir = visit_dir / "setup"
     for file_stem in (
+        "defaults.cfg",
         "452.cfg",
         "525.cfg",
         "605.cfg",
         "655.cfg",
-        "defaults.cfg",
         "config.ini",
     ):
-        assert (setup_dir / file_stem).exists() and (setup_dir / file_stem).is_file()
+        stem, suffix = file_stem.split(".")
+        config_file = setup_dir / f"{stem}-{uid}.{suffix}"
+        assert config_file.exists() and config_file.is_file()
     # Check that the message was acked
     offline_transport.ack.assert_called_once()
