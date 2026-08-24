@@ -191,7 +191,7 @@ class SIMReconService(CommonService):
             return
 
         self.log.info(
-            "Running PySIMRecon with the following parameters:\n"
+            "Received the following parameters:\n"
             f"{json.dumps(params.model_dump(), indent=2, default=str)}"
         )
 
@@ -239,7 +239,7 @@ class SIMReconService(CommonService):
 
             # 2. Configs for each wavelength
             # ------------------------------
-            wavelength_configs: list[Path] = []
+            wavelength_configs: list[tuple[int, Path]] = []
             otf_files: dict[int, Path] = {}
             for params_name in (
                 "blue_params",
@@ -278,7 +278,9 @@ class SIMReconService(CommonService):
                 )
                 with open(wavelength_config, "w") as f:
                     f.write("\n".join(wavlength_config_lines))
-                wavelength_configs.append(wavelength_config)
+                wavelength_configs.append(
+                    (wavelength_params.wavelength, wavelength_config)
+                )
                 self.log.info(f"Created config file {wavelength_config}")
 
                 # Extract and add OTF file to dict
@@ -293,8 +295,8 @@ class SIMReconService(CommonService):
             master_config_lines.append(f"directory={str(setup_dir)}")
             master_config_lines.append(f"defaults={str(defaults_config.name)}")
             # Iteratively add files for wavelengths
-            for file in wavelength_configs:
-                master_config_lines.append(f"{file.stem}={file.name}")
+            for wavelength, file in wavelength_configs:
+                master_config_lines.append(f"{wavelength}={file.name}")
 
             # Populate the 'otfs' section
             master_config_lines.append("[otfs]")
@@ -318,5 +320,6 @@ class SIMReconService(CommonService):
             return
 
         # Ack message after completion
+        self.log.info("PySIMRecon job completed")
         rw.transport.ack(header)
         return
