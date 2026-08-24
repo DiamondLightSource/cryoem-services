@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 import json
+import subprocess
 import uuid
 from pathlib import Path
 from typing import cast
@@ -316,6 +317,44 @@ class SIMReconService(CommonService):
 
         except Exception:
             self.log.error("Error creating PySIMRecon config files", exc_info=True)
+            self._reject_message(header, transport=rw.transport, requeue=False)
+            return
+
+        try:
+            # Ensure the output directory exists
+            params.output_dir.mkdir(parents=True, exist_ok=True)
+
+            # Construct and run the 'sim-recon' bash command
+            cmd = [
+                "sim-recon",
+                "-d",
+                f"{params.file}",
+                "-c",
+                f"{master_config}",
+                "-o",
+                f"{params.output_dir}",
+            ]
+            self.log.info(f"Running PySIMRecon with the following commands:\n{cmd}")
+            process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,  # Merge the streams
+                text=True,
+                bufsize=1,
+            )
+            # Stream
+            if process.stdout:
+                for line in process.stdout:
+                    self.log.info(line.rstrip())
+            return_code = process.wait()
+            if return_code:
+                self.log.error(
+                    f"PySIMRecon subprocess failed with error code {return_code}"
+                )
+                self._reject_message(header, transport=rw.transport, requeue=False)
+                return
+        except Exception:
+            self.log.error("Error running PySIMRecon subprocess", exc_info=True)
             self._reject_message(header, transport=rw.transport, requeue=False)
             return
 
