@@ -204,11 +204,10 @@ class SIMReconService(CommonService):
             # Find the visit directory and create a setup directory
             visit_idx = params.file.parts.index(params.visit_name)
             visit_dir = Path(*params.file.parts[: visit_idx + 1])
-            setup_dir = visit_dir / "setup"
-            setup_dir.mkdir(parents=True, exist_ok=True)
 
-            # Generate a UUID to append to all config files for this run
-            uid = uuid.uuid4()
+            # Create a directory for all the config files with a UUID appended
+            config_dir = visit_dir / "setup" / f"configs-{uuid.uuid4()}"
+            config_dir.mkdir(parents=True, exist_ok=True)
 
             # 1. 'defaults.cfg'
             # -----------------
@@ -233,7 +232,7 @@ class SIMReconService(CommonService):
                 # Add a newline between sections
                 defaults_config_lines.append("")
             # Save the output to the setup directory
-            defaults_config = setup_dir / f"defaults-{uid}.cfg"
+            defaults_config = config_dir / "defaults.cfg"
             with open(defaults_config, "w") as f:
                 f.write("\n".join(defaults_config_lines))
             self.log.info(f"Created config file {defaults_config}")
@@ -274,9 +273,7 @@ class SIMReconService(CommonService):
                 wavlength_config_lines.append("")
 
                 # Save the output to the setup directory and append file to list
-                wavelength_config = (
-                    setup_dir / f"{wavelength_params.wavelength}-{uid}.cfg"
-                )
+                wavelength_config = config_dir / f"{wavelength_params.wavelength}.cfg"
                 with open(wavelength_config, "w") as f:
                     f.write("\n".join(wavlength_config_lines))
                 wavelength_configs.append(
@@ -293,7 +290,7 @@ class SIMReconService(CommonService):
 
             # Populate the 'configs' section
             master_config_lines.append("[configs]")
-            master_config_lines.append(f"directory={str(setup_dir)}")
+            master_config_lines.append(f"directory={str(config_dir)}")
             master_config_lines.append(f"defaults={str(defaults_config.name)}")
             # Iteratively add files for wavelengths
             for wavelength, file in wavelength_configs:
@@ -310,7 +307,7 @@ class SIMReconService(CommonService):
                 master_config_lines.append(f"{wavelength}={str(otf_file.name)}")
 
             # Save the output to the setup directory
-            master_config = setup_dir / f"config-{uid}.ini"
+            master_config = config_dir / "config.ini"
             with open(master_config, "w") as f:
                 f.write("\n".join(master_config_lines))
             self.log.info(f"Created config file {master_config}")
