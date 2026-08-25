@@ -298,8 +298,8 @@ sim_recon:
   replicas: 0
   image: gcr.io/image/path
   command: cryoemservices.service -s SIMRecon -c /cryoemservices/config/cryoemservices_config.yaml
-  cpuRequest: "8"
-  cpuLimit: "8"
+  cpuRequest: "1"
+  cpuLimit: "1"
   memoryLimit: 32Gi
   scaleOnQueueLength: true
   queueLengthTrigger: "4"
