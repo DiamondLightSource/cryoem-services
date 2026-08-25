@@ -1,4 +1,5 @@
 import json
+import subprocess
 import uuid
 from pathlib import Path
 from typing import Callable, cast
@@ -107,9 +108,21 @@ def test_sim_recon_service(
     assert params.sim_otf_params.model_dump() == SIMOTFParameters().model_dump()
     assert params.sim_recon_params.model_dump() == SIMReconParameters().model_dump()
 
-    # Pre-emptively generate UUIDs for the config files to be created
+    # Mock the UUID function and its output
     uid = uuid.uuid4()
     mocker.patch("cryoemservices.services.sim_recon.uuid.uuid4", return_value=uid)
+
+    # Mock the subprocess call and its outputs
+    mock_process = MagicMock()
+    mock_process.stdout = [
+        "line 1\n",
+        "line 2\n",
+    ]
+    mock_process.wait.return_value = 0
+    mock_popen = mocker.patch(
+        "cryoemservices.services.sim_recon.subprocess.Popen",
+        return_value=mock_process,
+    )
 
     # Set up and run the service
     service = SIMReconService(environment={"queue": ""}, transport=offline_transport)
@@ -126,14 +139,15 @@ def test_sim_recon_service(
         message=pysimrecon_test_message,
     )
 
-    # Check that the main block in the function was run
+    # Log on validation success
     service.log.info.assert_any_call(
-        "Running PySIMRecon with the following parameters:\n"
+        "Received the following parameters:\n"
         f"{json.dumps(params.model_dump(), indent=2, default=str)}"
     )
+
     # Check that the config files were created
-    setup_dir = visit_dir / "setup"
-    for file_stem in (
+    config_dir = visit_dir / "setup" / f"configs-{uid}"
+    for file_name in (
         "defaults.cfg",
         "452.cfg",
         "525.cfg",
@@ -141,8 +155,31 @@ def test_sim_recon_service(
         "655.cfg",
         "config.ini",
     ):
-        stem, suffix = file_stem.split(".")
-        config_file = setup_dir / f"{stem}-{uid}.{suffix}"
+        config_file = config_dir / file_name
         assert config_file.exists() and config_file.is_file()
+
+    # Check that the subprocess was called with the correct parameters
+    cmd = [
+        "sim-recon",
+        "-d",
+        f"{params.file}",
+        "-c",
+        f"{config_dir / 'config.ini'}",
+        "-o",
+        f"{params.output_dir}",
+    ]
+    service.log.info(f"Running PySIMRecon with the following commands:\n{cmd}")
+    mock_popen.assert_called_once_with(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1,
+    )
+    mock_process.wait.assert_called_once()
+    for line in mock_process.stdout:
+        service.log.info.assert_any_call(line.rstrip())
+
     # Check that the message was acked
+    service.log.info("PySIMRecon job completed")
     offline_transport.ack.assert_called_once()
