@@ -5,7 +5,7 @@ import json
 import subprocess
 import uuid
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 from pydantic import BaseModel, ValidationError, field_validator
 from workflows.recipe import RecipeWrapper, wrap_subscribe
@@ -320,6 +320,7 @@ class SIMReconService(CommonService):
         try:
             # Ensure the output directory exists
             params.output_dir.mkdir(parents=True, exist_ok=True)
+            output_file: Path | None = None  # Placeholder variable
 
             # Construct and run the 'sim-recon' bash command
             cmd = [
@@ -339,10 +340,23 @@ class SIMReconService(CommonService):
                 text=True,
                 bufsize=1,
             )
-            # Stream
+            # Parse the stdout line-by-line
             if process.stdout:
                 for line in process.stdout:
-                    self.log.info(line.rstrip())
+                    line = line.rstrip()
+                    self.log.info(line)
+
+                    # Extract output file name from logs
+                    if line.startswith(
+                        "INFO:sim_recon.recon:Reconstructed data saved to:"
+                    ):
+                        output_file = Path(
+                            line.replace(
+                                "INFO:sim_recon.recon:Reconstructed data saved to:",
+                                "",
+                            ).strip()
+                        )
+            # Wait for the process to complete and check return code
             return_code = process.wait()
             if return_code:
                 self.log.error(
@@ -350,10 +364,32 @@ class SIMReconService(CommonService):
                 )
                 self._reject_message(header, transport=rw.transport, requeue=False)
                 return
+            # Mark as failure and reject message if no output file was found
+            if not output_file or not (output_file.is_file() and output_file.exists()):
+                self.log.error(
+                    f"PySIMRecon failed to generate output file for {params.file}"
+                )
+                self._reject_message(header, transport=rw.transport, requeue=False)
+                return
         except Exception:
             self.log.error("Error running PySIMRecon subprocess", exc_info=True)
             self._reject_message(header, transport=rw.transport, requeue=False)
             return
+
+        # Construct message to send back to Murfey
+        result: dict[str, Any] = {
+            "output_file": str(output_file),
+            # More fields can be added as workflow develops
+        }
+        murfey_params = {
+            "register": "sim.register_reconstruction_result",
+            "result": result,
+        }
+        self.log.info(
+            "Will submit the following message back to Murfey:\n"
+            f"{json.dumps(murfey_params, indent=2, default=str)}"
+        )
+        # rw.send_to("murfey_feedback", murfey_params)  # Will be enabled in the future
 
         # Ack message after completion
         self.log.info("PySIMRecon job completed")
