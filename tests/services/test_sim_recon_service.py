@@ -112,12 +112,25 @@ def test_sim_recon_service(
     uid = uuid.uuid4()
     mocker.patch("cryoemservices.services.sim_recon.uuid.uuid4", return_value=uid)
 
+    # Set the config directory
+    config_dir = visit_dir / "setup" / f"configs-{uid}"
+
     # Mock the subprocess call and its outputs
-    mock_process = MagicMock()
-    mock_process.stdout = [
-        "line 1\n",
-        "line 2\n",
+    output_file = output_dir / f"{test_file.stem}_recon.dv"
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+    output_file.touch(exist_ok=True)
+    stdout_lines = [
+        f"INFO:sim_recon.main:Loading configurations from {config_dir / 'config.ini'}...\n",
+        "INFO:sim_recon.files.config:Running with OTFs:\n",
+        "452: dummy.tiff\n",
+        "525: dummy.tiff\n",
+        "605: dummy.tiff\n",
+        "655: dummy.tiff\n",
+        f"INFO:sim_recon.main:Starting reconstruction of {params.file}\n",
+        f"INFO:sim_recon.recon:Reconstructed data saved to: {output_file}",
     ]
+    mock_process = MagicMock()
+    mock_process.stdout = stdout_lines
     mock_process.wait.return_value = 0
     mock_popen = mocker.patch(
         "cryoemservices.services.sim_recon.subprocess.Popen",
@@ -146,7 +159,6 @@ def test_sim_recon_service(
     )
 
     # Check that the config files were created
-    config_dir = visit_dir / "setup" / f"configs-{uid}"
     for file_name in (
         "defaults.cfg",
         "452.cfg",
@@ -177,8 +189,19 @@ def test_sim_recon_service(
         bufsize=1,
     )
     mock_process.wait.assert_called_once()
-    for line in mock_process.stdout:
-        service.log.info.assert_any_call(line.rstrip())
+
+    # Check that the correct message for Murfey was constructed
+    result = {
+        "output_file": str(output_file),
+    }
+    murfey_params = {
+        "register": "sim.register_reconstruction_result",
+        "result": result,
+    }
+    service.log.info.assert_any_call(
+        "Will submit the following message back to Murfey:\n"
+        f"{json.dumps(murfey_params, indent=2, default=str)}"
+    )
 
     # Check that the message was acked
     service.log.info("PySIMRecon job completed")
