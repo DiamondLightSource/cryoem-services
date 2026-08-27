@@ -30,23 +30,29 @@ def offline_transport(mocker: MockerFixture):
 
 @pytest.mark.parametrize(
     "test_params",
-    (  # Use recwrap | Stringify
-        (True, None),
-        (True, str),
-        (True, json.dumps),
-        (False, None),
-        (False, str),
-        (False, json.dumps),
+    (  # Use recwrap | Stringify | Output type
+        (True, None, "dv"),
+        (True, None, "tiff"),
+        (True, str, "dv"),
+        (True, str, "tiff"),
+        (True, json.dumps, "dv"),
+        (True, json.dumps, "tiff"),
+        (False, None, "dv"),
+        (False, None, "tiff"),
+        (False, str, "dv"),
+        (False, str, "tiff"),
+        (False, json.dumps, "dv"),
+        (False, json.dumps, "tiff"),
     ),
 )
 def test_sim_recon_service(
     mocker: MockerFixture,
     tmp_path: Path,
     offline_transport: OfflineTransport,
-    test_params: tuple[bool, Callable | None],
+    test_params: tuple[bool, Callable | None, str],
 ):
     # Unpack test params
-    use_recwrap, func = test_params
+    use_recwrap, func, output_type = test_params
 
     # Set up the message parameters
     header = {
@@ -83,6 +89,7 @@ def test_sim_recon_service(
         "visit_name": visit_name,
         "file": str(test_file),
         "output_dir": str(output_dir),
+        "output_type": output_type,
         "blue_params": func(blue_params) if func else blue_params,
         "green_params": func(green_params) if func else green_params,
         "red_params": func(red_params) if func else red_params,
@@ -116,7 +123,10 @@ def test_sim_recon_service(
     config_dir = visit_dir / "setup" / f"configs-{uid}"
 
     # Mock the subprocess call and its outputs
-    output_file = output_dir / f"{test_file.stem}_recon.dv"
+    file_suffix = output_type
+    if file_suffix == "tiff":
+        file_suffix = f"ome.{file_suffix}"
+    output_file = output_dir / f"{test_file.stem}_recon.{file_suffix}"
     output_file.parent.mkdir(parents=True, exist_ok=True)
     output_file.touch(exist_ok=True)
     stdout_lines = [
@@ -179,6 +189,8 @@ def test_sim_recon_service(
         f"{config_dir / 'config.ini'}",
         "-o",
         f"{params.output_dir}",
+        "--type",
+        f"{params.output_type}",
     ]
     service.log.info(f"Running PySIMRecon with the following commands:\n{cmd}")
     mock_popen.assert_called_once_with(

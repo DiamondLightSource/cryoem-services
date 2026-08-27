@@ -5,7 +5,7 @@ import json
 import subprocess
 import uuid
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, Literal, cast
 
 from pydantic import BaseModel, ValidationError, field_validator
 from workflows.recipe import RecipeWrapper, wrap_subscribe
@@ -105,6 +105,7 @@ class PySIMReconParameters(BaseModel):
     visit_name: str
     file: Path
     output_dir: Path
+    output_type: Literal["dv", "tiff"] = "dv"
     blue_params: WavelengthParameters = WavelengthParameters(wavelength=452)
     green_params: WavelengthParameters = WavelengthParameters(wavelength=525)
     red_params: WavelengthParameters = WavelengthParameters(wavelength=605)
@@ -331,6 +332,8 @@ class SIMReconService(CommonService):
                 f"{master_config}",
                 "-o",
                 f"{params.output_dir}",
+                "--type",
+                f"{params.output_type}",
             ]
             self.log.info(f"Running PySIMRecon with the following commands:\n{cmd}")
             process = subprocess.Popen(
