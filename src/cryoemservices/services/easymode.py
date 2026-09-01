@@ -119,9 +119,6 @@ class Easymode(CommonService):
             )
             if not Path(model_path).is_file() or not model_metadata:
                 self.log.error(f"Cannot read model path for {feature}")
-                self.log.error(
-                    f"{model_path}, {Path(model_path).is_file()}, {model_metadata} {model_info['metadata_path']}"
-                )
                 self._reject_message(header, transport=rw.transport)
                 return
             model = load_model(model_path)
