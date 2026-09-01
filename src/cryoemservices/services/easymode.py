@@ -6,7 +6,7 @@ import mrcfile
 import numpy as np
 import tensorflow as tf
 from easymode.core import config as easymode_config
-from easymode.core.distribution import get_model, load_model
+from easymode.core.distribution import get_model_info, load_model, read_local_metadata
 from pydantic import BaseModel, Field, ValidationError
 from workflows.recipe import wrap_subscribe
 
@@ -106,7 +106,21 @@ class Easymode(CommonService):
             easymode_params.feature_list.append(easymode_params.mask)
         for feature in easymode_params.feature_list:
             self.log.info(f"Loading model for {feature}.")
-            model_path, model_metadata = get_model(feature)
+            model_info = get_model_info(feature, _2d=False)
+            model_path = (
+                f"{self._environment['extra_config']}/{model_info['weights_filename']}"
+                if self._environment["extra_config"]
+                else model_info["weights_path"]
+            )
+            model_metadata = read_local_metadata(
+                f"{self._environment['extra_config']}/{model_info['metadata_filename']}"
+                if self._environment["extra_config"]
+                else model_info["metadata_path"]
+            )
+            if not Path(model_path).is_file() or not model_metadata:
+                self.log.error(f"Cannot read model path for {feature}")
+                self._reject_message(header, transport=rw.transport)
+                return
             model = load_model(model_path)
             self.log.info("Model loaded")
 

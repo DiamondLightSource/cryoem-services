@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from unittest import mock
 
@@ -19,11 +20,9 @@ def offline_transport(mocker):
 
 @mock.patch("cryoemservices.services.easymode.segment_tomogram")
 @mock.patch("cryoemservices.services.easymode.load_model")
-@mock.patch("cryoemservices.services.easymode.get_model")
 @mock.patch("cryoemservices.services.easymode.easymode_config")
 def test_easymode_service_with_mask(
     mock_easymode_config,
-    mock_get_model,
     mock_load_model,
     mock_segment,
     offline_transport,
@@ -32,11 +31,6 @@ def test_easymode_service_with_mask(
     """
     Send a test message to easymode in the case with a mask
     """
-    mock_get_model.side_effect = [
-        ("/path/to/ribosome", {"apix": 10}),
-        ("/path/to/tric", {"apix": 10}),
-        ("/path/to/void", {"apix": 10}),
-    ]
     mock_load_model.side_effect = ["ribosome_model", "tric_model", "void_model"]
     mock_segment.return_value = (np.random.random((20, 20, 15)), 1.5)
 
@@ -55,6 +49,12 @@ def test_easymode_service_with_mask(
     segmentation_tomogram.parent.mkdir(parents=True)
     with mrcfile.new(segmentation_tomogram) as mrc:
         mrc.set_data(np.random.random((20, 20, 15)).astype("int8"))
+
+    (tmp_path / "easymode_dir").mkdir()
+    for model in ["ribosome", "tric", "void"]:
+        (tmp_path / f"easymode_dir/{model}.h5").touch()
+        with open(tmp_path / f"easymode_dir/{model}.json", "w") as f:
+            json.dump({"apix": 10}, f)
 
     header = {
         "message-id": mock.sentinel,
@@ -85,12 +85,9 @@ def test_easymode_service_with_mask(
     mock_easymode_config.edit_setting.assert_called_once_with(
         "MODEL_DIRECTORY", f"{tmp_path}/easymode_dir"
     )
-    mock_get_model.assert_any_call("ribosome")
-    mock_get_model.assert_any_call("tric")
-    mock_get_model.assert_any_call("void")
-    mock_load_model.assert_any_call("/path/to/ribosome")
-    mock_load_model.assert_any_call("/path/to/tric")
-    mock_load_model.assert_any_call("/path/to/void")
+    mock_load_model.assert_any_call(f"{tmp_path}/easymode_dir/ribosome.h5")
+    mock_load_model.assert_any_call(f"{tmp_path}/easymode_dir/tric.h5")
+    mock_load_model.assert_any_call(f"{tmp_path}/easymode_dir/void.h5")
 
     # Check the membrain command was run
     assert mock_segment.call_count == 3
@@ -167,11 +164,9 @@ def test_easymode_service_with_mask(
 
 @mock.patch("cryoemservices.services.easymode.segment_tomogram")
 @mock.patch("cryoemservices.services.easymode.load_model")
-@mock.patch("cryoemservices.services.easymode.get_model")
 @mock.patch("cryoemservices.services.easymode.tf")
 def test_easymode_service_without_mask(
     mock_tensorflow,
-    mock_get_model,
     mock_load_model,
     mock_segment,
     offline_transport,
@@ -181,11 +176,6 @@ def test_easymode_service_without_mask(
     Send a test message to easymode for default parameters and no mask
     """
     mock_tensorflow.config.list_physical_devices.return_value = ["0"]
-    mock_get_model.side_effect = [
-        ("/path/to/ribosome", {"apix": 10}),
-        ("/path/to/microtubule", {"apix": 20}),
-        ("/path/to/tric", {"apix": 10}),
-    ]
     mock_load_model.side_effect = ["ribosome_model", "microtubule_model", "tric_model"]
     mock_segment.return_value = (np.random.random((20, 20, 15)), 1.5)
 
@@ -197,6 +187,12 @@ def test_easymode_service_without_mask(
         mrc.header.mx = 20
         mrc.header.my = 20
         mrc.header.mz = 15
+
+    (tmp_path / "easymode_dir").mkdir()
+    for model in ["ribosome", "microtubule", "tric"]:
+        (tmp_path / f"easymode_dir/{model}.h5").touch()
+        with open(tmp_path / f"easymode_dir/{model}.json", "w") as f:
+            json.dump({"apix": 10}, f)
 
     header = {
         "message-id": mock.sentinel,
@@ -213,7 +209,7 @@ def test_easymode_service_without_mask(
 
     # Set up the mock service and send a message to it
     service = easymode.Easymode(
-        environment={"queue": "", "extra_config": ""},
+        environment={"queue": "", "extra_config": f"{tmp_path}/easymode_dir"},
         transport=offline_transport,
     )
     service.initializing()
@@ -224,12 +220,9 @@ def test_easymode_service_without_mask(
         "0", True
     )
 
-    mock_get_model.assert_any_call("ribosome")
-    mock_get_model.assert_any_call("microtubule")
-    mock_get_model.assert_any_call("tric")
-    mock_load_model.assert_any_call("/path/to/ribosome")
-    mock_load_model.assert_any_call("/path/to/microtubule")
-    mock_load_model.assert_any_call("/path/to/tric")
+    mock_load_model.assert_any_call(f"{tmp_path}/easymode_dir/ribosome.h5")
+    mock_load_model.assert_any_call(f"{tmp_path}/easymode_dir/microtubule.h5")
+    mock_load_model.assert_any_call(f"{tmp_path}/easymode_dir/tric.h5")
 
     # Check the membrain command was run
     assert mock_segment.call_count == 3
@@ -246,7 +239,7 @@ def test_easymode_service_without_mask(
         tomogram_path=str(input_tomogram),
         tta=1,
         batch_size=1,
-        model_apix=20,
+        model_apix=10,
         input_apix=1.5,
     )
     mock_segment.assert_any_call(
