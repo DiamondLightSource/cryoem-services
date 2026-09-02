@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import json
 from unittest import mock
 
 import pytest
@@ -254,8 +255,10 @@ def test_refine3d_service_no_scaling(mock_log, offline_transport, tmp_path):
     mock_log.info.assert_any_call(
         "Offline Transport: Acknowledging message 1 in subscription 2"
     )
-    mock_log.info.assert_any_call("Offline Transport: Sending 576 bytes to refine3d")
-    mock_log.debug.asseert_any_call(end_message)
+    mock_log.info.assert_any_call(
+        f"Offline Transport: Sending {len(json.dumps(end_message))} bytes to refine3d"
+    )
+    mock_log.debug.assert_any_call(json.dumps(end_message))
     offline_transport.ack.assert_called_once()
 
 
