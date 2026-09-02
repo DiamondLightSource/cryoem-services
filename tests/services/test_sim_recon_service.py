@@ -276,7 +276,9 @@ def test_sim_recon_service(
             "--type",
             f"{params.output_type}",
         ]
-        service.log.info(f"Running PySIMRecon with the following commands:\n{cmd}")
+        service.log.info.assert_any_call(
+            f"Running PySIMRecon with the following commands:\n{cmd}"
+        )
         mock_popen.assert_called_once_with(
             cmd,
             stdout=subprocess.PIPE,
