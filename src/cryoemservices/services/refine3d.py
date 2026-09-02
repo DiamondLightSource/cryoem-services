@@ -91,8 +91,10 @@ class Refine3D(CommonService):
             self.log.error(f"Failed to run refinement due to {e}", exc_info=True)
             successful_run = False
         except KeyboardInterrupt:
-            self.initializing()
-            self._transport.send("refine3d", message)
+            # Create a new transport object of the same type as before and send the message
+            rw.transport = type(rw.transport)()
+            rw.transport.connect()
+            rw.transport.send("refine3d", message)
             raise KeyboardInterrupt
 
         # Reconnect to rabbitmq
@@ -105,6 +107,8 @@ class Refine3D(CommonService):
             self.log.error(f"Refinement job failed for {refine_params.particles_file}")
             # Send back to the queue but mark a failure in the message
             message["requeue"] = message.get("requeue", 0) + 1
-            rw.transport.reconnect()
+            # Create a new transport object of the same type as before
+            rw.transport = type(rw.transport)()
+            rw.transport.connect()
             rw.transport.send("refine3d", message)
         return True

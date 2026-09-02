@@ -477,7 +477,10 @@ def test_class3d_service_rerun(
 
 
 @mock.patch("cryoemservices.services.class3d.run_class3d")
-def test_class3d_service_failed_resends(mock_class3d, offline_transport, tmp_path):
+@mock.patch("workflows.transport.offline_transport._offlog")
+def test_class3d_service_failed_resends(
+    mock_log, mock_class3d, offline_transport, tmp_path
+):
     """Failures of the processing should lead to reinjection of the message"""
 
     def raise_exception(*args, **kwargs):
@@ -509,7 +512,11 @@ def test_class3d_service_failed_resends(mock_class3d, offline_transport, tmp_pat
     service.class3d(None, header=header, message=class3d_test_message)
 
     end_message["requeue"] = 1
-    offline_transport.send.assert_any_call("class3d", end_message)
+    mock_log.info.assert_any_call(
+        "Offline Transport: Acknowledging message 1 in subscription 2"
+    )
+    mock_log.info.assert_any_call("Offline Transport: Sending 579 bytes to class3d")
+    mock_log.debug.asseert_any_call(end_message)
     offline_transport.ack.assert_called_once()
 
 
