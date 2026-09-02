@@ -360,7 +360,7 @@ class SIMReconService(CommonService):
                             ).strip()
                         )
             # Wait for the process to complete and check return code
-            return_code = process.wait()
+            return_code = process.wait(timeout=1800)
             if return_code:
                 self.log.error(
                     f"PySIMRecon subprocess failed with error code {return_code}"
