@@ -104,5 +104,6 @@ class Class3D(CommonService):
             self.log.error(f"Class3D job failed for {class3d_params.particles_file}")
             # Send back to the queue but mark a failure in the message
             message["requeue"] = message.get("requeue", 0) + 1
-            self._transport.send("class3d", message)
+            rw.transport.reconnect()
+            rw.transport.send("class3d", message)
         return True

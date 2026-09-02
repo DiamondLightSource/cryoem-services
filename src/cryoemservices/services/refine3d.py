@@ -105,5 +105,6 @@ class Refine3D(CommonService):
             self.log.error(f"Refinement job failed for {refine_params.particles_file}")
             # Send back to the queue but mark a failure in the message
             message["requeue"] = message.get("requeue", 0) + 1
-            self._transport.send("refine3d", message)
+            rw.transport.reconnect()
+            rw.transport.send("refine3d", message)
         return True
