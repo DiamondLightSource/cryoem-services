@@ -70,7 +70,6 @@ class Class3D(CommonService):
             return
 
         Path(class3d_params.class3d_dir).mkdir(exist_ok=True, parents=True)
-        print(class3d_params.model_dump(mode="json"))
         with open(f"{class3d_params.class3d_dir}/recipe.json", "w") as recipe_file:
             json.dump(
                 {"header": header, "message": class3d_params.model_dump(mode="json")},
@@ -92,8 +91,10 @@ class Class3D(CommonService):
             self.log.error(f"Failed to run class3d due to {e}", exc_info=True)
             successful_run = False
         except KeyboardInterrupt:
-            self.initializing()
-            self._transport.send("class3d", message)
+            # Create a new transport object of the same type as before and send the message
+            rw.transport = type(rw.transport)()
+            rw.transport.connect()
+            rw.transport.send("class3d", message)
             raise KeyboardInterrupt
 
         # Reconnect to rabbitmq
@@ -104,5 +105,8 @@ class Class3D(CommonService):
             self.log.error(f"Class3D job failed for {class3d_params.particles_file}")
             # Send back to the queue but mark a failure in the message
             message["requeue"] = message.get("requeue", 0) + 1
-            self._transport.send("class3d", message)
+            # Create a new transport object of the same type as before
+            rw.transport = type(rw.transport)()
+            rw.transport.connect()
+            rw.transport.send("class3d", message)
         return True
