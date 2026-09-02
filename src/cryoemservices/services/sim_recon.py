@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import ast
 import json
+import subprocess
 import uuid
 from pathlib import Path
-from typing import cast
+from typing import Any, Literal, cast
 
 from pydantic import BaseModel, ValidationError, field_validator
 from workflows.recipe import RecipeWrapper, wrap_subscribe
@@ -104,6 +105,7 @@ class PySIMReconParameters(BaseModel):
     visit_name: str
     file: Path
     output_dir: Path
+    output_type: Literal["dv", "tiff"] = "dv"
     blue_params: WavelengthParameters = WavelengthParameters(wavelength=452)
     green_params: WavelengthParameters = WavelengthParameters(wavelength=525)
     red_params: WavelengthParameters = WavelengthParameters(wavelength=605)
@@ -191,7 +193,7 @@ class SIMReconService(CommonService):
             return
 
         self.log.info(
-            "Running PySIMRecon with the following parameters:\n"
+            "Received the following parameters:\n"
             f"{json.dumps(params.model_dump(), indent=2, default=str)}"
         )
 
@@ -203,11 +205,10 @@ class SIMReconService(CommonService):
             # Find the visit directory and create a setup directory
             visit_idx = params.file.parts.index(params.visit_name)
             visit_dir = Path(*params.file.parts[: visit_idx + 1])
-            setup_dir = visit_dir / "setup"
-            setup_dir.mkdir(parents=True, exist_ok=True)
 
-            # Generate a UUID to append to all config files for this run
-            uid = uuid.uuid4()
+            # Create a directory for all the config files with a UUID appended
+            config_dir = visit_dir / "setup" / f"configs-{uuid.uuid4()}"
+            config_dir.mkdir(parents=True, exist_ok=True)
 
             # 1. 'defaults.cfg'
             # -----------------
@@ -232,14 +233,14 @@ class SIMReconService(CommonService):
                 # Add a newline between sections
                 defaults_config_lines.append("")
             # Save the output to the setup directory
-            defaults_config = setup_dir / f"defaults-{uid}.cfg"
+            defaults_config = config_dir / "defaults.cfg"
             with open(defaults_config, "w") as f:
                 f.write("\n".join(defaults_config_lines))
             self.log.info(f"Created config file {defaults_config}")
 
             # 2. Configs for each wavelength
             # ------------------------------
-            wavelength_configs: list[Path] = []
+            wavelength_configs: list[tuple[int, Path]] = []
             otf_files: dict[int, Path] = {}
             for params_name in (
                 "blue_params",
@@ -273,12 +274,12 @@ class SIMReconService(CommonService):
                 wavlength_config_lines.append("")
 
                 # Save the output to the setup directory and append file to list
-                wavelength_config = (
-                    setup_dir / f"{wavelength_params.wavelength}-{uid}.cfg"
-                )
+                wavelength_config = config_dir / f"{wavelength_params.wavelength}.cfg"
                 with open(wavelength_config, "w") as f:
                     f.write("\n".join(wavlength_config_lines))
-                wavelength_configs.append(wavelength_config)
+                wavelength_configs.append(
+                    (wavelength_params.wavelength, wavelength_config)
+                )
                 self.log.info(f"Created config file {wavelength_config}")
 
                 # Extract and add OTF file to dict
@@ -290,11 +291,11 @@ class SIMReconService(CommonService):
 
             # Populate the 'configs' section
             master_config_lines.append("[configs]")
-            master_config_lines.append(f"directory={str(setup_dir)}")
+            master_config_lines.append(f"directory={str(config_dir)}")
             master_config_lines.append(f"defaults={str(defaults_config.name)}")
             # Iteratively add files for wavelengths
-            for file in wavelength_configs:
-                master_config_lines.append(f"{file.stem}={file.name}")
+            for wavelength, file in wavelength_configs:
+                master_config_lines.append(f"{wavelength}={file.name}")
 
             # Populate the 'otfs' section
             master_config_lines.append("[otfs]")
@@ -307,7 +308,7 @@ class SIMReconService(CommonService):
                 master_config_lines.append(f"{wavelength}={str(otf_file.name)}")
 
             # Save the output to the setup directory
-            master_config = setup_dir / f"config-{uid}.ini"
+            master_config = config_dir / "config.ini"
             with open(master_config, "w") as f:
                 f.write("\n".join(master_config_lines))
             self.log.info(f"Created config file {master_config}")
@@ -317,6 +318,83 @@ class SIMReconService(CommonService):
             self._reject_message(header, transport=rw.transport, requeue=False)
             return
 
+        try:
+            # Ensure the output directory exists
+            params.output_dir.mkdir(parents=True, exist_ok=True)
+            output_file: Path | None = None  # Placeholder variable
+
+            # Construct and run the 'sim-recon' bash command
+            cmd = [
+                "sim-recon",
+                "-d",
+                f"{params.file}",
+                "-c",
+                f"{master_config}",
+                "-o",
+                f"{params.output_dir}",
+                "--type",
+                f"{params.output_type}",
+            ]
+            self.log.info(f"Running PySIMRecon with the following commands:\n{cmd}")
+            process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,  # Merge the streams
+                text=True,
+                bufsize=1,
+            )
+            # Parse the stdout line-by-line
+            if process.stdout:
+                for line in process.stdout:
+                    line = line.rstrip()
+                    self.log.info(line)
+
+                    # Extract output file name from logs
+                    if line.startswith(
+                        "INFO:sim_recon.recon:Reconstructed data saved to:"
+                    ):
+                        output_file = Path(
+                            line.replace(
+                                "INFO:sim_recon.recon:Reconstructed data saved to:",
+                                "",
+                            ).strip()
+                        )
+            # Wait for the process to complete and check return code
+            return_code = process.wait(timeout=1800)
+            if return_code:
+                self.log.error(
+                    f"PySIMRecon subprocess failed with error code {return_code}"
+                )
+                self._reject_message(header, transport=rw.transport, requeue=False)
+                return
+            # Mark as failure and reject message if no output file was found
+            if not output_file or not output_file.is_file():
+                self.log.error(
+                    f"PySIMRecon failed to generate output file for {params.file}"
+                )
+                self._reject_message(header, transport=rw.transport, requeue=False)
+                return
+        except Exception:
+            self.log.error("Error running PySIMRecon subprocess", exc_info=True)
+            self._reject_message(header, transport=rw.transport, requeue=False)
+            return
+
+        # Construct message to send back to Murfey
+        result: dict[str, Any] = {
+            "output_file": str(output_file),
+            # More fields can be added as workflow develops
+        }
+        murfey_params = {
+            "register": "sim.register_reconstruction_result",
+            "result": result,
+        }
+        self.log.info(
+            "Will submit the following message back to Murfey:\n"
+            f"{json.dumps(murfey_params, indent=2, default=str)}"
+        )
+        # rw.send_to("murfey_feedback", murfey_params)  # Will be enabled in the future
+
         # Ack message after completion
+        self.log.info("PySIMRecon job completed")
         rw.transport.ack(header)
         return
