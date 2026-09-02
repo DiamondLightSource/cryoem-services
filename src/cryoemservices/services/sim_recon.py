@@ -368,7 +368,7 @@ class SIMReconService(CommonService):
                 self._reject_message(header, transport=rw.transport, requeue=False)
                 return
             # Mark as failure and reject message if no output file was found
-            if not output_file or not (output_file.is_file() and output_file.exists()):
+            if not output_file or not output_file.is_file():
                 self.log.error(
                     f"PySIMRecon failed to generate output file for {params.file}"
                 )
