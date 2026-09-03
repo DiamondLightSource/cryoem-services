@@ -212,8 +212,8 @@ def test_sim_recon_service(
             f"INFO:sim_recon.recon:Reconstructed data saved to: {output_file}"
         )
     mock_process = MagicMock()
-    mock_process.stdout = stdout_lines
-    mock_process.wait.return_value = return_code
+    mock_process.communicate.return_value = "\n".join(stdout_lines), ""
+    mock_process.returncode = return_code
     mock_popen = mocker.patch(
         "cryoemservices.services.sim_recon.subprocess.Popen",
         return_value=mock_process,
@@ -284,9 +284,8 @@ def test_sim_recon_service(
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
-            bufsize=1,
         )
-        mock_process.wait.assert_called_once()
+        mock_process.communicate.assert_called()
 
         if return_code == 0 and file_created:
             # Check that the correct message for Murfey was constructed
