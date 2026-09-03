@@ -2,7 +2,7 @@ import json
 import subprocess
 import uuid
 from pathlib import Path
-from typing import Callable, cast
+from typing import Any, Callable, cast
 from unittest import mock
 from unittest.mock import MagicMock
 
@@ -30,85 +30,50 @@ def offline_transport(mocker: MockerFixture):
 
 @pytest.mark.parametrize(
     "test_params",
-    (  # Use recwrap | Stringify | Output type | Has ls | Has OTF | Return code | File created?
+    (  # Use recwrap | Stringify | Output type | Has ls | Has OTF | Timed out? | Return code | File created?
         # Success cases
-        (True, None, "dv", True, True, 0, True),
-        (False, None, "dv", True, True, 0, True),
-        (True, str, "dv", True, True, 0, True),
-        (False, str, "dv", True, True, 0, True),
-        (True, json.dumps, "dv", True, True, 0, True),
-        (False, json.dumps, "dv", True, True, 0, True),
-        (True, None, "tiff", True, True, 0, True),
-        (False, None, "tiff", True, True, 0, True),
-        (True, str, "tiff", True, True, 0, True),
-        (False, str, "tiff", True, True, 0, True),
-        (True, json.dumps, "tiff", True, True, 0, True),
-        (False, json.dumps, "tiff", True, True, 0, True),
+        (True, None, "dv", True, True, False, 0, True),
+        (False, None, "dv", True, True, False, 0, True),
+        (True, str, "dv", True, True, False, 0, True),
+        (False, str, "dv", True, True, False, 0, True),
+        (True, json.dumps, "dv", True, True, False, 0, True),
+        (False, json.dumps, "dv", True, True, False, 0, True),
+        (True, None, "tiff", True, True, False, 0, True),
+        (False, None, "tiff", True, True, False, 0, True),
+        (True, str, "tiff", True, True, False, 0, True),
+        (False, str, "tiff", True, True, False, 0, True),
+        (True, json.dumps, "tiff", True, True, False, 0, True),
+        (False, json.dumps, "tiff", True, True, False, 0, True),
         # Failure cases
         # Missing 'ls'
-        (True, None, "dv", False, True, 0, True),
-        (False, None, "dv", False, True, 0, True),
-        (True, str, "dv", False, True, 0, True),
-        (False, str, "dv", False, True, 0, True),
-        (True, json.dumps, "dv", False, True, 0, True),
-        (False, json.dumps, "dv", False, True, 0, True),
-        (True, None, "tiff", False, True, 0, True),
-        (False, None, "tiff", False, True, 0, True),
-        (True, str, "tiff", False, True, 0, True),
-        (False, str, "tiff", False, True, 0, True),
-        (True, json.dumps, "tiff", False, True, 0, True),
-        (False, json.dumps, "tiff", False, True, 0, True),
+        (True, None, "dv", False, True, False, 0, True),
         # Missing OTF files
-        (True, None, "dv", True, False, 0, True),
-        (False, None, "dv", True, False, 0, True),
-        (True, str, "dv", True, False, 0, True),
-        (False, str, "dv", True, False, 0, True),
-        (True, json.dumps, "dv", True, False, 0, True),
-        (False, json.dumps, "dv", True, False, 0, True),
-        (True, None, "tiff", True, False, 0, True),
-        (False, None, "tiff", True, False, 0, True),
-        (True, str, "tiff", True, False, 0, True),
-        (False, str, "tiff", True, False, 0, True),
-        (True, json.dumps, "tiff", True, False, 0, True),
-        (False, json.dumps, "tiff", True, False, 0, True),
+        (False, None, "dv", True, False, False, 0, True),
+        # Subprocess timed out
+        (True, json.dumps, "dv", True, True, True, 0, True),
         # Non-zero return code
-        (True, None, "dv", True, True, 42, True),
-        (False, None, "dv", True, True, 42, True),
-        (True, str, "dv", True, True, 42, True),
-        (False, str, "dv", True, True, 42, True),
-        (True, json.dumps, "dv", True, True, 42, True),
-        (False, json.dumps, "dv", True, True, 42, True),
-        (True, None, "tiff", True, True, 42, True),
-        (False, None, "tiff", True, True, 42, True),
-        (True, str, "tiff", True, True, 42, True),
-        (False, str, "tiff", True, True, 42, True),
-        (True, json.dumps, "tiff", True, True, 42, True),
-        (False, json.dumps, "tiff", True, True, 42, True),
+        (True, str, "dv", True, True, False, 42, True),
         # Failed to read file from stdout
-        (True, None, "dv", True, True, 0, False),
-        (False, None, "dv", True, True, 0, False),
-        (True, str, "dv", True, True, 0, False),
-        (False, str, "dv", True, True, 0, False),
-        (True, json.dumps, "dv", True, True, 0, False),
-        (False, json.dumps, "dv", True, True, 0, False),
-        (True, None, "tiff", True, True, 0, False),
-        (False, None, "tiff", True, True, 0, False),
-        (True, str, "tiff", True, True, 0, False),
-        (False, str, "tiff", True, True, 0, False),
-        (True, json.dumps, "tiff", True, True, 0, False),
-        (False, json.dumps, "tiff", True, True, 0, False),
+        (False, str, "dv", True, True, False, 0, False),
     ),
 )
 def test_sim_recon_service(
     mocker: MockerFixture,
     tmp_path: Path,
     offline_transport: OfflineTransport,
-    test_params: tuple[bool, Callable | None, str, bool, bool, int, bool],
+    test_params: tuple[bool, Callable | None, str, bool, bool, bool, int, bool],
 ):
     # Unpack test params
-    use_recwrap, func, output_type, has_ls, has_otf, return_code, file_created = (
-        test_params
-    )
+    (
+        use_recwrap,
+        func,
+        output_type,
+        has_ls,
+        has_otf,
+        timed_out,
+        return_code,
+        file_created,
+    ) = test_params
 
     # Set up the message parameters
     header = {
@@ -212,8 +177,11 @@ def test_sim_recon_service(
             f"INFO:sim_recon.recon:Reconstructed data saved to: {output_file}"
         )
     mock_process = MagicMock()
-    mock_process.stdout = stdout_lines
-    mock_process.wait.return_value = return_code
+    communicate_side_effects: list[Any] = [("\n".join(stdout_lines), "")]
+    if timed_out:
+        communicate_side_effects.insert(0, subprocess.TimeoutExpired([], 180))
+    mock_process.communicate.side_effect = communicate_side_effects
+    mock_process.returncode = return_code
     mock_popen = mocker.patch(
         "cryoemservices.services.sim_recon.subprocess.Popen",
         return_value=mock_process,
@@ -284,32 +252,39 @@ def test_sim_recon_service(
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
-            bufsize=1,
         )
-        mock_process.wait.assert_called_once()
 
-        if return_code == 0 and file_created:
-            # Check that the correct message for Murfey was constructed
-            result = {
-                "output_file": str(output_file),
-            }
-            murfey_params = {
-                "register": "sim.register_reconstruction_result",
-                "result": result,
-            }
-            service.log.info.assert_any_call(
-                "Will submit the following message back to Murfey:\n"
-                f"{json.dumps(murfey_params, indent=2, default=str)}"
-            )
-
-            # Check that the message was acked
-            service.log.info("PySIMRecon job completed")
-            offline_transport.ack.assert_called_once()
-        else:
-            # Check that the correct error messages were logged
-            if not return_code == 0:
-                message = f"PySIMRecon subprocess failed with error code {return_code}"
-            elif not file_created:
-                message = f"PySIMRecon failed to generate output file for {params.file}"
-            service.log.error.assert_called_once_with(message)
+        if timed_out:
+            service.log.error.assert_any_call("Process timed out after 180 seconds")
+            mock_process.kill.assert_called_once()
             mock_reject.assert_called_once()
+        else:
+            if return_code == 0 and file_created:
+                # Check that the correct message for Murfey was constructed
+                result = {
+                    "output_file": str(output_file),
+                }
+                murfey_params = {
+                    "register": "sim.register_reconstruction_result",
+                    "result": result,
+                }
+                service.log.info.assert_any_call(
+                    "Will submit the following message back to Murfey:\n"
+                    f"{json.dumps(murfey_params, indent=2, default=str)}"
+                )
+
+                # Check that the message was acked
+                service.log.info.assert_called_with("PySIMRecon job completed")
+                offline_transport.ack.assert_called_once()
+            else:
+                # Check that the correct error messages were logged
+                if not return_code == 0:
+                    message = (
+                        f"PySIMRecon subprocess failed with error code {return_code}"
+                    )
+                elif not file_created:
+                    message = (
+                        f"PySIMRecon failed to generate output file for {params.file}"
+                    )
+                service.log.error.assert_called_once_with(message)
+                mock_reject.assert_called_once()

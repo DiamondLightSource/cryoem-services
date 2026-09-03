@@ -341,26 +341,22 @@ class SIMReconService(CommonService):
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,  # Merge the streams
                 text=True,
-                bufsize=1,
             )
-            # Parse the stdout line-by-line
-            if process.stdout:
-                for line in process.stdout:
-                    line = line.rstrip()
-                    self.log.info(line)
+            stdout, _ = process.communicate(timeout=180)  # Set timeout value
+            for line in stdout.splitlines():
+                line = line.rstrip()
+                self.log.info(line)
 
-                    # Extract output file name from logs
-                    if line.startswith(
-                        "INFO:sim_recon.recon:Reconstructed data saved to:"
-                    ):
-                        output_file = Path(
-                            line.replace(
-                                "INFO:sim_recon.recon:Reconstructed data saved to:",
-                                "",
-                            ).strip()
-                        )
-            # Wait for the process to complete and check return code
-            return_code = process.wait(timeout=1800)
+                # Extract output file name from logs
+                if line.startswith("INFO:sim_recon.recon:Reconstructed data saved to:"):
+                    output_file = Path(
+                        line.replace(
+                            "INFO:sim_recon.recon:Reconstructed data saved to:",
+                            "",
+                        ).strip()
+                    )
+            # Check process return code
+            return_code = process.returncode
             if return_code:
                 self.log.error(
                     f"PySIMRecon subprocess failed with error code {return_code}"
@@ -374,6 +370,17 @@ class SIMReconService(CommonService):
                 )
                 self._reject_message(header, transport=rw.transport, requeue=False)
                 return
+        except subprocess.TimeoutExpired:
+            # Kill the process
+            self.log.error("Process timed out after 180 seconds")
+            process.kill()
+            # Log any output performed thus far
+            stdout, _ = process.communicate()
+            for line in stdout.splitlines():
+                line = line.rstrip()
+                self.log.error(line)
+            self._reject_message(header, transport=rw.transport, requeue=False)
+            return
         except Exception:
             self.log.error("Error running PySIMRecon subprocess", exc_info=True)
             self._reject_message(header, transport=rw.transport, requeue=False)
