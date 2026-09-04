@@ -207,7 +207,8 @@ class SIMReconService(CommonService):
             visit_dir = Path(*params.file.parts[: visit_idx + 1])
 
             # Create a directory for all the config files with a UUID appended
-            config_dir = visit_dir / "setup" / f"configs-{uuid.uuid4()}"
+            uid = uuid.uuid4()
+            config_dir = visit_dir / "setup" / f"configs-{uid}"
             config_dir.mkdir(parents=True, exist_ok=True)
 
             # 1. 'defaults.cfg'
@@ -319,6 +320,10 @@ class SIMReconService(CommonService):
             return
 
         try:
+            # Ensure tmp directory exists
+            tmp_dir = visit_dir / "tmp"
+            tmp_dir.mkdir(parents=True, exist_ok=True)
+
             # Ensure the output directory exists
             params.output_dir.mkdir(parents=True, exist_ok=True)
             output_file: Path | None = None  # Placeholder variable
@@ -330,6 +335,8 @@ class SIMReconService(CommonService):
                 f"{params.file}",
                 "-c",
                 f"{master_config}",
+                "-p",
+                f"{tmp_dir / str(uid)}",  # PySIMRecon creates folder using UID
                 "-o",
                 f"{params.output_dir}",
                 "--type",
