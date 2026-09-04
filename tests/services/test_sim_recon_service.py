@@ -239,6 +239,8 @@ def test_sim_recon_service(
             f"{params.file}",
             "-c",
             f"{config_dir / 'config.ini'}",
+            "-p",
+            f"{visit_dir / 'tmp' / str(uid)}",
             "-o",
             f"{params.output_dir}",
             "--type",
