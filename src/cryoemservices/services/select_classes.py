@@ -139,6 +139,11 @@ class SelectClasses(CommonService):
             select_job_num = class2d_job_num + (
                 2 if autoselect_params.relion_options.do_icebreaker_jobs else 1
             )
+            # The first select job should always be one before the star combination
+            # Subsequent ones can be found from the 2D but the first one can be shifted
+            # from the 2D if other jobs ran between the incomplete and complete batch
+            if select_job_num < autoselect_params.combine_star_job_number:
+                select_job_num = autoselect_params.combine_star_job_number - 1
         else:
             self.log.warning(f"Invalid job directory in {autoselect_params.input_file}")
             self._reject_message(header, transport=rw.transport, requeue=False)
