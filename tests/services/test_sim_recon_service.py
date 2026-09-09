@@ -2,7 +2,7 @@ import json
 import subprocess
 import uuid
 from pathlib import Path
-from typing import Any, Callable, cast
+from typing import Callable, cast
 from unittest import mock
 from unittest.mock import MagicMock
 
@@ -176,15 +176,36 @@ def test_sim_recon_service(
         stdout_lines.append(
             f"INFO:sim_recon.recon:Reconstructed data saved to: {output_file}"
         )
-    mock_process = MagicMock()
-    communicate_side_effects: list[Any] = [("\n".join(stdout_lines), "")]
-    if timed_out:
-        communicate_side_effects.insert(0, subprocess.TimeoutExpired([], 180))
-    mock_process.communicate.side_effect = communicate_side_effects
-    mock_process.returncode = return_code
-    mock_popen = mocker.patch(
-        "cryoemservices.services.sim_recon.subprocess.Popen",
-        return_value=mock_process,
+
+    cmd = [
+        "sim-recon",
+        "-d",
+        f"{params.file}",
+        "-c",
+        f"{config_dir / 'config.ini'}",
+        "-p",
+        f"{visit_dir / 'tmp' / str(uid)}",
+        "-o",
+        f"{params.output_dir}",
+        "--type",
+        f"{params.output_type}",
+    ]
+
+    mock_process_result = MagicMock(
+        stdout="\n".join(stdout_lines),
+        returncode=return_code,
+    )
+    mock_run = mocker.patch(
+        "cryoemservices.services.sim_recon.subprocess.run",
+        side_effect=[
+            mock_process_result
+            if not timed_out
+            else subprocess.TimeoutExpired(
+                cmd,
+                timeout=180,
+                output=bytes("\n".join(stdout_lines), encoding="utf-8"),
+            )
+        ],
     )
 
     # Mock the '_reject_message' class function
@@ -214,7 +235,7 @@ def test_sim_recon_service(
     )
 
     if not has_ls or not has_otf:
-        mock_popen.assert_not_called()
+        mock_run.assert_not_called()
         service.log.error.assert_called_once_with(
             "Error creating PySIMRecon config files", exc_info=True
         )
@@ -233,32 +254,19 @@ def test_sim_recon_service(
             assert config_file.exists() and config_file.is_file()
 
         # Check that the subprocess was called with the correct parameters
-        cmd = [
-            "sim-recon",
-            "-d",
-            f"{params.file}",
-            "-c",
-            f"{config_dir / 'config.ini'}",
-            "-p",
-            f"{visit_dir / 'tmp' / str(uid)}",
-            "-o",
-            f"{params.output_dir}",
-            "--type",
-            f"{params.output_type}",
-        ]
         service.log.info.assert_any_call(
             f"Running PySIMRecon with the following commands:\n{cmd}"
         )
-        mock_popen.assert_called_once_with(
+        mock_run.assert_called_once_with(
             cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
+            timeout=180,
         )
 
         if timed_out:
             service.log.error.assert_any_call("Process timed out after 180 seconds")
-            mock_process.kill.assert_called_once()
             mock_reject.assert_called_once()
         else:
             if return_code == 0 and file_created:
