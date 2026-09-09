@@ -343,14 +343,14 @@ class SIMReconService(CommonService):
                 f"{params.output_type}",
             ]
             self.log.info(f"Running PySIMRecon with the following commands:\n{cmd}")
-            process = subprocess.Popen(
+            process_result = subprocess.run(
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,  # Merge the streams
                 text=True,
+                timeout=180,
             )
-            stdout, _ = process.communicate(timeout=180)  # Set timeout value
-            for line in stdout.splitlines():
+            for line in process_result.stdout.splitlines():
                 line = line.rstrip()
                 self.log.info(line)
 
@@ -363,7 +363,7 @@ class SIMReconService(CommonService):
                         ).strip()
                     )
             # Check process return code
-            return_code = process.returncode
+            return_code = process_result.returncode
             if return_code:
                 self.log.error(
                     f"PySIMRecon subprocess failed with error code {return_code}"
@@ -377,12 +377,14 @@ class SIMReconService(CommonService):
                 )
                 self._reject_message(header, transport=rw.transport, requeue=False)
                 return
-        except subprocess.TimeoutExpired:
+        except subprocess.TimeoutExpired as exc:
             # Kill the process
             self.log.error("Process timed out after 180 seconds")
-            process.kill()
-            # Log any output performed thus far
-            stdout, _ = process.communicate()
+
+            # Extract output, if any, convert to string, and log it
+            stdout: str | bytes = exc.stdout or b""
+            if isinstance(stdout, bytes):
+                stdout = stdout.decode(errors="replace")
             for line in stdout.splitlines():
                 line = line.rstrip()
                 self.log.error(line)
