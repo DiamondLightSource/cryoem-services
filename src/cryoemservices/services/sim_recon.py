@@ -207,7 +207,8 @@ class SIMReconService(CommonService):
             visit_dir = Path(*params.file.parts[: visit_idx + 1])
 
             # Create a directory for all the config files with a UUID appended
-            config_dir = visit_dir / "setup" / f"configs-{uuid.uuid4()}"
+            uid = uuid.uuid4()
+            config_dir = visit_dir / "setup" / f"configs-{uid}"
             config_dir.mkdir(parents=True, exist_ok=True)
 
             # 1. 'defaults.cfg'
@@ -319,6 +320,10 @@ class SIMReconService(CommonService):
             return
 
         try:
+            # Ensure tmp directory exists
+            tmp_dir = visit_dir / "tmp"
+            tmp_dir.mkdir(parents=True, exist_ok=True)
+
             # Ensure the output directory exists
             params.output_dir.mkdir(parents=True, exist_ok=True)
             output_file: Path | None = None  # Placeholder variable
@@ -330,37 +335,35 @@ class SIMReconService(CommonService):
                 f"{params.file}",
                 "-c",
                 f"{master_config}",
+                "-p",
+                f"{tmp_dir / str(uid)}",  # PySIMRecon creates folder using UID
                 "-o",
                 f"{params.output_dir}",
                 "--type",
                 f"{params.output_type}",
             ]
             self.log.info(f"Running PySIMRecon with the following commands:\n{cmd}")
-            process = subprocess.Popen(
+            process_result = subprocess.run(
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,  # Merge the streams
                 text=True,
-                bufsize=1,
+                timeout=180,
             )
-            # Parse the stdout line-by-line
-            if process.stdout:
-                for line in process.stdout:
-                    line = line.rstrip()
-                    self.log.info(line)
+            for line in process_result.stdout.splitlines():
+                line = line.rstrip()
+                self.log.info(line)
 
-                    # Extract output file name from logs
-                    if line.startswith(
-                        "INFO:sim_recon.recon:Reconstructed data saved to:"
-                    ):
-                        output_file = Path(
-                            line.replace(
-                                "INFO:sim_recon.recon:Reconstructed data saved to:",
-                                "",
-                            ).strip()
-                        )
-            # Wait for the process to complete and check return code
-            return_code = process.wait(timeout=1800)
+                # Extract output file name from logs
+                if line.startswith("INFO:sim_recon.recon:Reconstructed data saved to:"):
+                    output_file = Path(
+                        line.replace(
+                            "INFO:sim_recon.recon:Reconstructed data saved to:",
+                            "",
+                        ).strip()
+                    )
+            # Check process return code
+            return_code = process_result.returncode
             if return_code:
                 self.log.error(
                     f"PySIMRecon subprocess failed with error code {return_code}"
@@ -374,6 +377,19 @@ class SIMReconService(CommonService):
                 )
                 self._reject_message(header, transport=rw.transport, requeue=False)
                 return
+        except subprocess.TimeoutExpired as exc:
+            # Kill the process
+            self.log.error("Process timed out after 180 seconds")
+
+            # Extract output, if any, convert to string, and log it
+            stdout: str | bytes = exc.stdout or b""
+            if isinstance(stdout, bytes):
+                stdout = stdout.decode(errors="replace")
+            for line in stdout.splitlines():
+                line = line.rstrip()
+                self.log.error(line)
+            self._reject_message(header, transport=rw.transport, requeue=False)
+            return
         except Exception:
             self.log.error("Error running PySIMRecon subprocess", exc_info=True)
             self._reject_message(header, transport=rw.transport, requeue=False)
