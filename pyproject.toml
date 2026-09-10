@@ -37,6 +37,7 @@ dependencies = [
     "ispyb>=12.1.1",
     "mrcfile",
     "numpy",
+    "opencv-python-headless",
     "pillow",
     "plotly",
     "pydantic>=2",
