@@ -181,8 +181,7 @@ def generate_service_options(
         "is_doserate_per_frame": True,
     }
 
-    job_options["relion.motioncorr.own"] = {
-        "dose_per_frame": relion_options.dose_per_frame,
+    job_options["relion.motioncorr.tomo.own"] = {
         "fn_gain_ref": (
             relion_options.gain_ref if Path(relion_options.gain_ref).exists() else ""
         ),
@@ -194,9 +193,17 @@ def generate_service_options(
         "nr_mpi": 4,
         "nr_threads": 10,
     }
-
+    job_options["relion.motioncorr.own"] = {
+        **job_options["relion.motioncorr.tomo.own"],
+        "dose_per_frame": relion_options.dose_per_frame,
+    }
     job_options["relion.motioncorr.motioncor2"] = {
         **job_options["relion.motioncorr.own"],
+        "fn_motioncor2_exe": "MotionCor2",
+        "gpu_ids": "0:1:2:3",
+    }
+    job_options["relion.motioncorr.tomo.motioncor2"] = {
+        **job_options["relion.motioncorr.tomo.own"],
         "fn_motioncor2_exe": "MotionCor2",
         "gpu_ids": "0:1:2:3",
     }
@@ -215,6 +222,7 @@ def generate_service_options(
         "dfmax": 90000,
         "dfstep": 100,
     }
+    job_options["relion.ctffind.tomo.ctffind4"] = job_options["relion.ctffind.ctffind4"]
 
     job_options["cryolo.autopick"] = {
         "model_path": relion_options.cryolo_model_weights,
