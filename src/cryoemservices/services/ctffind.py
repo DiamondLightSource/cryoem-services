@@ -147,6 +147,12 @@ class CTFFind(CommonService):
             return
         self.log.info(f"Using CTFFind version {ctf_params.ctffind_version}")
 
+        self.job_type = (
+            "relion.ctffind.ctffind4"
+            if ctf_params.experiment_type == "spa"
+            else "relion.ctffind.tomo.ctffind4"
+        )
+
         command = ["ctffind5"] if ctf_params.ctffind_version == 5 else ["ctffind"]
 
         # Check if this file has been run before
