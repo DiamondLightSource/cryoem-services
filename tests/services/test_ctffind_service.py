@@ -273,7 +273,7 @@ def test_ctffind5_service_tomo(mock_subprocess, offline_transport, tmp_path):
         "node_creator",
         {
             "experiment_type": "tomography",
-            "job_type": "relion.ctffind.ctffind4",
+            "job_type": "relion.ctffind.tomo.ctffind4",
             "input_file": f"{tmp_path}/MotionCorr/job002/sample.mrc",
             "output_file": f"{tmp_path}/CtfFind/job006/sample.ctf",
             "relion_options": output_relion_options,
@@ -516,7 +516,7 @@ def test_ctffind5_service_fail_cases(mock_subprocess, offline_transport, tmp_pat
         "node_creator",
         {
             "experiment_type": "tomography",
-            "job_type": "relion.ctffind.ctffind4",
+            "job_type": "relion.ctffind.tomo.ctffind4",
             "input_file": f"{tmp_path}/MotionCorr/job002/sample.mrc",
             "output_file": f"{tmp_path}/CtfFind/job006/sample.ctf",
             "relion_options": mock.ANY,
