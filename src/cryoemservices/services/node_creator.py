@@ -94,7 +94,6 @@ pipeline_jobs: dict[str, dict] = {
     "relion.motioncorr.motioncor2": {
         "folder": "MotionCorr",
         "spa_input": {"input_star_mics": "movies.star"},
-        "tomography_input": {"input_star_mics": "tilt_series.star"},
     },
     "relion.motioncorr.tomo.motioncor2": {
         "folder": "MotionCorr",
