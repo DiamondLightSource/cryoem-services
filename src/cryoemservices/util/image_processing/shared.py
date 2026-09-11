@@ -63,15 +63,9 @@ class TIFFImageLoader(ImageLoader):
         """
         Attempt to read TIFF files using different packages
         """
-        try:
-            return cast(np.ndarray, cv2.imread(self.tiff_file))
-        except Exception:
-            try:
-                with PIL.Image.open(self.tiff_file) as img:
-                    arr = np.array(img)
-                return arr
-            except Exception:
-                return tf.imread(self.tiff_file)
+        with PIL.Image.open(self.tiff_file) as img:
+            arr = np.array(img)
+        return arr
 
 
 @dataclass(frozen=True)
