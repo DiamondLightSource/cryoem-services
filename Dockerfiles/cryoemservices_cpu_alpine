@@ -1,0 +1,75 @@
+# This Dockerfile is used for the services that can run on CPU
+FROM docker.io/library/python:3.12-alpine as base
+
+RUN \
+    apk upgrade --no-cache && \
+    apk add --no-cache \
+    # Add libraries needed during runtime
+    libstdc++
+
+FROM base as build
+
+# Set up build arguments for this stage
+ARG IMOD_INSTALLER=imod_5.1.9_RHEL8-64_CUDA12.0.sh
+
+RUN --mount=type=bind,source=.,target=/mnt/cryoemservices,U \
+    echo "Installing build environment..." && \
+    apk upgrade --no-cache && \
+    apk add --no-cache \
+        alpine-sdk \
+        curl \
+        linux-headers \
+        && \
+    \
+    echo "Setting up cryoem-services build environemnt..." && \
+    mkdir /tmp/cryoemservices && \
+    cp -r /mnt/cryoemservices/src /tmp/cryoemservices/ && \
+    for FILE in LICENSE pyproject.toml setup.py; \
+        do cp /mnt/cryoemservices/$FILE /tmp/cryoemservices/; \
+        done \
+        && \
+    python -m venv /venv && \
+    /venv/bin/python -m pip install --upgrade --no-cache-dir \
+        pip \
+        build \
+        && \
+    \
+    echo "Installing cryoem-services and supporting packages..." && \
+    /venv/bin/python -m pip install --no-cache-dir \
+        /tmp/cryoemservices \
+        http://gitlab.com/stephen-riggs/ccpem-pipeliner/-/archive/diamond_tomo/ccpem-pipeliner-diamond_tomo.zip \
+        && \
+    \
+    echo "Installing IMOD..." && \
+    mkdir /tmp/installers && \
+    if [ -f /mnt/cryoemservices/installers/${IMOD_INSTALLER} ]; then \
+        cp /mnt/cryoemservices/installers/${IMOD_INSTALLER} /tmp/installers/; \
+    else \
+        echo "IMOD installer not found; downloading..."; \
+        curl https://bio3d.colorado.edu/imod/AMD64-RHEL5/${IMOD_INSTALLER} > "/tmp/installers/${IMOD_INSTALLER}"; \
+    fi && \
+    chmod +x /tmp/installers/${IMOD_INSTALLER} && \
+    mkdir /imod && \
+    /tmp/installers/${IMOD_INSTALLER} -dir /imod -skip -y
+
+# Transfer completed build to base image
+FROM base
+
+ARG groupid
+ARG userid
+ARG groupname
+
+# Copy completed builds across and set user and group permissions
+COPY --from=build --chown="${userid}":"${groupid}" /venv/ /venv/
+COPY --from=build --chown="${userid}":"${groupid}" /imod/ /imod/
+RUN \
+    # Add user and group (Alpine)
+    addgroup -S -g "${groupid}" "${groupname}" && \
+    adduser -S -D -H -u "${userid}" -G "${groupname}" "${groupname}" && \
+    \
+    # Change permissions
+    # chown -R "${userid}":"${groupid}" /venv && \
+    chmod -R a+x /venv
+ENV PATH=/venv/bin:/imod/IMOD/bin:$PATH
+ENV IMOD_DIR=/imod/IMOD
+USER "${userid}":"${groupid}"
