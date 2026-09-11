@@ -34,23 +34,25 @@ dependencies = [
     "graypy",
     "healpy",
     "icebreaker-em",
-    "imagecodecs", # CLEM workflow
     "ispyb>=12.1.1",
     "mrcfile",
     "numpy",
+    "opencv-python-headless",
     "pillow",
     "plotly",
     "pydantic>=2",
     "readlif", # CLEM workflow
     "requests",
-    "SimpleITK", # CLEM workflow
     "starfile",
     "stomp-py>8.1.1",
-    "tifffile", # CLEM workflow
+    "tifffile",
     "txrm2tiff",
     "workflows>=3",
 ]
 [project.optional-dependencies]
+clem = [
+    "SimpleITK",
+]
 dev = [
     "bump-my-version",
     "ipykernel",
