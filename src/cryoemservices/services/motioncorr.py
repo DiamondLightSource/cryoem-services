@@ -395,7 +395,11 @@ class MotionCorr(CommonService):
         # Run motion correction
         if mc_params.use_motioncor2:
             # Construct the command for MotionCor2
-            self.job_type = "relion.motioncorr.motioncor2"
+            self.job_type = (
+                "relion.motioncorr.motioncor2"
+                if mc_params.experiment_type == "spa"
+                else "relion.motioncorr.tomo.motioncor2"
+            )
             self.log.info("Using MotionCor2")
             command = ["MotionCor2", input_flag, mc_params.movie]
             mc2_flags = {
@@ -457,7 +461,11 @@ class MotionCorr(CommonService):
                 mc_params.mrc_out = str(dose_weighted)
         else:
             # Construct the command for Relion motion correction
-            self.job_type = "relion.motioncorr.own"
+            self.job_type = (
+                "relion.motioncorr.own"
+                if mc_params.experiment_type == "spa"
+                else "relion.motioncorr.tomo.own"
+            )
             self.log.info("Using Relion's own motion correction")
             os.environ["FI_PROVIDER"] = "tcp"
             command = ["relion_motion_correction", "--use_own"]

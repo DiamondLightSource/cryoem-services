@@ -86,11 +86,17 @@ pipeline_jobs: dict[str, dict] = {
     "relion.motioncorr.own": {
         "folder": "MotionCorr",
         "spa_input": {"input_star_mics": "movies.star"},
+    },
+    "relion.motioncorr.tomo.own": {
+        "folder": "MotionCorr",
         "tomography_input": {"input_star_mics": "tilt_series.star"},
     },
     "relion.motioncorr.motioncor2": {
         "folder": "MotionCorr",
         "spa_input": {"input_star_mics": "movies.star"},
+    },
+    "relion.motioncorr.tomo.motioncor2": {
+        "folder": "MotionCorr",
         "tomography_input": {"input_star_mics": "tilt_series.star"},
     },
     "icebreaker.micrograph_analysis.micrographs": {
@@ -108,6 +114,9 @@ pipeline_jobs: dict[str, dict] = {
     "relion.ctffind.ctffind4": {
         "folder": "CtfFind",
         "spa_input": {"input_star_mics": "corrected_micrographs.star"},
+    },
+    "relion.ctffind.tomo.ctffind4": {
+        "folder": "CtfFind",
         "tomography_input": {"input_star_mics": "corrected_tilt_series.star"},
     },
     "cryolo.autopick": {
