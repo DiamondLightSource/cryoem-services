@@ -32,7 +32,7 @@ RUN apt-get update && \
         build \
         && \
     /venv/bin/python -m pip install \
-        /cryoem-services \
+        /cryoem-services[clem] \
         http://gitlab.com/stephen-riggs/ccpem-pipeliner/-/archive/diamond_tomo/ccpem-pipeliner-diamond_tomo.zip \
         && \
     if [ ! -f /cryoem-services/installers/${IMOD_INSTALLER} ]; then \
