@@ -9,9 +9,6 @@ RUN \
 
 FROM base as build
 
-# Set up build arguments for this stage
-ARG IMOD_INSTALLER=imod_5.1.9_RHEL8-64_CUDA12.0.sh
-
 RUN --mount=type=bind,source=.,target=/mnt/cryoemservices,U \
     echo "Installing build environment..." && \
     apk upgrade --no-cache && \
@@ -37,20 +34,7 @@ RUN --mount=type=bind,source=.,target=/mnt/cryoemservices,U \
     echo "Installing cryoem-services and supporting packages..." && \
     /venv/bin/python -m pip install --no-cache-dir \
         /tmp/cryoemservices \
-        http://gitlab.com/stephen-riggs/ccpem-pipeliner/-/archive/diamond_tomo/ccpem-pipeliner-diamond_tomo.zip \
-        && \
-    \
-    echo "Installing IMOD..." && \
-    mkdir /tmp/installers && \
-    if [ -f /mnt/cryoemservices/installers/${IMOD_INSTALLER} ]; then \
-        cp /mnt/cryoemservices/installers/${IMOD_INSTALLER} /tmp/installers/; \
-    else \
-        echo "IMOD installer not found; downloading..."; \
-        curl https://bio3d.colorado.edu/imod/AMD64-RHEL5/${IMOD_INSTALLER} > "/tmp/installers/${IMOD_INSTALLER}"; \
-    fi && \
-    chmod +x /tmp/installers/${IMOD_INSTALLER} && \
-    mkdir /imod && \
-    /tmp/installers/${IMOD_INSTALLER} -dir /imod -skip -y
+        http://gitlab.com/stephen-riggs/ccpem-pipeliner/-/archive/diamond_tomo/ccpem-pipeliner-diamond_tomo.zip
 
 # Transfer completed build to base image
 FROM base
@@ -61,15 +45,12 @@ ARG groupname
 
 # Copy completed builds across and set user and group permissions
 COPY --from=build --chown="${userid}":"${groupid}" /venv/ /venv/
-COPY --from=build --chown="${userid}":"${groupid}" /imod/ /imod/
 RUN \
     # Add user and group (Alpine)
     addgroup -S -g "${groupid}" "${groupname}" && \
     adduser -S -D -H -u "${userid}" -G "${groupname}" "${groupname}" && \
     \
     # Change permissions
-    # chown -R "${userid}":"${groupid}" /venv && \
     chmod -R a+x /venv
-ENV PATH=/venv/bin:/imod/IMOD/bin:$PATH
-ENV IMOD_DIR=/imod/IMOD
+ENV PATH=/venv/bin:$PATH
 USER "${userid}":"${groupid}"
