@@ -4,7 +4,7 @@ import re
 import shutil
 import subprocess
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 
 from pydantic import BaseModel, Field, ValidationError, field_validator
 from workflows.recipe import wrap_subscribe
@@ -24,33 +24,15 @@ except ImportError:
 
 class DenoiseParameters(BaseModel):
     volume: str = Field(..., min_length=1)
-    output_dir: Optional[str] = None  # volume directory
+    output_dir: str | None = None  # volume directory
     suffix: str = ".denoised"
-    model: Optional[str] = None  # "unet-3d"
-    even_train_path: Optional[str] = None
-    odd_train_path: Optional[str] = None
-    n_train: Optional[int] = None  # 1000
-    n_test: Optional[int] = None  # 200
-    crop: Optional[int] = None  # 96
-    base_kernel_width: Optional[int] = None  # 11
-    optim: Optional[str] = None  # "adagrad"
-    lr: Optional[float] = None  # 0.001
-    criteria: Optional[str] = None  # "L2"
-    momentum: Optional[float] = None  # 0.8
-    batch_size: Optional[int] = None  # 10
-    num_epochs: Optional[int] = None  # 500
-    weight_decay: Optional[int] = None  # 0
-    save_interval: Optional[int] = None  # 10
-    save_prefix: Optional[str] = None
-    num_workers: Optional[int] = None  # 1
-    num_threads: Optional[int] = None  # 0
-    gaussian: Optional[int] = None  # 0
-    patch_size: Optional[int] = None  # 96
-    patch_padding: Optional[int] = None  # 48
-    device: Optional[int] = None  # -2
+    model: str = "unet-3d"
+    gaussian: int = 0
+    patch_size: int = 96
+    patch_padding: int = 48
     cleanup_output: bool = True
     copy_output: bool = False
-    visits_for_slurm: Optional[list] = ["bi", "cm", "nr", "nt"]
+    visits_for_slurm: list | None = ["bi", "cm", "nr", "nt"]
     relion_options: RelionServiceOptions
 
     @field_validator("model")
@@ -58,20 +40,6 @@ class DenoiseParameters(BaseModel):
     def saved_models(cls, v):
         if v not in ["unet-3d-10a", "unet-3d-20a", "unet-3d"]:
             raise ValueError("Model must be one of unet-3d-10a, unet-3d-20a, unet-3d")
-        return v
-
-    @field_validator("optim")
-    @classmethod
-    def optimizers(cls, v):
-        if v not in ["adam", "adagrad", "sgd"]:
-            raise ValueError("Optimizer must be one of adam, adagrad, sgd")
-        return v
-
-    @field_validator("criteria")
-    @classmethod
-    def training_criteria(cls, v):
-        if v not in ["L1", "L2"]:
-            raise ValueError("Optimizer must be one of L1, L2")
         return v
 
 
@@ -115,7 +83,7 @@ class Denoise(CommonService):
         torch.set_num_threads(1)
         torch.cuda.set_device(0)
 
-        denoiser = Denoise3D(denoise_parameters.model, True)
+        denoiser = Denoise3D(denoise_parameters.model, True, dims=3)
         denoised_volumes = denoise_tomogram_stream(
             volumes=[denoise_parameters.volume],
             model=denoiser,
@@ -127,7 +95,7 @@ class Denoise(CommonService):
             verbose=True,
             use_cuda=True,
         )
-        if denoised_volumes == [denoise_parameters.volume]:
+        if len(denoised_volumes) == 1:
             rtc = 0
         else:
             rtc = 1
@@ -186,27 +154,9 @@ class Denoise(CommonService):
             "output_dir": "-o",
             "suffix": "--suffix",
             "model": "-m",
-            "even_train_path": "-a",
-            "odd_train_path": "-b",
-            "n_train": "--N-train",
-            "n_test": "--N-test",
-            "crop": "-c",
-            "base_kernel_width": "--base-kernel-width",
-            "optim": "--optim",
-            "lr": "--lr",
-            "criteria": "--criteria",
-            "momentum": "--momentum",
-            "batch_size": "--batch-size",
-            "num_epochs": "--num-epochs",
-            "weight_decay": "-w",
-            "save_interval": "--save-interval",
-            "num_workers": "--num-workers",
-            "save_prefix": "--save-prefix",
-            "num_threads": "-j",
             "gaussian": "-g",
             "patch_size": "-s",
             "patch_padding": "-p",
-            "device": "-d",
         }
         for k, v in denoise_params.model_dump().items():
             if (v not in [None, ""]) and (k in denoise_flags):
