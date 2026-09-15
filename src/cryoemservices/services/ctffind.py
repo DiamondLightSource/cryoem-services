@@ -358,7 +358,7 @@ class CTFFind(CommonService):
             if ctf_params.app_id is not None:
                 self.log.info("Sending to smartem if configured")
                 rw.send_to(
-                    "murfey",
+                    "murfey_feedback",
                     {
                         "register": "spa.ctf_estimated",
                         "ctf_max_resolution": self.estimated_resolution,
