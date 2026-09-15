@@ -492,19 +492,6 @@ class CrYOLO(CommonService):
             ),
         }
 
-        if cryolo_params.app_id is not None:
-            self.log.info("Sending to smartem if configured")
-            rw.send_to(
-                "smartem",
-                {
-                    "number_of_picked_particles": len(cryolo_particle_sizes),
-                    "pick_distribution": {},
-                    "mc_uuid": cryolo_params.mc_uuid,
-                    "app_id": cryolo_params.app_id,
-                    "mc_path": cryolo_params.input_path,
-                },
-            )
-
         # Forward results to murfey
         self.log.info("Sending to Murfey for particle extraction")
         rw.send_to(
