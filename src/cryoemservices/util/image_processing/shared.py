@@ -15,6 +15,7 @@ from typing import Literal, Protocol, cast
 
 import cv2
 import numpy as np
+import PIL.Image
 import tifffile as tf
 from readlif.reader import LifFile
 
@@ -59,7 +60,12 @@ class TIFFImageLoader(ImageLoader):
     tiff_file: Path
 
     def load(self) -> np.ndarray:
-        return tf.imread(self.tiff_file)
+        """
+        Attempt to read TIFF files using different packages
+        """
+        with PIL.Image.open(self.tiff_file) as img:
+            arr = np.array(img)
+        return arr
 
 
 @dataclass(frozen=True)
