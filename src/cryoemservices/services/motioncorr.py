@@ -743,7 +743,7 @@ class MotionCorr(CommonService):
         if mc_params.experiment_type == "spa" and mc_params.app_id is not None:
             self.log.info("Sending to smartem if configured")
             rw.send_to(
-                "smartem",
+                "murfey",
                 {
                     "register": "spa.motion_corrected",
                     "total_motion": total_motion,
