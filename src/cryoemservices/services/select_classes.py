@@ -254,7 +254,7 @@ class SelectClasses(CommonService):
                     for mic, count in micrograph_particle_counts_before.items():
                         num_selected = micrograph_particle_counts_after.get(mic, 0)
                         rw.send_to(
-                            "smartem",
+                            "murfey_feedback",
                             {
                                 "number_of_particles_selected": num_selected,
                                 "number_of_particles_rejected": count - num_selected,
