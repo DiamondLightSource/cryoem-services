@@ -230,7 +230,7 @@ def test_tomo_align_imod(
                 },
                 {
                     "ispyb_command": "insert_processed_tomogram",
-                    "file_path": f"{tmp_path}/recipe/Tomograms/test_stack_rec_alignment.jpeg",
+                    "file_path": f"{tmp_path}/recipe/Tomograms/test_stack_alignment.jpeg",
                     "processing_type": "Alignment",
                 },
             ],

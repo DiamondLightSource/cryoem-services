@@ -74,7 +74,7 @@ def run_cryodann(
     class2d_params: Class2DParameters, project_dir: Path, nr_iter: int
 ) -> bool:
     # cryoVAE needs the particles to be aligned according to the alignments determined in 2D classification
-    (Path(class2d_params.class2d_dir) / "aligned_particles").mkdir()
+    (Path(class2d_params.class2d_dir) / "aligned_particles").mkdir(exist_ok=True)
     particle_alignment_command = [
         "relion_stack_create",
         "--i",

@@ -759,7 +759,7 @@ def test_motioncor2_service_tomo(mock_subprocess, offline_transport, tmp_path):
         "node_creator",
         {
             "experiment_type": "tomography",
-            "job_type": "relion.motioncorr.motioncor2",
+            "job_type": "relion.motioncorr.tomo.motioncor2",
             "input_file": f"{tmp_path}/Import/job001/Movies/sample_001_3.0_date_time_fractions.tiff",
             "output_file": motioncorr_test_message["mrc_out"],
             "relion_options": output_relion_options,
@@ -974,7 +974,7 @@ def test_motioncor_relion_service_tomo(mock_subprocess, offline_transport, tmp_p
         "node_creator",
         {
             "experiment_type": "tomography",
-            "job_type": "relion.motioncorr.own",
+            "job_type": "relion.motioncorr.tomo.own",
             "input_file": f"{tmp_path}/Import/job001/Movies/sample_002_3.0_date_time_fractions.tiff",
             "output_file": motioncorr_test_message["mrc_out"],
             "relion_options": output_relion_options,

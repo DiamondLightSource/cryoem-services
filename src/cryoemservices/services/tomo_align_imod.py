@@ -232,7 +232,7 @@ class ImodTomoAlign(CommonService):
             },
             {
                 "ispyb_command": "insert_processed_tomogram",
-                "file_path": f"{imod_output_path.parent}/{imod_output_path.stem}_alignment.jpeg",
+                "file_path": f"{imod_output_path.parent}/{Path(tomo_params.stack_file).stem}_alignment.jpeg",
                 "processing_type": "Alignment",
             },
         ]

@@ -1,5 +1,5 @@
 [tool.bumpversion]
-current_version = "1.4.1"
+current_version = "1.5.0"
 commit = true
 tag = true
 
@@ -44,12 +44,17 @@ search = 'version: {current_version}'
 replace = 'version: {new_version}'
 
 [[tool.bumpversion.files]]
+filename = "Helm/charts/correlative_align_images/Chart.yaml"
+search = 'version: {current_version}'
+replace = 'version: {new_version}'
+
+[[tool.bumpversion.files]]
 filename = "Helm/charts/cryolo/Chart.yaml"
 search = 'version: {current_version}'
 replace = 'version: {new_version}'
 
 [[tool.bumpversion.files]]
-filename = "Helm/charts/cryolo_gpu/Chart.yaml"
+filename = "Helm/charts/cryolo_tomo/Chart.yaml"
 search = 'version: {current_version}'
 replace = 'version: {new_version}'
 
@@ -65,6 +70,11 @@ replace = 'version: {new_version}'
 
 [[tool.bumpversion.files]]
 filename = "Helm/charts/denoise_slurm/Chart.yaml"
+search = 'version: {current_version}'
+replace = 'version: {new_version}'
+
+[[tool.bumpversion.files]]
+filename = "Helm/charts/easymode/Chart.yaml"
 search = 'version: {current_version}'
 replace = 'version: {new_version}'
 
@@ -125,6 +135,11 @@ replace = 'version: {new_version}'
 
 [[tool.bumpversion.files]]
 filename = "Helm/charts/select_particles/Chart.yaml"
+search = 'version: {current_version}'
+replace = 'version: {new_version}'
+
+[[tool.bumpversion.files]]
+filename = "Helm/charts/sim_recon/Chart.yaml"
 search = 'version: {current_version}'
 replace = 'version: {new_version}'
 

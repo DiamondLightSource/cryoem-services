@@ -147,6 +147,12 @@ class CTFFind(CommonService):
             return
         self.log.info(f"Using CTFFind version {ctf_params.ctffind_version}")
 
+        self.job_type = (
+            "relion.ctffind.ctffind4"
+            if ctf_params.experiment_type == "spa"
+            else "relion.ctffind.tomo.ctffind4"
+        )
+
         command = ["ctffind5"] if ctf_params.ctffind_version == 5 else ["ctffind"]
 
         # Check if this file has been run before
@@ -352,7 +358,7 @@ class CTFFind(CommonService):
             if ctf_params.app_id is not None:
                 self.log.info("Sending to smartem if configured")
                 rw.send_to(
-                    "smartem",
+                    "murfey_feedback",
                     {
                         "register": "spa.ctf_estimated",
                         "ctf_max_resolution": self.estimated_resolution,

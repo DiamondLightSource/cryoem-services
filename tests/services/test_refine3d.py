@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import json
 from unittest import mock
 
 import pytest
@@ -223,7 +224,8 @@ def test_refine3d_service_with_mask(
     )
 
 
-def test_refine3d_service_no_scaling(offline_transport, tmp_path):
+@mock.patch("workflows.transport.offline_transport._offlog")
+def test_refine3d_service_no_scaling(mock_log, offline_transport, tmp_path):
     """Not requesting rescaling properly should lead to rejection of the message"""
 
     # Set up the parameters
@@ -250,12 +252,21 @@ def test_refine3d_service_no_scaling(offline_transport, tmp_path):
     service.refine3d(None, header=header, message=refine_test_message)
 
     end_message["requeue"] = 1
-    offline_transport.send.assert_any_call("refine3d", end_message)
+    mock_log.info.assert_any_call(
+        "Offline Transport: Acknowledging message 1 in subscription 2"
+    )
+    mock_log.info.assert_any_call(
+        f"Offline Transport: Sending {len(json.dumps(end_message))} bytes to refine3d"
+    )
+    mock_log.debug.assert_any_call(json.dumps(end_message))
     offline_transport.ack.assert_called_once()
 
 
 @mock.patch("cryoemservices.services.refine3d.run_refinement")
-def test_refine3d_service_failed_resends(mock_refine3d, offline_transport, tmp_path):
+@mock.patch("workflows.transport.offline_transport._offlog")
+def test_refine3d_service_failed_resends(
+    mock_log, mock_refine3d, offline_transport, tmp_path
+):
     """Failures of the processing should lead to reinjection of the message"""
 
     def raise_exception(*args, **kwargs):
@@ -286,7 +297,13 @@ def test_refine3d_service_failed_resends(mock_refine3d, offline_transport, tmp_p
     service.refine3d(None, header=header, message=refine_test_message)
 
     end_message["requeue"] = 1
-    offline_transport.send.assert_any_call("refine3d", end_message)
+    mock_log.info.assert_any_call(
+        "Offline Transport: Acknowledging message 1 in subscription 2"
+    )
+    mock_log.info.assert_any_call(
+        f"Offline Transport: Sending {len(json.dumps(end_message))} bytes to refine3d"
+    )
+    mock_log.debug.asseert_any_call(end_message)
     offline_transport.ack.assert_called_once()
 
 

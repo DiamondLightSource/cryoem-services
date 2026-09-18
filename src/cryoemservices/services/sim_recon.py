@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import ast
 import json
+import subprocess
+import uuid
 from pathlib import Path
+from typing import Any, Literal, cast
 
 from pydantic import BaseModel, ValidationError, field_validator
 from workflows.recipe import RecipeWrapper, wrap_subscribe
@@ -99,8 +102,10 @@ class WavelengthParameters(BaseModel):
 
 
 class PySIMReconParameters(BaseModel):
+    visit_name: str
     file: Path
     output_dir: Path
+    output_type: Literal["dv", "tiff"] = "dv"
     blue_params: WavelengthParameters = WavelengthParameters(wavelength=452)
     green_params: WavelengthParameters = WavelengthParameters(wavelength=525)
     red_params: WavelengthParameters = WavelengthParameters(wavelength=605)
@@ -128,7 +133,7 @@ class PySIMReconParameters(BaseModel):
         return value
 
 
-class PySIMReconService(CommonService):
+class SIMReconService(CommonService):
     """
     A service that will run PySIMRecon with the desired parameters on the incoming
     SIM data files.
@@ -179,7 +184,7 @@ class PySIMReconService(CommonService):
             else:
                 params = PySIMReconParameters(**rw.recipe_step.get("parameters", {}))
         except (ValidationError, TypeError) as e:
-            self.log.warning(
+            self.log.error(
                 f"PySIMReconParameters validation failed for message: {message} "
                 f"and recipe parameters: {rw.recipe_step.get('parameters', {})} "
                 f"with exception: {e}"
@@ -188,6 +193,224 @@ class PySIMReconService(CommonService):
             return
 
         self.log.info(
-            "Running PySIMRecon with the following parameters:\n"
-            f"{params.model_dump(mode='json')}"
+            "Received the following parameters:\n"
+            f"{json.dumps(params.model_dump(), indent=2, default=str)}"
         )
+
+        try:
+            # ------------------------------------------------
+            # Create the config files needed to run PySIMRecon
+            # ------------------------------------------------
+
+            # Find the visit directory and create a setup directory
+            visit_idx = params.file.parts.index(params.visit_name)
+            visit_dir = Path(*params.file.parts[: visit_idx + 1])
+
+            # Create a directory for all the config files with a UUID appended
+            uid = uuid.uuid4()
+            config_dir = visit_dir / "setup" / f"configs-{uid}"
+            config_dir.mkdir(parents=True, exist_ok=True)
+
+            # 1. 'defaults.cfg'
+            # -----------------
+            defaults_config_lines = []
+            # Construct the OTF and reconstruction sections of the config
+            for section_name, params_name in (
+                ("[otf config]", "sim_otf_params"),
+                ("[recon config]", "sim_recon_params"),
+            ):
+                defaults_config_lines.append(section_name)
+                # Load relevant model from PySIMReconParameters
+                params_section = cast(
+                    SIMOTFParameters | SIMReconParameters,
+                    getattr(params, params_name),
+                )
+                # Load and append values for each field
+                for name in type(params_section).model_fields.keys():
+                    # Serialise any tuple values encountered
+                    if isinstance((value := getattr(params_section, name)), tuple):
+                        value = ",".join([str(i) for i in value])
+                    defaults_config_lines.append(f"{name}={value}")
+                # Add a newline between sections
+                defaults_config_lines.append("")
+            # Save the output to the setup directory
+            defaults_config = config_dir / "defaults.cfg"
+            with open(defaults_config, "w") as f:
+                f.write("\n".join(defaults_config_lines))
+            self.log.info(f"Created config file {defaults_config}")
+
+            # 2. Configs for each wavelength
+            # ------------------------------
+            wavelength_configs: list[tuple[int, Path]] = []
+            otf_files: dict[int, Path] = {}
+            for params_name in (
+                "blue_params",
+                "green_params",
+                "red_params",
+                "far_red_params",
+            ):
+                # Load the relevant model from PySIMReconParameters
+                wavelength_params = cast(
+                    WavelengthParameters, getattr(params, params_name)
+                )
+                wavlength_config_lines = []
+
+                # 'ls' must be provided in order to continue
+                if not wavelength_params.ls:
+                    raise ValueError("No value for 'ls' was provided")
+                # OTF file must also be present
+                if not wavelength_params.otf_path:
+                    raise ValueError("No OTF file path was provided")
+
+                # Add sections and their corresponding values
+                wavlength_config_lines.append("[otf config]")
+                wavlength_config_lines.append(f"ls={wavelength_params.ls}")
+                if wavelength_params.beaddiam:
+                    wavlength_config_lines.append(
+                        f"beaddiam={wavelength_params.beaddiam}"
+                    )
+                wavlength_config_lines.append("")
+                wavlength_config_lines.append("[recon config]")
+                wavlength_config_lines.append(f"ls={wavelength_params.ls}")
+                wavlength_config_lines.append("")
+
+                # Save the output to the setup directory and append file to list
+                wavelength_config = config_dir / f"{wavelength_params.wavelength}.cfg"
+                with open(wavelength_config, "w") as f:
+                    f.write("\n".join(wavlength_config_lines))
+                wavelength_configs.append(
+                    (wavelength_params.wavelength, wavelength_config)
+                )
+                self.log.info(f"Created config file {wavelength_config}")
+
+                # Extract and add OTF file to dict
+                otf_files[wavelength_params.wavelength] = wavelength_params.otf_path
+
+            # 3. 'config.ini'
+            # ---------------
+            master_config_lines = []
+
+            # Populate the 'configs' section
+            master_config_lines.append("[configs]")
+            master_config_lines.append(f"directory={str(config_dir)}")
+            master_config_lines.append(f"defaults={str(defaults_config.name)}")
+            # Iteratively add files for wavelengths
+            for wavelength, file in wavelength_configs:
+                master_config_lines.append(f"{wavelength}={file.name}")
+
+            # Populate the 'otfs' section
+            master_config_lines.append("[otfs]")
+            otf_parent: Path | None = None
+            # Iteratively add files for wavelengths
+            for wavelength, otf_file in otf_files.items():
+                if not otf_parent:
+                    otf_parent = otf_file.parent
+                    master_config_lines.append(f"directory={str(otf_parent)}")
+                master_config_lines.append(f"{wavelength}={str(otf_file.name)}")
+
+            # Save the output to the setup directory
+            master_config = config_dir / "config.ini"
+            with open(master_config, "w") as f:
+                f.write("\n".join(master_config_lines))
+            self.log.info(f"Created config file {master_config}")
+
+        except Exception:
+            self.log.error("Error creating PySIMRecon config files", exc_info=True)
+            self._reject_message(header, transport=rw.transport, requeue=False)
+            return
+
+        try:
+            # Ensure tmp directory exists
+            tmp_dir = visit_dir / "tmp"
+            tmp_dir.mkdir(parents=True, exist_ok=True)
+
+            # Ensure the output directory exists
+            params.output_dir.mkdir(parents=True, exist_ok=True)
+            output_file: Path | None = None  # Placeholder variable
+
+            # Construct and run the 'sim-recon' bash command
+            cmd = [
+                "sim-recon",
+                "-d",
+                f"{params.file}",
+                "-c",
+                f"{master_config}",
+                "-p",
+                f"{tmp_dir / str(uid)}",  # PySIMRecon creates folder using UID
+                "-o",
+                f"{params.output_dir}",
+                "--type",
+                f"{params.output_type}",
+            ]
+            self.log.info(f"Running PySIMRecon with the following commands:\n{cmd}")
+            process_result = subprocess.run(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,  # Merge the streams
+                text=True,
+                timeout=180,
+            )
+            for line in process_result.stdout.splitlines():
+                line = line.rstrip()
+                self.log.info(line)
+
+                # Extract output file name from logs
+                if line.startswith("INFO:sim_recon.recon:Reconstructed data saved to:"):
+                    output_file = Path(
+                        line.replace(
+                            "INFO:sim_recon.recon:Reconstructed data saved to:",
+                            "",
+                        ).strip()
+                    )
+            # Check process return code
+            return_code = process_result.returncode
+            if return_code:
+                self.log.error(
+                    f"PySIMRecon subprocess failed with error code {return_code}"
+                )
+                self._reject_message(header, transport=rw.transport, requeue=False)
+                return
+            # Mark as failure and reject message if no output file was found
+            if not output_file or not output_file.is_file():
+                self.log.error(
+                    f"PySIMRecon failed to generate output file for {params.file}"
+                )
+                self._reject_message(header, transport=rw.transport, requeue=False)
+                return
+        except subprocess.TimeoutExpired as exc:
+            # Kill the process
+            self.log.error("Process timed out after 180 seconds")
+
+            # Extract output, if any, convert to string, and log it
+            stdout: str | bytes = exc.stdout or b""
+            if isinstance(stdout, bytes):
+                stdout = stdout.decode(errors="replace")
+            for line in stdout.splitlines():
+                line = line.rstrip()
+                self.log.error(line)
+            self._reject_message(header, transport=rw.transport, requeue=False)
+            return
+        except Exception:
+            self.log.error("Error running PySIMRecon subprocess", exc_info=True)
+            self._reject_message(header, transport=rw.transport, requeue=False)
+            return
+
+        # Construct message to send back to Murfey
+        result: dict[str, Any] = {
+            "output_file": str(output_file),
+            # More fields can be added as workflow develops
+        }
+        murfey_params = {
+            "register": "sim.register_reconstruction_result",
+            "result": result,
+        }
+        self.log.info(
+            "Will submit the following message back to Murfey:\n"
+            f"{json.dumps(murfey_params, indent=2, default=str)}"
+        )
+        # rw.send_to("murfey_feedback", murfey_params)  # Will be enabled in the future
+
+        # Ack message after completion
+        self.log.info("PySIMRecon job completed")
+        rw.transport.ack(header)
+        return

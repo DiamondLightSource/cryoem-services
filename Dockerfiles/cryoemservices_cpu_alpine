@@ -1,0 +1,55 @@
+# This Dockerfile is used for the services that can run on CPU
+FROM docker.io/library/python:3.12-alpine as base
+
+RUN \
+    apk upgrade --no-cache && \
+    apk add --no-cache \
+    # Add libraries needed during runtime
+    libstdc++
+
+FROM base as build
+
+RUN --mount=type=bind,source=.,target=/mnt/cryoemservices,U \
+    echo "Installing build environment..." && \
+    apk add --no-cache \
+        alpine-sdk \
+        curl \
+        linux-headers \
+        && \
+    \
+    echo "Setting up cryoem-services build environemnt..." && \
+    mkdir /tmp/cryoemservices && \
+    cp -r /mnt/cryoemservices/src /tmp/cryoemservices/ && \
+    for FILE in LICENSE pyproject.toml setup.py; \
+        do cp /mnt/cryoemservices/$FILE /tmp/cryoemservices/; \
+        done \
+        && \
+    python -m venv /venv && \
+    /venv/bin/python -m pip install --upgrade --no-cache-dir \
+        pip \
+        build \
+        && \
+    \
+    echo "Installing cryoem-services and supporting packages..." && \
+    /venv/bin/python -m pip install --no-cache-dir \
+        /tmp/cryoemservices \
+        http://gitlab.com/stephen-riggs/ccpem-pipeliner/-/archive/diamond_tomo/ccpem-pipeliner-diamond_tomo.zip
+
+# Transfer completed build to base image
+FROM base
+
+ARG groupid
+ARG userid
+ARG groupname
+
+# Copy completed builds across and set user and group permissions
+COPY --from=build --chown="${userid}":"${groupid}" /venv/ /venv/
+RUN \
+    # Add user and group (Alpine)
+    addgroup -S -g "${groupid}" "${groupname}" && \
+    adduser -S -D -H -u "${userid}" -G "${groupname}" "${groupname}" && \
+    \
+    # Change permissions
+    chmod -R a+x /venv
+ENV PATH=/venv/bin:$PATH
+USER "${userid}":"${groupid}"

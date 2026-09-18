@@ -824,9 +824,9 @@ def _cryolo_output_files(
 
 _output_files: Dict[str, Callable] = {
     "relion.importtomo": _import_output_files,
-    "relion.motioncorr.own": _motioncorr_output_files,
-    "relion.motioncorr.motioncor2": _motioncorr_output_files,
-    "relion.ctffind.ctffind4": _ctffind_output_files,
+    "relion.motioncorr.tomo.own": _motioncorr_output_files,
+    "relion.motioncorr.tomo.motioncor2": _motioncorr_output_files,
+    "relion.ctffind.tomo.ctffind4": _ctffind_output_files,
     "relion.excludetilts": _exclude_tilt_output_files,
     "relion.aligntiltseries.aretomo": _align_tilt_output_files,
     "relion.reconstructtomograms": _tomogram_output_files,

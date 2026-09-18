@@ -7,7 +7,7 @@ requires = [
 
 [project]
 name = "cryoemservices"
-version = "1.4.1"
+version = "1.5.0"
 description = "Services for CryoEM processing"
 readme = "README.md"
 keywords = [
@@ -35,23 +35,25 @@ dependencies = [
     "graypy",
     "healpy",
     "icebreaker-em",
-    "imagecodecs", # CLEM workflow
     "ispyb>=12.1.1",
     "mrcfile",
     "numpy",
+    "opencv-python-headless",
     "pillow",
     "plotly",
     "pydantic>=2",
     "readlif", # CLEM workflow
     "requests",
-    "SimpleITK", # CLEM workflow
     "starfile",
     "stomp-py>8.1.1",
-    "tifffile", # CLEM workflow
+    "tifffile",
     "txrm2tiff",
     "workflows>=3",
 ]
 [project.optional-dependencies]
+clem = [
+    "SimpleITK",
+]
 dev = [
     "bump-my-version",
     "ipykernel",
@@ -118,8 +120,8 @@ torch = [
     NodeCreator = "cryoemservices.services.node_creator:NodeCreator"
     PostProcess = "cryoemservices.services.postprocess:PostProcess"
     ProcessRecipe = "cryoemservices.services.process_recipe:ProcessRecipe"
-    PySIMRecon = "cryoemservices.services.sim_recon:PySIMReconService"
     Refine3D = "cryoemservices.services.refine3d:Refine3D"
+    SIMRecon = "cryoemservices.services.sim_recon:SIMReconService"
     SelectClasses = "cryoemservices.services.select_classes:SelectClasses"
     SelectParticles = "cryoemservices.services.select_particles:SelectParticles"
     TopazPick = "cryoemservices.services.topaz_pick:TopazPick"
