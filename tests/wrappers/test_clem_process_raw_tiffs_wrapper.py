@@ -140,7 +140,7 @@ def create_dummy_result(
         y_pixels_new = int(stitched_height / pixel_size_new)
 
     return {
-        "series_name": f"{area_name}--{series_name}",
+        "series_name": f"{area_name}/{series_name}",
         "number_of_members": num_channels,
         "is_stack": num_frames > 1,
         "is_montage": num_tiles > 1,
