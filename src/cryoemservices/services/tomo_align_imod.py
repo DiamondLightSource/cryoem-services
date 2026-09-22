@@ -1,6 +1,7 @@
 import json
 import shutil
 import subprocess
+import uuid
 from pathlib import Path
 from typing import Optional
 
@@ -66,8 +67,8 @@ class ImodTomoAlign(CommonService):
             allow_non_recipe_messages=True,
         )
 
-    def extract_from_xf(self, stack_file: str, plot_path: Path) -> Path | None:
-        xf_file = Path(stack_file).with_suffix(".xf")
+    def extract_from_xf(self, stack_file: Path, plot_path: Path) -> Path | None:
+        xf_file = stack_file.with_suffix(".xf")
 
         if not xf_file.exists():
             return None
@@ -118,22 +119,23 @@ class ImodTomoAlign(CommonService):
             self._reject_message(header, rw.transport, requeue=False)
             return
 
+        # Create a subfolder with uuid to save outputs to
+        uuid_dir = Path(tomo_params.stack_file).parent / uuid.uuid4().hex
+        uuid_dir.mkdir(parents=True)
+        uuid_stack = uuid_dir / Path(tomo_params.stack_file).name
+
         # Do txrm conversion
         self.log.info(f"Input file {tomo_params.txrm_file}")
-        tifftomo = Path(tomo_params.stack_file).with_suffix(".tiff")
+        tifftomo = uuid_stack.with_suffix(".tiff")
         convert_and_save(
             tomo_params.txrm_file,
             str(tifftomo),
             custom_reference=tomo_params.xrm_reference or None,
         )
-        subprocess.run(
-            ["tif2mrc", str(tifftomo), tomo_params.stack_file], capture_output=True
-        )
+        subprocess.run(["tif2mrc", str(tifftomo), str(uuid_stack)], capture_output=True)
         tifftomo.unlink(missing_ok=True)
-        if not Path(tomo_params.stack_file).is_file():
-            self.log.error(
-                f"Converting {tomo_params.txrm_file} to {tomo_params.stack_file} failed"
-            )
+        if not uuid_stack.is_file():
+            self.log.error(f"Converting {tomo_params.txrm_file} to {uuid_stack} failed")
             self._reject_message(header, rw.transport)
             return
 
@@ -144,24 +146,20 @@ class ImodTomoAlign(CommonService):
                     txrm_ole.openstream("ImageInfo/Angles").getvalue(), np.float32
                 ).tolist()
                 angles = dict(enumerate(angles))
-        with open(
-            Path(tomo_params.stack_file).parent
-            / f"{Path(tomo_params.stack_file).stem}.rawtlt",
-            "w",
-        ) as angles_file:
+        with open(uuid_stack.parent / f"{uuid_stack.stem}.rawtlt", "w") as angles_file:
             for ang in angles.values():
                 angles_file.write(f"{round(ang, 4):.4f}\n")
 
         # Find the input image dimensions
         self.log.info(f"Converted {tomo_params.txrm_file} to mrc format")
-        with mrcfile.open(tomo_params.stack_file) as mrc:
+        with mrcfile.open(uuid_stack) as mrc:
             mrc_header = mrc.header
 
-        output_dir = Path(tomo_params.stack_file).parent
-
         # Run batchruntomo
-        adoc_file = write_batch_directive_file(tomo_params)
-        imod_output_path = output_dir / f"{Path(tomo_params.stack_file).stem}_rec.mrc"
+        adoc_file = write_batch_directive_file(tomo_params, uuid_dir)
+        imod_output_path = (
+            uuid_dir.parent / f"{Path(tomo_params.stack_file).stem}_rec.mrc"
+        )
         imod_result = subprocess.run(
             [
                 "batchruntomo",
@@ -181,7 +179,7 @@ class ImodTomoAlign(CommonService):
             rw.send_to("failure", {})
             self._reject_message(header, rw.transport)
             return
-        elif not imod_output_path.is_file():
+        elif not (uuid_dir / imod_output_path.name).is_file():
             self.log.error(
                 f"batchruntomo did not produce the output file {imod_output_path}\n"
                 + imod_result.stdout.decode("utf8", "replace")
@@ -194,12 +192,17 @@ class ImodTomoAlign(CommonService):
 
         # Generate shift plot for ispyb
         plot_file = imod_output_path.stem + "_xy_shift_plot.json"
-        plot_path = output_dir / plot_file
-        xf_file = self.extract_from_xf(tomo_params.stack_file, plot_path)
+        plot_path = uuid_dir / plot_file
+        xf_file = self.extract_from_xf(uuid_stack, plot_path)
         if not xf_file:
             self.log.error("Failed to read alignment file")
             self._reject_message(header, transport=rw.transport)
             return
+
+        # Move everything out of the uuid folder
+        for output_file in uuid_dir.iterdir():
+            output_file.rename(uuid_dir.parent / output_file.name)
+        uuid_dir.rmdir()
 
         # Insert tomogram into ispyb
         side_projection = (
@@ -244,7 +247,7 @@ class ImodTomoAlign(CommonService):
             {
                 "image_command": "tilt_series_alignment",
                 "file": tomo_params.stack_file,
-                "xf_file": str(xf_file),
+                "xf_file": str(uuid_dir.parent / xf_file.name),
                 "pixel_size": tomo_params.pixel_size,
                 "projection": side_projection,
             },
@@ -340,8 +343,8 @@ class ImodTomoAlign(CommonService):
         rw.transport.ack(header)
 
 
-def write_batch_directive_file(tomo_params: ImodTomoParameters):
-    adoc_file = Path(tomo_params.stack_file).parent / "batchDirective.adoc"
+def write_batch_directive_file(tomo_params: ImodTomoParameters, output_dir: Path):
+    adoc_file = output_dir / "batchDirective.adoc"
     with open(adoc_file, "w") as adoc:
         # Commands for copytomocoms
         adoc.write(f"setupset.datasetDirectory={adoc_file.parent}\n")
