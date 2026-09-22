@@ -672,7 +672,6 @@ def insert_processed_tomogram(message: dict, parameters: Callable, session: Sess
             if full_parameters("feature")
             else None,
         )
-        logger.warning(full_parameters("file_path"))
         if session.execute(
             select(models.ProcessedTomogram)
             .where(models.ProcessedTomogram.tomogramId == values.tomogramId)
