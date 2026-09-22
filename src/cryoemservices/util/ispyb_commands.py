@@ -629,7 +629,12 @@ def insert_tomogram(message: dict, parameters: Callable, session: Session):
                     {
                         k: v
                         for k, v in values.__dict__.items()
-                        if k not in ["_sa_instance_state", "tomogramId"]
+                        if k
+                        not in [
+                            "_sa_instance_state",
+                            "processedTomogramId",
+                            "tomogramId",
+                        ]
                         and v is not None
                     }
                 )

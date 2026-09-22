@@ -833,7 +833,7 @@ def test_insert_tomogram_update_on_id(mock_update):
 
     # Mock which returns an existing object
     mock_session = mock.MagicMock()
-    mock_session.execute().one_or_none.return_value = 1
+    mock_session.execute().one_or_none.return_value = [mock.MagicMock()]
 
     return_value = ispyb_commands.insert_tomogram(
         {}, mock_tomogram_parameters, mock_session
@@ -911,7 +911,7 @@ def test_insert_tomogram_update_on_volume_name(mock_update):
 
     # Mock which returns an existing object
     mock_session = mock.MagicMock()
-    mock_session.execute().one_or_none.side_effect = [0, 1]
+    mock_session.execute().one_or_none.side_effect = [0, [mock.MagicMock()]]
 
     return_value = ispyb_commands.insert_tomogram(
         {}, mock_tomogram_parameters, mock_session
@@ -923,7 +923,7 @@ def test_insert_tomogram_update_on_volume_name(mock_update):
     assert mock_session.execute().one_or_none.call_count == 2
 
     # Don't check the model call here, instead look at the update
-    mock_update().where().where().values.assert_called_with(
+    mock_update().where().values.assert_called_with(
         {
             "dataCollectionId": 10,
             "autoProcProgramId": 1,
@@ -956,7 +956,8 @@ def test_insert_tomogram_update_on_volume_name(mock_update):
 
 
 @mock.patch("cryoemservices.util.ispyb_commands.models")
-def test_insert_processed_tomogram(mock_models):
+@mock.patch("cryoemservices.util.ispyb_commands.select")
+def test_insert_processed_tomogram(mock_select, mock_models):
     def mock_tomogram_parameters(p):
         tomogram_parameters = {
             "tomogram_id": 801,
@@ -966,12 +967,18 @@ def test_insert_processed_tomogram(mock_models):
         }
         return tomogram_parameters[p]
 
+    # Mock which returns None for existing objects
     mock_session = mock.MagicMock()
+    mock_session.execute().one_or_none.return_value = None
     return_value = ispyb_commands.insert_processed_tomogram(
         {}, mock_tomogram_parameters, mock_session
     )
     assert return_value.get("success")
     assert return_value["return_value"]
+
+    assert mock_select.call_count == 1
+    assert mock_session.execute.call_count == 2
+    assert mock_session.execute().one_or_none.call_count == 1
 
     mock_models.ProcessedTomogram.assert_called_with(
         tomogramId=801,
@@ -984,7 +991,8 @@ def test_insert_processed_tomogram(mock_models):
 
 
 @mock.patch("cryoemservices.util.ispyb_commands.models")
-def test_insert_processed_tomogram_no_feature(mock_models):
+@mock.patch("cryoemservices.util.ispyb_commands.select")
+def test_insert_processed_tomogram_no_feature(mock_select, mock_models):
     def mock_tomogram_parameters(p):
         tomogram_parameters = {
             "tomogram_id": 801,
@@ -994,12 +1002,18 @@ def test_insert_processed_tomogram_no_feature(mock_models):
         }
         return tomogram_parameters[p]
 
+    # Mock which returns None for existing objects
     mock_session = mock.MagicMock()
+    mock_session.execute().one_or_none.return_value = None
     return_value = ispyb_commands.insert_processed_tomogram(
         {}, mock_tomogram_parameters, mock_session
     )
     assert return_value.get("success")
     assert return_value["return_value"]
+
+    assert mock_select.call_count == 1
+    assert mock_session.execute.call_count == 2
+    assert mock_session.execute().one_or_none.call_count == 1
 
     mock_models.ProcessedTomogram.assert_called_with(
         tomogramId=801,
@@ -1008,6 +1022,44 @@ def test_insert_processed_tomogram_no_feature(mock_models):
         feature=None,
     )
     mock_session.add.assert_called()
+    mock_session.commit.assert_called()
+
+
+@mock.patch("cryoemservices.util.ispyb_commands.update")
+def test_insert_processed_tomogram_update(mock_update):
+    def mock_tomogram_parameters(p):
+        tomogram_parameters = {
+            "tomogram_id": None,
+            "program_id": 10,
+            "file_path": "/path/to/processed/tomogram",
+            "processing_type": "Denoised",
+            "feature": "membrane",
+        }
+        return tomogram_parameters[p]
+
+    # Mock which returns an existing object
+    mock_session = mock.MagicMock()
+    mock_session.execute().all.return_value = [mock.MagicMock()]
+    mock_session.execute().one_or_none.return_value = [mock.MagicMock()]
+
+    return_value = ispyb_commands.insert_processed_tomogram(
+        {}, mock_tomogram_parameters, mock_session
+    )
+    assert return_value.get("success")
+
+    assert mock_session.execute.call_count == 5
+    mock_session.execute().all.assert_called_once()
+    mock_session.execute().one_or_none.assert_called_once()
+
+    # Don't check the model call here, instead look at the update
+    mock_update().where().values.assert_called_with(
+        {
+            "filePath": "/path/to/processed/tomogram",
+            "processingType": "Denoised",
+            "feature": "Membrane",
+        }
+    )
+    mock_session.add.assert_not_called()
     mock_session.commit.assert_called()
 
 
