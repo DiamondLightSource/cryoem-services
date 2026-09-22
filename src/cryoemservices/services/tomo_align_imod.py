@@ -200,20 +200,20 @@ class ImodTomoAlign(CommonService):
             return
 
         # Move everything out of the uuid folder
-        def iterative_copy(base_dir):
-            for output_file in base_dir.iterdir():
-                if output_file.is_dir():
-                    (uuid_dir.parent / output_file.relative_to(uuid_dir)).mkdir(
+        def iterative_move(dir_to_move):
+            for output_item in dir_to_move.iterdir():
+                if output_item.is_dir():
+                    (uuid_dir.parent / output_item.relative_to(uuid_dir)).mkdir(
                         exist_ok=True
                     )
-                    iterative_copy(output_file)
+                    iterative_move(output_item)
                 else:
-                    output_file.rename(
-                        uuid_dir.parent / output_file.relative_to(uuid_dir)
+                    output_item.rename(
+                        uuid_dir.parent / output_item.relative_to(uuid_dir)
                     )
-            base_dir.rmdir()
+            dir_to_move.rmdir()
 
-        iterative_copy(uuid_dir)
+        iterative_move(uuid_dir)
 
         # Insert tomogram into ispyb
         side_projection = (
