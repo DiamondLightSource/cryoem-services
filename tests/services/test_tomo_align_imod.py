@@ -88,6 +88,8 @@ def test_tomo_align_imod(
             tmp_path / f"recipe/Tomograms/{folder_uuid.hex}/test_stack.xf", "w"
         ) as aln_file:
             aln_file.write("1 0 0 1 1.2 2.3")
+        (tmp_path / f"recipe/Tomograms/{folder_uuid.hex}/sub_folder").mkdir()
+        (tmp_path / f"recipe/Tomograms/{folder_uuid.hex}/sub_folder/file.txt").touch()
         return CompletedProcess("", returncode=0)
 
     mock_subprocess.side_effect = write_imod_outputs
@@ -132,6 +134,7 @@ def test_tomo_align_imod(
     # Check output copy
     assert (tmp_path / "recipe/Tomograms/test_stack_rec.mrc").is_file()
     assert (tmp_path / "recipe_volume.mrc").is_file()
+    assert (tmp_path / "recipe/Tomograms/sub_folder/file.txt").is_file()
 
     # Check the shift plot
     with open(

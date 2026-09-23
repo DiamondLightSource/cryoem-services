@@ -171,6 +171,24 @@ class ImodTomoAlign(CommonService):
             ],
             capture_output=True,
         )
+
+        # Move everything out of the uuid folder
+        def iterative_move(dir_to_move):
+            for output_item in dir_to_move.iterdir():
+                if output_item.is_dir():
+                    (uuid_dir.parent / output_item.relative_to(uuid_dir)).mkdir(
+                        exist_ok=True
+                    )
+                    iterative_move(output_item)
+                else:
+                    output_item.rename(
+                        uuid_dir.parent / output_item.relative_to(uuid_dir)
+                    )
+            dir_to_move.rmdir()
+
+        iterative_move(uuid_dir)
+
+        # Check the process outcome
         if imod_result.returncode:
             self.log.error(
                 f"batchruntomo failed with exitcode {imod_result.returncode}"
@@ -179,7 +197,7 @@ class ImodTomoAlign(CommonService):
             rw.send_to("failure", {})
             self._reject_message(header, rw.transport)
             return
-        elif not (uuid_dir / imod_output_path.name).is_file():
+        elif not imod_output_path.is_file():
             self.log.error(
                 f"batchruntomo did not produce the output file {imod_output_path}\n"
                 + imod_result.stdout.decode("utf8", "replace")
@@ -192,17 +210,12 @@ class ImodTomoAlign(CommonService):
 
         # Generate shift plot for ispyb
         plot_file = imod_output_path.stem + "_xy_shift_plot.json"
-        plot_path = uuid_dir / plot_file
-        xf_file = self.extract_from_xf(uuid_stack, plot_path)
+        plot_path = imod_output_path.parent / plot_file
+        xf_file = self.extract_from_xf(Path(tomo_params.stack_file), plot_path)
         if not xf_file:
             self.log.error("Failed to read alignment file")
             self._reject_message(header, transport=rw.transport)
             return
-
-        # Move everything out of the uuid folder
-        for output_file in uuid_dir.iterdir():
-            output_file.rename(uuid_dir.parent / output_file.name)
-        uuid_dir.rmdir()
 
         # Insert tomogram into ispyb
         side_projection = (
@@ -247,7 +260,7 @@ class ImodTomoAlign(CommonService):
             {
                 "image_command": "tilt_series_alignment",
                 "file": tomo_params.stack_file,
-                "xf_file": str(uuid_dir.parent / xf_file.name),
+                "xf_file": str(xf_file),
                 "pixel_size": tomo_params.pixel_size,
                 "projection": side_projection,
             },
