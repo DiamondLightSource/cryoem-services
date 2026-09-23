@@ -76,7 +76,7 @@ class ProcessRawTIFFsService(CommonService):
             )
             self._reject_message(header, transport=rw.transport, requeue=False)
             return
-        series_name = "--".join(
+        series_name = "/".join(
             [p.replace(" ", "_") if " " in p else p for p in path_parts][
                 root_index + 1 :
             ]
