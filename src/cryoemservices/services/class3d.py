@@ -92,7 +92,7 @@ class Class3D(CommonService):
             successful_run = False
         except KeyboardInterrupt:
             # Create a new transport object of the same type as before and send the message
-            rw.transport = type(rw.transport)()
+            rw._transport = type(rw.transport)()
             rw.transport.connect()
             rw.transport.send("class3d", message)
             raise KeyboardInterrupt
@@ -106,7 +106,7 @@ class Class3D(CommonService):
             # Send back to the queue but mark a failure in the message
             message["requeue"] = message.get("requeue", 0) + 1
             # Create a new transport object of the same type as before
-            rw.transport = type(rw.transport)()
+            rw._transport = type(rw.transport)()
             rw.transport.connect()
             rw.transport.send("class3d", message)
         return True
