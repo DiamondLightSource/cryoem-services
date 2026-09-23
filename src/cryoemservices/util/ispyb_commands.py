@@ -597,11 +597,13 @@ def insert_tomogram(message: dict, parameters: Callable, session: Session):
             thickness=full_parameters("thickness"),
         )
 
-        if session.execute(
-            select(models.Tomogram).where(
-                models.Tomogram.tomogramId == values.tomogramId
-            )
-        ).one_or_none():
+        if values.tomogramId and (
+            tomogram_row := session.execute(
+                select(models.Tomogram).where(
+                    models.Tomogram.tomogramId == values.tomogramId
+                )
+            ).one_or_none()
+        ):
             session.execute(
                 update(models.Tomogram)
                 .where(models.Tomogram.tomogramId == values.tomogramId)
@@ -614,24 +616,30 @@ def insert_tomogram(message: dict, parameters: Callable, session: Session):
                     }
                 )
             )
-        elif session.execute(
-            select(models.Tomogram)
-            .where(models.Tomogram.autoProcProgramId == values.autoProcProgramId)
-            .where(models.Tomogram.volumeFile == values.volumeFile)
+            values.tomogramId = tomogram_row[0].tomogramId
+        elif tomogram_row := session.execute(
+            select(models.Tomogram).where(
+                models.Tomogram.autoProcProgramId == values.autoProcProgramId
+            )
         ).one_or_none():
             session.execute(
                 update(models.Tomogram)
                 .where(models.Tomogram.autoProcProgramId == values.autoProcProgramId)
-                .where(models.Tomogram.volumeFile == values.volumeFile)
                 .values(
                     {
                         k: v
                         for k, v in values.__dict__.items()
-                        if k not in ["_sa_instance_state", "tomogramId"]
+                        if k
+                        not in [
+                            "_sa_instance_state",
+                            "processedTomogramId",
+                            "tomogramId",
+                        ]
                         and v is not None
                     }
                 )
             )
+            values.tomogramId = tomogram_row[0].tomogramId
         else:
             session.add(values)
         session.commit()
@@ -650,15 +658,44 @@ def insert_processed_tomogram(message: dict, parameters: Callable, session: Sess
         return parameters_with_replacement(param, message, parameters)
 
     try:
+        tomogram_id = full_parameters("tomogram_id")
+        if tomogram_id is None:
+            logger.warning("No tomogram id supplied, trying lookup")
+            if app_id := full_parameters("program_id"):
+                tomogram_row = session.execute(
+                    select(models.Tomogram).where(
+                        models.Tomogram.autoProcProgramId == app_id
+                    )
+                ).all()
+                if tomogram_row:
+                    tomogram_id = tomogram_row[0][0].tomogramId
         values = models.ProcessedTomogram(
-            tomogramId=full_parameters("tomogram_id"),
+            tomogramId=tomogram_id,
             filePath=full_parameters("file_path"),
             processingType=full_parameters("processing_type"),
             feature=str(full_parameters("feature")).capitalize().replace("_", " ")
             if full_parameters("feature")
             else None,
         )
-        session.add(values)
+        if session.execute(
+            select(models.ProcessedTomogram)
+            .where(models.ProcessedTomogram.tomogramId == values.tomogramId)
+            .where(models.ProcessedTomogram.processingType == values.processingType)
+        ).one_or_none():
+            session.execute(
+                update(models.ProcessedTomogram)
+                .where(models.ProcessedTomogram.tomogramId == values.tomogramId)
+                .values(
+                    {
+                        k: v
+                        for k, v in values.__dict__.items()
+                        if k not in ["_sa_instance_state", "tomogramId"]
+                        and v is not None
+                    }
+                )
+            )
+        else:
+            session.add(values)
         session.commit()
         logger.info(f"Created processed tomogram record {values.processedTomogramId}")
         return {"success": True, "return_value": values.processedTomogramId}
