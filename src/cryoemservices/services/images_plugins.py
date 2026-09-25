@@ -462,7 +462,7 @@ def mrc_to_apng_colour(plugin_params: Callable):
         # Read file supplied as mask
         with mrcfile.open(mask) as mrc:
             mask_data = mrc.data
-        allowed_vol = mask_data < mask_data.max() / 2
+        allowed_vol = mask_data > mask_data.min()
     else:
         # Apply a bit of edge clipping if no mask
         allowed_vol = np.ones(initial_data_shape, dtype="bool")
@@ -475,7 +475,7 @@ def mrc_to_apng_colour(plugin_params: Callable):
         with mrcfile.open(filepath) as mrc:
             data: np.ndarray = mrc.data
         # Find areas with segmented data which are not masked
-        relevant_area = np.where((data > data.max() / 2) * allowed_vol)
+        relevant_area = np.where((data > data.min()) * allowed_vol)
         rgb_stacks[relevant_area] = np.outer(
             np.ones(len(relevant_area[0])), rgbvals[fid]
         )

@@ -140,6 +140,8 @@ class Easymode(CommonService):
             # Convert to int8 and save mrc
             self.log.info("Saving output")
             segmented_volume = (segmented_volume * 127).astype(np.int8)
+            # Set the zero values (empty regions) to the minimum
+            segmented_volume[segmented_volume == 0] = -128
             with mrcfile.new(output_tomograms[feature], overwrite=True) as mrc:
                 mrc.set_data(segmented_volume)
                 # Set header of output tomogram equal to that of input
