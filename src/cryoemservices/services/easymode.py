@@ -155,7 +155,7 @@ class Easymode(CommonService):
             # Apply optional clipping to a sphere
             if easymode_params.spherical_clip:
                 spherical_clipping(
-                    segmented_volume, tilt_axis=easymode_params.tilt_axis
+                    output_tomograms[feature], tilt_axis=easymode_params.tilt_axis
                 )
 
             # Generate binned mrc images of segmented features

@@ -370,6 +370,7 @@ def test_tomo_align_service_file_list_aretomo3(
             "output_dir": f"{tmp_path}/Denoise/job007/tomograms",
             "relion_options": output_relion_options,
             "copy_output": False,
+            "tilt_axis": 90,
         },
     )
     offline_transport.send.assert_any_call("success", {})
@@ -694,6 +695,7 @@ def test_tomo_align_service_file_list_aretomo2(
             "output_dir": f"{tmp_path}/Denoise/job007/tomograms",
             "relion_options": output_relion_options,
             "copy_output": False,
+            "tilt_axis": 90,
         },
     )
     offline_transport.send.assert_any_call("success", {})
@@ -1347,6 +1349,7 @@ def test_tomo_align_service_file_list_rerun(
             "output_dir": f"{tmp_path}/Denoise/job007/tomograms",
             "relion_options": output_relion_options,
             "copy_output": False,
+            "tilt_axis": 85,
         },
     )
     offline_transport.send.assert_any_call("success", {})
@@ -2366,6 +2369,7 @@ def test_tomo_align_service_txrm(
             "output_dir": f"{tmp_path}/recipe/Denoise",
             "relion_options": output_relion_options,
             "copy_output": True,
+            "tilt_axis": 0,
         },
     )
     offline_transport.send.assert_any_call("success", {})
