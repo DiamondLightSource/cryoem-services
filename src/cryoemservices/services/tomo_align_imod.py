@@ -317,6 +317,7 @@ class ImodTomoAlign(CommonService):
                 "volume": str(imod_output_path),
                 "output_dir": str(imod_output_path.parent.parent / "Denoise"),
                 "copy_output": tomo_params.copy_output,
+                "tilt_axis": tomo_params.tilt_axis,
                 "relion_options": {
                     "pixel_size": 10
                     if tomo_params.pixel_size > 20

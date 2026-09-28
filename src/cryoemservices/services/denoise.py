@@ -32,6 +32,7 @@ class DenoiseParameters(BaseModel):
     patch_padding: int = 48
     cleanup_output: bool = True
     copy_output: bool = False
+    tilt_axis: float | None = None
     visits_for_slurm: list | None = ["bi", "cm", "nr", "nt"]
     relion_options: RelionServiceOptions
 
@@ -258,6 +259,7 @@ class Denoise(CommonService):
             "output_dir": str(segmentation_dir),
             "pixel_size": str(denoise_params.relion_options.pixel_size_downscaled),
             "copy_output": denoise_params.copy_output,
+            "tilt_axis": denoise_params.tilt_axis,
             "relion_options": dict(denoise_params.relion_options),
         }
         cryolo_parameters = {
