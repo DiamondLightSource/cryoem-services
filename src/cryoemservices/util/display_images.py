@@ -66,12 +66,12 @@ def spherical_clipping(
         data[:, : edge_cut + 1, :] = 0
         data[:, data.shape[1] - edge_cut :, :] = 0
         for i in range(edge_cut, data.shape[1] - edge_cut):
-            data[:, i, :][not dist_mat_bool] = 0
+            data[:, i, :][~dist_mat_bool] = 0
     else:
         data[:, :, : edge_cut + 1] = 0
         data[:, :, data.shape[2] - edge_cut :] = 0
         for i in range(edge_cut, data.shape[2] - edge_cut):
-            data[:, :, i][not dist_mat_bool] = 0
+            data[:, :, i][~dist_mat_bool] = 0
 
     with mrcfile.new(
         output_tomogram if output_tomogram is not None else input_tomogram,
