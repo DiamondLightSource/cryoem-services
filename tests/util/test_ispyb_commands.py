@@ -1052,7 +1052,7 @@ def test_insert_processed_tomogram_update(mock_update):
     mock_session.execute().one_or_none.assert_called_once()
 
     # Don't check the model call here, instead look at the update
-    mock_update().where().values.assert_called_with(
+    mock_update().where().where().where().values.assert_called_with(
         {
             "filePath": "/path/to/processed/tomogram",
             "processingType": "Denoised",
