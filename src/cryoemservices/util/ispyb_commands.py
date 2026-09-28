@@ -681,10 +681,13 @@ def insert_processed_tomogram(message: dict, parameters: Callable, session: Sess
             select(models.ProcessedTomogram)
             .where(models.ProcessedTomogram.tomogramId == values.tomogramId)
             .where(models.ProcessedTomogram.processingType == values.processingType)
+            .where(models.ProcessedTomogram.feature == values.feature)
         ).one_or_none():
             session.execute(
                 update(models.ProcessedTomogram)
                 .where(models.ProcessedTomogram.tomogramId == values.tomogramId)
+                .where(models.ProcessedTomogram.processingType == values.processingType)
+                .where(models.ProcessedTomogram.feature == values.feature)
                 .values(
                     {
                         k: v
