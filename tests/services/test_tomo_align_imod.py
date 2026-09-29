@@ -213,6 +213,7 @@ def test_tomo_align_imod(
                 "pixel_size_downscaled": 10,
             },
             "copy_output": True,
+            "tilt_axis": 0,
         },
     )
     offline_transport.send.assert_any_call(

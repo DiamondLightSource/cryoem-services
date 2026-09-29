@@ -21,7 +21,9 @@ def offline_transport(mocker):
 
 @mock.patch("cryoemservices.services.membrain_seg.segment")
 @mock.patch("cryoemservices.services.membrain_seg.generate_binned_mrc")
+@mock.patch("cryoemservices.services.membrain_seg.cylinder_clipping")
 def test_membrain_seg_service_local_memseg(
+    mock_cylinder_clip,
     mock_bin_mrc,
     mock_segment,
     offline_transport,
@@ -50,6 +52,7 @@ def test_membrain_seg_service_local_memseg(
         "connected_component_threshold": 2,
         "segmentation_threshold": 4,
         "display_binning": 8,
+        "tilt_axis": 0,
         "relion_options": {},
     }
     output_relion_options = dict(RelionServiceOptions())
@@ -103,6 +106,11 @@ def test_membrain_seg_service_local_memseg(
         tmp_path
         / "Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented.mrc",
         8,
+    )
+    mock_cylinder_clip.assert_called_once_with(
+        tmp_path
+        / "Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented.mrc",
+        tilt_axis=0,
     )
 
     # Check the images service request
@@ -162,6 +170,7 @@ def test_membrain_seg_service_local_memseg(
             "membrain_segmentation": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented.mrc",
             "segmentation_apng": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented_movie.png",
             "pixel_size": 1.0,
+            "tilt_axis": 0,
             "relion_options": output_relion_options,
         },
     )
@@ -213,6 +222,7 @@ def test_membrain_seg_service_local_subprocess(
         "connected_component_threshold": 2,
         "segmentation_threshold": 4,
         "copy_output": True,
+        "cylinder_clip": False,
         "relion_options": {},
     }
     output_relion_options = dict(RelionServiceOptions())
@@ -302,6 +312,7 @@ def test_membrain_seg_service_local_subprocess(
             "membrain_segmentation": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented.mrc",
             "segmentation_apng": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented_movie.png",
             "pixel_size": 1.0,
+            "tilt_axis": None,
             "relion_options": output_relion_options,
         },
     )
@@ -362,6 +373,8 @@ def test_membrain_seg_service_slurm(
         "segmentation_threshold": 4,
         "cleanup_output": False,
         "submit_to_slurm": True,
+        "cylinder_clip": False,
+        "tilt_axis": 90,
         "relion_options": {},
     }
     output_relion_options = dict(RelionServiceOptions())
@@ -519,6 +532,7 @@ def test_membrain_seg_service_slurm(
             "membrain_segmentation": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented.mrc",
             "segmentation_apng": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented_movie.png",
             "pixel_size": 1.0,
+            "tilt_axis": 90,
             "relion_options": output_relion_options,
         },
     )
@@ -552,6 +566,7 @@ def test_membrain_seg_service_local_memseg_rerun(
         "window_size": 100,
         "connected_component_threshold": 2,
         "segmentation_threshold": 4,
+        "cylinder_clip": False,
         "relion_options": {},
     }
     output_relion_options = dict(RelionServiceOptions())
@@ -606,6 +621,7 @@ def test_membrain_seg_service_local_memseg_rerun(
             "membrain_segmentation": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented.mrc",
             "segmentation_apng": f"{tmp_path}/Segmentation/job008/tomograms/test_stack_aretomo.denoised_segmented_movie.png",
             "pixel_size": 1.0,
+            "tilt_axis": None,
             "relion_options": output_relion_options,
         },
     )

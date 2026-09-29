@@ -12,7 +12,7 @@ from workflows.recipe import wrap_subscribe
 
 from cryoemservices.pipeliner_plugins.easymode_segmentation import segment_tomogram
 from cryoemservices.services.common_service import CommonService
-from cryoemservices.util.display_images import generate_binned_mrc
+from cryoemservices.util.display_images import cylinder_clipping, generate_binned_mrc
 from cryoemservices.util.models import MockRW
 from cryoemservices.util.relion_service_options import RelionServiceOptions
 
@@ -28,6 +28,8 @@ class EasymodeParameters(BaseModel):
     batch_size: int = 1
     tta: int = 1
     display_binning: int = 4
+    cylinder_clip: bool = True
+    tilt_axis: float | None = None
     relion_options: RelionServiceOptions
 
 
@@ -149,6 +151,12 @@ class Easymode(CommonService):
                 mrc.header.mx = tomogram_header.mx
                 mrc.header.my = tomogram_header.my
                 mrc.header.mz = tomogram_header.mz
+
+            # Apply optional clipping to a cylinder
+            if easymode_params.cylinder_clip:
+                cylinder_clipping(
+                    output_tomograms[feature], tilt_axis=easymode_params.tilt_axis
+                )
 
             # Generate binned mrc images of segmented features
             if feature != easymode_params.mask:
