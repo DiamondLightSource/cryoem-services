@@ -609,3 +609,24 @@ def test_parse_ctffind_output(offline_transport):
     assert service.astigmatism_angle == 3
     assert service.cc_value == 4
     assert service.estimated_resolution == 5
+
+
+def test_parse_ctffind_output_with_a_failed_fit(offline_transport):
+    """
+    An estimate CtfFind could not make is reported as zero rather than passed
+    on as a NaN.
+    """
+    service = ctffind.CTFFind(environment={"queue": ""}, transport=offline_transport)
+    service.initializing()
+
+    ctffind.CTFFind.parse_ctf_output(
+        service, "Estimated defocus values        : nan , 2"
+    )
+    ctffind.CTFFind.parse_ctf_output(service, "Estimated azimuth of astigmatism: -inf")
+    ctffind.CTFFind.parse_ctf_output(service, "Score                           : 4")
+    ctffind.CTFFind.parse_ctf_output(service, "Thon rings with good fit up to  : nan")
+    assert service.defocus1 == 0
+    assert service.defocus2 == 2
+    assert service.astigmatism_angle == 0
+    assert service.cc_value == 4
+    assert service.estimated_resolution == 0
