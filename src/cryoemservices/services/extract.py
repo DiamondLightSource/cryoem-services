@@ -174,10 +174,15 @@ class Extract(CommonService):
                 particles_y = np.array([])
         else:
             # Otherwise read from the star file
-            coords_file = cif.read(extract_params.coord_list_file)
-            coords_block = coords_file.sole_block()
-            particles_x = np.array(coords_block.find_loop("_rlnCoordinateX"))
-            particles_y = np.array(coords_block.find_loop("_rlnCoordinateY"))
+            try:
+                coords_file = cif.read(extract_params.coord_list_file)
+                coords_block = coords_file.sole_block()
+                particles_x = np.array(coords_block.find_loop("_rlnCoordinateX"))
+                particles_y = np.array(coords_block.find_loop("_rlnCoordinateY"))
+            except (AttributeError, OSError):
+                # Bug found if the star file contains no particles
+                particles_x = np.array([])
+                particles_y = np.array([])
 
         # Construct the output star file
         extracted_parts_doc = cif.Document()
