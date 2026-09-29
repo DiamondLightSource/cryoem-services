@@ -53,30 +53,25 @@ def cylinder_clipping(
     # Data is ZYX, need to project around either Y or X depending on tilt axis
     side_projection = 2 if tilt_axis is not None and -45 < tilt_axis < 45 else 1
 
-    dist_mat_bool = np.zeros((data.shape[0], data.shape[side_projection]), dtype=bool)
-    radius = data.shape[side_projection] / 2 - edge_cut
-
-    for i in range(edge_cut, data.shape[0] - edge_cut):
-        for j in range(edge_cut, data.shape[side_projection] - edge_cut):
-            # Record where distance from centre exceeds central slice size
-            dist_ij = int(
-                np.sqrt(
-                    (i - data.shape[0] / 2) ** 2
-                    + (j - data.shape[side_projection] / 2) ** 2
-                )
-            )
-            dist_mat_bool[i, j] = dist_ij < radius
-
+    # Record where distance from centre exceeds central slice size
+    radius = data.shape[side_projection] / 2
+    grid_0, grid_s = np.ogrid[: data.shape[0], : data.shape[side_projection]]
+    dist_mat_bool = (grid_0 - data.shape[0] / 2) ** 2 + (
+        grid_s - data.shape[side_projection] / 2
+    ) ** 2 < radius**2
     if side_projection == 2:
-        data[:, : edge_cut + 1, :] = 0
-        data[:, data.shape[1] - edge_cut :, :] = 0
-        for i in range(edge_cut, data.shape[1] - edge_cut):
-            data[:, i, :][~dist_mat_bool] = 0
+        data *= dist_mat_bool[:, None, :]  # Apply mask down y-axis
     else:
-        data[:, :, : edge_cut + 1] = 0
-        data[:, :, data.shape[2] - edge_cut :] = 0
-        for i in range(edge_cut, data.shape[2] - edge_cut):
-            data[:, :, i][~dist_mat_bool] = 0
+        data *= dist_mat_bool[:, :, None]  # Apply mask down x-axis
+
+    # Apply edge blanking
+    if edge_cut > 0 and all(edge_cut * 2 < i for i in data.shape):
+        data[:edge_cut, :, :] = 0
+        data[-edge_cut:, :, :] = 0
+        data[:, :edge_cut, :] = 0
+        data[:, -edge_cut:, :] = 0
+        data[:, :, :edge_cut] = 0
+        data[:, :, -edge_cut:] = 0
 
     with mrcfile.new(
         output_tomogram if output_tomogram is not None else input_tomogram,
