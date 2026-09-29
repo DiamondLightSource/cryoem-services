@@ -180,7 +180,7 @@ class Extract(CommonService):
                 particles_x = np.array(coords_block.find_loop("_rlnCoordinateX"))
                 particles_y = np.array(coords_block.find_loop("_rlnCoordinateY"))
             except (AttributeError, OSError):
-                # Bug found if the star file contains no particles
+                # If the star file contains no particles
                 particles_x = np.array([])
                 particles_y = np.array([])
 
