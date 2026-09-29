@@ -59,8 +59,13 @@ def spherical_clipping(
     for i in range(edge_cut, data.shape[0] - edge_cut):
         for j in range(edge_cut, data.shape[side_projection] - edge_cut):
             # Record where distance from centre exceeds central slice size
-            dist_ij = int(np.sqrt((i - radius) ** 2 + (j - radius) ** 2))
-            dist_mat_bool[i + edge_cut, j + edge_cut] = dist_ij < radius
+            dist_ij = int(
+                np.sqrt(
+                    (i - data.shape[0] / 2) ** 2
+                    + (j - data.shape[side_projection] / 2) ** 2
+                )
+            )
+            dist_mat_bool[i, j] = dist_ij < radius
 
     if side_projection == 2:
         data[:, : edge_cut + 1, :] = 0
