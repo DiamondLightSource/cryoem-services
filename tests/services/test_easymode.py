@@ -21,9 +21,9 @@ def offline_transport(mocker):
 @mock.patch("cryoemservices.services.easymode.segment_tomogram")
 @mock.patch("cryoemservices.services.easymode.load_model")
 @mock.patch("cryoemservices.services.easymode.easymode_config")
-@mock.patch("cryoemservices.services.easymode.spherical_clipping")
+@mock.patch("cryoemservices.services.easymode.cylinder_clipping")
 def test_easymode_service_with_mask(
-    mock_sphere_clip,
+    mock_cylinder_clip,
     mock_easymode_config,
     mock_load_model,
     mock_segment,
@@ -131,17 +131,17 @@ def test_easymode_service_with_mask(
         tmp_path / "Segmentation/job008/tomograms/test_stack_aretomo_easymode_void.mrc"
     ).is_file()
 
-    assert mock_sphere_clip.call_count == 3
-    mock_sphere_clip.assert_any_call(
+    assert mock_cylinder_clip.call_count == 3
+    mock_cylinder_clip.assert_any_call(
         tmp_path
         / "Segmentation/job008/tomograms/test_stack_aretomo_easymode_ribosome.mrc",
         tilt_axis=0,
     )
-    mock_sphere_clip.assert_any_call(
+    mock_cylinder_clip.assert_any_call(
         tmp_path / "Segmentation/job008/tomograms/test_stack_aretomo_easymode_tric.mrc",
         tilt_axis=0,
     )
-    mock_sphere_clip.assert_any_call(
+    mock_cylinder_clip.assert_any_call(
         tmp_path / "Segmentation/job008/tomograms/test_stack_aretomo_easymode_void.mrc",
         tilt_axis=0,
     )

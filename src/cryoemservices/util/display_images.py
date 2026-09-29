@@ -39,7 +39,7 @@ def generate_binned_mrc(input_path: Path, binning: int) -> Path:
     return Path(mini_mrc_name)
 
 
-def spherical_clipping(
+def cylinder_clipping(
     input_tomogram: Path,
     output_tomogram: Path | None = None,
     tilt_axis: float | None = None,
