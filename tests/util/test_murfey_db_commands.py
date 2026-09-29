@@ -69,6 +69,8 @@ def test_buffer(mock_insert_class, tmp_path):
         message={
             "ispyb_command": "insert_particle_classification",
             "particle_classification_group_id": 5,
+            # buffer_store keys the new row on the UUID rather than being dropped
+            "particle_classification_id": 10,
         },
         parameters=mock_parameters,
         session=mock_db_session,
@@ -76,6 +78,71 @@ def test_buffer(mock_insert_class, tmp_path):
     assert result["success"]
     assert result["return_value"] == "dummy_class"
     assert result["store_result"] == "value_to_store"
+    assert "buffer_store" not in ispyb_test_message
+
+
+@mock.patch(
+    "cryoemservices.util.murfey_db_commands.ispyb_commands"
+    ".insert_particle_classification_group"
+)
+def test_buffer_store_keys_a_first_run_classification_group(mock_insert_group):
+    """
+    A batch's first run registers its group with buffer_store, while the class
+    rows that follow reference the same UUID through buffer_lookup. Without the
+    group being keyed on that UUID it takes an autoincrement id instead and the
+    join to its classes finds nothing, so only rerun batches appear.
+    """
+
+    def mock_parameters(p):
+        return {"program_id": 1}.get(p)
+
+    ispyb_test_message = {
+        "ispyb_command": "buffer",
+        "buffer_command": {"ispyb_command": "insert_particle_classification_group"},
+        "buffer_store": 12345,
+        "type": "2D",
+        "batch_number": 3,
+        "particle_picker_id": 999,
+    }
+
+    mock_insert_group.return_value = {"success": True, "return_value": 12345}
+
+    result = murfey_db_commands.buffer(
+        ispyb_test_message, mock_parameters, mock.MagicMock()
+    )
+
+    assert (
+        mock_insert_group.call_args.kwargs["message"][
+            "particle_classification_group_id"
+        ]
+        == 12345
+    )
+    assert result["success"]
+
+
+@mock.patch("cryoemservices.util.murfey_db_commands.insert_movie")
+def test_buffer_store_is_ignored_for_commands_with_no_primary_key(mock_insert_movie):
+    """Check that commands with no primary key parameter must not gain one."""
+
+    def mock_parameters(p):
+        return {"program_id": 1}.get(p)
+
+    ispyb_test_message = {
+        "ispyb_command": "buffer",
+        "buffer_command": {"ispyb_command": "insert_movie"},
+        "buffer_store": 12345,
+    }
+
+    mock_insert_movie.return_value = {"success": True, "return_value": 0}
+
+    result = murfey_db_commands.buffer(
+        ispyb_test_message, mock_parameters, mock.MagicMock()
+    )
+
+    assert mock_insert_movie.call_args.kwargs["message"] == {
+        "ispyb_command": "insert_movie"
+    }
+    assert result["success"]
 
 
 def test_insert_movie():

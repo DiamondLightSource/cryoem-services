@@ -37,6 +37,23 @@ def multipart_message(message: dict, parameters: Callable, session: Session):
     return ispyb_commands.run_multipart_command(message, parameters, session, command)
 
 
+# Against ISPyB a ``buffer_store`` UUID is written to a buffer table which maps it
+# to the auto generated primary key of the inserted row, so a later
+# ``buffer_lookup`` of the same UUID resolves to that key. 
+
+# The murfey database has no buffer table, and this file's ``buffer`` copies
+# a ``buffer_lookup`` value straight into the command. 
+# The stored row must be keyed on the UUID.
+
+
+# List of commands that accept their primary key as a parameter.
+BUFFER_STORE_PRIMARY_KEYS = {
+    "insert_particle_picker": "particle_picker_id",
+    "insert_particle_classification_group": "particle_classification_group_id",
+    "insert_particle_classification": "particle_classification_id",
+}
+
+
 def buffer(message: dict, parameters: Callable, session: Session):
     """
     Override of the buffer command,
@@ -69,6 +86,15 @@ def buffer(message: dict, parameters: Callable, session: Session):
         # Copy value into command variables
         message["buffer_command"][entry] = message["buffer_lookup"][entry]
         del message["buffer_lookup"][entry]
+
+    # Store the buffered value by keying the new row on the UUID itself.
+    if message.get("buffer_store"):
+        primary_key = BUFFER_STORE_PRIMARY_KEYS.get(command)
+        if primary_key:
+            message["buffer_command"][primary_key] = message["buffer_store"]
+        else:
+            logger.warning(f"No primary key known for buffer store of {command}")
+        del message["buffer_store"]
 
     # Run the actual command
     result = command_function(
