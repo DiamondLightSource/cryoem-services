@@ -29,7 +29,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
-    "pipeliner @ file:///home/bad84721/doppio-live/ccpem-pipeliner",
+    "pipeliner@git+https://gitlab.com/ccpem/ccpem-pipeliner.git@live-processing",
     "defusedxml", # CLEM workflow
     "gemmi",
     "graypy",
