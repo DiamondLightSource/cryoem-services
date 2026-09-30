@@ -7,7 +7,7 @@ requires = [
 
 [project]
 name = "cryoemservices"
-version = "1.5.1"
+version = "1.5.0"
 description = "Services for CryoEM processing"
 readme = "README.md"
 keywords = [
@@ -29,7 +29,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
-    "pipeliner@git+https://gitlab.com/ccpem/ccpem-pipeliner.git@live-processing",
+    "ccpem-pipeliner@git+https://gitlab.com/ccpem/ccpem-pipeliner.git@live-processing#egg=ccpem-pipeliner",
     "defusedxml", # CLEM workflow
     "gemmi",
     "graypy",
