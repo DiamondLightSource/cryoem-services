@@ -1,4 +1,5 @@
 import json
+import uuid
 from subprocess import CompletedProcess
 from unittest import mock
 
@@ -27,7 +28,9 @@ class MrcFileHeader:
 @mock.patch("cryoemservices.services.tomo_align_imod.mrcfile")
 @mock.patch("cryoemservices.services.tomo_align_imod.OleFileIO")
 @mock.patch("cryoemservices.services.tomo_align_imod.convert_and_save")
+@mock.patch("cryoemservices.services.tomo_align_imod.uuid")
 def test_tomo_align_imod(
+    mock_uuid,
     mock_convert_and_save,
     mock_ole_file,
     mock_mrcfile,
@@ -45,6 +48,9 @@ def test_tomo_align_imod(
     mock_ole_file().__enter__().openstream().getvalue.return_value = np.array(
         [0.01, 0.3, 0.5], dtype=np.float32
     ).tobytes()
+
+    folder_uuid = uuid.uuid4()
+    mock_uuid.uuid4.return_value = folder_uuid
 
     header = {
         "message-id": mock.sentinel,
@@ -73,11 +79,17 @@ def test_tomo_align_imod(
 
     def write_imod_outputs(command, capture_output: bool = False):
         if command[0] != "batchruntomo":
-            (tmp_path / "recipe/Tomograms/test_stack.mrc").touch(exist_ok=True)
+            (tmp_path / f"recipe/Tomograms/{folder_uuid.hex}/test_stack.mrc").touch(
+                exist_ok=True
+            )
             return CompletedProcess("", returncode=0)
-        (tmp_path / "recipe/Tomograms/test_stack_rec.mrc").touch()
-        with open(tmp_path / "recipe/Tomograms/test_stack.xf", "w") as aln_file:
+        (tmp_path / f"recipe/Tomograms/{folder_uuid.hex}/test_stack_rec.mrc").touch()
+        with open(
+            tmp_path / f"recipe/Tomograms/{folder_uuid.hex}/test_stack.xf", "w"
+        ) as aln_file:
             aln_file.write("1 0 0 1 1.2 2.3")
+        (tmp_path / f"recipe/Tomograms/{folder_uuid.hex}/sub_folder").mkdir()
+        (tmp_path / f"recipe/Tomograms/{folder_uuid.hex}/sub_folder/file.txt").touch()
         return CompletedProcess("", returncode=0)
 
     mock_subprocess.side_effect = write_imod_outputs
@@ -88,14 +100,14 @@ def test_tomo_align_imod(
     # Check conversion
     mock_convert_and_save.assert_called_once_with(
         f"{tmp_path}/test.txrm",
-        f"{tmp_path}/recipe/Tomograms/test_stack.tiff",
+        f"{tmp_path}/recipe/Tomograms/{folder_uuid.hex}/test_stack.tiff",
         custom_reference=f"{tmp_path}/ref.xrm",
     )
     mock_subprocess.assert_any_call(
         [
             "tif2mrc",
-            f"{tmp_path}/recipe/Tomograms/test_stack.tiff",
-            f"{tmp_path}/recipe/Tomograms/test_stack.mrc",
+            f"{tmp_path}/recipe/Tomograms/{folder_uuid.hex}/test_stack.tiff",
+            f"{tmp_path}/recipe/Tomograms/{folder_uuid.hex}/test_stack.mrc",
         ],
         capture_output=True,
     )
@@ -111,7 +123,7 @@ def test_tomo_align_imod(
         [
             "batchruntomo",
             "-directive",
-            f"{tmp_path}/recipe/Tomograms/batchDirective.adoc",
+            f"{tmp_path}/recipe/Tomograms/{folder_uuid.hex}/batchDirective.adoc",
             "-cpus",
             "2",
             "-bypass",
@@ -120,7 +132,9 @@ def test_tomo_align_imod(
     )
 
     # Check output copy
+    assert (tmp_path / "recipe/Tomograms/test_stack_rec.mrc").is_file()
     assert (tmp_path / "recipe_volume.mrc").is_file()
+    assert (tmp_path / "recipe/Tomograms/sub_folder/file.txt").is_file()
 
     # Check the shift plot
     with open(
@@ -199,6 +213,7 @@ def test_tomo_align_imod(
                 "pixel_size_downscaled": 10,
             },
             "copy_output": True,
+            "tilt_axis": 0,
         },
     )
     offline_transport.send.assert_any_call(
@@ -254,7 +269,8 @@ def test_write_batch_directive_patch_wbp(tmp_path):
                 "sirt": 0,
                 "sirt_leave_iterations": 10,
             }
-        )
+        ),
+        tmp_path,
     )
     assert returned_adoc == tmp_path / "batchDirective.adoc"
     with open(returned_adoc) as f:
@@ -293,7 +309,8 @@ def test_write_batch_directive_beads_sirt(tmp_path):
                 "sirt": 1,
                 "sirt_leave_iterations": 10,
             }
-        )
+        ),
+        tmp_path,
     )
     assert returned_adoc == tmp_path / "batchDirective.adoc"
     with open(returned_adoc) as f:

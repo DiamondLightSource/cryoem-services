@@ -138,6 +138,7 @@ def test_denoise_local_topaz_service(
             "output_dir": f"{tmp_path}/Segmentation/job008/tomograms",
             "pixel_size": "1.0",
             "copy_output": False,
+            "tilt_axis": None,
             "relion_options": output_relion_options,
         },
     )
@@ -192,6 +193,7 @@ def test_denoise_local_subprocess_service(
         "patch_size": 96,
         "patch_padding": 48,
         "copy_output": True,
+        "tilt_axis": 0,
         "relion_options": {"pixel_size_downscaled": 1},
     }
     output_relion_options = dict(RelionServiceOptions())
@@ -270,6 +272,7 @@ def test_denoise_local_subprocess_service(
             "output_dir": f"{tmp_path}/Segmentation/job008/tomograms",
             "pixel_size": "1.0",
             "copy_output": True,
+            "tilt_axis": 0,
             "relion_options": output_relion_options,
         },
     )
@@ -491,6 +494,7 @@ def test_denoise_slurm_service(
             "output_dir": f"{tmp_path}/cm12345-6/Segmentation/job008/tomograms",
             "pixel_size": "1.0",
             "copy_output": False,
+            "tilt_axis": None,
             "relion_options": output_relion_options,
         },
     )
@@ -578,6 +582,7 @@ def test_denoise_local_topaz_service_rerun(
             "output_dir": f"{tmp_path}/Segmentation/job008/tomograms",
             "pixel_size": "1.0",
             "copy_output": False,
+            "tilt_axis": None,
             "relion_options": output_relion_options,
         },
     )

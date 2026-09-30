@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field, ValidationError
 from workflows.recipe import wrap_subscribe
 
 from cryoemservices.services.common_service import CommonService
-from cryoemservices.util.display_images import generate_binned_mrc
+from cryoemservices.util.display_images import cylinder_clipping, generate_binned_mrc
 from cryoemservices.util.models import MockRW
 from cryoemservices.util.relion_service_options import RelionServiceOptions
 from cryoemservices.util.slurm_submission import slurm_submission_for_services
@@ -41,6 +41,8 @@ class MembrainSegParameters(BaseModel):
     submit_to_slurm: bool = False
     copy_output: bool = False
     display_binning: int = 4
+    cylinder_clip: bool = True
+    tilt_axis: float | None = None
     relion_options: RelionServiceOptions
 
 
@@ -225,6 +227,10 @@ class MembrainSeg(CommonService):
         if membrain_path.is_file():
             membrain_path.rename(segmented_path)
 
+        # Apply optional clipping to a cylinder
+        if membrain_seg_params.cylinder_clip:
+            cylinder_clipping(segmented_path, tilt_axis=membrain_seg_params.tilt_axis)
+
         # Clean up the slurm files
         if membrain_seg_params.submit_to_slurm and membrain_seg_params.cleanup_output:
             Path(f"{segmented_path}.out").unlink()
@@ -281,6 +287,7 @@ class MembrainSeg(CommonService):
                 "membrain_segmentation": str(segmented_path),
                 "segmentation_apng": str(segmented_path.with_suffix("")) + "_movie.png",
                 "pixel_size": membrain_seg_params.pixel_size,
+                "tilt_axis": membrain_seg_params.tilt_axis,
                 "relion_options": dict(membrain_seg_params.relion_options),
             },
         )

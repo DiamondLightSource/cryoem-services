@@ -60,7 +60,7 @@ def image_stacks(image_dir: Path):
 
 @pytest.fixture
 def series_name():
-    return f"{project}--{grid}--{position.replace(' ', '_')}"
+    return f"{project}/{grid}/{position.replace(' ', '_')}"
 
 
 @pytest.fixture

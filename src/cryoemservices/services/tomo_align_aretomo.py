@@ -842,6 +842,7 @@ class AreTomoAlign(CommonService):
                 "output_dir": str(denoise_dir),
                 "relion_options": dict(tomo_params.relion_options),
                 "copy_output": tomo_params.copy_output,
+                "tilt_axis": tomo_params.tilt_axis,
             },
         )
 

@@ -91,12 +91,7 @@ def process_lif_subimage(
     )
 
     # Create a name for this series
-    series_name = (
-        save_dir.relative_to(root_save_dir)
-        .as_posix()
-        .replace("/", "--")
-        .replace(" ", "_")
-    )
+    series_name = save_dir.relative_to(root_save_dir).as_posix().replace(" ", "_")
     logger.info(f"Processing {series_name!r}")
 
     # Save metadata relative to the subimage

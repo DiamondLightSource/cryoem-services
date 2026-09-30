@@ -119,7 +119,7 @@ def process_tiff_files(
     ]
 
     # Construct extended series name for database records
-    series_name = "--".join(path_parts[root_index + 1 :]).replace(" ", "_")
+    series_name = "/".join(path_parts[root_index + 1 :]).replace(" ", "_")
     logger.info(f"Processing {series_name} TIFF files")
 
     # Search for metadata file using relative paths if not provided
