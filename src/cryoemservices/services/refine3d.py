@@ -98,7 +98,7 @@ class Refine3D(CommonService):
             # Reconnect to rabbitmq
             self.initializing()
             if successful_run:
-                self.log.error(
+                self.log.info(
                     f"Refinement job completed for {refine_params.particles_file}"
                 )
             else:

@@ -98,7 +98,7 @@ class Class3D(CommonService):
             # Reconnect to rabbitmq
             self.initializing()
             if successful_run:
-                self.log.error(
+                self.log.info(
                     f"Class3D job completed for {class3d_params.particles_file}"
                 )
             else:

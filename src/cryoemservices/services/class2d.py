@@ -98,7 +98,7 @@ class Class2D(CommonService):
             # Reconnect to rabbitmq
             self.initializing()
             if successful_run:
-                self.log.error(
+                self.log.info(
                     f"Class2D job completed for {class2d_params.particles_file}"
                 )
             else:
