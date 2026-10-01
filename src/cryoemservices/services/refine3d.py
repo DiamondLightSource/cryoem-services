@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import json
 from pathlib import Path
 
@@ -7,7 +5,7 @@ from pydantic import ValidationError
 from workflows.recipe import wrap_subscribe
 
 from cryoemservices.services.common_service import CommonService
-from cryoemservices.util.models import MockRW
+from cryoemservices.util.models import InterruptHandler, MockRW
 from cryoemservices.wrappers.refine3d_wrapper import RefineParameters, run_refinement
 
 
@@ -85,30 +83,35 @@ class Refine3D(CommonService):
         rw.transport.drop_callback_reference(self.subscription_id)
 
         # Run the refinement job
-        try:
-            successful_run = run_refinement(refine_params, send_to_rabbitmq=rw.send_to)
-        except Exception as e:
-            self.log.error(f"Failed to run refinement due to {e}", exc_info=True)
-            successful_run = False
-        except KeyboardInterrupt:
-            # Create a new transport object of the same type as before and send the message
-            rw._transport = type(rw.transport)()
-            rw.transport.connect()
-            rw.transport.send("refine3d", message)
-            raise KeyboardInterrupt
+        with InterruptHandler() as handler:
+            try:
+                successful_run = run_refinement(
+                    refine_params, send_to_rabbitmq=rw.send_to
+                )
+            except Exception as e:
+                self.log.error(f"Failed to run refinement due to {e}", exc_info=True)
+                successful_run = False
+            if handler.interrupted:
+                self.log.warning("Process was interrupted")
+                successful_run = False
 
-        # Reconnect to rabbitmq
-        self.initializing()
-        if successful_run:
-            self.log.error(
-                f"Refinement job completed for {refine_params.particles_file}"
-            )
-        else:
-            self.log.error(f"Refinement job failed for {refine_params.particles_file}")
-            # Send back to the queue but mark a failure in the message
-            message["requeue"] = message.get("requeue", 0) + 1
-            # Create a new transport object of the same type as before
-            rw._transport = type(rw.transport)()
-            rw.transport.connect()
-            rw.transport.send("refine3d", message)
+            # Reconnect to rabbitmq
+            self.initializing()
+            if successful_run:
+                self.log.error(
+                    f"Refinement job completed for {refine_params.particles_file}"
+                )
+            else:
+                self.log.error(
+                    f"Refinement job failed for {refine_params.particles_file}"
+                )
+                # Send back to the queue but mark a failure in the message
+                message["requeue"] = message.get("requeue", 0) + 1
+                # Create a new transport object of the same type as before
+                rw._transport = type(rw.transport)()
+                rw.transport.connect()
+                rw.transport.send("refine3d", message, headers=header)
+
+            if handler.interrupted:
+                raise RuntimeError("Process was interrupted")
         return True
