@@ -513,16 +513,3 @@ class Class2DWrapper:
         if not successful_run:
             return False
         return True
-
-
-with open(
-    "/dls/m02/data/2026/bi42159-6/processed/raw4/relion_murfey/Select/job013/particles_batch_800000.star"
-) as f:
-    lines = f.readlines()
-    with open(
-        "/dls/m02/data/2026/bi42159-6/processed/raw4/relion_murfey/Select/job013/particles_batch_800000_fixed.star",
-        "w",
-    ) as f2:
-        for i, l in enumerate(lines):
-            if i < 50 or len(l.split()) == 26:
-                f2.write(l)
