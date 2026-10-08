@@ -429,6 +429,11 @@ def run_class2d(class2d_params: Class2DParameters, send_to_rabbitmq: Callable):
 
         if class2d_params.do_cryodann:
             cryodann_success = run_cryodann(class2d_params, project_dir, nr_iter)
+            # Set initial scores as backout option
+            cryodann_scores = np.ones(class2d_params.batch_size) * 0.5
+            cryodann_block = class_particles_file.find_block("particles")
+            cryodann_loop = cryodann_block.find_loop("_rlnCoordinateX").get_loop()
+            cryodann_loop.add_columns(["_rlnCryodannScore"], "0")
             if cryodann_success:
                 lightning_log_dir = (
                     project_dir
@@ -446,18 +451,13 @@ def run_class2d(class2d_params: Class2DParameters, send_to_rabbitmq: Callable):
 
                 if lightning_log_scores:
                     cryodann_scores = np.load(lightning_log_scores).flatten()
-                    cryodann_block = class_particles_file.find_block("particles")
-                    cryodann_loop = cryodann_block.find_loop(
-                        "_rlnCoordinateX"
-                    ).get_loop()
-                    cryodann_loop.add_columns(["_rlnCryodannScore"], "0")
-                    for i in range(cryodann_loop.length()):
-                        cryodann_loop[i, -1] = str(cryodann_scores[i])
-                    class_particles_file.write_file(
-                        f"{class2d_params.class2d_dir}/run_it{nr_iter:03}_data.star"
-                    )
                 else:
                     logger.error("Cryodann ran but no scores have been found")
+            for i in range(cryodann_loop.length()):
+                cryodann_loop[i, -1] = str(cryodann_scores[i])
+            class_particles_file.write_file(
+                f"{class2d_params.class2d_dir}/run_it{nr_iter:03}_data.star"
+            )
 
         # Create a 2D autoselection job
         logger.info("Sending to class selection")
@@ -513,3 +513,16 @@ class Class2DWrapper:
         if not successful_run:
             return False
         return True
+
+
+with open(
+    "/dls/m02/data/2026/bi42159-6/processed/raw4/relion_murfey/Select/job013/particles_batch_800000.star"
+) as f:
+    lines = f.readlines()
+    with open(
+        "/dls/m02/data/2026/bi42159-6/processed/raw4/relion_murfey/Select/job013/particles_batch_800000_fixed.star",
+        "w",
+    ) as f2:
+        for i, l in enumerate(lines):
+            if i < 50 or len(l.split()) == 26:
+                f2.write(l)
