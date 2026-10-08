@@ -389,8 +389,6 @@ class SIMReconService(CommonService):
             # Log stdout as one block if successful
             self.log.info(process_result.stdout)
         except subprocess.TimeoutExpired as exc:
-            # Kill the process
-
             # Extract output, if any, convert to string, and log it
             stdout: str | bytes = exc.stdout or b""
             if isinstance(stdout, bytes):
