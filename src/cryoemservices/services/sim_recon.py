@@ -359,8 +359,6 @@ class SIMReconService(CommonService):
             )
             for line in process_result.stdout.splitlines():
                 line = line.rstrip()
-                self.log.info(line)
-
                 # Extract output file name from logs
                 if line.startswith("INFO:sim_recon.recon:Reconstructed data saved to:"):
                     output_file = Path(
@@ -374,6 +372,8 @@ class SIMReconService(CommonService):
             if return_code:
                 self.log.error(
                     f"PySIMRecon subprocess failed with error code {return_code}"
+                    # Log any stdout as part of the error
+                    + (f":\n{process_result.stdout}" if process_result.stdout else "")
                 )
                 self._reject_message(header, transport=rw.transport, requeue=False)
                 return
@@ -381,20 +381,24 @@ class SIMReconService(CommonService):
             if not output_file or not output_file.is_file():
                 self.log.error(
                     f"PySIMRecon failed to generate output file for {params.file}"
+                    # Log any stdout as part of the error
+                    + (f":\n{process_result.stdout}" if process_result.stdout else "")
                 )
                 self._reject_message(header, transport=rw.transport, requeue=False)
                 return
+            # Log stdout as one block if successful
+            self.log.info(process_result.stdout)
         except subprocess.TimeoutExpired as exc:
             # Kill the process
-            self.log.error("Process timed out after 180 seconds")
 
             # Extract output, if any, convert to string, and log it
             stdout: str | bytes = exc.stdout or b""
             if isinstance(stdout, bytes):
                 stdout = stdout.decode(errors="replace")
-            for line in stdout.splitlines():
-                line = line.rstrip()
-                self.log.error(line)
+            self.log.error(
+                "Process timed out after 180 seconds"
+                + (f":\n{stdout}" if stdout else "")
+            )
             self._reject_message(header, transport=rw.transport, requeue=False)
             return
         except Exception:
