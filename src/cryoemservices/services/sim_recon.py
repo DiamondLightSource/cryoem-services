@@ -202,6 +202,8 @@ class SIMReconService(CommonService):
             # Create the config files needed to run PySIMRecon
             # ------------------------------------------------
 
+            config_files: list[Path] = []
+
             # Find the visit directory and create a setup directory
             visit_idx = params.file.parts.index(params.visit_name)
             visit_dir = Path(*params.file.parts[: visit_idx + 1])
@@ -237,7 +239,7 @@ class SIMReconService(CommonService):
             defaults_config = config_dir / "defaults.cfg"
             with open(defaults_config, "w") as f:
                 f.write("\n".join(defaults_config_lines))
-            self.log.info(f"Created config file {defaults_config}")
+            config_files.append(defaults_config)
 
             # 2. Configs for each wavelength
             # ------------------------------
@@ -281,7 +283,7 @@ class SIMReconService(CommonService):
                 wavelength_configs.append(
                     (wavelength_params.wavelength, wavelength_config)
                 )
-                self.log.info(f"Created config file {wavelength_config}")
+                config_files.append(wavelength_config)
 
                 # Extract and add OTF file to dict
                 otf_files[wavelength_params.wavelength] = wavelength_params.otf_path
@@ -312,8 +314,13 @@ class SIMReconService(CommonService):
             master_config = config_dir / "config.ini"
             with open(master_config, "w") as f:
                 f.write("\n".join(master_config_lines))
-            self.log.info(f"Created config file {master_config}")
+            config_files.append(master_config)
 
+            # Log config files created as one block
+            self.log.info(
+                "Created the following config files:\n"
+                + "\n".join(f"  {f}" for f in config_files)
+            )
         except Exception:
             self.log.error("Error creating PySIMRecon config files", exc_info=True)
             self._reject_message(header, transport=rw.transport, requeue=False)
