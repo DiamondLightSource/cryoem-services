@@ -98,7 +98,7 @@ def test_class3d_service_has_initial_model(
     service.initializing()
     service.class3d(rw=recipe_wrapper, header=header, message=None)
 
-    # Check the expected 3D classifcation command was run
+    # Check the expected 3D classification command was run
     assert mock_subprocess.call_count == 4
     class3d_command = [
         "mpirun",
