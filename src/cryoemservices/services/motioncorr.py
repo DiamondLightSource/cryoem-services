@@ -63,6 +63,7 @@ class MotionCorrParameters(BaseModel):
     split_sum: Optional[int] = None
     dose_motionstats_cutoff: float = 4.0
     do_icebreaker_jobs: bool = True
+    lamella_angle: float | None = None
     slurm_memory: int = 20000
     mc_uuid: int
     app_id: Optional[int] = None
@@ -634,8 +635,18 @@ class MotionCorr(CommonService):
                 # No IceBreaker jobs: CtfFind job is MC+1
                 ctf_job_number = job_number + 1
         else:
-            # Tomography: CtfFind job is MC+1
+            # Tomography: CtfFind job is MC+1, may want to de-curtain
             ctf_job_number = job_number + 1
+            if mc_params.lamella_angle is not None:
+                rw.send_to(
+                    "search_map_enhance",
+                    {
+                        "search_map": mc_params.mrc_out,
+                        "output_dir": str(Path(mc_params.mrc_out).parent),
+                        "lamella": True,
+                        "angle": mc_params.lamella_angle,
+                    },
+                )
 
         # Forward results to ctffind (in both SPA and tomography)
         self.log.info(f"Sending to ctf: {mc_params.mrc_out}")
