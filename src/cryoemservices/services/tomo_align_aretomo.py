@@ -134,7 +134,7 @@ class AreTomoParameters(BaseModel):
     out_imod: int = 1
     out_imod_xf: int | None = None
     interpolation_correction: int | None = None
-    dark_tol: float | None = None
+    dark_tol: float = 0.7
     manual_tilt_offset: float | None = None
     copy_output: bool = False
     visits_for_slurm: list | None = ["bi", "cm", "nr", "nt"]
@@ -271,6 +271,19 @@ class AreTomoAlign(CommonService):
             with open(plot_path, "w") as plot_json:
                 json.dump(fig_as_json, plot_json)
         return tomo_aln_file
+
+    def handle_dark_tolerance(self, dark_tol: float):
+        """Replicate the dark tol behaviour of AreTomo3 prior to image manipulation"""
+        data_ratios = []
+        for im, ang in self.input_file_list_of_lists:
+            data = mrcfile.read(im)
+            data_ratios.append(float(np.mean(data) / np.std(data)))
+        ftol = (np.mean(data_ratios) + 0.5 * np.std(data_ratios)) * dark_tol
+        self.input_file_list_of_lists = [
+            file_list
+            for i, file_list in enumerate(self.input_file_list_of_lists)
+            if data_ratios[i] > ftol
+        ]
 
     def tomo_align(self, rw, header: dict, message: dict):
         """Main function which interprets and processes received messages"""
@@ -420,6 +433,20 @@ class AreTomoAlign(CommonService):
         for index in sorted(tilts_to_remove, reverse=True):
             self.input_file_list_of_lists.remove(self.input_file_list_of_lists[index])
 
+        # Replace with de-curtained tilts if they exist
+        has_decurtained = all(
+            (Path(im).parent / f"{Path(im.stem)}_decurtained.mrc").is_file()
+            for im, ang in self.input_file_list_of_lists
+        )
+        decurtained_input_file_list_of_lists = [
+            [f"{Path(im).parent}/{Path(im.stem)}_decurtained.mrc", ang]
+            for im, ang in self.input_file_list_of_lists
+        ]
+        if has_decurtained:
+            # Remove dark frames here as they have been modified by the de-curtaining
+            self.log.info("Found de-curtained files, these will be used for alignment")
+            self.handle_dark_tolerance(tomo_params.dark_tol)
+
         # Find the input image dimensions
         if self.input_file_list_of_lists:
             input_image = self.input_file_list_of_lists[0][0]
@@ -454,16 +481,25 @@ class AreTomoAlign(CommonService):
             self._reject_message(header, transport=rw.transport)
             return
 
-        if self.input_file_list_of_lists:
-            # Stack the tilts
-            try:
+        # Stack the tilts
+        try:
+            if has_decurtained:
+                create_tilt_stack(
+                    decurtained_input_file_list_of_lists, Path(tomo_params.stack_file)
+                )
+                create_tilt_stack(
+                    self.input_file_list_of_lists,
+                    Path(tomo_params.stack_file).parent
+                    / f"{Path(tomo_params.stack_file).stem}_raw.mrc",
+                )
+            elif self.input_file_list_of_lists:
                 create_tilt_stack(
                     self.input_file_list_of_lists, Path(tomo_params.stack_file)
                 )
-            except (FileNotFoundError, ValueError) as e:
-                self.log.error(f"Creating stack file failed: {e}")
-                self._reject_message(header, transport=rw.transport)
-                return
+        except (FileNotFoundError, ValueError) as e:
+            self.log.error(f"Creating stack file failed: {e}")
+            self._reject_message(header, transport=rw.transport)
+            return
 
         # Set up the angle file needed for dose weighting
         angle_file = Path(tomo_params.stack_file).parent / f"{stack_name}_TLT.txt"
@@ -553,6 +589,32 @@ class AreTomoAlign(CommonService):
             rw.send_to("failure", {})
             self._reject_message(header, transport=rw.transport)
             return
+
+        if has_decurtained:
+            # Rerun for original tilt stack. Reconstruction only, reusing alignment
+            # De-curtained form will be sent for denoising, but otherwise use raw reconstruction
+            self.log.info("Re-running reconstruction for raw images")
+            final_output_volume = (
+                aretomo_output_path.parent
+                / f"{aretomo_output_path.stem}_decurtained.mrc"
+            )
+            aretomo_output_path.rename(final_output_volume)
+            (
+                Path(tomo_params.stack_file).parent
+                / f"{Path(tomo_params.stack_file).stem}_raw.mrc"
+            ).rename(Path(tomo_params.stack_file))
+            aretomo_rerun, _ = self.aretomo(
+                tomo_params, aretomo_output_path, angle_file, aln_file=aln_file
+            )
+            if aretomo_rerun.returncode or not aretomo_output_path.is_file():
+                self.log.error(
+                    f"Second reconstruction failed with exitcode {aretomo_rerun.returncode}:\n"
+                    + aretomo_rerun.stderr.decode("utf8", "replace")
+                )
+                self._reject_message(header, transport=rw.transport)
+                return
+        else:
+            final_output_volume = aretomo_output_path
 
         # Change permissions of imod directory
         imod_directory_option1 = alignment_output_dir / f"{stack_name}_Vol_Imod"
@@ -825,7 +887,7 @@ class AreTomoAlign(CommonService):
             rw.send_to("images", images_call_params)
 
         # Forward results to denoise service
-        self.log.info(f"Sending to denoise service {aretomo_output_path}")
+        self.log.info(f"Sending to denoise service {final_output_volume}")
         if job_number:
             denoise_dir = project_dir / f"Denoise/job{job_number + 1:03}/tomograms"
         else:
@@ -838,7 +900,7 @@ class AreTomoAlign(CommonService):
         rw.send_to(
             "denoise",
             {
-                "volume": str(aretomo_output_path),
+                "volume": str(final_output_volume),
                 "output_dir": str(denoise_dir),
                 "relion_options": dict(tomo_params.relion_options),
                 "copy_output": tomo_params.copy_output,
@@ -915,6 +977,7 @@ class AreTomoAlign(CommonService):
         aretomo_executable: str,
         input_file: str,
         tomo_parameters: AreTomoParameters,
+        cmd=1,
     ):
         """
         Assemble the command to run AreTomo3, using a base command with
@@ -923,7 +986,7 @@ class AreTomoAlign(CommonService):
         command = [
             aretomo_executable,
             "-Cmd",
-            "1",
+            str(cmd),
             "-InPrefix",
             input_file,
             "-OutDir",
@@ -1003,6 +1066,7 @@ class AreTomoAlign(CommonService):
         tomo_parameters: AreTomoParameters,
         aretomo_output_path: Path,
         angle_file: Path,
+        aln_file: Path | None,
     ):
         """
         Assemble the command to run AreTomo2, using a base command with
@@ -1064,6 +1128,8 @@ class AreTomoAlign(CommonService):
         for k, v in tomo_parameters.model_dump().items():
             if (v not in [None, ""]) and (k in aretomo_flags):
                 command.extend((aretomo_flags[k], str(v)))
+        if aln_file:
+            command.extend(("-AlignZ", str(aln_file)))
 
         return command
 
@@ -1072,6 +1138,7 @@ class AreTomoAlign(CommonService):
         tomo_parameters: AreTomoParameters,
         aretomo_output_path: Path,
         angle_file: Path,
+        aln_file: Path | None = None,
     ):
         """
         Run AreTomo2 or AreTomo3 on output of Newstack
@@ -1081,6 +1148,7 @@ class AreTomoAlign(CommonService):
                 aretomo_executable="AreTomo3",
                 input_file=tomo_parameters.stack_file,
                 tomo_parameters=tomo_parameters,
+                cmd=2 if aln_file else 1,
             )
             self.log.info(f"Running AreTomo3 {command}")
         else:
@@ -1090,6 +1158,7 @@ class AreTomoAlign(CommonService):
                 tomo_parameters=tomo_parameters,
                 aretomo_output_path=aretomo_output_path,
                 angle_file=angle_file,
+                aln_file=aln_file,
             )
             self.log.info(f"Running AreTomo2 {command}")
 
