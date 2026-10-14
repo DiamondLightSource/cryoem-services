@@ -51,7 +51,7 @@
       "cryolo": 6,
       "images": 4,
       "ispyb_connector": 3,
-      "node_creator": 3
+      "node_creator": 2
     },
     "queue": "ctffind",
     "service": "CTFFind"

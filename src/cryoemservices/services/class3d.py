@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 import json
 from pathlib import Path
 
@@ -7,7 +5,7 @@ from pydantic import ValidationError
 from workflows.recipe import wrap_subscribe
 
 from cryoemservices.services.common_service import CommonService
-from cryoemservices.util.models import MockRW
+from cryoemservices.util.models import InterruptHandler, MockRW
 from cryoemservices.wrappers.class3d_wrapper import Class3DParameters, run_class3d
 
 
@@ -35,7 +33,7 @@ class Class3D(CommonService):
         if not rw:
             self.log.info("Received a simple message")
             if not isinstance(message, dict):
-                self.log.error("Rejected invaid simple message")
+                self.log.error("Rejected invalid simple message")
                 self._reject_message(header, requeue=False)
                 return
 
@@ -85,28 +83,35 @@ class Class3D(CommonService):
         rw.transport.drop_callback_reference(self.subscription_id)
 
         # Run the class3d job
-        try:
-            successful_run = run_class3d(class3d_params, send_to_rabbitmq=rw.send_to)
-        except Exception as e:
-            self.log.error(f"Failed to run class3d due to {e}", exc_info=True)
-            successful_run = False
-        except KeyboardInterrupt:
-            # Create a new transport object of the same type as before and send the message
-            rw._transport = type(rw.transport)()
-            rw.transport.connect()
-            rw.transport.send("class3d", message)
-            raise KeyboardInterrupt
+        with InterruptHandler() as handler:
+            try:
+                successful_run = run_class3d(
+                    class3d_params, send_to_rabbitmq=rw.send_to
+                )
+            except Exception as e:
+                self.log.error(f"Failed to run class3d due to {e}", exc_info=True)
+                successful_run = False
+            if handler.interrupted:
+                self.log.warning("Process was interrupted")
+                successful_run = False
 
-        # Reconnect to rabbitmq
-        self.initializing()
-        if successful_run:
-            self.log.error(f"Class3D job completed for {class3d_params.particles_file}")
-        else:
-            self.log.error(f"Class3D job failed for {class3d_params.particles_file}")
-            # Send back to the queue but mark a failure in the message
-            message["requeue"] = message.get("requeue", 0) + 1
-            # Create a new transport object of the same type as before
-            rw._transport = type(rw.transport)()
-            rw.transport.connect()
-            rw.transport.send("class3d", message)
+            # Reconnect to rabbitmq
+            self.initializing()
+            if successful_run:
+                self.log.info(
+                    f"Class3D job completed for {class3d_params.particles_file}"
+                )
+            else:
+                self.log.error(
+                    f"Class3D job failed for {class3d_params.particles_file}"
+                )
+                # Send back to the queue but mark a failure in the message
+                message["requeue"] = message.get("requeue", 0) + 1
+                # Create a new transport object of the same type as before
+                rw._transport = type(rw.transport)()
+                rw.transport.connect()
+                rw.transport.send("class3d", message, headers=header)
+
+            if handler.interrupted:
+                raise RuntimeError("Process was interrupted")
         return True

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import copy
+import json
 from unittest import mock
 
 import pytest
@@ -34,10 +36,7 @@ def test_class2d_service_incomplete_batch(
     mock_subprocess().stderr = "stderr".encode("utf8")
 
     # Set up the parameters
-    header = {
-        "message-id": mock.sentinel,
-        "subscription": mock.sentinel,
-    }
+    header = {"message-id": 1, "subscription": 2}
     class2d_test_message = {
         "recipe": {
             "start": [[1, []]],
@@ -282,10 +281,7 @@ def test_class2d_service_complete_batch(mock_subprocess, offline_transport, tmp_
     mock_subprocess().stderr = "stderr".encode("utf8")
 
     # Set up the parameters
-    header = {
-        "message-id": mock.sentinel,
-        "subscription": mock.sentinel,
-    }
+    header = {"message-id": 1, "subscription": 2}
     class2d_test_message = {
         "batch_is_complete": True,
         "batch_size": "50000",
@@ -404,8 +400,11 @@ def test_class2d_service_complete_batch(mock_subprocess, offline_transport, tmp_
 
 
 @mock.patch("cryoemservices.services.class2d.run_class2d")
-def test_class2d_service_failed_resends(mock_class2d, offline_transport, tmp_path):
-    """Failures of the processing should lead to nacking of the message"""
+@mock.patch("workflows.transport.offline_transport._offlog")
+def test_class2d_service_failed_resends(
+    mock_log, mock_class2d, offline_transport, tmp_path
+):
+    """Failures of the processing should lead to reinjection of the message"""
 
     def raise_exception(*args, **kwargs):
         raise ValueError
@@ -413,10 +412,7 @@ def test_class2d_service_failed_resends(mock_class2d, offline_transport, tmp_pat
     mock_class2d.side_effect = raise_exception
 
     # Set up the parameters
-    header = {
-        "message-id": mock.sentinel,
-        "subscription": mock.sentinel,
-    }
+    header = {"message-id": 1, "subscription": 2}
     class2d_test_message = {
         "batch_is_complete": True,
         "batch_size": "50000",
@@ -430,23 +426,28 @@ def test_class2d_service_failed_resends(mock_class2d, offline_transport, tmp_pat
         "picker_id": "6",
         "relion_options": {},
     }
+    end_message = copy.deepcopy(class2d_test_message)
 
     # Set up and run the service
     service = Class2D(environment={"queue": ""}, transport=offline_transport)
     service.initializing()
     service.class2d(None, header=header, message=class2d_test_message)
 
-    assert offline_transport.send.call_count == 0
-    offline_transport.nack.assert_called_once()
+    end_message["requeue"] = 1
+    mock_log.info.assert_any_call(
+        "Offline Transport: Acknowledging message 1 in subscription 2"
+    )
+    mock_log.info.assert_any_call(
+        f"Offline Transport: Sending {len(json.dumps(end_message))} bytes to class2d"
+    )
+    mock_log.debug.assert_any_call(json.dumps(end_message))
+    offline_transport.ack.assert_called_once()
 
 
 def test_class2d_service_nack_on_requeue(offline_transport, tmp_path):
     """Messages reinjected 5 times should nack"""
     # Set up the parameters
-    header = {
-        "message-id": mock.sentinel,
-        "subscription": mock.sentinel,
-    }
+    header = {"message-id": 1, "subscription": 2}
     class2d_test_message = {
         "batch_is_complete": True,
         "batch_size": "50000",
@@ -474,10 +475,7 @@ def test_class2d_service_nack_on_requeue(offline_transport, tmp_path):
 def test_class2d_service_nack_wrong_params(offline_transport, tmp_path):
     """Messages without required parameters should nack"""
     # Set up the parameters
-    header = {
-        "message-id": mock.sentinel,
-        "subscription": mock.sentinel,
-    }
+    header = {"message-id": 1, "subscription": 2}
     class2d_test_message = {
         "relion_options": {},
     }
