@@ -279,11 +279,17 @@ class AreTomoAlign(CommonService):
             data = mrcfile.read(im)
             data_ratios.append(float(np.mean(data) / np.std(data)))
         ftol = (np.mean(data_ratios) + 0.5 * np.std(data_ratios)) * dark_tol
+        dark_tilts = [
+            file_list[0]
+            for i, file_list in enumerate(self.input_file_list_of_lists)
+            if data_ratios[i] <= ftol
+        ]
         self.input_file_list_of_lists = [
             file_list
             for i, file_list in enumerate(self.input_file_list_of_lists)
             if data_ratios[i] > ftol
         ]
+        return dark_tilts
 
     def tomo_align(self, rw, header: dict, message: dict):
         """Main function which interprets and processes received messages"""
@@ -438,14 +444,18 @@ class AreTomoAlign(CommonService):
             (Path(im).parent / f"{Path(im).stem}_decurtained.mrc").is_file()
             for im, ang in self.input_file_list_of_lists
         )
-        decurtained_input_file_list_of_lists = [
-            [f"{Path(im).parent}/{Path(im).stem}_decurtained.mrc", ang]
-            for im, ang in self.input_file_list_of_lists
-        ]
         if has_decurtained and tomo_params.dark_tol is not None:
             # Remove dark frames here as they have been modified by the de-curtaining
             self.log.info("Found de-curtained files, these will be used for alignment")
-            self.handle_dark_tolerance(tomo_params.dark_tol)
+            dark_tilts = self.handle_dark_tolerance(tomo_params.dark_tol)
+            decurtained_input_file_list_of_lists = [
+                [f"{Path(im).parent}/{Path(im).stem}_decurtained.mrc", ang]
+                for im, ang in self.input_file_list_of_lists
+            ]
+            dark_tilt_numbers = np.array(
+                [get_tilt_number_v5_12(Path(tilt)) for tilt in dark_tilts]
+            )
+            removed_tilt_numbers = np.append(removed_tilt_numbers, dark_tilt_numbers)
 
         # Find the input image dimensions
         if self.input_file_list_of_lists:
@@ -647,6 +657,8 @@ class AreTomoAlign(CommonService):
         ):
             self.log.info("Resizing tomogram")
             resize_tomogram(aretomo_output_path, scaled_z_size)
+            if has_decurtained:
+                resize_tomogram(final_output_volume, scaled_z_size)
             if second_volume_path.is_file() and tomo_params.second_bin:
                 second_scaled_z_size = int(tomo_params.vol_z / tomo_params.second_bin)
                 resize_tomogram(second_volume_path, second_scaled_z_size)
@@ -658,6 +670,11 @@ class AreTomoAlign(CommonService):
                 aretomo_output_path,
                 self.rot if self.rot is not None else tomo_params.tilt_axis,
             )
+            if has_decurtained:
+                rotate_tomogram(
+                    final_output_volume,
+                    self.rot if self.rot is not None else tomo_params.tilt_axis,
+                )
             if second_volume_path.is_file() and tomo_params.second_bin:
                 rotate_tomogram(
                     second_volume_path,
