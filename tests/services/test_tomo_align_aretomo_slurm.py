@@ -404,6 +404,8 @@ def test_tomo_align_aretomo_slurm_service_aretomo2(
         str(tomo_align_test_message["flip_vol"]),
         "-OutImod",
         str(tomo_align_test_message["out_imod"]),
+        "-DarkTol",
+        "0.7",
     ]
 
     # Check the slurm commands were run
