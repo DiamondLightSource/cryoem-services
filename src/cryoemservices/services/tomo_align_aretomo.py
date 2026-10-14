@@ -134,7 +134,7 @@ class AreTomoParameters(BaseModel):
     out_imod: int = 1
     out_imod_xf: int | None = None
     interpolation_correction: int | None = None
-    dark_tol: float = 0.7
+    dark_tol: float | None = 0.7
     manual_tilt_offset: float | None = None
     copy_output: bool = False
     visits_for_slurm: list | None = ["bi", "cm", "nr", "nt"]
@@ -434,15 +434,15 @@ class AreTomoAlign(CommonService):
             self.input_file_list_of_lists.remove(self.input_file_list_of_lists[index])
 
         # Replace with de-curtained tilts if they exist
-        has_decurtained = all(
-            (Path(im).parent / f"{Path(im.stem)}_decurtained.mrc").is_file()
+        has_decurtained = self.input_file_list_of_lists and all(
+            (Path(im).parent / f"{Path(im).stem}_decurtained.mrc").is_file()
             for im, ang in self.input_file_list_of_lists
         )
         decurtained_input_file_list_of_lists = [
-            [f"{Path(im).parent}/{Path(im.stem)}_decurtained.mrc", ang]
+            [f"{Path(im).parent}/{Path(im).stem}_decurtained.mrc", ang]
             for im, ang in self.input_file_list_of_lists
         ]
-        if has_decurtained:
+        if has_decurtained and tomo_params.dark_tol is not None:
             # Remove dark frames here as they have been modified by the de-curtaining
             self.log.info("Found de-curtained files, these will be used for alignment")
             self.handle_dark_tolerance(tomo_params.dark_tol)

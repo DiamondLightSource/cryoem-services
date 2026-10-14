@@ -1696,6 +1696,8 @@ def test_tomo_align_service_dark_images(
         str(tomo_align_test_message["flip_vol"]),
         "-OutImod",
         str(tomo_align_test_message["out_imod"]),
+        "-DarkTol",
+        "0.7",
     ]
     mock_subprocess.assert_called_once_with(
         aretomo_command,
@@ -2060,6 +2062,8 @@ def test_tomo_align_service_fail_case(
         str(tomo_align_test_message["flip_vol"]),
         "-OutImod",
         str(tomo_align_test_message["out_imod"]),
+        "-DarkTol",
+        "0.7",
     ]
 
     # Check tilt stack creation
