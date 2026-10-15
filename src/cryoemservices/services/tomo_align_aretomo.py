@@ -614,7 +614,11 @@ class AreTomoAlign(CommonService):
                 / f"{Path(tomo_params.stack_file).stem}_raw.mrc"
             ).rename(Path(tomo_params.stack_file))
             aretomo_rerun, _ = self.aretomo(
-                tomo_params, aretomo_output_path, angle_file, aln_file=aln_file
+                tomo_params,
+                aretomo_output_path,
+                angle_file,
+                aln_file=aln_file,
+                read_output=False,
             )
             if aretomo_rerun.returncode or not aretomo_output_path.is_file():
                 self.log.error(
@@ -1156,6 +1160,7 @@ class AreTomoAlign(CommonService):
         aretomo_output_path: Path,
         angle_file: Path,
         aln_file: Path | None = None,
+        read_output: bool = True,
     ):
         """
         Run AreTomo2 or AreTomo3 on output of Newstack
@@ -1182,9 +1187,9 @@ class AreTomoAlign(CommonService):
         self.log.info(f"Input stack: {tomo_parameters.stack_file}")
 
         # Save the AreTomo command then run it
-        with open(Path(tomo_parameters.stack_file).with_suffix(".com"), "w") as f:
+        with open(Path(tomo_parameters.stack_file).with_suffix(".com"), "a") as f:
             f.write(" ".join(command))
         result = subprocess.run(command, capture_output=True)
-        if tomo_parameters.tilt_cor:
+        if tomo_parameters.tilt_cor and read_output:
             self.parse_tomo_output(result.stdout.decode("utf8", "replace"))
         return result, command
