@@ -63,6 +63,7 @@ class MotionCorrParameters(BaseModel):
     split_sum: Optional[int] = None
     dose_motionstats_cutoff: float = 4.0
     do_icebreaker_jobs: bool = True
+    lamella_angle: float | None = None
     slurm_memory: int = 20000
     mc_uuid: int
     app_id: Optional[int] = None
@@ -773,7 +774,19 @@ class MotionCorr(CommonService):
         self.log.info(f"Sending to ispyb {ispyb_parameters}")
 
         # Do these sends together at the end to minimise the chance of double-insertion
-        rw.send_to("ctffind", mc_params.ctf)
+        if mc_params.lamella_angle is not None:
+            rw.send_to(
+                "search_map_enhance",
+                {
+                    "search_map": mc_params.mrc_out,
+                    "output_dir": str(Path(mc_params.mrc_out).parent),
+                    "lamella": True,
+                    "angle": mc_params.lamella_angle,
+                    "ctf": mc_params.ctf,
+                },
+            )
+        else:
+            rw.send_to("ctffind", mc_params.ctf)
         rw.send_to("ispyb_connector", ispyb_parameters)
 
         self.log.info(f"Done {self.job_type} for {mc_params.movie}.")

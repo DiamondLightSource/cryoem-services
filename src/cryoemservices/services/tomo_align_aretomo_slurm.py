@@ -131,6 +131,7 @@ class AreTomoAlignSlurm(AreTomoAlign):
         tomo_parameters: AreTomoParameters,
         aretomo_output_path: Path,
         angle_file: Path,
+        aln_file: Path | None = None,
     ):
         """Submit AreTomo2 or 3 jobs to the slurm cluster via the RestAPI"""
         self.log.info(f"Input stack: {tomo_parameters.stack_file}")
@@ -139,6 +140,7 @@ class AreTomoAlignSlurm(AreTomoAlign):
                 aretomo_executable=os.environ["ARETOMO3_EXECUTABLE"],
                 input_file=str(Path(tomo_parameters.stack_file).name),
                 tomo_parameters=tomo_parameters,
+                cmd=2 if aln_file else 1,
             )
             aretomo_version = "AreTomo3"
         else:
@@ -148,6 +150,7 @@ class AreTomoAlignSlurm(AreTomoAlign):
                 tomo_parameters=tomo_parameters,
                 aretomo_output_path=aretomo_output_path,
                 angle_file=angle_file,
+                aln_file=aln_file,
             )
             aretomo_version = "AreTomo2"
 

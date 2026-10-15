@@ -13,10 +13,11 @@
   },
   "2": {
     "output": {
-      "ctffind": 3,
-      "images": 4,
+      "ctffind": 4,
+      "images": 5,
       "ispyb_connector": 6,
-      "node_creator": 7
+      "node_creator": 8,
+      "search_map_enhance": 3
     },
     "parameters": {
       "dose_per_frame": "{fm_dose}",
@@ -25,6 +26,7 @@
       "fm_int_file": "{fm_int_file}",
       "frame_count": "{frame_count}",
       "gain_ref": "{gain_ref}",
+      "lamella_angle": "{lamella_angle}",
       "mc_uuid": "{mc_uuid}",
       "motion_corr_binning": "{ft_bin}",
       "movie": "{movie}",
@@ -42,26 +44,33 @@
   },
   "3": {
     "output": {
-      "images": 4,
-      "ispyb_connector": 6,
-      "murfey_feedback": 5,
-      "node_creator": 7
+      "ctffind": 3
+    },
+    "queue": "search_map_enhance",
+    "service": "SearchMapEnhance"
+  },
+  "4": {
+    "output": {
+      "images": 5,
+      "ispyb_connector": 7,
+      "murfey_feedback": 6,
+      "node_creator": 8
     },
     "queue": "ctffind",
     "service": "CTFFind"
   },
-  "4": {
+  "5": {
     "queue": "images",
     "service": "Images"
   },
-  "5": {
+  "6": {
     "parameters": {
       "program_id": "{autoproc_program_id}"
     },
     "queue": "{feedback_queue}",
     "service": "Murfey"
   },
-  "6": {
+  "7": {
     "parameters": {
       "dcid": "{dcid}",
       "image_number": "{image_number}",
@@ -72,7 +81,7 @@
     "queue": "ispyb_connector",
     "service": "EMISPyB"
   },
-  "7": {
+  "8": {
     "queue": "node_creator",
     "service": "NodeCreator"
   },
