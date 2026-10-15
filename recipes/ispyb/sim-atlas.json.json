@@ -1,0 +1,24 @@
+{
+  "1": {
+    "parameters": {
+      "visit_name": "{visit_name}",
+      "output_dir": "{output_dir}",
+      "mosaic_mrc_file": "{mosaic_mrc_file}",
+      "mosaic_text_file": "{mosaic_text_file}",
+      "markers_file": "{markers_file}"
+    },
+    "output": {
+      "murfey_feedback": 2
+    },
+    "queue": "sim.atlas",
+    "service": "SIMAtlas"
+  },
+  "2": {
+    "parameters": {
+      "session_id": "{session_id}"
+    },
+    "queue": "{feedback_queue}",
+    "service": "Murfey"
+  },
+  "start": [[1, []]]
+}
