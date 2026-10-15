@@ -1,13 +1,14 @@
+import json
 from pathlib import Path
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from workflows.recipe import RecipeWrapper, wrap_subscribe
 
 from cryoemservices.services.common_service import CommonService
 from cryoemservices.util.models import MockRW
 
 
-class SIMAtlasParameters(BaseModel):
+class StitchMParameters(BaseModel):
     """
     These are the parameters needed by StitchM in order to convert the MRC
     image stack into a stitched atlas image.
@@ -63,6 +64,28 @@ class SIMAtlasService(CommonService):
         # Create a wrapper-like object that can be passed to functions
         # as if a recipe wrapper was present
         rw = MockRW(self._transport)
+        rw.recipe_step = {"parameters": message}
+
+        try:
+            if isinstance(message, dict):
+                params = StitchMParameters(
+                    **{**rw.recipe_step.get("parameters", {}), **message}
+                )
+            else:
+                params = StitchMParameters(**rw.recipe_step.get("parameters", {}))
+        except (ValidationError, TypeError) as e:
+            self.log.error(
+                f"StitchMParameters validation failed for message: {message} "
+                f"and recipe parameters: {rw.recipe_step.get('parameters', {})} "
+                f"with exception: {e}"
+            )
+            self._reject_message(header, transport=rw.transport, requeue=False)
+            return
+
+        self.log.info(
+            "Received the following parameters:\n"
+            f"{json.dumps(params.model_dump(), indent=2, default=str)}"
+        )
 
         # File processing logic goes here
 
