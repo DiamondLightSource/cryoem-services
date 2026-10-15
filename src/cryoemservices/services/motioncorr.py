@@ -635,18 +635,8 @@ class MotionCorr(CommonService):
                 # No IceBreaker jobs: CtfFind job is MC+1
                 ctf_job_number = job_number + 1
         else:
-            # Tomography: CtfFind job is MC+1, may want to de-curtain
+            # Tomography: CtfFind job is MC+1
             ctf_job_number = job_number + 1
-            if mc_params.lamella_angle is not None:
-                rw.send_to(
-                    "search_map_enhance",
-                    {
-                        "search_map": mc_params.mrc_out,
-                        "output_dir": str(Path(mc_params.mrc_out).parent),
-                        "lamella": True,
-                        "angle": mc_params.lamella_angle,
-                    },
-                )
 
         # Forward results to ctffind (in both SPA and tomography)
         self.log.info(f"Sending to ctf: {mc_params.mrc_out}")
@@ -784,7 +774,19 @@ class MotionCorr(CommonService):
         self.log.info(f"Sending to ispyb {ispyb_parameters}")
 
         # Do these sends together at the end to minimise the chance of double-insertion
-        rw.send_to("ctffind", mc_params.ctf)
+        if mc_params.lamella_angle is not None:
+            rw.send_to(
+                "search_map_enhance",
+                {
+                    "search_map": mc_params.mrc_out,
+                    "output_dir": str(Path(mc_params.mrc_out).parent),
+                    "lamella": True,
+                    "angle": mc_params.lamella_angle,
+                    "ctf": mc_params.ctf,
+                },
+            )
+        else:
+            rw.send_to("ctffind", mc_params.ctf)
         rw.send_to("ispyb_connector", ispyb_parameters)
 
         self.log.info(f"Done {self.job_type} for {mc_params.movie}.")
