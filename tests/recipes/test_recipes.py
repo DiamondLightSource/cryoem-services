@@ -93,6 +93,7 @@ known_services = {
     "PostProcess": PostProcessParameters,
     "Refine3D": RefineParameters,
     "RefineWrapper": RefineParameters,
+    "SearchMapEnhance": MotionCorrParameters,
     "SelectClasses": SelectClassesParameters,
     "SelectParticles": SelectParticlesParameters,
     "SIMRecon": PySIMReconParameters,
