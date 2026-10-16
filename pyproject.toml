@@ -7,7 +7,7 @@ requires = [
 
 [project]
 name = "cryoemservices"
-version = "1.5.1"
+version = "1.5.0"
 description = "Services for CryoEM processing"
 readme = "README.md"
 keywords = [
@@ -29,6 +29,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
+    "ccpem-pipeliner@git+https://gitlab.com/ccpem/ccpem-pipeliner.git@live-processing#egg=ccpem-pipeliner",
     "defusedxml", # CLEM workflow
     "gemmi",
     "graypy",
@@ -69,9 +70,6 @@ easymode = [
 murfey_db = [
     "murfey[server]",
 ]
-pipeliner = [
-    "ccpem-pipeliner",
-]
 torch = [
     "membrain-seg",
     "topaz-em",
@@ -94,8 +92,6 @@ torch = [
     "cryoemservices.service" = "cryoemservices.cli.start_service:run"
     "cryoemservices.wrap" = "cryoemservices.cli.run_wrapper:run"
     "relipy.link" = "cryoemservices.cli.project_linker:run"
-[project.entry-points."ccpem_pipeliner.jobs"]
-    "combine_star_files_job" = "cryoemservices.pipeliner_plugins.combine_star_job:ProcessStarFiles"
 [project.entry-points."cryoemservices.services"]
     AreTomoAlign = "cryoemservices.services.tomo_align_aretomo:AreTomoAlign"
     AreTomoAlignSlurm = "cryoemservices.services.tomo_align_aretomo_slurm:AreTomoAlignSlurm"
