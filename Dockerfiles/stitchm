@@ -1,0 +1,60 @@
+# This Dockerfile is used to build a CryoEM service that can be used to run PySIMRecon
+FROM docker.io/library/python:3.12-slim-bookworm as base
+
+# Install Vim in base image
+RUN apt-get update && \
+    apt-get upgrade -y && \
+    apt-get install -y --no-install-recommends \
+        vim \
+        && \
+    apt-get autoremove && \
+    rm -rf /var/lib/apt/lists/*
+
+# Build CryoEM Services in a branch image
+FROM base as build
+
+# 1. Install git and other build tools
+# 2. Install StitchM
+# 3. Install cryoemservices
+ENV PATH=/conda/bin:${PATH}
+RUN \
+    --mount=type=bind,source=.,target=/mnt/cryoemservices,U \
+    echo "Installing system and build dependencies..." && \
+    apt-get update && \
+    apt-get upgrade -y && \
+    apt-get install -y --no-install-recommends \
+        git && \
+    apt-get autoremove && \
+    rm -rf /var/lib/apt/lists/* && \
+    \
+    echo "Updating base Python package" && \
+    pip install --upgrade pip && \
+    \
+    echo "Installing StitchM..." && \
+    git clone https://github.com/DiamondLightSource/StitchM.git /tmp/stitchm && \
+    python -m venv /install/stitchm && \
+    /install/stitchm/bin/pip install /tmp/stitchm && \
+    \
+    echo "Installing cryoemservices..." && \
+    mkdir /tmp/cryoemservices && \
+    for FILE in LICENSE pyproject.toml README.md setup.py; \
+        do cp /mnt/cryoemservices/$FILE /tmp/cryoemservices/; \
+    done && \
+    cp -r /mnt/cryoemservices/src /tmp/cryoemservices/ && \
+    python -m venv /install/cryoemservices && \
+    /install/cryoemservices/bin/pip install /tmp/cryoemservices
+
+# Copy the installed Python environments to the runner image
+FROM base
+
+# Create EM user
+ARG userid
+ARG groupid
+ARG groupname
+
+RUN groupadd -r -g "${groupid}" "${groupname}" && \
+    useradd -r -M "${groupname}" -u "${userid}" -g "${groupname}"
+
+# Copy the Python environments in
+COPY --from=build --chown="${userid}":"${groupid}" /install /install
+ENV PATH=/install/cryoemservices/bin:/install/stitchm/bin:${PATH}
