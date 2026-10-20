@@ -20,6 +20,7 @@ from cryoemservices.services.motioncorr import MotionCorrParameters
 from cryoemservices.services.postprocess import PostProcessParameters
 from cryoemservices.services.select_classes import SelectClassesParameters
 from cryoemservices.services.select_particles import SelectParticlesParameters
+from cryoemservices.services.sim_atlas import StitchMParameters
 from cryoemservices.services.sim_recon import PySIMReconParameters
 from cryoemservices.services.tomo_align_aretomo import AreTomoParameters
 from cryoemservices.services.tomo_align_imod import ImodTomoParameters
@@ -95,6 +96,7 @@ known_services = {
     "RefineWrapper": RefineParameters,
     "SelectClasses": SelectClassesParameters,
     "SelectParticles": SelectParticlesParameters,
+    "SIMAtlas": StitchMParameters,
     "SIMRecon": PySIMReconParameters,
 }
 
