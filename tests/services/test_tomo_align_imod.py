@@ -77,7 +77,7 @@ def test_tomo_align_imod(
     )
     service.initializing()
 
-    def write_imod_outputs(command, capture_output: bool = False):
+    def write_imod_outputs(command, capture_output: bool = False, timeout: int = 0):
         if command[0] != "batchruntomo":
             (tmp_path / f"recipe/Tomograms/{folder_uuid.hex}/test_stack.mrc").touch(
                 exist_ok=True
@@ -129,6 +129,7 @@ def test_tomo_align_imod(
             "-bypass",
         ],
         capture_output=True,
+        timeout=25 * 60,
     )
 
     # Check output copy

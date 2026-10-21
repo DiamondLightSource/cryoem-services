@@ -266,7 +266,9 @@ def test_sim_recon_service(
         )
 
         if timed_out:
-            service.log.error.assert_any_call("Process timed out after 180 seconds")
+            service.log.error.assert_called_once_with(
+                "Process timed out after 180 seconds:\n" + "\n".join(stdout_lines)
+            )
             mock_reject.assert_called_once()
         else:
             if return_code == 0 and file_created:
@@ -289,12 +291,13 @@ def test_sim_recon_service(
             else:
                 # Check that the correct error messages were logged
                 if not return_code == 0:
-                    message = (
-                        f"PySIMRecon subprocess failed with error code {return_code}"
+                    service.log.error.assert_called_once_with(
+                        f"PySIMRecon subprocess failed with error code {return_code}:\n"
+                        + "\n".join(stdout_lines)
                     )
                 elif not file_created:
-                    message = (
-                        f"PySIMRecon failed to generate output file for {params.file}"
+                    service.log.error.assert_called_once_with(
+                        f"PySIMRecon failed to generate output file for {params.file}:\n"
+                        + "\n".join(stdout_lines)
                     )
-                service.log.error.assert_called_once_with(message)
                 mock_reject.assert_called_once()

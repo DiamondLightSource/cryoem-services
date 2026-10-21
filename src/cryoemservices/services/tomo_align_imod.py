@@ -125,7 +125,7 @@ class ImodTomoAlign(CommonService):
         uuid_stack = uuid_dir / Path(tomo_params.stack_file).name
 
         # Do txrm conversion
-        self.log.info(f"Input file {tomo_params.txrm_file}")
+        self.log.info(f"Input file {tomo_params.txrm_file} -> {tomo_params.stack_file}")
         tifftomo = uuid_stack.with_suffix(".tiff")
         convert_and_save(
             tomo_params.txrm_file,
@@ -160,17 +160,27 @@ class ImodTomoAlign(CommonService):
         imod_output_path = (
             uuid_dir.parent / f"{Path(tomo_params.stack_file).stem}_rec.mrc"
         )
-        imod_result = subprocess.run(
-            [
-                "batchruntomo",
-                "-directive",
-                str(adoc_file),
-                "-cpus",
-                str(tomo_params.cpus),
-                "-bypass",
-            ],
-            capture_output=True,
-        )
+        try:
+            imod_result = subprocess.run(
+                [
+                    "batchruntomo",
+                    "-directive",
+                    str(adoc_file),
+                    "-cpus",
+                    str(tomo_params.cpus),
+                    "-bypass",
+                ],
+                capture_output=True,
+                timeout=25 * 60,
+            )
+        except subprocess.TimeoutExpired:
+            self.log.error("batchruntomo failed with due to timeout")
+            imod_result = subprocess.CompletedProcess(
+                args="",
+                returncode=1,
+                stdout="".encode("utf8"),
+                stderr="Process timed out".encode("utf8"),
+            )
 
         # Move everything out of the uuid folder
         def iterative_move(dir_to_move):
@@ -193,9 +203,9 @@ class ImodTomoAlign(CommonService):
             self.log.error(
                 f"batchruntomo failed with exitcode {imod_result.returncode}"
             )
-            # Update failure processing status, then try again
+            # Update failure processing status
             rw.send_to("failure", {})
-            self._reject_message(header, rw.transport)
+            self._reject_message(header, rw.transport, requeue=False)
             return
         elif not imod_output_path.is_file():
             self.log.error(

@@ -51,6 +51,8 @@ spec:
             defaultMode: 0444
             sources:
               - secret:
+                  name: {{ .Values.global.dbSecretName }}
+              - secret:
                   name: {{ .Values.global.rmqSecretName }}
         {{- if .Values.global.extraGlobalVolumes }}
         {{- toYaml .Values.global.extraGlobalVolumes | nindent 8 }}

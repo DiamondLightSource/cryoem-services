@@ -202,6 +202,8 @@ class SIMReconService(CommonService):
             # Create the config files needed to run PySIMRecon
             # ------------------------------------------------
 
+            config_files: list[Path] = []
+
             # Find the visit directory and create a setup directory
             visit_idx = params.file.parts.index(params.visit_name)
             visit_dir = Path(*params.file.parts[: visit_idx + 1])
@@ -237,7 +239,7 @@ class SIMReconService(CommonService):
             defaults_config = config_dir / "defaults.cfg"
             with open(defaults_config, "w") as f:
                 f.write("\n".join(defaults_config_lines))
-            self.log.info(f"Created config file {defaults_config}")
+            config_files.append(defaults_config)
 
             # 2. Configs for each wavelength
             # ------------------------------
@@ -281,7 +283,7 @@ class SIMReconService(CommonService):
                 wavelength_configs.append(
                     (wavelength_params.wavelength, wavelength_config)
                 )
-                self.log.info(f"Created config file {wavelength_config}")
+                config_files.append(wavelength_config)
 
                 # Extract and add OTF file to dict
                 otf_files[wavelength_params.wavelength] = wavelength_params.otf_path
@@ -312,8 +314,13 @@ class SIMReconService(CommonService):
             master_config = config_dir / "config.ini"
             with open(master_config, "w") as f:
                 f.write("\n".join(master_config_lines))
-            self.log.info(f"Created config file {master_config}")
+            config_files.append(master_config)
 
+            # Log config files created as one block
+            self.log.info(
+                "Created the following config files:\n"
+                + "\n".join(f"  {f}" for f in config_files)
+            )
         except Exception:
             self.log.error("Error creating PySIMRecon config files", exc_info=True)
             self._reject_message(header, transport=rw.transport, requeue=False)
@@ -352,8 +359,6 @@ class SIMReconService(CommonService):
             )
             for line in process_result.stdout.splitlines():
                 line = line.rstrip()
-                self.log.info(line)
-
                 # Extract output file name from logs
                 if line.startswith("INFO:sim_recon.recon:Reconstructed data saved to:"):
                     output_file = Path(
@@ -367,6 +372,8 @@ class SIMReconService(CommonService):
             if return_code:
                 self.log.error(
                     f"PySIMRecon subprocess failed with error code {return_code}"
+                    # Log any stdout as part of the error
+                    + (f":\n{process_result.stdout}" if process_result.stdout else "")
                 )
                 self._reject_message(header, transport=rw.transport, requeue=False)
                 return
@@ -374,20 +381,22 @@ class SIMReconService(CommonService):
             if not output_file or not output_file.is_file():
                 self.log.error(
                     f"PySIMRecon failed to generate output file for {params.file}"
+                    # Log any stdout as part of the error
+                    + (f":\n{process_result.stdout}" if process_result.stdout else "")
                 )
                 self._reject_message(header, transport=rw.transport, requeue=False)
                 return
+            # Log stdout as one block if successful
+            self.log.info(process_result.stdout)
         except subprocess.TimeoutExpired as exc:
-            # Kill the process
-            self.log.error("Process timed out after 180 seconds")
-
             # Extract output, if any, convert to string, and log it
             stdout: str | bytes = exc.stdout or b""
             if isinstance(stdout, bytes):
                 stdout = stdout.decode(errors="replace")
-            for line in stdout.splitlines():
-                line = line.rstrip()
-                self.log.error(line)
+            self.log.error(
+                "Process timed out after 180 seconds"
+                + (f":\n{stdout}" if stdout else "")
+            )
             self._reject_message(header, transport=rw.transport, requeue=False)
             return
         except Exception:
