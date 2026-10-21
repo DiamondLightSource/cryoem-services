@@ -53,6 +53,9 @@
       "ispyb_connector": 3,
       "node_creator": 2
     },
+    "parameters": {
+      "voltage": "{kv}"
+    },
     "queue": "ctffind",
     "service": "CTFFind"
   },
