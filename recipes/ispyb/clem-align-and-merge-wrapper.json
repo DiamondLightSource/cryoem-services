@@ -39,7 +39,7 @@
       "workingdir": "{session_dir}/processed/"
     },
     "queue": "cluster.submission",
-    "service": "CLEM-ALIGN-AND-MERGE"
+    "service": "CLEMAlignAndMerge"
   },
   "2": {
     "parameters": {

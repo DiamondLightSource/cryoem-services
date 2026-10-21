@@ -10,7 +10,7 @@
       "images": 3
     },
     "queue": "cluster.submission",
-    "service": "CLEM-PROCESS-LIFS"
+    "service": "CLEMProcessLIFs"
   },
   "2": {
     "parameters": {
