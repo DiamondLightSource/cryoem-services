@@ -139,6 +139,11 @@ search = 'version: {current_version}'
 replace = 'version: {new_version}'
 
 [[tool.bumpversion.files]]
+filename = "Helm/charts/sim_atlas/Chart.yaml"
+search = 'version: {current_version}'
+replace = 'version: {new_version}'
+
+[[tool.bumpversion.files]]
 filename = "Helm/charts/sim_recon/Chart.yaml"
 search = 'version: {current_version}'
 replace = 'version: {new_version}'
