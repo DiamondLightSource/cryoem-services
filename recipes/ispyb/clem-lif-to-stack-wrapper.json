@@ -34,7 +34,7 @@
       "workingdir": "{session_dir}/processed/"
     },
     "queue": "cluster.submission",
-    "service": "CLEMProcessLIFs"
+    "service": "CLEMProcessRawLIFs"
   },
   "2": {
     "parameters": {

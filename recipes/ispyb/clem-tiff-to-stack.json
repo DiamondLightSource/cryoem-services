@@ -12,7 +12,7 @@
       "images": 3
     },
     "queue": "cluster.submission",
-    "service": "CLEMProcessTIFFs"
+    "service": "CLEMProcessRawTIFFs"
   },
   "2": {
     "parameters": {
