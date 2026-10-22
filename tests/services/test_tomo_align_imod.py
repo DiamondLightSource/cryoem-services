@@ -267,8 +267,7 @@ def test_write_batch_directive_patch_wbp(tmp_path):
                 "patch_overlap": 0.7,
                 "vol_z": 500,
                 "wbp": 1,
-                "sirt": 0,
-                "sirt_leave_iterations": 10,
+                "sirt_leave_iterations": 0,
             }
         ),
         tmp_path,
@@ -307,7 +306,6 @@ def test_write_batch_directive_beads_sirt(tmp_path):
                 "patch_overlap": 4,
                 "vol_z": 500,
                 "wbp": 0,
-                "sirt": 1,
                 "sirt_leave_iterations": 10,
             }
         ),
@@ -348,7 +346,6 @@ def test_write_batch_directive_beads_fakesirt(tmp_path):
                 "patch_overlap": 4,
                 "vol_z": 500,
                 "wbp": 0,
-                "sirt": 0,
                 "fake_sirt_iterations": 15,
             }
         ),
