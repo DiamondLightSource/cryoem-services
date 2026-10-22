@@ -28,8 +28,8 @@ class ImodTomoParameters(BaseModel):
     bead_size: int = 250
     bead_count: int = 4
     wbp: int = 1
-    sirt: int = 1
-    sirt_leave_iterations: int = 5
+    sirt_leave_iterations: int = 0
+    fake_sirt_iterations: int = 0
     patch: int = 1
     patch_size: int = 200
     patch_overlap: float = 0.5
@@ -439,11 +439,17 @@ def write_batch_directive_file(tomo_params: ImodTomoParameters, output_dir: Path
         # Reconstruction + SIRT Parameters
         adoc.write(f"comparam.tilt.tilt.THICKNESS={tomo_params.vol_z}\n")
         adoc.write("comparam.tilt.tilt.LOG=\n")
-        adoc.write(f"runtime.Reconstruction.any.useSirt={tomo_params.sirt}\n")
+        adoc.write(
+            f"runtime.Reconstruction.any.useSirt={1 if tomo_params.sirt_leave_iterations > 0 else 0}\n"
+        )
         adoc.write(f"runtime.Reconstruction.any.doBackprojAlso={tomo_params.wbp}\n")
-        if tomo_params.sirt:
+        if tomo_params.sirt_leave_iterations > 0:
             adoc.write(
                 f"comparam.sirtsetup.sirtsetup.LeaveIterations={tomo_params.sirt_leave_iterations}\n"
+            )
+        if tomo_params.fake_sirt_iterations > 0:
+            adoc.write(
+                f"comparam.tilt.tilt.FakeSIRTiterations={tomo_params.fake_sirt_iterations}\n"
             )
 
         # Postprocessing

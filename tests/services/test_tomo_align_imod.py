@@ -267,8 +267,7 @@ def test_write_batch_directive_patch_wbp(tmp_path):
                 "patch_overlap": 0.7,
                 "vol_z": 500,
                 "wbp": 1,
-                "sirt": 0,
-                "sirt_leave_iterations": 10,
+                "sirt_leave_iterations": 0,
             }
         ),
         tmp_path,
@@ -307,7 +306,6 @@ def test_write_batch_directive_beads_sirt(tmp_path):
                 "patch_overlap": 4,
                 "vol_z": 500,
                 "wbp": 0,
-                "sirt": 1,
                 "sirt_leave_iterations": 10,
             }
         ),
@@ -329,6 +327,46 @@ def test_write_batch_directive_beads_sirt(tmp_path):
     assert "comparam.track.beadtrack.LightBeads=0\n" in adoc_lines
     assert "comparam.autofidseed.autofidseed.TargetNumberOfBeads=7\n" in adoc_lines
     assert "comparam.sirtsetup.sirtsetup.LeaveIterations=10\n" in adoc_lines
+
+    # Check lines not present
+    assert "comparam.xcorr_pt.tiltxcorr.IterateCorrelations=1\n" not in adoc_lines
+    assert "comparam.xcorr_pt.tiltxcorr.OverlapOfPatchesXandY=4 4\n" not in adoc_lines
+
+
+def test_write_batch_directive_beads_fakesirt(tmp_path):
+    returned_adoc = tomo_align_imod.write_batch_directive_file(
+        tomo_align_imod.ImodTomoParameters(
+            **{
+                "stack_file": f"{tmp_path}/stack.mrc",
+                "txrm_file": f"{tmp_path}/stack.txrm",
+                "bead_count": 7,
+                "pixel_size": 10.5,
+                "patch": 0,
+                "patch_size": 2,
+                "patch_overlap": 4,
+                "vol_z": 500,
+                "wbp": 0,
+                "fake_sirt_iterations": 15,
+            }
+        ),
+        tmp_path,
+    )
+    assert returned_adoc == tmp_path / "batchDirective.adoc"
+    with open(returned_adoc) as f:
+        adoc_lines = f.readlines()
+
+    # Check some of the basic lines
+    assert f"setupset.datasetDirectory={tmp_path}\n" in adoc_lines
+    assert "setupset.copyarg.name=stack\n" in adoc_lines
+    assert "setupset.copyarg.pixel=1.05\n" in adoc_lines
+    assert "comparam.tilt.tilt.THICKNESS=500\n" in adoc_lines
+    assert "runtime.Reconstruction.any.useSirt=0\n" in adoc_lines
+    assert "runtime.Reconstruction.any.doBackprojAlso=0\n" in adoc_lines
+
+    # Check bead and sirt lines
+    assert "comparam.track.beadtrack.LightBeads=0\n" in adoc_lines
+    assert "comparam.autofidseed.autofidseed.TargetNumberOfBeads=7\n" in adoc_lines
+    assert "comparam.tilt.tilt.FakeSIRTiterations=15\n" in adoc_lines
 
     # Check lines not present
     assert "comparam.xcorr_pt.tiltxcorr.IterateCorrelations=1\n" not in adoc_lines
