@@ -1696,6 +1696,8 @@ def test_tomo_align_service_dark_images(
         str(tomo_align_test_message["flip_vol"]),
         "-OutImod",
         str(tomo_align_test_message["out_imod"]),
+        "-DarkTol",
+        "0.7",
     ]
     mock_subprocess.assert_called_once_with(
         aretomo_command,
@@ -1964,6 +1966,212 @@ def test_tomo_align_service_all_dark(
 @mock.patch("cryoemservices.services.tomo_align_aretomo.subprocess.run")
 @mock.patch("cryoemservices.services.tomo_align_aretomo.mrcfile")
 @mock.patch("cryoemservices.services.tomo_align_aretomo.create_tilt_stack")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.resize_tomogram")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.rotate_tomogram")
+def test_tomo_align_service_decurtained_images(
+    mock_rotate,
+    mock_resize,
+    mock_tilt_stack,
+    mock_mrcfile,
+    mock_subprocess,
+    offline_transport,
+    tmp_path,
+):
+    """
+    Send a test message to AreTomoAlign (AreTomo3)
+    This should call the mock subprocess then send messages on to
+    the denoising, ispyb_connector and images services.
+    """
+    mock_mrcfile.open().__enter__().header = MrcFileHeader(3000, 4000)
+    mock_mrcfile.read.return_value = np.arange(10)
+
+    header = {
+        "message-id": mock.sentinel,
+        "subscription": mock.sentinel,
+    }
+    input_file_list = [
+        [f"{tmp_path}/MotionCorr/job002/Movies/Position_1_001_0.0.mrc", "0.00"],
+        [f"{tmp_path}/MotionCorr/job002/Movies/Position_1_002_0.0.mrc", "12.00"],
+        [f"{tmp_path}/MotionCorr/job002/Movies/Position_1_003_0.0.mrc", "6.00"],
+        [f"{tmp_path}/MotionCorr/job002/Movies/Position_1_004_0.0.mrc", "9.00"],
+        [f"{tmp_path}/MotionCorr/job002/Movies/Position_1_005_0.0.mrc", "3.00"],
+    ]
+    tomo_align_test_message = {
+        "aretomo_version": 3,
+        "stack_file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack.mrc",
+        "path_pattern": None,
+        "input_file_list": str(input_file_list),
+        "pixel_size": 1.1,
+        "tilt_axis": 90,
+        "relion_options": {},
+    }
+    output_relion_options = dict(RelionServiceOptions())
+    output_relion_options["pixel_size"] = tomo_align_test_message["pixel_size"]
+    output_relion_options["pixel_size_downscaled"] = (
+        4 * tomo_align_test_message["pixel_size"]
+    )
+    output_relion_options["tomo_size_x"] = 3000
+    output_relion_options["tomo_size_y"] = 4000
+    output_relion_options["vol_z"] = 1530
+    output_relion_options["tilt_axis_angle"] = 86.0
+
+    # Touch the expected input files
+    (tmp_path / "MotionCorr/job002/Movies").mkdir(parents=True)
+    for i in range(1, 6):
+        (tmp_path / f"MotionCorr/job002/Movies/Position_1_00{i}_0.0.mrc").touch()
+        (
+            tmp_path / f"MotionCorr/job002/Movies/Position_1_00{i}_0.0_decurtained.mrc"
+        ).touch()
+
+    # Set up the mock service
+    service = tomo_align_aretomo.AreTomoAlign(
+        environment={"queue": ""}, transport=offline_transport
+    )
+    service.initializing()
+
+    def write_aretomo_outputs(command, capture_output):
+        if command[0] != "AreTomo3":
+            return CompletedProcess("", returncode=0)
+        # Set up outputs: stack_Imod file like AreTomo3, no exclusions but with space
+        (tmp_path / "Tomograms/job006/tomograms/test_stack_Imod").mkdir(
+            parents=True, exist_ok=True
+        )
+        (tmp_path / "Tomograms/job006/tomograms/test_stack_Vol.mrc").touch()
+        (tmp_path / "Tomograms/job006/tomograms/test_stack_2ND_Vol.mrc").touch()
+        with open(
+            tmp_path / "Tomograms/job006/tomograms/test_stack_Imod/tilt.com", "w"
+        ) as dark_file:
+            dark_file.write("EXCLUDELIST ")
+        with open(
+            tmp_path / "Tomograms/job006/tomograms/test_stack.aln", "w"
+        ) as aln_file:
+            aln_file.write("# Thickness = 1130\n")
+            for aln in range(5):
+                aln_file.write("dummy 86.0 1000 1.2 2.3 5 6 7 8 4.5\n")
+        return CompletedProcess(
+            "",
+            returncode=0,
+            stdout=(
+                "Rot center Z 100.0 200.0 3.1\n"
+                "Rot center Z 150.0 250.0 2.1\n"
+                "Tilt offset 1.1, CC: 0.5\n"
+                "Best tilt axis:   57, Score:   0.5\n"
+            ).encode("ascii"),
+            stderr="stderr".encode("ascii"),
+        )
+
+    mock_subprocess.side_effect = write_aretomo_outputs
+
+    def write_tilt_stack(file_list, stack):
+        stack.touch()
+
+    mock_tilt_stack.side_effect = write_tilt_stack
+
+    # Send a message to the service
+    service.tomo_align(None, header=header, message=tomo_align_test_message)
+
+    # Check tilt stack creation
+    assert mock_tilt_stack.call_count == 2
+    sorted_input_list = [input_file_list[i] for i in [0, 4, 2, 3, 1]]
+    mock_tilt_stack.assert_any_call(
+        sorted_input_list,
+        Path(tomo_align_test_message["stack_file"].replace(".mrc", "_raw.mrc")),
+    )
+    mock_tilt_stack.assert_any_call(
+        [[f.replace(".mrc", "_decurtained.mrc"), ang] for f, ang in sorted_input_list],
+        Path(tomo_align_test_message["stack_file"]),
+    )
+
+    aretomo_commands = [
+        [
+            "AreTomo3",
+            "-Cmd",
+            cmd,
+            "-InPrefix",
+            tomo_align_test_message["stack_file"],
+            "-OutDir",
+            f"{tmp_path}/Tomograms/job006/tomograms",
+            "-TiltCor",
+            "1",
+            "-TiltAxis",
+            "90.0",
+            "1",
+            "-AtBin",
+            "4",
+            "-PixSize",
+            "1.1",
+            "-VolZ",
+            vol,
+            "-ExtZ",
+            "400",
+            "-FlipVol",
+            "0",
+            "-OutImod",
+            "1",
+            "-DarkTol",
+            "0.7",
+        ]
+        for cmd, vol in [["1", "1800"], ["2", "1530"]]
+    ]
+
+    # Check the expected calls were made
+    assert mock_subprocess.call_count == 2
+    for aretomo_cmd in aretomo_commands:
+        mock_subprocess.assert_any_call(aretomo_cmd, capture_output=True)
+
+    # Check resizing and rotating
+    assert mock_resize.call_count == 2
+    mock_resize.assert_any_call(
+        tmp_path / "Tomograms/job006/tomograms/test_stack_Vol.mrc", int(1530 / 4)
+    )
+    mock_resize.assert_any_call(
+        tmp_path / "Tomograms/job006/tomograms/test_stack_Vol_decurtained.mrc",
+        int(1530 / 4),
+    )
+    assert mock_rotate.call_count == 2
+    mock_rotate.assert_any_call(
+        tmp_path / "Tomograms/job006/tomograms/test_stack_Vol.mrc", 86.0
+    )
+    mock_rotate.assert_any_call(
+        tmp_path / "Tomograms/job006/tomograms/test_stack_Vol_decurtained.mrc", 86.0
+    )
+
+    # Check that the correct messages were sent
+    print(offline_transport.send.mock_calls)
+    assert offline_transport.send.call_count == 21
+    offline_transport.send.assert_any_call(
+        "images",
+        {
+            "image_command": "tilt_series_alignment",
+            "file": tomo_align_test_message["stack_file"],
+            "aln_file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack.aln",
+            "pixel_size": tomo_align_test_message["pixel_size"],
+            "projection": "XZ",
+        },
+    )
+    offline_transport.send.assert_any_call(
+        "images",
+        {
+            "image_command": "mrc_to_apng",
+            "file": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol.mrc",
+        },
+    )
+    offline_transport.send.assert_any_call(
+        "denoise",
+        {
+            "volume": f"{tmp_path}/Tomograms/job006/tomograms/test_stack_Vol_decurtained.mrc",
+            "output_dir": f"{tmp_path}/Denoise/job007/tomograms",
+            "relion_options": output_relion_options,
+            "copy_output": False,
+            "tilt_axis": 90,
+        },
+    )
+    offline_transport.send.assert_any_call("success", {})
+
+
+@mock.patch("cryoemservices.services.tomo_align_aretomo.subprocess.run")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.mrcfile")
+@mock.patch("cryoemservices.services.tomo_align_aretomo.create_tilt_stack")
 def test_tomo_align_service_fail_case(
     mock_tilt_stack,
     mock_mrcfile,
@@ -2060,6 +2268,8 @@ def test_tomo_align_service_fail_case(
         str(tomo_align_test_message["flip_vol"]),
         "-OutImod",
         str(tomo_align_test_message["out_imod"]),
+        "-DarkTol",
+        "0.7",
     ]
 
     # Check tilt stack creation
