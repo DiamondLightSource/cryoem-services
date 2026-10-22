@@ -30,6 +30,7 @@ class ImodTomoParameters(BaseModel):
     wbp: int = 1
     sirt: int = 1
     sirt_leave_iterations: int = 5
+    fake_sirt_iterations: int = 0
     patch: int = 1
     patch_size: int = 200
     patch_overlap: float = 0.5
@@ -444,6 +445,10 @@ def write_batch_directive_file(tomo_params: ImodTomoParameters, output_dir: Path
         if tomo_params.sirt:
             adoc.write(
                 f"comparam.sirtsetup.sirtsetup.LeaveIterations={tomo_params.sirt_leave_iterations}\n"
+            )
+        if tomo_params.fake_sirt_iterations > 0:
+            adoc.write(
+                f"comparam.tilt.tilt.FakeSIRTiterations={tomo_params.fake_sirt_iterations}\n"
             )
 
         # Postprocessing
