@@ -279,16 +279,14 @@ class AreTomoAlign(CommonService):
             data = mrcfile.read(im)
             data_ratios.append(float(np.mean(data) / np.std(data)))
         ftol = (np.mean(data_ratios) + 0.5 * np.std(data_ratios)) * dark_tol
-        dark_tilts = [
-            file_list[0]
-            for i, file_list in enumerate(self.input_file_list_of_lists)
-            if data_ratios[i] <= ftol
-        ]
-        self.input_file_list_of_lists = [
-            file_list
-            for i, file_list in enumerate(self.input_file_list_of_lists)
-            if data_ratios[i] > ftol
-        ]
+        dark_tilts: list[Path] = []
+        accepted_tilts: list[list] = []
+        for i in range(len(data_ratios)):
+            if data_ratios[i] <= ftol:
+                dark_tilts.append(self.input_file_list_of_lists[i][0])
+            else:
+                accepted_tilts.append(self.input_file_list_of_lists[i])
+        self.input_file_list_of_lists = accepted_tilts
         return dark_tilts
 
     def tomo_align(self, rw, header: dict, message: dict):
@@ -600,6 +598,7 @@ class AreTomoAlign(CommonService):
             self._reject_message(header, transport=rw.transport)
             return
 
+        final_output_volume = aretomo_output_path
         if has_decurtained:
             # Rerun for original tilt stack. Reconstruction only, reusing alignment
             # De-curtained form will be sent for denoising, but otherwise use raw reconstruction
@@ -627,8 +626,6 @@ class AreTomoAlign(CommonService):
                 )
                 self._reject_message(header, transport=rw.transport)
                 return
-        else:
-            final_output_volume = aretomo_output_path
 
         # Change permissions of imod directory
         imod_directory_option1 = alignment_output_dir / f"{stack_name}_Vol_Imod"
