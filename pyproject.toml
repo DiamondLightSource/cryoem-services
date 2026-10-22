@@ -7,7 +7,7 @@ requires = [
 
 [project]
 name = "cryoemservices"
-version = "1.5.0"
+version = "1.5.1"
 description = "Services for CryoEM processing"
 readme = "README.md"
 keywords = [
@@ -29,7 +29,6 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
-    "ccpem-pipeliner@git+https://gitlab.com/ccpem/ccpem-pipeliner.git@live-processing#egg=ccpem-pipeliner",
     "defusedxml", # CLEM workflow
     "gemmi",
     "graypy",
@@ -69,6 +68,9 @@ easymode = [
 ]
 murfey_db = [
     "murfey[server]",
+]
+pipeliner = [
+    "ccpem-pipeliner@git+https://gitlab.com/ccpem/ccpem-pipeliner.git@e2b376f6300c42cd8d0e5d951f3a6e1f1e3233ec",
 ]
 torch = [
     "membrain-seg",
