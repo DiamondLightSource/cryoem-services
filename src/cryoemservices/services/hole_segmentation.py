@@ -14,7 +14,7 @@ class HoleSegmentationParameters(BaseModel):
     output_dir: Path
     checkpoint: Path
     submit_to_slurm: bool = False
-    binning: int = 3
+    binning: int = 4
     min_area_fraction: float = 0.001
     beam_threshold: float = 10
     hole_threshold: float = 100

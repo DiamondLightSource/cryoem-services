@@ -116,6 +116,7 @@ torch = [
     Easymode = "cryoemservices.services.easymode:Easymode"
     Extract = "cryoemservices.services.extract:Extract"
     ExtractClass = "cryoemservices.services.extract_class:ExtractClass"
+    HoleSegmentation = "cryoemservices.services.hole_segmentation:HoleSegmentation"
     IceBreaker = "cryoemservices.services.icebreaker:IceBreaker"
     Images = "cryoemservices.services.images:Images"
     ImodTomoAlign = "cryoemservices.services.tomo_align_imod:ImodTomoAlign"
