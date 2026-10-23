@@ -70,7 +70,7 @@ murfey_db = [
     "murfey[server]",
 ]
 pipeliner = [
-    "ccpem-pipeliner@git+https://gitlab.com/ccpem/ccpem-pipeliner.git@e2b376f6300c42cd8d0e5d951f3a6e1f1e3233ec",
+    "ccpem-pipeliner@git+https://gitlab.com/ccpem/ccpem-pipeliner.git@26143bf03273c68c4246d09ca0226870e8e130f9",
 ]
 torch = [
     "membrain-seg",
