@@ -50,6 +50,58 @@ def test_segment_single_image_all_hole(mock_sam, tmp_path):
     assert (tmp_path / "test_overlay.png").is_file()
 
 
+@mock.patch("cryoemservices.pipeliner_plugins.segment_holes.set_up_sam")
+def test_segment_single_image_hole_and_beam(mock_sam, tmp_path):
+    """Test case of segmentation with a beam (values < 10) present"""
+    mock_generator = mock.Mock()
+    mask = np.ones((100, 100), dtype=bool)
+    for i in range(10):
+        mask[i] = False
+    mock_generator.generate.return_value = [
+        {"area": 100 * 90, "segmentation": mask},
+        {"area": 100 * 10, "segmentation": ~mask},
+    ]
+    mock_sam.return_value = mock_generator
+
+    image = (np.random.rand(100, 100) * 255).astype(dtype=np.uint8)
+    for i in range(10):
+        image[i] = 1
+
+    with mrcfile.new(tmp_path / "test.mrc", overwrite=True) as mrc:
+        mrc.set_data(image)
+
+    im_results, mask_results = segment_holes.segment_single_image(
+        impath=tmp_path / "test.mrc",
+        checkpoint=tmp_path / "checkpoint.ckpt",
+        output_dir=tmp_path,
+        binning=1,
+        min_area_fraction=0.01,
+        beam_threshold=10,
+        hole_threshold=100,
+        save_summary=True,
+    )
+
+    # Check SAM calls
+    mock_sam.assert_called_once_with(tmp_path / "checkpoint.ckpt")
+    mock_generator.generate.assert_called_once()
+
+    # Check return structure
+    assert im_results.get("hole_percent") == 90.0
+    assert im_results.get("hole_detected", False)
+    assert im_results.get("beam_edge_detected", False)
+    assert im_results.get("n_masks") == 2
+
+    assert len(mask_results) == 2
+    assert mask_results[0].get("area_fraction") == 90.0
+    assert mask_results[0].get("mask_area") == 100 * 90
+    assert mask_results[1].get("area_fraction") == 10.0
+    assert mask_results[1].get("mask_area") == 100 * 10
+
+    # Check output images were made
+    assert (tmp_path / "test_mask.png").is_file()
+    assert (tmp_path / "test_overlay.png").is_file()
+
+
 @mock.patch("cryoemservices.pipeliner_plugins.segment_holes.segment_single_image")
 def test_run_segment_holes_plot(mock_segment, tmp_path):
     """Test that the cli can call the segment function"""
