@@ -296,10 +296,7 @@ def run():
         "--output_dir", required=True, help="Directory to store output files"
     )
     parser.add_argument(
-        "--checkpoint",
-        default="/dls/ebic/data/staff-scratch/Peter/Cross_Correlation/sam_vit_h_4b8939.pth",
-        required=False,
-        help="Segment anything model checkpoint",
+        "--checkpoint", required=True, help="Segment anything model checkpoint"
     )
     parser.add_argument(
         "--binning", default=4, required=False, help="Binning to apply before masking"
