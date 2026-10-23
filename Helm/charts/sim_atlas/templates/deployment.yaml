@@ -23,11 +23,9 @@ spec:
         resources:
           requests:
             cpu: {{ .Values.cpuRequest }}
-            nvidia.com/gpu: "1"
           limits:
             cpu: {{ .Values.cpuLimit }}
             memory: {{ .Values.memoryLimit }}
-            nvidia.com/gpu: "1"
         command: ["/bin/sh"]
         args:
           - -c
