@@ -61,7 +61,7 @@ class HoleSegmentation(CommonService):
             use_gpu=True,
             use_singularity=False,
             memory_request=memory,
-            script_extras="module load EM/cryoemservices",
+            script_extras="module load EM/cryoem-services",
         )
 
         if not slurm_outcome.returncode:
@@ -73,11 +73,9 @@ class HoleSegmentation(CommonService):
                         if "Beam edge detected" in line:
                             image_results["beam_edge_detected"] = True
                         if "Hole area" in line:
-                            image_results["hole_percentage"] = float(
-                                line.split()[-1][:-1]
-                            )
+                            image_results["hole_percent"] = float(line.split()[-1][:-1])
                             image_results["hole_detected"] = (
-                                image_results["hole_percentage"] > 0
+                                image_results["hole_percent"] > 0
                             )
         output_image.with_suffix(".out").unlink(missing_ok=True)
         output_image.with_suffix(".err").unlink(missing_ok=True)
@@ -116,7 +114,8 @@ class HoleSegmentation(CommonService):
             return
 
         output_mask = (
-            Path(segment_params.output_dir) / f"{segment_params.micrograph}_mask.png"
+            Path(segment_params.output_dir)
+            / f"{segment_params.micrograph.stem}_mask.png"
         )
         if segment_params.submit_to_slurm:
             segment_command = [
@@ -165,8 +164,8 @@ class HoleSegmentation(CommonService):
             "murfey_feedback",
             {
                 "register": "segmented_hole",
-                "micrograph": segment_params.micrograph,
-                "hole_percentage": image_results.get("hole_percent", 0),
+                "micrograph": str(segment_params.micrograph),
+                "hole_percent": image_results.get("hole_percent", 0),
                 "hole_detected": image_results.get("hole_detected", False),
                 "beam_edge_detected": image_results.get("beam_edge_detected", False),
             },

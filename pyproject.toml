@@ -74,6 +74,7 @@ pipeliner = [
 ]
 torch = [
     "membrain-seg",
+    "segment_anything",
     "topaz-em",
     "torch==2.11.0",
 ]

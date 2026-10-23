@@ -7,7 +7,6 @@ import numpy as np
 import pandas as pd
 import torch
 from PIL import Image
-from segment_anything import SamAutomaticMaskGenerator, sam_model_registry
 
 
 def save_overlay(
@@ -138,6 +137,9 @@ def read_and_mask(
 
 
 def set_up_sam(checkpoint: Path):
+    # Do the import here so the module functions can be loaded without SAM
+    from segment_anything import SamAutomaticMaskGenerator, sam_model_registry
+
     # Load SAM model
     sam = sam_model_registry["vit_h"](checkpoint=checkpoint)
     # Device setup
