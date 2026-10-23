@@ -120,6 +120,7 @@ def read_and_mask(
     masks = mask_generator.generate(img_rgb)
 
     if len(masks) == 0:
+        print("Mask generation failed")
         return img, masks
 
     masks = [
@@ -330,7 +331,7 @@ def run():
     for impath in Path(args.micrograph_dir).glob(args.input_glob):
         image_results, mask_results = segment_single_image(
             impath=impath,
-            checkpoint=args.checkpoint,
+            checkpoint=Path(args.checkpoint),
             output_dir=Path(args.output_dir),
             binning=args.binning,
             min_area_fraction=args.min_area_fraction,
