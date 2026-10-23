@@ -3,7 +3,7 @@ from pathlib import Path
 from pydantic import BaseModel, ValidationError
 from workflows.recipe import wrap_subscribe
 
-from cryoemservices.processing_plugins.segment_holes import segment_single_image
+from cryoemservices.pipeliner_plugins.segment_holes import segment_single_image
 from cryoemservices.services.common_service import CommonService
 from cryoemservices.util.models import MockRW
 from cryoemservices.util.slurm_submission import slurm_submission_for_services
