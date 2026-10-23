@@ -65,14 +65,10 @@ spec:
 {{- if .Values.extraVolumes }}
 {{ toYaml .Values.extraVolumes | indent 6 }}
 {{ end }}
+{{- if .Values.global.tolerations }}
       tolerations:
-      - effect: NoSchedule
-        key: nvidia.com/gpu
-        operator: Exists
-      - effect: NoSchedule
-        key: nodetype
-        operator: Equal
-        value: gpu
+{{ toYaml .Values.global.tolerations | indent 6 }}
+{{ end }}
 {{- if .Values.global.tolerations }}
 {{ toYaml .Values.global.tolerations | indent 6 }}
 {{ end }}
