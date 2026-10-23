@@ -92,7 +92,7 @@ spec:
     - type: rabbitmq
       metadata:
         host: {{ .Values.global.rmqHost }}
-        queueName: sim.reconstruction
+        queueName: sim.atlas
         mode: QueueLength
         value: "{{ .Values.queueLengthTrigger }}"
   minReplicaCount: {{ .Values.minReplicaCount }}
