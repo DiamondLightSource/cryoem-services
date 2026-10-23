@@ -70,7 +70,7 @@ murfey_db = [
     "murfey[server]",
 ]
 pipeliner = [
-    "ccpem-pipeliner",
+    "ccpem-pipeliner@git+https://gitlab.com/ccpem/ccpem-pipeliner.git@26143bf03273c68c4246d09ca0226870e8e130f9",
 ]
 torch = [
     "membrain-seg",
@@ -94,8 +94,6 @@ torch = [
     "cryoemservices.service" = "cryoemservices.cli.start_service:run"
     "cryoemservices.wrap" = "cryoemservices.cli.run_wrapper:run"
     "relipy.link" = "cryoemservices.cli.project_linker:run"
-[project.entry-points."ccpem_pipeliner.jobs"]
-    "combine_star_files_job" = "cryoemservices.pipeliner_plugins.combine_star_job:ProcessStarFiles"
 [project.entry-points."cryoemservices.services"]
     AreTomoAlign = "cryoemservices.services.tomo_align_aretomo:AreTomoAlign"
     AreTomoAlignSlurm = "cryoemservices.services.tomo_align_aretomo_slurm:AreTomoAlignSlurm"

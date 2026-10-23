@@ -82,6 +82,15 @@ class Class3DParameters(BaseModel):
     offset_step: float = 4
     allow_coarser: bool = False
     symmetry: str = "C1"
+    # TEMPORARY (2026-09-21): the refinement gate below used to hard-code 11 A
+    # and 0.65. They are parameters so the RELION SPA tutorial data - which
+    # tops out around 15-22 A at live batch sizes because the resolution is
+    # capped by Fourier-shell spacing, not by particle count - can still reach
+    # Refine3D and PostProcess. The defaults keep the upstream behaviour; only
+    # the doppio recipe relaxes them. Revert the recipe values (not these
+    # fields) once real data is being collected.
+    refine_resolution_threshold: float = 11
+    refine_efficiency_threshold: float = 0.65
     do_norm: bool = True
     do_scale: bool = True
     seed: int | None = None
@@ -625,8 +634,9 @@ def run_class3d(class3d_params: Class3DParameters, send_to_rabbitmq: Callable) -
         class_sorting_array, order=("resolutions", "efficiencies", "particles")
     )
     for cid in class_sorting:
-        if class_resolutions[cid] < 11 and (
-            class_efficiencies[cid] > 0.65 or class3d_params.symmetry != "C1"
+        if class_resolutions[cid] < class3d_params.refine_resolution_threshold and (
+            class_efficiencies[cid] > class3d_params.refine_efficiency_threshold
+            or class3d_params.symmetry != "C1"
         ):
             murfey_params["do_refinement"] = True
             murfey_params["best_class"] = class_ids[cid]
