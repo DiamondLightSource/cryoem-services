@@ -69,9 +69,6 @@ spec:
       tolerations:
 {{ toYaml .Values.global.tolerations | indent 6 }}
 {{ end }}
-{{- if .Values.global.tolerations }}
-{{ toYaml .Values.global.tolerations | indent 6 }}
-{{ end }}
 {{- if .Values.global.nodeSelector }}
       nodeSelector:
 {{ toYaml .Values.global.nodeSelector | indent 8 }}
