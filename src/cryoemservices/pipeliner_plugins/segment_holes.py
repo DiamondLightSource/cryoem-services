@@ -78,11 +78,7 @@ def save_hole_mask(
 def process_array(data: np.ndarray) -> np.ndarray:
     mean = np.mean(data)
     sdev = np.std(data)
-    sigma_min = mean - 3 * sdev
-    sigma_max = mean + 3 * sdev
-    data = np.ndarray.copy(data)
-    data[data < sigma_min] = sigma_min
-    data[data > sigma_max] = sigma_max
+    np.clip(data, a_min=mean - 3 * sdev, a_max=mean + 3 * sdev, out=data)
     data = data - data.min()
     data = data / data.max() * 255
     data = data.astype("uint8")
@@ -184,23 +180,23 @@ def find_hole(
             print("Single mask classified as NOT HOLE")
 
     else:
-        mask_medians = [m["median_intensity"] for m in mask_results]
-        sorted_indices = np.argsort(mask_medians)[::-1]
-        brightest_index: int = sorted_indices[0]
-        brightest_median = mask_medians[brightest_index]
+        sorted_masks = sorted(
+            mask_results, key=lambda k: k["median_intensity"], reverse=True
+        )
+        brightest_median = sorted_masks[0]["median_intensity"]
         print(f"Brightest mask median = {brightest_median:.1f}")
 
         if brightest_median >= hole_threshold:
-            hole_index = brightest_index
-            print(f"Selected hole mask = {brightest_index}")
-            brightest_area_fraction = mask_results[brightest_index]["area_fraction"]
+            hole_index = sorted_masks[0]["mask_id"]
+            print(f"Selected hole mask = {hole_index}")
+            brightest_area_fraction = sorted_masks[0]["area_fraction"]
             print(f"Brightest mask area = {brightest_area_fraction:.2f}%")
 
             # If the brightest mask is very small, include the second brightest as well
             if len(mask_results) >= 3 and brightest_area_fraction < 0.005:
-                second_index = sorted_indices[1]
-                print(f"Also including mask {sorted_indices[1]} as hole")
-                second_area_fraction = mask_results[sorted_indices[1]]["area_fraction"]
+                second_index = sorted_masks[1]["mask_id"]
+                print(f"Also including mask {second_index} as hole")
+                second_area_fraction = sorted_masks[1]["area_fraction"]
                 print(f"Second mask area = {second_area_fraction:.2f}%")
         else:
             print(f"No hole detected (all masks below threshold {hole_threshold})")

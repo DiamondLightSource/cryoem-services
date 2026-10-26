@@ -19,7 +19,7 @@ class HoleSegmentationParameters(BaseModel):
     beam_threshold: float = 10
     hole_threshold: float = 100
     save_summary: bool = False
-    slurm_memory: int = 5000
+    slurm_memory: int = 10000
 
 
 class HoleSegmentation(CommonService):
