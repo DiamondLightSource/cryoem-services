@@ -78,6 +78,7 @@ def save_hole_mask(
 def process_array(data: np.ndarray) -> np.ndarray:
     mean = np.mean(data)
     sdev = np.std(data)
+    data = data.copy().astype(np.float32)
     np.clip(data, a_min=mean - 3 * sdev, a_max=mean + 3 * sdev, out=data)
     data = data - data.min()
     data = data / data.max() * 255

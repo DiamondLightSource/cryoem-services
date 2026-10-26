@@ -181,7 +181,7 @@ def test_hole_segmentation_slurm(mock_requests, offline_transport, tmp_path):
                 "partition": "partition",
                 "prefer": "preference",
                 "tasks": 1,
-                "memory_per_node": {"number": 5000, "set": True, "infinite": False},
+                "memory_per_node": {"number": 10000, "set": True, "infinite": False},
                 "time_limit": {"number": 60, "set": True, "infinite": False},
                 "tres_per_job": "gres/gpu:1",
             },
