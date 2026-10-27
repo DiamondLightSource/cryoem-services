@@ -1,4 +1,4 @@
 apiVersion: v2
 name: sim_atlas
 description: A Helm chart for the cryo-SIM service to run StitchM with
-version: 1.5.1
+version: 1.6.0
