@@ -301,28 +301,24 @@ def run():
     parser.add_argument(
         "--binning",
         default=4,
-        required=False,
         type=int,
         help="Binning to apply before masking",
     )
     parser.add_argument(
         "--min_area_fraction",
         default=0.001,
-        required=False,
         type=float,
         help="Minimum mask area percentage to keep",
     )
     parser.add_argument(
         "--beam_threshold",
         default=10,
-        required=False,
         type=float,
         help="Intensity threshold for beam edge detection",
     )
     parser.add_argument(
         "--hole_threshold",
         default=100,
-        required=False,
         type=float,
         help="Intensity threshold for hole detection",
     )
