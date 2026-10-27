@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 import mrcfile
 import numpy as np
 import pandas as pd
-import torch
 from PIL import Image
 
 
@@ -136,6 +135,7 @@ def read_and_mask(
 
 def set_up_sam(checkpoint: Path):
     # Do the import here so the module functions can be loaded without SAM
+    import torch
     from segment_anything import SamAutomaticMaskGenerator, sam_model_registry
 
     # Load SAM model
@@ -299,24 +299,31 @@ def run():
         "--checkpoint", required=True, help="Segment anything model checkpoint"
     )
     parser.add_argument(
-        "--binning", default=4, required=False, help="Binning to apply before masking"
+        "--binning",
+        default=4,
+        required=False,
+        type=int,
+        help="Binning to apply before masking",
     )
     parser.add_argument(
         "--min_area_fraction",
         default=0.001,
         required=False,
+        type=float,
         help="Minimum mask area percentage to keep",
     )
     parser.add_argument(
         "--beam_threshold",
         default=10,
         required=False,
+        type=float,
         help="Intensity threshold for beam edge detection",
     )
     parser.add_argument(
         "--hole_threshold",
         default=100,
         required=False,
+        type=float,
         help="Intensity threshold for hole detection",
     )
     parser.add_argument(
