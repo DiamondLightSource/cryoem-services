@@ -63,6 +63,7 @@ class MotionCorrParameters(BaseModel):
     split_sum: Optional[int] = None
     dose_motionstats_cutoff: float = 4.0
     do_icebreaker_jobs: bool = True
+    do_hole_segmentation: bool = False
     lamella_angle: float | None = None
     slurm_memory: int = 20000
     mc_uuid: int
@@ -634,6 +635,18 @@ class MotionCorr(CommonService):
             else:
                 # No IceBreaker jobs: CtfFind job is MC+1
                 ctf_job_number = job_number + 1
+
+            # Request hole segmentation, currently in the spool folder
+            if mc_params.do_hole_segmentation:
+                rw.send_to(
+                    "hole_segmentation",
+                    {
+                        "micrograph": mc_params.mrc_out,
+                        "output_dir": str(Path(mc_params.mrc_out).parent).replace(
+                            "/processed/", "/spool/"
+                        ),
+                    },
+                )
         else:
             # Tomography: CtfFind job is MC+1
             ctf_job_number = job_number + 1
