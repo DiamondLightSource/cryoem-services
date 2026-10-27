@@ -17,6 +17,7 @@ dependencies:
   - name: easymode
   - name: extract
   - name: extract_class
+  - name: hole_segmentation
   - name: icebreaker
   - name: images
   - name: ispyb_connector

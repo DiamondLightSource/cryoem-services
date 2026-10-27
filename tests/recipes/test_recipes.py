@@ -14,6 +14,7 @@ from cryoemservices.services.denoise import DenoiseParameters
 from cryoemservices.services.easymode import EasymodeParameters
 from cryoemservices.services.extract import ExtractParameters
 from cryoemservices.services.extract_class import ExtractClassParameters
+from cryoemservices.services.hole_segmentation import HoleSegmentationParameters
 from cryoemservices.services.icebreaker import IceBreakerParameters
 from cryoemservices.services.membrain_seg import MembrainSegParameters
 from cryoemservices.services.motioncorr import MotionCorrParameters
@@ -83,6 +84,7 @@ known_services = {
     "EMISPyB": ISPyBParameters,
     "Extract": ExtractParameters,
     "ExtractClass": ExtractClassParameters,
+    "HoleSegmentation": HoleSegmentationParameters,
     "IceBreaker": IceBreakerParameters,
     "Images": BaseModel,
     "ImodTomoAlign": ImodTomoParameters,

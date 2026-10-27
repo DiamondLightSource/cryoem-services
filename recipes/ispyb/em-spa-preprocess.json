@@ -15,15 +15,16 @@
   "2": {
     "output": {
       "ctffind": 8,
+      "hole_segmentation": 9,
       "icebreaker": 6,
       "images": 5,
       "ispyb_connector": 4,
-      "murfey_feedback": 10,
-      "node_creator": 3,
-      "smartem": 10
+      "murfey_feedback": 11,
+      "node_creator": 3
     },
     "parameters": {
       "app_id": "{autoproc_program_id}",
+      "do_hole_segmentation": "True",
       "do_icebreaker_jobs": "{do_icebreaker_jobs}",
       "dose_per_frame": "{fm_dose}",
       "eer_sampling": 1,
@@ -85,21 +86,28 @@
       "app_id": "{autoproc_program_id}"
     },
     "output": {
-      "cryolo": 9,
+      "cryolo": 10,
       "images": 5,
       "ispyb_connector": 4,
-      "murfey_feedback": 10,
-      "node_creator": 3,
-      "smartem": 10
+      "murfey_feedback": 11,
+      "node_creator": 3
     },
     "queue": "ctffind",
     "service": "CTFFind"
   },
   "9": {
+    "parameters": {
+      "checkpoint": "{hole_segment_ckpt}",
+      "submit_to_slurm": "True"
+    },
+    "queue": "hole_segmentation",
+    "service": "HoleSegmentation"
+  },
+  "10": {
     "output": {
       "images": 5,
       "ispyb_connector": 4,
-      "murfey_feedback": 10,
+      "murfey_feedback": 11,
       "node_creator": 3
     },
     "parameters": {
@@ -111,7 +119,7 @@
     "queue": "cryolo",
     "service": "CrYOLO"
   },
-  "10": {
+  "11": {
     "parameters": {
       "program_id": "{autoproc_program_id}",
       "session_id": "{session_id}"
