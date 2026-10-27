@@ -20,8 +20,7 @@
       "images": 5,
       "ispyb_connector": 4,
       "murfey_feedback": 11,
-      "node_creator": 3,
-      "smartem": 11
+      "node_creator": 3
     },
     "parameters": {
       "app_id": "{autoproc_program_id}",
@@ -91,8 +90,7 @@
       "images": 5,
       "ispyb_connector": 4,
       "murfey_feedback": 11,
-      "node_creator": 3,
-      "smartem": 11
+      "node_creator": 3
     },
     "queue": "ctffind",
     "service": "CTFFind"
