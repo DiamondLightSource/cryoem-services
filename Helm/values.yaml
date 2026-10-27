@@ -182,6 +182,18 @@ extract_class:
   minReplicaCount: 0
   maxReplicaCount: 1
 
+hole_segmentation:
+  replicas: 1
+  image: gcr.io/image/path
+  command: cryoemservices.service -s HoleSegmentation -c /cryoemservices/config/cryoemservices_config.yaml
+  cpuRequest: "0.5"
+  cpuLimit: "1"
+  memoryLimit: 1Gi
+  scaleOnQueueLength: true
+  queueLengthTrigger: "5"
+  minReplicaCount: 0
+  maxReplicaCount: 4
+
 icebreaker:
   replicas: 1
   image: gcr.io/image/path

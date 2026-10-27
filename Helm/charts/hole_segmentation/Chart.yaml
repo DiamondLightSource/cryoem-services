@@ -1,0 +1,4 @@
+apiVersion: v2
+name: hole_segmentation
+description: A Helm chart for HoleSegmentation service
+version: 1.5.1
