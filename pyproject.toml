@@ -17,16 +17,17 @@ license = { file = "LICENSE" }
 authors = [
     { name = "Diamond Light Source - Data Analysis et al.", email = "dataanalysis@diamond.ac.uk" },
 ]
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: BSD License",
     "Natural Language :: English",
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
     "defusedxml", # CLEM workflow
@@ -186,7 +187,7 @@ line-ending="auto"
 [tool.pyproject-fmt]
 indent = 4
 keep_full_version = true
-max_supported_python = "3.12"
+max_supported_python = "3.14"
 
 [tool.pytest.ini_options]
 pythonpath= ["."]
