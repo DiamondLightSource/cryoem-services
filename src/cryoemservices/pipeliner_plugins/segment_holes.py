@@ -13,7 +13,7 @@ def save_overlay(
     img: np.ndarray,
     masks: list,
     mask_results: list[dict],
-    hole_indexes: tuple[int | None, int | None],
+    hole_indexes: list[int],
     beam_edge_detected: bool,
     output_figure: Path,
 ):
@@ -34,13 +34,9 @@ def save_overlay(
     ax.set_title(f"Filtered Masks ({len(masks)})")
     ax.axis("off")
 
-    hole_percent = sum(
-        [mask_results[i]["area_fraction"] for i in hole_indexes if i is not None]
-    )
+    hole_percent = sum([mask_results[i]["area_fraction"] for i in hole_indexes])
     label = (
-        f"Hole = {hole_percent:.1f}%"
-        if hole_indexes[0] is not None
-        else "No hole detected"
+        f"Hole = {hole_percent:.1f}%" if len(hole_indexes) > 0 else "No hole detected"
     )
     if beam_edge_detected:
         label += "\nBeam edge detected"
@@ -64,7 +60,7 @@ def save_overlay(
 def save_hole_mask(
     img: np.ndarray,
     masks: list,
-    hole_indexes: tuple[int | None, int | None],
+    hole_indexes: list[int],
     output_mask: Path,
 ):
     hole_mask = np.zeros(img.shape, dtype=bool)
@@ -160,7 +156,7 @@ def filter_masks(masks: list) -> list:
             if i == j:
                 continue
             mask2 = m2["segmentation"]
-            m2_sum = m2.sum()
+            m2_sum = mask2.sum()
             overlap = np.logical_and(mask1, mask2).sum()
             enclosed_fraction = overlap / m1_sum
             if enclosed_fraction > 0.95 and m2_sum > m1_sum:
@@ -171,15 +167,11 @@ def filter_masks(masks: list) -> list:
     return filtered_masks
 
 
-def find_hole(
-    mask_results: list, hole_threshold: float
-) -> tuple[int | None, int | None]:
-    hole_index: int | None = None
-    second_index: int | None = None
+def find_hole(mask_results: list, hole_threshold: float) -> list[int]:
+    hole_indexes: list[int] = []
 
     if len(mask_results) == 1:
         if mask_results[0]["median_intensity"] >= hole_threshold:
-            hole_index = 0
             print("Single mask classified as HOLE")
         else:
             print("Single mask classified as NOT HOLE")
@@ -192,20 +184,25 @@ def find_hole(
         print(f"Brightest mask median = {brightest_median:.1f}")
 
         if brightest_median >= hole_threshold:
-            hole_index = sorted_masks[0]["mask_id"]
-            print(f"Selected hole mask = {hole_index}")
+            hole_indexes.append(sorted_masks[0]["mask_id"])
+            print(f"Selected hole mask = {hole_indexes[0]}")
             brightest_area_fraction = sorted_masks[0]["area_fraction"]
             print(f"Brightest mask area = {brightest_area_fraction:.2f}%")
 
-            # If the brightest mask is very small, include the second brightest as well
-            if len(mask_results) >= 3 and brightest_area_fraction < 1:
-                second_index = sorted_masks[1]["mask_id"]
-                print(f"Also including mask {second_index} as hole")
-                second_area_fraction = sorted_masks[1]["area_fraction"]
-                print(f"Second mask area = {second_area_fraction:.2f}%")
+            # If the brightest mask is very small, include the other bright areas
+            i = 1
+            while brightest_area_fraction < 1 and i < len(sorted_masks):
+                next_index = sorted_masks[i]["mask_id"]
+                if sorted_masks[i]["median_intensity"] < hole_threshold:
+                    break
+                print(f"Also including mask {next_index} as hole")
+                hole_indexes.append(next_index)
+                brightest_area_fraction += sorted_masks[i]["area_fraction"]
+                print(f"Total mask area = {brightest_area_fraction:.2f}%")
+                i += 1
         else:
             print(f"No hole detected (all masks below threshold {hole_threshold})")
-    return hole_index, second_index
+    return hole_indexes
 
 
 def get_mask_summary(image_name: str, img: np.ndarray, masks: list) -> list[dict]:
@@ -258,12 +255,9 @@ def segment_single_image(
 
     # Find hole
     hole_indexes = find_hole(mask_results, hole_threshold)
-    hole_percent = sum(
-        [mask_results[i]["area_fraction"] for i in hole_indexes if i is not None]
-    )
+    hole_percent = sum([mask_results[i]["area_fraction"] for i in hole_indexes])
     hole_median = np.mean(
-        [mask_results[i]["median_intensity"] for i in hole_indexes if i is not None]
-        or [0]
+        [mask_results[i]["median_intensity"] for i in hole_indexes] or [0]
     )
     print(f"Hole area = {hole_percent:.2f}%")
 
@@ -280,7 +274,7 @@ def segment_single_image(
     image_results = {
         "image": impath.name,
         "hole_percent": hole_percent,
-        "hole_detected": hole_indexes[0] is not None,
+        "hole_detected": len(hole_indexes) > 0,
         "beam_edge_detected": beam_edge_detected,
         "hole_median_intensity": hole_median,
         "n_masks": len(mask_results),
