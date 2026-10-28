@@ -147,23 +147,24 @@ def set_up_sam(checkpoint: Path):
 
 
 def filter_masks(masks: list) -> list:
-    filtered_masks = []
-    for i, m1 in enumerate(masks):
+    filtered_masks: list = []
+    # Descending sort by the size of the mask
+    mask_sizes = [m["segmentation"].sum() for m in masks]
+    sorted_size_indexes = np.argsort(mask_sizes)[::-1]
+    for mask_index in sorted_size_indexes:
+        # Compare each mask to the ones that have been kept
         keep = True
-        mask1 = m1["segmentation"]
-        m1_sum = mask1.sum()
-        for j, m2 in enumerate(masks):
-            if i == j:
-                continue
-            mask2 = m2["segmentation"]
-            m2_sum = mask2.sum()
+        mask1 = masks[mask_index]["segmentation"]
+        for j, m in enumerate(filtered_masks):
+            mask2 = m["segmentation"]
             overlap = np.logical_and(mask1, mask2).sum()
-            enclosed_fraction = overlap / m1_sum
-            if enclosed_fraction > 0.95 and m2_sum > m1_sum:
+            enclosed_fraction = overlap / mask_sizes[mask_index]
+            if enclosed_fraction > 0.95 and mask2.sum() > mask_sizes[mask_index]:
+                # Remove the current mask if covered by another mask
                 keep = False
                 break
         if keep:
-            filtered_masks.append(m1)
+            filtered_masks.append(masks[mask_index])
     return filtered_masks
 
 
