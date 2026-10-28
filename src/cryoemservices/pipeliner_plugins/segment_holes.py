@@ -87,6 +87,7 @@ def read_and_mask(
     sam_checkpoint: Path,
     binning: int = 4,
     min_area_fraction: float = 0.001,
+    points_per_side: int = 32,
 ):
     if image_path.suffix == ".mrc":
         img = mrcfile.read(image_path)
@@ -109,7 +110,7 @@ def read_and_mask(
         img_rgb = binned_img
 
     # Generate masks
-    mask_generator = set_up_sam(sam_checkpoint)
+    mask_generator = set_up_sam(sam_checkpoint, points_per_side)
     masks = mask_generator.generate(img_rgb)
 
     if len(masks) == 0:
@@ -131,7 +132,7 @@ def read_and_mask(
 
 
 @lru_cache(maxsize=1)
-def set_up_sam(checkpoint: Path):
+def set_up_sam(checkpoint: Path, points_per_side: int):
     # Do the import here so the module functions can be loaded without SAM
     import torch
     from segment_anything import SamAutomaticMaskGenerator, sam_model_registry
@@ -142,7 +143,7 @@ def set_up_sam(checkpoint: Path):
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Running on {device.upper()}")
     sam.to(device=device)
-    sam_mask = SamAutomaticMaskGenerator(sam)
+    sam_mask = SamAutomaticMaskGenerator(sam, points_per_side=points_per_side)
     return sam_mask
 
 
@@ -197,7 +198,7 @@ def find_hole(mask_results: list, hole_threshold: float) -> list[int]:
             for mask in sorted_masks[1:]:
                 # Stop if enough area or no more hole
                 if (
-                    brightest_area_fraction < 1
+                    brightest_area_fraction > 1
                     or mask["median_intensity"] < hole_threshold
                 ):
                     break
@@ -232,6 +233,7 @@ def segment_single_image(
     impath: Path,
     checkpoint: Path,
     output_dir: Path,
+    points_per_side: int,
     binning: int,
     min_area_fraction: float,
     beam_threshold: float,
@@ -240,7 +242,11 @@ def segment_single_image(
 ) -> tuple[dict, list]:
     print(f"\nProcessing: {impath}")
     img, masks = read_and_mask(
-        impath, checkpoint, binning=binning, min_area_fraction=min_area_fraction
+        impath,
+        checkpoint,
+        binning=binning,
+        min_area_fraction=min_area_fraction,
+        points_per_side=points_per_side,
     )
     print(f"Generated {len(masks)} masks")
     if len(masks) == 0:
@@ -304,6 +310,12 @@ def run():
         "--checkpoint", required=True, help="Segment anything model checkpoint"
     )
     parser.add_argument(
+        "--points_per_side",
+        default=32,
+        type=int,
+        help="Numbers of points per image side for segment anything",
+    )
+    parser.add_argument(
         "--binning",
         default=4,
         type=int,
@@ -338,6 +350,7 @@ def run():
             impath=impath,
             checkpoint=Path(args.checkpoint),
             output_dir=Path(args.output_dir),
+            points_per_side=args.points_per_side,
             binning=args.binning,
             min_area_fraction=args.min_area_fraction,
             beam_threshold=args.beam_threshold,
