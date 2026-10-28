@@ -148,6 +148,7 @@ def set_up_sam(checkpoint: Path):
 
 def filter_masks(masks: list) -> list:
     filtered_masks: list = []
+    filtered_mask_sizes: list = []
     # Descending sort by the size of the mask
     mask_sizes = [m["segmentation"].sum() for m in masks]
     sorted_size_indexes = np.argsort(mask_sizes)[::-1]
@@ -155,16 +156,17 @@ def filter_masks(masks: list) -> list:
         # Compare each mask to the ones that have been kept
         keep = True
         mask1 = masks[mask_index]["segmentation"]
-        for j, m in enumerate(filtered_masks):
-            mask2 = m["segmentation"]
+        for m2_dict, m2_size in zip(filtered_masks, filtered_mask_sizes):
+            mask2 = m2_dict["segmentation"]
             overlap = np.logical_and(mask1, mask2).sum()
             enclosed_fraction = overlap / mask_sizes[mask_index]
-            if enclosed_fraction > 0.95 and mask2.sum() > mask_sizes[mask_index]:
+            if enclosed_fraction > 0.95 and m2_size > mask_sizes[mask_index]:
                 # Remove the current mask if covered by another mask
                 keep = False
                 break
         if keep:
             filtered_masks.append(masks[mask_index])
+            filtered_mask_sizes.append(mask_sizes[mask_index])
     return filtered_masks
 
 
@@ -192,16 +194,19 @@ def find_hole(mask_results: list, hole_threshold: float) -> list[int]:
             print(f"Brightest mask area = {brightest_area_fraction:.2f}%")
 
             # If the brightest mask is very small, include the other bright areas
-            i = 1
-            while brightest_area_fraction < 1 and i < len(sorted_masks):
-                next_index = sorted_masks[i]["mask_id"]
-                if sorted_masks[i]["median_intensity"] < hole_threshold:
+            for mask in sorted_masks[1:]:
+                # Stop if enough area or no more hole
+                if (
+                    brightest_area_fraction < 1
+                    or mask["median_intensity"] < hole_threshold
+                ):
                     break
+                # Add next mask area
+                next_index = mask["mask_id"]
                 print(f"Also including mask {next_index} as hole")
                 hole_indexes.append(next_index)
-                brightest_area_fraction += sorted_masks[i]["area_fraction"]
+                brightest_area_fraction += mask["area_fraction"]
                 print(f"Total mask area = {brightest_area_fraction:.2f}%")
-                i += 1
         else:
             print(f"No hole detected (all masks below threshold {hole_threshold})")
     return hole_indexes
