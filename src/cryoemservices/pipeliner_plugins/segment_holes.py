@@ -172,6 +172,7 @@ def find_hole(mask_results: list, hole_threshold: float) -> list[int]:
 
     if len(mask_results) == 1:
         if mask_results[0]["median_intensity"] >= hole_threshold:
+            hole_indexes = [0]
             print("Single mask classified as HOLE")
         else:
             print("Single mask classified as NOT HOLE")
