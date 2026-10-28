@@ -1,4 +1,5 @@
 import argparse
+from functools import lru_cache
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -133,6 +134,7 @@ def read_and_mask(
     return img, masks
 
 
+@lru_cache(maxsize=1)
 def set_up_sam(checkpoint: Path):
     # Do the import here so the module functions can be loaded without SAM
     import torch
@@ -153,13 +155,15 @@ def filter_masks(masks: list) -> list:
     for i, m1 in enumerate(masks):
         keep = True
         mask1 = m1["segmentation"]
+        m1_sum = mask1.sum()
         for j, m2 in enumerate(masks):
             if i == j:
                 continue
             mask2 = m2["segmentation"]
+            m2_sum = m2.sum()
             overlap = np.logical_and(mask1, mask2).sum()
-            enclosed_fraction = overlap / mask1.sum()
-            if enclosed_fraction > 0.95 and mask2.sum() > mask1.sum():
+            enclosed_fraction = overlap / m1_sum
+            if enclosed_fraction > 0.95 and m2_sum > m1_sum:
                 keep = False
                 break
         if keep:
@@ -194,7 +198,7 @@ def find_hole(
             print(f"Brightest mask area = {brightest_area_fraction:.2f}%")
 
             # If the brightest mask is very small, include the second brightest as well
-            if len(mask_results) >= 3 and brightest_area_fraction < 0.005:
+            if len(mask_results) >= 3 and brightest_area_fraction < 1:
                 second_index = sorted_masks[1]["mask_id"]
                 print(f"Also including mask {second_index} as hole")
                 second_area_fraction = sorted_masks[1]["area_fraction"]
