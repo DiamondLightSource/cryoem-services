@@ -1,4 +1,5 @@
 import argparse
+import re
 from functools import lru_cache
 from pathlib import Path
 
@@ -117,18 +118,16 @@ def read_and_mask(
         print("Mask generation failed")
         return img, masks
 
-    masks = [
-        m
-        for m in masks
-        if m["area"] > min_area_fraction * img.shape[0] * img.shape[1] / binning**2
-    ]
+    sized_masks = []
     for mask_m in masks:
         # Un-bin the masks
         mask_m["segmentation"] = np.array(
             Image.fromarray(mask_m["segmentation"]).resize((img.shape[1], img.shape[0]))
         )
         mask_m["area"] = mask_m["area"] * binning**2
-    return img, masks
+        if mask_m["area"] > min_area_fraction * img.shape[0] * img.shape[1]:
+            sized_masks.append(mask_m)
+    return img, sized_masks
 
 
 @lru_cache(maxsize=1)
@@ -138,7 +137,10 @@ def set_up_sam(checkpoint: Path, points_per_side: int):
     from segment_anything import SamAutomaticMaskGenerator, sam_model_registry
 
     # Load SAM model
-    sam = sam_model_registry["vit_h"](checkpoint=checkpoint)
+    checkpoint_type = re.findall("vit_.", checkpoint.stem)
+    sam = sam_model_registry[checkpoint_type[0] if checkpoint_type else "vit_h"](
+        checkpoint=checkpoint
+    )
     # Device setup
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Running on {device.upper()}")
@@ -215,8 +217,9 @@ def find_hole(mask_results: list, hole_threshold: float) -> list[int]:
 
 def get_mask_summary(image_name: str, img: np.ndarray, masks: list) -> list[dict]:
     mask_results = []
+    processed_img = process_array(img)
     for i, m in enumerate(masks):
-        median_intensity = np.median(process_array(img)[m["segmentation"]])
+        median_intensity = np.median(processed_img[m["segmentation"]])
         mask_results.append(
             {
                 "image": image_name,
