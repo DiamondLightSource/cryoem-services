@@ -314,7 +314,7 @@ def run():
     )
     parser.add_argument(
         "--points_per_side",
-        default=32,
+        default=8,
         type=int,
         help="Numbers of points per image side for segment anything",
     )

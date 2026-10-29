@@ -97,8 +97,7 @@
   },
   "9": {
     "parameters": {
-      "checkpoint": "{hole_segment_ckpt}",
-      "submit_to_slurm": "True"
+      "checkpoint": "{hole_segment_ckpt}"
     },
     "queue": "hole_segmentation",
     "service": "HoleSegmentation"
