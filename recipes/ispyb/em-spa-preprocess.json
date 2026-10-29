@@ -83,7 +83,8 @@
   },
   "8": {
     "parameters": {
-      "app_id": "{autoproc_program_id}"
+      "app_id": "{autoproc_program_id}",
+      "voltage": "{kv}"
     },
     "output": {
       "cryolo": 10,
