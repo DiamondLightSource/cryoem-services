@@ -24,6 +24,7 @@ def test_segment_single_image_all_hole(mock_sam, tmp_path):
         impath=tmp_path / "test.mrc",
         checkpoint=tmp_path / "checkpoint.ckpt",
         output_dir=tmp_path,
+        points_per_side=8,
         binning=1,
         min_area_fraction=0.01,
         beam_threshold=10,
@@ -32,7 +33,7 @@ def test_segment_single_image_all_hole(mock_sam, tmp_path):
     )
 
     # Check SAM calls
-    mock_sam.assert_called_once_with(tmp_path / "checkpoint.ckpt")
+    mock_sam.assert_called_once_with(tmp_path / "checkpoint.ckpt", 8)
     mock_generator.generate.assert_called_once()
 
     # Check return structure
@@ -74,6 +75,7 @@ def test_segment_single_image_hole_and_beam(mock_sam, tmp_path):
         impath=tmp_path / "test.mrc",
         checkpoint=tmp_path / "checkpoint.ckpt",
         output_dir=tmp_path,
+        points_per_side=16,
         binning=1,
         min_area_fraction=0.01,
         beam_threshold=10,
@@ -82,7 +84,7 @@ def test_segment_single_image_hole_and_beam(mock_sam, tmp_path):
     )
 
     # Check SAM calls
-    mock_sam.assert_called_once_with(tmp_path / "checkpoint.ckpt")
+    mock_sam.assert_called_once_with(tmp_path / "checkpoint.ckpt", 16)
     mock_generator.generate.assert_called_once()
 
     # Check return structure
@@ -137,6 +139,8 @@ def test_run_segment_holes_plot(mock_segment, tmp_path):
         str(tmp_path),
         "--checkpoint",
         f"{tmp_path}/checkpoint.ckpt",
+        "--points_per_side",
+        "8",
     ]
     segment_holes.run()
 
@@ -144,6 +148,7 @@ def test_run_segment_holes_plot(mock_segment, tmp_path):
         impath=tmp_path / "image.mrc",
         checkpoint=tmp_path / "checkpoint.ckpt",
         output_dir=tmp_path,
+        points_per_side=8,
         binning=4,
         min_area_fraction=0.001,
         beam_threshold=10,
@@ -174,6 +179,7 @@ def test_segment_cli_exists():
     assert cleaned_help_line == (
         "usage:cryoemservices.segment_holes[-h]"
         "--micrograph_dirMICROGRAPH_DIR--input_globINPUT_GLOB--output_dirOUTPUT_DIR"
-        "--checkpointCHECKPOINT[--binningBINNING][--min_area_fractionMIN_AREA_FRACTION]"
-        "[--beam_thresholdBEAM_THRESHOLD][--hole_thresholdHOLE_THRESHOLD][--save_summary]"
+        "--checkpointCHECKPOINT[--points_per_sidePOINTS_PER_SIDE][--binningBINNING]"
+        "[--min_area_fractionMIN_AREA_FRACTION][--beam_thresholdBEAM_THRESHOLD]"
+        "[--hole_thresholdHOLE_THRESHOLD][--save_summary]"
     )

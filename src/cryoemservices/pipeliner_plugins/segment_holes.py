@@ -1,4 +1,6 @@
 import argparse
+import re
+from functools import lru_cache
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -12,7 +14,7 @@ def save_overlay(
     img: np.ndarray,
     masks: list,
     mask_results: list[dict],
-    hole_indexes: tuple[int | None, int | None],
+    hole_indexes: list[int],
     beam_edge_detected: bool,
     output_figure: Path,
 ):
@@ -33,13 +35,9 @@ def save_overlay(
     ax.set_title(f"Filtered Masks ({len(masks)})")
     ax.axis("off")
 
-    hole_percent = sum(
-        [mask_results[i]["area_fraction"] for i in hole_indexes if i is not None]
-    )
+    hole_percent = sum([mask_results[i]["area_fraction"] for i in hole_indexes])
     label = (
-        f"Hole = {hole_percent:.1f}%"
-        if hole_indexes[0] is not None
-        else "No hole detected"
+        f"Hole = {hole_percent:.1f}%" if len(hole_indexes) > 0 else "No hole detected"
     )
     if beam_edge_detected:
         label += "\nBeam edge detected"
@@ -63,7 +61,7 @@ def save_overlay(
 def save_hole_mask(
     img: np.ndarray,
     masks: list,
-    hole_indexes: tuple[int | None, int | None],
+    hole_indexes: list[int],
     output_mask: Path,
 ):
     hole_mask = np.zeros(img.shape, dtype=bool)
@@ -90,6 +88,7 @@ def read_and_mask(
     sam_checkpoint: Path,
     binning: int = 4,
     min_area_fraction: float = 0.001,
+    points_per_side: int = 32,
 ):
     if image_path.suffix == ".mrc":
         img = mrcfile.read(image_path)
@@ -112,70 +111,74 @@ def read_and_mask(
         img_rgb = binned_img
 
     # Generate masks
-    mask_generator = set_up_sam(sam_checkpoint)
+    mask_generator = set_up_sam(sam_checkpoint, points_per_side)
     masks = mask_generator.generate(img_rgb)
 
     if len(masks) == 0:
         print("Mask generation failed")
         return img, masks
 
-    masks = [
-        m
-        for m in masks
-        if m["area"] > min_area_fraction * img.shape[0] * img.shape[1] / binning**2
-    ]
+    sized_masks = []
     for mask_m in masks:
         # Un-bin the masks
         mask_m["segmentation"] = np.array(
             Image.fromarray(mask_m["segmentation"]).resize((img.shape[1], img.shape[0]))
         )
         mask_m["area"] = mask_m["area"] * binning**2
-    return img, masks
+        if mask_m["area"] > min_area_fraction * img.shape[0] * img.shape[1]:
+            sized_masks.append(mask_m)
+    return img, sized_masks
 
 
-def set_up_sam(checkpoint: Path):
+@lru_cache(maxsize=1)
+def set_up_sam(checkpoint: Path, points_per_side: int):
     # Do the import here so the module functions can be loaded without SAM
     import torch
     from segment_anything import SamAutomaticMaskGenerator, sam_model_registry
 
     # Load SAM model
-    sam = sam_model_registry["vit_h"](checkpoint=checkpoint)
+    checkpoint_type = re.findall("vit_.", checkpoint.stem)
+    sam = sam_model_registry[checkpoint_type[0] if checkpoint_type else "vit_h"](
+        checkpoint=checkpoint
+    )
     # Device setup
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Running on {device.upper()}")
     sam.to(device=device)
-    sam_mask = SamAutomaticMaskGenerator(sam)
+    sam_mask = SamAutomaticMaskGenerator(sam, points_per_side=points_per_side)
     return sam_mask
 
 
 def filter_masks(masks: list) -> list:
-    filtered_masks = []
-    for i, m1 in enumerate(masks):
+    filtered_masks: list = []
+    filtered_mask_sizes: list = []
+    # Descending sort by the size of the mask
+    mask_sizes = [m["segmentation"].sum() for m in masks]
+    sorted_size_indexes = np.argsort(mask_sizes)[::-1]
+    for mask_index in sorted_size_indexes:
+        # Compare each mask to the ones that have been kept
         keep = True
-        mask1 = m1["segmentation"]
-        for j, m2 in enumerate(masks):
-            if i == j:
-                continue
-            mask2 = m2["segmentation"]
+        mask1 = masks[mask_index]["segmentation"]
+        for m2_dict, m2_size in zip(filtered_masks, filtered_mask_sizes):
+            mask2 = m2_dict["segmentation"]
             overlap = np.logical_and(mask1, mask2).sum()
-            enclosed_fraction = overlap / mask1.sum()
-            if enclosed_fraction > 0.95 and mask2.sum() > mask1.sum():
+            enclosed_fraction = overlap / mask_sizes[mask_index]
+            if enclosed_fraction > 0.95 and m2_size > mask_sizes[mask_index]:
+                # Remove the current mask if covered by another mask
                 keep = False
                 break
         if keep:
-            filtered_masks.append(m1)
+            filtered_masks.append(masks[mask_index])
+            filtered_mask_sizes.append(mask_sizes[mask_index])
     return filtered_masks
 
 
-def find_hole(
-    mask_results: list, hole_threshold: float
-) -> tuple[int | None, int | None]:
-    hole_index: int | None = None
-    second_index: int | None = None
+def find_hole(mask_results: list, hole_threshold: float) -> list[int]:
+    hole_indexes: list[int] = []
 
     if len(mask_results) == 1:
         if mask_results[0]["median_intensity"] >= hole_threshold:
-            hole_index = 0
+            hole_indexes = [0]
             print("Single mask classified as HOLE")
         else:
             print("Single mask classified as NOT HOLE")
@@ -188,26 +191,35 @@ def find_hole(
         print(f"Brightest mask median = {brightest_median:.1f}")
 
         if brightest_median >= hole_threshold:
-            hole_index = sorted_masks[0]["mask_id"]
-            print(f"Selected hole mask = {hole_index}")
+            hole_indexes.append(sorted_masks[0]["mask_id"])
+            print(f"Selected hole mask = {hole_indexes[0]}")
             brightest_area_fraction = sorted_masks[0]["area_fraction"]
             print(f"Brightest mask area = {brightest_area_fraction:.2f}%")
 
-            # If the brightest mask is very small, include the second brightest as well
-            if len(mask_results) >= 3 and brightest_area_fraction < 0.005:
-                second_index = sorted_masks[1]["mask_id"]
-                print(f"Also including mask {second_index} as hole")
-                second_area_fraction = sorted_masks[1]["area_fraction"]
-                print(f"Second mask area = {second_area_fraction:.2f}%")
+            # If the brightest mask is very small, include the other bright areas
+            for mask in sorted_masks[1:]:
+                # Stop if enough area or no more hole
+                if (
+                    brightest_area_fraction > 1
+                    or mask["median_intensity"] < hole_threshold
+                ):
+                    break
+                # Add next mask area
+                next_index = mask["mask_id"]
+                print(f"Also including mask {next_index} as hole")
+                hole_indexes.append(next_index)
+                brightest_area_fraction += mask["area_fraction"]
+                print(f"Total mask area = {brightest_area_fraction:.2f}%")
         else:
             print(f"No hole detected (all masks below threshold {hole_threshold})")
-    return hole_index, second_index
+    return hole_indexes
 
 
 def get_mask_summary(image_name: str, img: np.ndarray, masks: list) -> list[dict]:
     mask_results = []
+    processed_img = process_array(img)
     for i, m in enumerate(masks):
-        median_intensity = np.median(process_array(img)[m["segmentation"]])
+        median_intensity = np.median(processed_img[m["segmentation"]])
         mask_results.append(
             {
                 "image": image_name,
@@ -224,6 +236,7 @@ def segment_single_image(
     impath: Path,
     checkpoint: Path,
     output_dir: Path,
+    points_per_side: int,
     binning: int,
     min_area_fraction: float,
     beam_threshold: float,
@@ -232,7 +245,11 @@ def segment_single_image(
 ) -> tuple[dict, list]:
     print(f"\nProcessing: {impath}")
     img, masks = read_and_mask(
-        impath, checkpoint, binning=binning, min_area_fraction=min_area_fraction
+        impath,
+        checkpoint,
+        binning=binning,
+        min_area_fraction=min_area_fraction,
+        points_per_side=points_per_side,
     )
     print(f"Generated {len(masks)} masks")
     if len(masks) == 0:
@@ -254,12 +271,9 @@ def segment_single_image(
 
     # Find hole
     hole_indexes = find_hole(mask_results, hole_threshold)
-    hole_percent = sum(
-        [mask_results[i]["area_fraction"] for i in hole_indexes if i is not None]
-    )
+    hole_percent = sum([mask_results[i]["area_fraction"] for i in hole_indexes])
     hole_median = np.mean(
-        [mask_results[i]["median_intensity"] for i in hole_indexes if i is not None]
-        or [0]
+        [mask_results[i]["median_intensity"] for i in hole_indexes] or [0]
     )
     print(f"Hole area = {hole_percent:.2f}%")
 
@@ -276,7 +290,7 @@ def segment_single_image(
     image_results = {
         "image": impath.name,
         "hole_percent": hole_percent,
-        "hole_detected": hole_indexes[0] is not None,
+        "hole_detected": len(hole_indexes) > 0,
         "beam_edge_detected": beam_edge_detected,
         "hole_median_intensity": hole_median,
         "n_masks": len(mask_results),
@@ -297,6 +311,12 @@ def run():
     )
     parser.add_argument(
         "--checkpoint", required=True, help="Segment anything model checkpoint"
+    )
+    parser.add_argument(
+        "--points_per_side",
+        default=8,
+        type=int,
+        help="Numbers of points per image side for segment anything",
     )
     parser.add_argument(
         "--binning",
@@ -333,6 +353,7 @@ def run():
             impath=impath,
             checkpoint=Path(args.checkpoint),
             output_dir=Path(args.output_dir),
+            points_per_side=args.points_per_side,
             binning=args.binning,
             min_area_fraction=args.min_area_fraction,
             beam_threshold=args.beam_threshold,

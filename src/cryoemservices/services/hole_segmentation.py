@@ -14,6 +14,7 @@ class HoleSegmentationParameters(BaseModel):
     output_dir: Path
     checkpoint: Path
     submit_to_slurm: bool = False
+    points_per_side: int = 8
     binning: int = 4
     min_area_fraction: float = 0.001
     beam_threshold: float = 10
@@ -128,6 +129,8 @@ class HoleSegmentation(CommonService):
                 str(segment_params.output_dir),
                 "--checkpoint",
                 str(segment_params.checkpoint),
+                "--points_per_side",
+                str(segment_params.points_per_side),
                 "--binning",
                 str(segment_params.binning),
                 "--min_area_fraction",
@@ -152,6 +155,7 @@ class HoleSegmentation(CommonService):
                 impath=Path(segment_params.micrograph),
                 checkpoint=Path(segment_params.checkpoint),
                 output_dir=Path(segment_params.output_dir),
+                points_per_side=segment_params.points_per_side,
                 binning=segment_params.binning,
                 min_area_fraction=segment_params.min_area_fraction,
                 beam_threshold=segment_params.beam_threshold,

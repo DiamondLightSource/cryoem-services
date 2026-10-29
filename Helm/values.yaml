@@ -186,9 +186,9 @@ hole_segmentation:
   replicas: 1
   image: gcr.io/image/path
   command: cryoemservices.service -s HoleSegmentation -c /cryoemservices/config/cryoemservices_config.yaml
-  cpuRequest: "0.5"
-  cpuLimit: "1"
-  memoryLimit: 1Gi
+  cpuRequest: "4"
+  cpuLimit: "4"
+  memoryLimit: 8Gi
   scaleOnQueueLength: true
   queueLengthTrigger: "5"
   minReplicaCount: 0

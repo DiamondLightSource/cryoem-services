@@ -1,17 +1,17 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: hole_segmentation
+  name: hole-segmentation
   namespace: {{ .Values.global.namespace }}
 spec:
   replicas: {{ .Values.replicas }}
   selector:
     matchLabels:
-      app: hole_segmentation
+      app: hole-segmentation
   template:
     metadata:
       labels:
-        app: hole_segmentation
+        app: hole-segmentation
     spec:
       securityContext:
         runAsUser: {{ .Values.global.runAsUser }}
@@ -77,11 +77,11 @@ spec:
 apiVersion: keda.sh/v1alpha1
 kind: ScaledObject
 metadata:
-  name: hole_segmentation
+  name: hole-segmentation
   namespace: {{ .Values.global.namespace }}
 spec:
   scaleTargetRef:
-    name: hole_segmentation
+    name: hole-segmentation
   triggers:
     - type: rabbitmq
       metadata:
