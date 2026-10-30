@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import pandas as pd
 from pydantic import BaseModel, ValidationError
 from workflows.recipe import wrap_subscribe
 
@@ -118,6 +119,7 @@ class HoleSegmentation(CommonService):
             Path(segment_params.output_dir)
             / f"{segment_params.micrograph.stem}_mask.png"
         )
+        Path(segment_params.output_dir).mkdir(parents=True, exist_ok=True)
         if segment_params.submit_to_slurm:
             segment_command = [
                 "cryoemservices.segment_holes",
@@ -161,6 +163,19 @@ class HoleSegmentation(CommonService):
                 beam_threshold=segment_params.beam_threshold,
                 hole_threshold=segment_params.hole_threshold,
                 save_summary=segment_params.save_summary,
+            )
+
+            hole_df = pd.DataFrame([image_results])
+            output_csv = Path(segment_params.output_dir) / "hole_percentages.csv"
+            hole_df.to_csv(
+                output_csv, mode="a", header=not output_csv.exists(), index=False
+            )
+
+            # Save retained mask statistics
+            mask_df = pd.DataFrame(mask_results)
+            mask_csv = Path(segment_params.output_dir) / "mask_statistics.csv"
+            mask_df.to_csv(
+                mask_csv, mode="a", header=not mask_csv.exists(), index=False
             )
 
         self.log.info("Sending to Murfey")
