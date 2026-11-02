@@ -34,7 +34,7 @@ def test_hole_segmentation_local(mock_segment, offline_transport, tmp_path):
     }
     segment_test_message = {
         "micrograph": "/path/to/micrograph.mrc",
-        "output_dir": "/path/to/output",
+        "output_dir": f"{tmp_path}/path/to/output",
         "checkpoint": "/path/to/checkpoint",
         "submit_to_slurm": False,
         "points_per_side": 8,
@@ -63,7 +63,7 @@ def test_hole_segmentation_local(mock_segment, offline_transport, tmp_path):
     mock_segment.assert_called_once_with(
         impath=Path("/path/to/micrograph.mrc"),
         checkpoint=Path("/path/to/checkpoint"),
-        output_dir=Path("/path/to/output"),
+        output_dir=Path(f"{tmp_path}/path/to/output"),
         points_per_side=8,
         binning=4,
         min_area_fraction=0.001,
@@ -71,6 +71,9 @@ def test_hole_segmentation_local(mock_segment, offline_transport, tmp_path):
         hole_threshold=100,
         save_summary=False,
     )
+
+    assert (tmp_path / "path/to/output/hole_percentages.csv").is_file()
+    assert (tmp_path / "path/to/output/mask_statistics.csv").is_file()
 
     # Check that the correct messages were sent
     offline_transport.send.assert_called_once_with(

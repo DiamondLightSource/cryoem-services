@@ -44,7 +44,7 @@
   },
   "3": {
     "output": {
-      "ctffind": 3
+      "ctffind": 4
     },
     "queue": "search_map_enhance",
     "service": "SearchMapEnhance"
