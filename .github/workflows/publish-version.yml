@@ -16,7 +16,7 @@ jobs:
       doTag: ${{ steps.checkTag.outputs.doTag }}
       newVersion: ${{ steps.checkTag.outputs.newVersion }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Use Python 3.12
         uses: actions/setup-python@v5
         with:
@@ -46,7 +46,7 @@ jobs:
       - get-current-version
     if: ${{ needs.get-current-version.outputs.doTag == 'true' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Push the new tag
         run: |
           git config --global user.name "DiamondLightSource-build-server"
@@ -64,7 +64,7 @@ jobs:
       - get-current-version
     if: ${{ needs.get-current-version.outputs.doTag == 'true' }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Set up Python 3.12
         uses: actions/setup-python@v5
         with:
