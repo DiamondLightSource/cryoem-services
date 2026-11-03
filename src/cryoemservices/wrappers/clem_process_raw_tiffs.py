@@ -452,7 +452,7 @@ class ProcessRawTIFFsParameters(BaseModel):
     def parse_tiff_list(cls, value):
         if isinstance(value, str):
             # Check for "null" keyword
-            if value == "null":
+            if value in ("null", "None"):
                 return None
             # Check for stringified list
             if value.startswith("[") and value.endswith("]"):
@@ -470,7 +470,7 @@ class ProcessRawTIFFsParameters(BaseModel):
     @classmethod
     def parse_tiff_file(cls, value):
         # Check for "null" keyword
-        if value == "null":
+        if value in ("null", "None"):
             return None
         # Convert to Path otherwise
         if isinstance(value, str):

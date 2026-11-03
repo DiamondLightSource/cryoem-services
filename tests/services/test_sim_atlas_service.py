@@ -21,19 +21,21 @@ def offline_transport(mocker: MockerFixture):
 
 @pytest.mark.parametrize(
     "test_params",
-    (  # Use recwrap | Stringify
+    (  # Use recwrap | Has marker file
         # Success cases
-        (True,),
-        (False,),
+        (True, True),
+        (True, False),
+        (False, True),
+        (False, False),
     ),
 )
 def test_sim_atlas_service(
     tmp_path: Path,
     offline_transport: OfflineTransport,
-    test_params: tuple[bool],
+    test_params: tuple[bool, bool],
 ):
     # Unpack test params
-    (use_recwrap,) = test_params
+    (use_recwrap, has_marker_file) = test_params
 
     # Set up the message parameters
     header = {
@@ -51,7 +53,7 @@ def test_sim_atlas_service(
         "visit_name": visit_name,
         "mosaic_mrc_file": str(mosaic_mrc_file),
         "mosaic_text_file": str(mosaic_text_file),
-        "markers_file": str(markers_file),
+        "markers_file": str(markers_file) if has_marker_file else "None",
         "output_dir": str(output_dir),
     }
     params = StitchMParameters(**stitchm_test_message)

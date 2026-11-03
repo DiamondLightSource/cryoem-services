@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, ValidationError, field_validator
 from workflows.recipe import RecipeWrapper, wrap_subscribe
 
 from cryoemservices.services.common_service import CommonService
@@ -21,6 +21,15 @@ class StitchMParameters(BaseModel):
     markers_file: Path | None = None
     normalise: bool = True
     filter: bool = True
+
+    @field_validator("markers_file", mode="before")
+    @classmethod
+    def parse_markers_file(cls, value):
+        # Convert 'null' and 'None' strings into 'None' object
+        if isinstance(value, str) and value in ("null", "None"):
+            return None
+        # Let Pydantic validate it as-is otherwise
+        return value
 
 
 class SIMAtlasService(CommonService):
