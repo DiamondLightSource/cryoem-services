@@ -70,10 +70,10 @@ class SIMAtlasService(CommonService):
                 self._reject_message(header, requeue=False)
                 return
 
-        # Create a wrapper-like object that can be passed to functions
-        # as if a recipe wrapper was present
-        rw = MockRW(self._transport)
-        rw.recipe_step = {"parameters": message}
+            # Create a wrapper-like object that can be passed to functions
+            # as if a recipe wrapper was present
+            rw = MockRW(self._transport)
+            rw.recipe_step = {"parameters": message}
 
         try:
             if isinstance(message, dict):
