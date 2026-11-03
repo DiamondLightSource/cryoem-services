@@ -22,7 +22,7 @@ class StitchMParameters(BaseModel):
     normalise: bool = True
     filter: bool = True
 
-    @field_validator("mosaic_text_file", mode="before")
+    @field_validator("markers_file", mode="before")
     @classmethod
     def parse_markers_file(cls, value):
         # Convert 'null' and 'None' strings into 'None' object
