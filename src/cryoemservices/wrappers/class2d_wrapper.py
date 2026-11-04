@@ -27,7 +27,7 @@ class Class2DParameters(BaseModel):
     batch_size: int
     particle_diameter: float = 0
     mask_diameter: float = 190
-    do_vdam: bool = True
+    do_vdam: bool = False
     vdam_write_iter: int = 10
     vdam_threshold: float = 0.1
     vdam_mini_batches: int = 150
