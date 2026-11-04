@@ -13,7 +13,7 @@ def test_process_raw_lifs_with_optional_args(mocker: MockerFixture):
     """Test that the cli runs with all args provided"""
     # Set up necessary mock objects
     mock_convert = mocker.patch(
-        "cryoemservices.wrappers.clem_process_raw_lifs.process_lif_file"
+        "cryoemservices.services.clem_process_raw_lifs.process_lif_file"
     )
     mock_print = mocker.patch("cryoemservices.cli.clem_process_raw_lifs.print")
     mock_setup = mocker.patch("cryoemservices.cli.clem_process_raw_lifs.set_up_logging")
@@ -50,7 +50,7 @@ def test_process_raw_lifs_with_default_args(mocker: MockerFixture):
     """Test that the cli runs with all args provided"""
     # Set up necessary mock objects
     mock_convert = mocker.patch(
-        "cryoemservices.wrappers.clem_process_raw_lifs.process_lif_file"
+        "cryoemservices.services.clem_process_raw_lifs.process_lif_file"
     )
     mock_setup = mocker.patch("cryoemservices.cli.clem_process_raw_lifs.set_up_logging")
 

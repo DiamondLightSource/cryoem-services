@@ -53,7 +53,7 @@ def run():
     set_up_logging(debug=args.debug)
 
     # Import module only after logger has been set up
-    from cryoemservices.wrappers.clem_process_raw_tiffs import process_tiff_files
+    from cryoemservices.services.clem_process_raw_tiffs import process_tiff_files
 
     # Generate list from the single file provided
     tiff_file = Path(args.tiff_file)
