@@ -213,7 +213,7 @@ def run_class2d(class2d_params: Class2DParameters, send_to_rabbitmq: Callable):
     }
 
     # Create the classification command
-    if class2d_params.do_vdam:
+    if class2d_params.do_vdam or not class2d_params.mpi_run_command:
         class2d_command = ["relion_refine"]
     else:
         class2d_command = class2d_params.mpi_run_command.split()
