@@ -87,6 +87,7 @@ def align_and_merge_stacks(
     flatten: bool = True,
     align_across: bool = False,
     num_procs: int = 4,
+    logger: logging.Logger = logger,
 ) -> dict[str, Any]:
     """
     A cryoemservices wrapper to create composite images from component image stack in
@@ -602,6 +603,7 @@ class AlignAndMergeService(CommonService):
                 flatten=params.flatten,
                 align_across=params.align_across,
                 num_procs=params.num_procs,
+                logger=self.log,
             )
         # Log error and reject message if the command fails to execute
         except Exception:

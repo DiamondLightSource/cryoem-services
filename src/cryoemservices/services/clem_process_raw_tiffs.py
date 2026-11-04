@@ -108,6 +108,7 @@ def process_tiff_files(
     root_folder: str,  # Name of the folder to treat as the root folder
     metadata_file: Optional[Path] = None,  # Option to manually provide metadata file
     number_of_processes: int = 1,  # Number of processing threads to run
+    logger: logging.Logger = logger,
 ) -> dict:
     """
     Takes a list of TIFF files for a distinct image series and uses them to construct
@@ -572,6 +573,7 @@ class ProcessRawTIFFsService(CommonService):
                 root_folder=params.root_folder,
                 metadata_file=params.metadata,
                 number_of_processes=params.num_procs,
+                logger=self.log,
             )
         # Log error and reject message if the command fails to execute
         except Exception:

@@ -51,6 +51,7 @@ class ProcessRawLIFsParameters(BaseModel):
 def get_lif_xml_metadata(
     file: LifFile,
     save_xml: Optional[Path] = None,
+    logger: logging.Logger = logger,
 ) -> ET.Element:
     """
     Extracts and returns the metadata from the LIF file as a formatted XML Element.
@@ -78,6 +79,7 @@ def process_lif_subimage(
     root_save_dir: Path,
     save_path: str = "",
     num_procs: int = 4,
+    logger: logging.Logger = logger,
 ) -> dict:
     """
     Takes the LIF file and its corresponding metadata and loads the relevant subimage.
@@ -384,6 +386,7 @@ def process_lif_file(
     file: Path,
     root_folder: str,  # Name of the folder to treat as the root folder for LIF files
     number_of_processes: int = 1,  # Number of processing threads to run
+    logger: logging.Logger = logger,
 ) -> list[dict]:
     """
     Takes a LIF file, extracts its metadata as an XML tree, then parses through the
@@ -553,6 +556,7 @@ class ProcessRawLIFsService(CommonService):
                 file=params.lif_file,
                 root_folder=params.root_folder,
                 number_of_processes=params.num_procs,
+                logger=self.log,
             )
         # Log error and reject message if the command fails to execute
         except Exception:
