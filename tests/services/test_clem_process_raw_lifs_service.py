@@ -124,6 +124,7 @@ def test_lif_to_stack_service(
         file=lif_file,
         root_folder=raw_dir.stem,
         number_of_processes=16,
+        logger=service.log,
     )
     for result in dummy_results:
         for color in cast(dict[str, Any], result["output_files"]).keys():

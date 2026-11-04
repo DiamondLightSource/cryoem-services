@@ -173,6 +173,7 @@ def test_align_and_merge_service(
         flatten=flatten,
         align_across=align_across,
         num_procs=num_procs,
+        logger=service.log,
     )
     # 'images' service should be called
     offline_transport.send.assert_any_call(
