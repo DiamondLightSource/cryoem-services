@@ -7,6 +7,9 @@ import pytest
 from pydantic import BaseModel
 
 from cryoemservices.services.bfactor_setup import BFactorParameters
+from cryoemservices.services.clem_align_and_merge import AlignAndMergeParameters
+from cryoemservices.services.clem_process_raw_lifs import ProcessRawLIFsParameters
+from cryoemservices.services.clem_process_raw_tiffs import ProcessRawTIFFsParameters
 from cryoemservices.services.correlative_align_images import AlignImagesParameters
 from cryoemservices.services.cryolo import CryoloParameters
 from cryoemservices.services.ctffind import CTFParameters
@@ -27,9 +30,6 @@ from cryoemservices.services.tomo_align_aretomo import AreTomoParameters
 from cryoemservices.services.tomo_align_imod import ImodTomoParameters
 from cryoemservices.wrappers.class2d_wrapper import Class2DParameters
 from cryoemservices.wrappers.class3d_wrapper import Class3DParameters
-from cryoemservices.wrappers.clem_align_and_merge import AlignAndMergeParameters
-from cryoemservices.wrappers.clem_process_raw_lifs import ProcessRawLIFsParameters
-from cryoemservices.wrappers.clem_process_raw_tiffs import ProcessRawTIFFsParameters
 from cryoemservices.wrappers.refine3d_wrapper import RefineParameters
 
 try:
