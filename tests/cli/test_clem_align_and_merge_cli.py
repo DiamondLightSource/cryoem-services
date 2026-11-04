@@ -17,7 +17,7 @@ def test_align_and_merge_with_optional_args(mocker: MockerFixture, tmp_path: Pat
     # Set up mocked objects
     mock_setup = mocker.patch("cryoemservices.cli.clem_align_and_merge.set_up_logging")
     mock_align_and_merge = mocker.patch(
-        "cryoemservices.wrappers.clem_align_and_merge.align_and_merge_stacks"
+        "cryoemservices.services.clem_align_and_merge.align_and_merge_stacks"
     )
 
     # Run the cli
@@ -57,7 +57,7 @@ def test_align_and_merge_with_default_args(mocker: MockerFixture, tmp_path: Path
     # Set up mocked objects
     mock_setup = mocker.patch("cryoemservices.cli.clem_align_and_merge.set_up_logging")
     mock_align_and_merge = mocker.patch(
-        "cryoemservices.wrappers.clem_align_and_merge.align_and_merge_stacks"
+        "cryoemservices.services.clem_align_and_merge.align_and_merge_stacks"
     )
 
     # Run the cli
@@ -86,7 +86,7 @@ def test_align_and_merge_string_list(mocker: MockerFixture, tmp_path):
 
     # Set up mocked objects
     mock_align_and_merge = mocker.patch(
-        "cryoemservices.wrappers.clem_align_and_merge.align_and_merge_stacks"
+        "cryoemservices.services.clem_align_and_merge.align_and_merge_stacks"
     )
 
     # Run the cli
