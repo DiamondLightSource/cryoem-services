@@ -45,7 +45,7 @@ def run():
     # Set up the logger before importing the module functions
     set_up_logging(debug=args.debug)
 
-    from cryoemservices.wrappers.clem_process_raw_lifs import process_lif_file
+    from cryoemservices.services.clem_process_raw_lifs import process_lif_file
 
     # Run function
     results = process_lif_file(

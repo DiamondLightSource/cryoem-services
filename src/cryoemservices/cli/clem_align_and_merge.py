@@ -124,7 +124,7 @@ def run():
     set_up_logging(debug=args.debug)
 
     # Import cryoemservices ONLY after logger setup is completed
-    from cryoemservices.wrappers.clem_align_and_merge import align_and_merge_stacks
+    from cryoemservices.services.clem_align_and_merge import align_and_merge_stacks
 
     # Validate image stacks parameter
     image_files: list[Path] = parse_list_of_paths(args.images)
