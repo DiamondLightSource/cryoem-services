@@ -27,7 +27,7 @@ class Class2DParameters(BaseModel):
     batch_size: int
     particle_diameter: float = 0
     mask_diameter: float = 190
-    do_vdam: bool = True
+    do_vdam: bool = False
     vdam_write_iter: int = 10
     vdam_threshold: float = 0.1
     vdam_mini_batches: int = 150
@@ -213,7 +213,7 @@ def run_class2d(class2d_params: Class2DParameters, send_to_rabbitmq: Callable):
     }
 
     # Create the classification command
-    if class2d_params.do_vdam:
+    if class2d_params.do_vdam or not class2d_params.mpi_run_command:
         class2d_command = ["relion_refine"]
     else:
         class2d_command = class2d_params.mpi_run_command.split()
