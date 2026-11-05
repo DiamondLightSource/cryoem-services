@@ -154,7 +154,7 @@ class SIMAtlasService(CommonService):
         # Mark as failure and reject message if no output file was found
         if not output_file or not output_file.is_file():
             self.log.error(
-                f"PySIMRecon failed to generate output file for {params.file}"
+                f"StitchM failed to generate output file for {params.mosaic_mrc_file}"
                 # Log any stdout as part of the error
                 + (f":\n{process_result.stdout}" if process_result.stdout else "")
             )
