@@ -148,6 +148,7 @@ class SIMAtlasService(CommonService):
                 # Log any stdout as part of the error
                 + (f":\n{process_result.stdout}" if process_result.stdout else "")
             )
+            shutil.rmtree(tmp_dir)
             self._reject_message(header, transport=rw.transport, requeue=False)
             return
         # Mark as failure and reject message if no output file was found
@@ -157,6 +158,7 @@ class SIMAtlasService(CommonService):
                 # Log any stdout as part of the error
                 + (f":\n{process_result.stdout}" if process_result.stdout else "")
             )
+            shutil.rmtree(tmp_dir)
             self._reject_message(header, transport=rw.transport, requeue=False)
             return
         # Log stdout as one block if successful
