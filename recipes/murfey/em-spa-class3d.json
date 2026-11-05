@@ -18,6 +18,8 @@
       "mask_diameter": "{mask_diameter}",
       "particle_diameter": "{particle_diameter}",
       "particles_file": "{particles_file}",
+      "refine_efficiency_threshold": 0.65,
+      "refine_resolution_threshold": 11,
       "relion_options": {},
       "symmetry": "{symmetry}",
       "threads": 4

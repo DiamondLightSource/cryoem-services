@@ -5,6 +5,7 @@ import subprocess
 from pathlib import Path
 from typing import Any, Optional
 
+import numpy as np
 from pydantic import BaseModel, Field, ValidationError, field_validator
 from workflows.recipe import wrap_subscribe
 
@@ -88,6 +89,16 @@ class CTFFind(CommonService):
             allow_non_recipe_messages=True,
         )
 
+    @staticmethod
+    def _finite(value: str) -> float:
+        """Parse a value and check if CtfFind could not make as zero.
+
+        CtfFind writes ``nan`` (or ``inf``) for an estimate that did not
+        converge.
+        """
+        number = float(value)
+        return number if np.isfinite(number) else 0.0
+
     def parse_ctf_output(self, ctf_stdout: str):
         """
         Read the output logs of CtfFind to determine
@@ -97,17 +108,17 @@ class CTFFind(CommonService):
             try:
                 if line.startswith("Estimated defocus values"):
                     line_split = line.split()
-                    self.defocus1 = float(line_split[4])
-                    self.defocus2 = float(line_split[6])
+                    self.defocus1 = self._finite(line_split[4])
+                    self.defocus2 = self._finite(line_split[6])
                 if line.startswith("Estimated azimuth"):
                     line_split = line.split()
-                    self.astigmatism_angle = float(line_split[4])
+                    self.astigmatism_angle = self._finite(line_split[4])
                 if line.startswith("Score"):
                     line_split = line.split()
-                    self.cc_value = float(line_split[2])
+                    self.cc_value = self._finite(line_split[2])
                 if line.startswith("Thon rings"):
                     line_split = line.split()
-                    self.estimated_resolution = float(line_split[8])
+                    self.estimated_resolution = self._finite(line_split[8])
             except Exception as e:
                 self.log.warning(f"{e}")
 
