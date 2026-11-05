@@ -248,9 +248,7 @@ class AlignImagesService(CommonService):
         try:
             # Construct the save directory for the outputs
             visit_dir = image_ref.parents[-(image_ref.parts.index(visit_ref) + 1)]
-            save_dir = (
-                visit_dir / "processed" / "correlation" / visit_mov / image_mov.stem
-            )
+            save_dir = visit_dir / "spool" / "correlation" / visit_mov / image_mov.stem
             save_dir.mkdir(parents=True, exist_ok=True)
             self.log.info(f"Created save directory at {save_dir}")
 
