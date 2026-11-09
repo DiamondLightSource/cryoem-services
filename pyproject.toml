@@ -1,7 +1,7 @@
 [build-system]
 build-backend = "setuptools.build_meta"
 requires = [
-    "setuptools>=40.6",
+    "setuptools>=40.6.0",
     "wheel",
 ]
 
@@ -79,7 +79,7 @@ torch = [
     "membrain-seg",
     "segment-anything",
     "topaz-em",
-    "torch==2.11",
+    "torch==2.11.0",
 ]
 
 [project.urls]
@@ -201,7 +201,7 @@ extend-ignore = [ "E203", "E266", "E501", "E731", "E741" ]
 [tool.pyproject-fmt]
 column_width = 160
 indent = 4
-keep_full_version = false
+keep_full_version = true
 generate_python_version_classifiers = true
 max_supported_python = "3.14"
 table_format = "long"
