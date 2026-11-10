@@ -1,5 +1,9 @@
 import json
+import shutil
+import subprocess
+import uuid
 from pathlib import Path
+from typing import Any
 
 from pydantic import BaseModel, ValidationError, field_validator
 from workflows.recipe import RecipeWrapper, wrap_subscribe
@@ -96,7 +100,89 @@ class SIMAtlasService(CommonService):
             f"{json.dumps(params.model_dump(), indent=2, default=str)}"
         )
 
-        # File processing logic goes here
+        # Create a temp directory to save the intermediate results to
+        tmp_dir = params.output_dir / str(uuid.uuid4())
+        tmp_dir.mkdir(parents=True, exist_ok=True)
+
+        # Create a new copy of the 'mosaic.txt' file with the correct file path
+        mosaic_text_file_new = tmp_dir / params.mosaic_text_file.name
+        with open(params.mosaic_text_file, "r") as old:
+            with open(mosaic_text_file_new, "w") as new:
+                for l, line in enumerate(old.readlines()):
+                    # The first line contains the file path on the source side
+                    # This should be replaced with the file path on the server
+                    if l == 0:
+                        new.write(str(params.mosaic_mrc_file) + "\n")
+                    else:
+                        new.write(line)
+
+        # Run StitchM on the new mosaic text file
+        output_file: Path | None = None
+        cmd = [
+            "stitchm",
+            "--mosaic",
+            str(mosaic_text_file_new),
+        ]
+        if params.markers_file is not None:
+            cmd.extend(["--markers", str(params.markers_file)])
+        if not params.filter:
+            cmd.extend(["--unfiltered"])
+        if not params.normalise:
+            cmd.extend(["--no-normalisation"])
+        process_result = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,  # Merge the streams
+            text=True,
+        )
+        # Attempt to extract output file from subprocess logs
+        for line in process_result.stdout.splitlines():
+            line = line.rstrip()
+            if line.startswith("INFO     Saving") and line.endswith("ome.tiff"):
+                output_file = Path(line.split("INFO     Saving")[1].strip())
+        # Check process return code
+        if return_code := process_result.returncode:
+            self.log.error(
+                f"StitchM subprocess failed with error code {return_code}"
+                # Log any stdout as part of the error
+                + (f":\n{process_result.stdout}" if process_result.stdout else "")
+            )
+            shutil.rmtree(tmp_dir)
+            self._reject_message(header, transport=rw.transport, requeue=False)
+            return
+        # Mark as failure and reject message if no output file was found
+        if not output_file or not output_file.is_file():
+            self.log.error(
+                f"StitchM failed to generate output file for {params.mosaic_mrc_file}"
+                # Log any stdout as part of the error
+                + (f":\n{process_result.stdout}" if process_result.stdout else "")
+            )
+            shutil.rmtree(tmp_dir)
+            self._reject_message(header, transport=rw.transport, requeue=False)
+            return
+        # Log stdout as one block if successful
+        self.log.info(process_result.stdout)
+
+        # Move the file out of the UUID folder and delete the old directory
+        output_file_new = params.output_dir / output_file.name
+        shutil.move(output_file, output_file_new)
+        shutil.rmtree(tmp_dir)
+        self.log.info(f"Stitched atlas image saved to {output_file_new}")
+
+        # Construct message to send back to Murfey
+        result: dict[str, Any] = {
+            "output_file": str(output_file_new),
+            # More fields can be added as workflow develops
+        }
+        murfey_params = {
+            "register": "sim.register_atlas",
+            "result": result,
+        }
+        self.log.info(
+            "Will submit the following message back to Murfey:\n"
+            f"{json.dumps(murfey_params, indent=2, default=str)}"
+        )
+        # rw.send_to("murfey_feedback", murfey_params)  # Will be enabled in the future
 
         # Ack message after completion
         self.log.info("StitchM job completed")
