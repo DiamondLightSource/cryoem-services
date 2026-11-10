@@ -158,9 +158,6 @@ xrm_to_jpeg = "cryoemservices.services.images_plugins:xrm_to_jpeg"
 ispyb = "cryoemservices.util.process_recipe_tools:ispyb_filter"
 
 [project.entry-points."cryoemservices.wrappers"]
-CLEMAlignAndMerge = "cryoemservices.wrappers.clem_align_and_merge:AlignAndMergeWrapper"
-CLEMProcessRawLIFs = "cryoemservices.wrappers.clem_process_raw_lifs:ProcessRawLIFsWrapper"
-CLEMProcessRawTIFFs = "cryoemservices.wrappers.clem_process_raw_tiffs:ProcessRawTIFFsWrapper"
 Class2D = "cryoemservices.wrappers.class2d_wrapper:Class2DWrapper"
 Class3D = "cryoemservices.wrappers.class3d_wrapper:Class3DWrapper"
 Refine3D = "cryoemservices.wrappers.refine3d_wrapper:Refine3DWrapper"

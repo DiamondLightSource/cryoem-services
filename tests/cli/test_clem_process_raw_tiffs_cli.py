@@ -27,7 +27,7 @@ def test_process_raw_tiffs_with_optional_args(mocker: MockerFixture, tmp_path: P
         "cryoemservices.cli.clem_process_raw_tiffs.set_up_logging"
     )
     mock_convert = mocker.patch(
-        "cryoemservices.wrappers.clem_process_raw_tiffs.process_tiff_files"
+        "cryoemservices.services.clem_process_raw_tiffs.process_tiff_files"
     )
     mock_print = mocker.patch("cryoemservices.cli.clem_process_raw_tiffs.print")
 
@@ -65,7 +65,7 @@ def test_process_raw_tiffs_with_default_args(mocker: MockerFixture, tmp_path: Pa
     tiff_file.touch()
 
     mock_convert = mocker.patch(
-        "cryoemservices.wrappers.clem_process_raw_tiffs.process_tiff_files"
+        "cryoemservices.services.clem_process_raw_tiffs.process_tiff_files"
     )
     mock_setup = mocker.patch(
         "cryoemservices.cli.clem_process_raw_tiffs.set_up_logging"
