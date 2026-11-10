@@ -106,7 +106,6 @@ class SIMAtlasService(CommonService):
 
         # Create a new copy of the 'mosaic.txt' file with the correct file path
         mosaic_text_file_new = tmp_dir / params.mosaic_text_file.name
-        mosaic_text_file_new.parent.mkdir(parents=True, exist_ok=True)
         with open(params.mosaic_text_file, "r") as old:
             with open(mosaic_text_file_new, "w") as new:
                 for l, line in enumerate(old.readlines()):
