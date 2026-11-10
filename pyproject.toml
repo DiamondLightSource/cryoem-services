@@ -14,9 +14,6 @@ keywords = [
     "cryoem-services",
 ]
 license = { file = "LICENSE" }
-authors = [
-    { name = "Diamond Light Source - Data Analysis et al.", email = "dataanalysis@diamond.ac.uk" },
-]
 requires-python = ">=3.11"
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -30,7 +27,7 @@ classifiers = [
     "Programming Language :: Python :: 3.14",
 ]
 dependencies = [
-    "defusedxml", # CLEM workflow
+    "defusedxml",             # CLEM workflow
     "gemmi",
     "graypy",
     "healpy",
@@ -42,7 +39,7 @@ dependencies = [
     "pillow",
     "plotly",
     "pydantic>=2",
-    "readlif", # CLEM workflow
+    "readlif",                # CLEM workflow
     "requests",
     "starfile",
     "stomp-py>8.1.1",
@@ -50,9 +47,14 @@ dependencies = [
     "txrm2tiff",
     "workflows>=3",
 ]
+
+[[project.authors]]
+name = "Diamond Light Source - Data Analysis et al."
+email = "dataanalysis@diamond.ac.uk"
+
 [project.optional-dependencies]
 clem = [
-    "SimpleITK",
+    "simpleitk",
 ]
 dev = [
     "bump-my-version",
@@ -64,10 +66,10 @@ dev = [
 ]
 easymode = [
     # "easymode@git+https://github.com/mgflast/easymode@126163fcb22e469f8fc8791d10ab5c6f0b8b9070",
-    "huggingface_hub",
+    "huggingface-hub",
     "tensorflow[and-cuda]",
 ]
-murfey_db = [
+murfey-db = [
     "murfey[server]",
 ]
 pipeliner = [
@@ -75,116 +77,136 @@ pipeliner = [
 ]
 torch = [
     "membrain-seg",
-    "segment_anything",
+    "segment-anything",
     "topaz-em",
     "torch==2.11.0",
 ]
+
 [project.urls]
-    Bug-Tracker = "https://github.com/DiamondLightSource/cryoem-services/issues"
-    GitHub = "https://github.com/DiamondLightSource/cryoem-services"
+Bug-Tracker = "https://github.com/DiamondLightSource/cryoem-services/issues"
+GitHub = "https://github.com/DiamondLightSource/cryoem-services"
+
 [project.scripts]
-    "clem.align_and_merge" = "cryoemservices.cli.clem_align_and_merge:run"
-    "clem.process_raw_lifs" = "cryoemservices.cli.clem_process_raw_lifs:run"
-    "clem.process_raw_tiffs" = "cryoemservices.cli.clem_process_raw_tiffs:run"
-    "combine_star_files" = "cryoemservices.pipeliner_plugins.combine_star_files:main"
-    "cryoemservices.angular_distribution_plot" = "cryoemservices.pipeliner_plugins.angular_distribution_plot:run"
-    "cryoemservices.angular_efficiency" = "cryoemservices.pipeliner_plugins.angular_efficiency:run"
-    "cryoemservices.dlq_rabbitmq" = "cryoemservices.cli.dlq_rabbitmq:run"
-    "cryoemservices.find_symmetry" = "cryoemservices.pipeliner_plugins.symmetry_finder:run"
-    "cryoemservices.reextract" = "cryoemservices.pipeliner_plugins.reextract:run"
-    "cryoemservices.resubmit_wrapper" = "cryoemservices.cli.resubmit_wrapper:run"
-    "cryoemservices.segment_holes" = "cryoemservices.pipeliner_plugins.segment_holes:run"
-    "cryoemservices.service" = "cryoemservices.cli.start_service:run"
-    "cryoemservices.wrap" = "cryoemservices.cli.run_wrapper:run"
-    "relipy.link" = "cryoemservices.cli.project_linker:run"
+"clem.align_and_merge" = "cryoemservices.cli.clem_align_and_merge:run"
+"clem.process_raw_lifs" = "cryoemservices.cli.clem_process_raw_lifs:run"
+"clem.process_raw_tiffs" = "cryoemservices.cli.clem_process_raw_tiffs:run"
+combine_star_files = "cryoemservices.pipeliner_plugins.combine_star_files:main"
+"cryoemservices.angular_distribution_plot" = "cryoemservices.pipeliner_plugins.angular_distribution_plot:run"
+"cryoemservices.angular_efficiency" = "cryoemservices.pipeliner_plugins.angular_efficiency:run"
+"cryoemservices.dlq_rabbitmq" = "cryoemservices.cli.dlq_rabbitmq:run"
+"cryoemservices.find_symmetry" = "cryoemservices.pipeliner_plugins.symmetry_finder:run"
+"cryoemservices.reextract" = "cryoemservices.pipeliner_plugins.reextract:run"
+"cryoemservices.resubmit_wrapper" = "cryoemservices.cli.resubmit_wrapper:run"
+"cryoemservices.segment_holes" = "cryoemservices.pipeliner_plugins.segment_holes:run"
+"cryoemservices.service" = "cryoemservices.cli.start_service:run"
+"cryoemservices.wrap" = "cryoemservices.cli.run_wrapper:run"
+"relipy.link" = "cryoemservices.cli.project_linker:run"
+
 [project.entry-points."ccpem_pipeliner.jobs"]
-    "combine_star_files_job" = "cryoemservices.pipeliner_plugins.combine_star_job:ProcessStarFiles"
+combine_star_files_job = "cryoemservices.pipeliner_plugins.combine_star_job:ProcessStarFiles"
+
 [project.entry-points."cryoemservices.services"]
-    AreTomoAlign = "cryoemservices.services.tomo_align_aretomo:AreTomoAlign"
-    AreTomoAlignSlurm = "cryoemservices.services.tomo_align_aretomo_slurm:AreTomoAlignSlurm"
-    BFactor = "cryoemservices.services.bfactor_setup:BFactor"
-    CLEMAlignAndMerge = "cryoemservices.services.clem_align_and_merge:AlignAndMergeService"
-    CLEMProcessRawLIFs = "cryoemservices.services.clem_process_raw_lifs:ProcessRawLIFsService"
-    CLEMProcessRawTIFFs = "cryoemservices.services.clem_process_raw_tiffs:ProcessRawTIFFsService"
-    CTFFind = "cryoemservices.services.ctffind:CTFFind"
-    Class2D = "cryoemservices.services.class2d:Class2D"
-    Class3D = "cryoemservices.services.class3d:Class3D"
-    ClusterSubmission = "cryoemservices.services.cluster_submission:ClusterSubmission"
-    CorrelativeAlignImages = "cryoemservices.services.correlative_align_images:AlignImagesService"
-    CrYOLO = "cryoemservices.services.cryolo:CrYOLO"
-    Denoise = "cryoemservices.services.denoise:Denoise"
-    DenoiseSlurm = "cryoemservices.services.denoise_slurm:DenoiseSlurm"
-    EMISPyB = "cryoemservices.services.ispyb_connector:EMISPyB"
-    Easymode = "cryoemservices.services.easymode:Easymode"
-    Extract = "cryoemservices.services.extract:Extract"
-    ExtractClass = "cryoemservices.services.extract_class:ExtractClass"
-    HoleSegmentation = "cryoemservices.services.hole_segmentation:HoleSegmentation"
-    IceBreaker = "cryoemservices.services.icebreaker:IceBreaker"
-    Images = "cryoemservices.services.images:Images"
-    ImodTomoAlign = "cryoemservices.services.tomo_align_imod:ImodTomoAlign"
-    MembrainSeg = "cryoemservices.services.membrain_seg:MembrainSeg"
-    MotionCorr = "cryoemservices.services.motioncorr:MotionCorr"
-    MurfeyDBConnector = "cryoemservices.services.murfey_db_connector:MurfeyDBConnector"
-    NodeCreator = "cryoemservices.services.node_creator:NodeCreator"
-    PostProcess = "cryoemservices.services.postprocess:PostProcess"
-    ProcessRecipe = "cryoemservices.services.process_recipe:ProcessRecipe"
-    Refine3D = "cryoemservices.services.refine3d:Refine3D"
-    SIMAtlas = "cryoemservices.services.sim_atlas:SIMAtlasService"
-    SIMRecon = "cryoemservices.services.sim_recon:SIMReconService"
-    SelectClasses = "cryoemservices.services.select_classes:SelectClasses"
-    SelectParticles = "cryoemservices.services.select_particles:SelectParticles"
-    TopazPick = "cryoemservices.services.topaz_pick:TopazPick"
+AreTomoAlign = "cryoemservices.services.tomo_align_aretomo:AreTomoAlign"
+AreTomoAlignSlurm = "cryoemservices.services.tomo_align_aretomo_slurm:AreTomoAlignSlurm"
+BFactor = "cryoemservices.services.bfactor_setup:BFactor"
+CLEMAlignAndMerge = "cryoemservices.services.clem_align_and_merge:AlignAndMergeService"
+CLEMProcessRawLIFs = "cryoemservices.services.clem_process_raw_lifs:ProcessRawLIFsService"
+CLEMProcessRawTIFFs = "cryoemservices.services.clem_process_raw_tiffs:ProcessRawTIFFsService"
+CTFFind = "cryoemservices.services.ctffind:CTFFind"
+Class2D = "cryoemservices.services.class2d:Class2D"
+Class3D = "cryoemservices.services.class3d:Class3D"
+ClusterSubmission = "cryoemservices.services.cluster_submission:ClusterSubmission"
+CorrelativeAlignImages = "cryoemservices.services.correlative_align_images:AlignImagesService"
+CrYOLO = "cryoemservices.services.cryolo:CrYOLO"
+Denoise = "cryoemservices.services.denoise:Denoise"
+DenoiseSlurm = "cryoemservices.services.denoise_slurm:DenoiseSlurm"
+EMISPyB = "cryoemservices.services.ispyb_connector:EMISPyB"
+Easymode = "cryoemservices.services.easymode:Easymode"
+Extract = "cryoemservices.services.extract:Extract"
+ExtractClass = "cryoemservices.services.extract_class:ExtractClass"
+HoleSegmentation = "cryoemservices.services.hole_segmentation:HoleSegmentation"
+IceBreaker = "cryoemservices.services.icebreaker:IceBreaker"
+Images = "cryoemservices.services.images:Images"
+ImodTomoAlign = "cryoemservices.services.tomo_align_imod:ImodTomoAlign"
+MembrainSeg = "cryoemservices.services.membrain_seg:MembrainSeg"
+MotionCorr = "cryoemservices.services.motioncorr:MotionCorr"
+MurfeyDBConnector = "cryoemservices.services.murfey_db_connector:MurfeyDBConnector"
+NodeCreator = "cryoemservices.services.node_creator:NodeCreator"
+PostProcess = "cryoemservices.services.postprocess:PostProcess"
+ProcessRecipe = "cryoemservices.services.process_recipe:ProcessRecipe"
+Refine3D = "cryoemservices.services.refine3d:Refine3D"
+SIMAtlas = "cryoemservices.services.sim_atlas:SIMAtlasService"
+SIMRecon = "cryoemservices.services.sim_recon:SIMReconService"
+SelectClasses = "cryoemservices.services.select_classes:SelectClasses"
+SelectParticles = "cryoemservices.services.select_particles:SelectParticles"
+TopazPick = "cryoemservices.services.topaz_pick:TopazPick"
+
 [project.entry-points."cryoemservices.services.images.plugins"]
-    "mrc_central_slice" = "cryoemservices.services.images_plugins:mrc_central_slice"
-    "mrc_projection" = "cryoemservices.services.images_plugins:mrc_projection"
-    "mrc_to_apng" = "cryoemservices.services.images_plugins:mrc_to_apng"
-    "mrc_to_apng_colour" = "cryoemservices.services.images_plugins:mrc_to_apng_colour"
-    "mrc_to_jpeg" = "cryoemservices.services.images_plugins:mrc_to_jpeg"
-    "picked_particles" = "cryoemservices.services.images_plugins:picked_particles"
-    "picked_particles_3d_apng" = "cryoemservices.services.images_plugins:picked_particles_3d_apng"
-    "picked_particles_3d_central_slice" = "cryoemservices.services.images_plugins:picked_particles_3d_central_slice"
-    "tiff_to_apng" = "cryoemservices.services.images_plugins:tiff_to_apng"
-    "tilt_series_alignment" = "cryoemservices.services.images_plugins:tilt_series_alignment"
-    "xrm_to_jpeg" = "cryoemservices.services.images_plugins:xrm_to_jpeg"
+mrc_central_slice = "cryoemservices.services.images_plugins:mrc_central_slice"
+mrc_projection = "cryoemservices.services.images_plugins:mrc_projection"
+mrc_to_apng = "cryoemservices.services.images_plugins:mrc_to_apng"
+mrc_to_apng_colour = "cryoemservices.services.images_plugins:mrc_to_apng_colour"
+mrc_to_jpeg = "cryoemservices.services.images_plugins:mrc_to_jpeg"
+picked_particles = "cryoemservices.services.images_plugins:picked_particles"
+picked_particles_3d_apng = "cryoemservices.services.images_plugins:picked_particles_3d_apng"
+picked_particles_3d_central_slice = "cryoemservices.services.images_plugins:picked_particles_3d_central_slice"
+tiff_to_apng = "cryoemservices.services.images_plugins:tiff_to_apng"
+tilt_series_alignment = "cryoemservices.services.images_plugins:tilt_series_alignment"
+xrm_to_jpeg = "cryoemservices.services.images_plugins:xrm_to_jpeg"
+
 [project.entry-points."cryoemservices.services.process_recipe.filters"]
-    ispyb = "cryoemservices.util.process_recipe_tools:ispyb_filter"
+ispyb = "cryoemservices.util.process_recipe_tools:ispyb_filter"
+
 [project.entry-points."cryoemservices.wrappers"]
-    Class2D = "cryoemservices.wrappers.class2d_wrapper:Class2DWrapper"
-    Class3D = "cryoemservices.wrappers.class3d_wrapper:Class3DWrapper"
-    Refine3D = "cryoemservices.wrappers.refine3d_wrapper:Refine3DWrapper"
+Class2D = "cryoemservices.wrappers.class2d_wrapper:Class2DWrapper"
+Class3D = "cryoemservices.wrappers.class3d_wrapper:Class3DWrapper"
+Refine3D = "cryoemservices.wrappers.refine3d_wrapper:Refine3DWrapper"
 
 [tool.setuptools]
 package-dir = { "" = "src" }
 include-package-data = true
 zip-safe = false
+
 [tool.setuptools.packages.find]
 where = [ "src" ]
 
 [tool.ruff]
 line-length = 88
-lint.extend-ignore = ["E203", "E266", "E501", "E731", "E741"]
-lint.select = [
+fix = true
+
+[tool.ruff.format]
+indent-style = "space"
+quote-style = "double"
+line-ending = "auto"
+
+[tool.ruff.lint.isort]
+known-first-party = [ "cryoemservices" ]
+combine-as-imports = true
+
+[tool.ruff.lint]
+select = [
     "C4",
-    "E4", "E7", "E9",
+    "E4",
+    "E7",
+    "E9",
     "F",
     "I",
     "W6",
 ]
-fix = true
-
-[tool.ruff.lint.isort]
-known-first-party = ["cryoemservices"]
-combine-as-imports = true
-
-[tool.ruff.format]
-quote-style="double"
-indent-style="space"
-line-ending="auto"
+extend-ignore = [ "E203", "E266", "E501", "E731", "E741" ]
 
 [tool.pyproject-fmt]
+column_width = 160
 indent = 4
 keep_full_version = true
+generate_python_version_classifiers = true
 max_supported_python = "3.14"
+table_format = "long"
+sub_table_spacing = "\n"
+separate_root_table = "\n"
+expand_tables = []
+collapse_tables = []
+skip_wrap_for_keys = []
 
 [tool.pytest.ini_options]
-pythonpath= ["."]
+pythonpath = [ "." ]
