@@ -1,7 +1,7 @@
 repos:
   # Syntax validation and some basic sanity checks
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.6.0 # Released 2024-04-06
+    rev: v6.0.0 # Released 2025-08-09
     hooks:
       - id: check-added-large-files
         name: Checking for added large files
@@ -24,7 +24,7 @@ repos:
 
   # Format the pyproject.toml file
   - repo: https://github.com/tox-dev/pyproject-fmt
-    rev: 1.8.0 # Released 2024-04-17
+    rev: v2.30.6 # Released 2026-11-04
     hooks:
       - id: pyproject-fmt
         name: Formatting the pyproject.toml file
@@ -42,7 +42,7 @@ repos:
 
   # Format and lint using Ruff
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.14.0
+    rev: v0.17.4 # Released 2026-11-05
     hooks:
       - id: ruff
         name: Running Ruff linter
@@ -52,7 +52,7 @@ repos:
 
   # Type checking
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.11.1 # Released 2024-07-31
+    rev: v2.4.1 # Released 2026-10-29
     hooks:
       - id: mypy
         name: Checking types in Python scripts using MyPy
@@ -68,10 +68,14 @@ repos:
           ]
 
   # Use Prettier to format other files
-  - repo: https://github.com/pre-commit/mirrors-prettier
-    rev: v3.1.0 # Released 2023-11-13 | Latest stable version
+  - repo: local
     hooks:
       - id: prettier
         name: Formatting other file types according to Prettier
-        exclude: Helm/charts/.*?/templates/deployment\.yaml
-        # types_or: [css, html, json, yaml]
+        entry: prettier
+        args: [--write, --ignore-unknown]
+        language: node
+        types: [text]
+        additional_dependencies:
+          - prettier@3.9.10 # Released 2026-10-10
+        exclude: Helm/charts/.*?/templates/deployment\.yaml # Skip deployment files, as they aren't valid YAML
