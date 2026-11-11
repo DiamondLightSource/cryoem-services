@@ -103,7 +103,7 @@ def test_align_images_service(
     pixel_size_mov = 1e-6
 
     save_dir = (
-        tmp_path / visit_ref / "processed" / "correlation" / visit_mov / image_mov.stem
+        tmp_path / visit_ref / "spool" / "correlation" / visit_mov / image_mov.stem
     )
 
     # Populate message based on whether to use ISPyB
