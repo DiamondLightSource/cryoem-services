@@ -318,9 +318,9 @@ def process_tiff_files(
 
         # Use separate percentile ranges for bright field and fluorescent images
         if color == "gray":
-            percentiles = (0, 100)
+            percentiles: tuple[float, float] = (0, 100)
         else:
-            percentiles = (0, 100)
+            percentiles = (0.05, 99.95)
         global_vmin, global_vmax = get_percentiles(
             image_loaders=[
                 TIFFImageLoader(file)
