@@ -320,7 +320,7 @@ def process_tiff_files(
         if color == "gray":
             percentiles: tuple[float, float] = (0, 100)
         else:
-            percentiles = (0.05, 99.95)
+            percentiles = (0.02, 99.98)
         global_vmin, global_vmax = get_percentiles(
             image_loaders=[
                 TIFFImageLoader(file)
