@@ -315,13 +315,19 @@ def process_tiff_files(
         # Estimate suitable contrast limits for the dataset
         logger.info("Estimating global intensity range")
         estimate_intensity_start_time = time.perf_counter()
+
+        # Use separate percentile ranges for bright field and fluorescent images
+        if color == "gray":
+            percentiles = (0, 100)
+        else:
+            percentiles = (0, 100)
         global_vmin, global_vmax = get_percentiles(
             image_loaders=[
                 TIFFImageLoader(file)
                 for f, file in enumerate(tiff_color_subset)
                 if not f % 4
             ],
-            percentiles=(0.5, 99.5),
+            percentiles=percentiles,
             num_procs=num_procs,
         )
         estimate_intensity_end_time = time.perf_counter()
