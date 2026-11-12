@@ -165,7 +165,7 @@ def process_tiff_files(
 
     # Search for metadata file using relative paths if not provided
     if metadata_file is None:
-        metadata_file = series_path.parent / "Metadata" / f"{series_name}.xlif"
+        metadata_file = series_path / "Metadata" / f"{series_name}.xlif"
         if metadata_file.exists():
             logger.info(f"Metadata file found at {metadata_file}")
         else:
@@ -173,7 +173,7 @@ def process_tiff_files(
             return {}
 
     # Create save directory for images and  metadata
-    save_dir = output_dir / series_name
+    save_dir = output_dir / series_name.replace(" ", "_")
     save_dir.mkdir(parents=True, exist_ok=True)
     metadata_dir = save_dir / "metadata"
     metadata_dir.mkdir(parents=True, exist_ok=True)
