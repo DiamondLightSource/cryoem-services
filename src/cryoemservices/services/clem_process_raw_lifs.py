@@ -197,7 +197,7 @@ def process_lif_subimage(
         if color == "gray":
             percentiles: tuple[float, float] = (0, 100)
         else:
-            percentiles = (0.02, 99.98)
+            percentiles = (0.01, 99.99)
         global_vmin, global_vmax = get_percentiles(
             image_loaders=[
                 LIFImageLoader(
