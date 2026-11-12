@@ -79,7 +79,7 @@ torch = [
     "membrain-seg",
     "segment-anything",
     "topaz-em",
-    "torch==2.11.0",
+    "torch==2.15.0",
 ]
 
 [project.urls]
