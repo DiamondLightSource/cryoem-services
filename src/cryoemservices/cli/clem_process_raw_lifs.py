@@ -19,13 +19,14 @@ def run():
         help="Path to LIF file for conversion",
     )
     parser.add_argument(
-        "--root-folder",
+        "-o",
+        "--output-dir",
         type=str,
-        default="images",
+        default=None,
         help=(
-            "Name of the top folder that LIF files are stored in. "
-            "Used to determine destination of the created TIFF image stacks. \n"
-            "DEFAULT:   'images'"
+            "Path to the directory that the processed data structure will be saved in. "
+            "If not provided, the function will save the output file structure in the "
+            "same directory as the LIF file."
         ),
     )
     parser.add_argument(
@@ -42,6 +43,9 @@ def run():
     )
     args = parser.parse_args()
 
+    # Convert argument to correct type
+    output_dir = Path(args.output_dir) if args.output_dir is not None else None
+
     # Set up the logger before importing the module functions
     set_up_logging(debug=args.debug)
 
@@ -50,7 +54,7 @@ def run():
     # Run function
     results = process_lif_file(
         file=Path(args.lif_file),
-        root_folder=args.root_folder,
+        output_dir=output_dir,
         number_of_processes=args.num_procs,
     )
 

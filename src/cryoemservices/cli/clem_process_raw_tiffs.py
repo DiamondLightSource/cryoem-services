@@ -20,17 +20,27 @@ def run():
     )
     # Root directory (Optional)
     parser.add_argument(
-        "--root-folder",
-        default="images",
+        "-o",
+        "--output_dir",
+        default=None,
         type=str,
-        help="Name of the top folder that raw TIFF files are stored in. Used to determine destination of the created image stacks",
+        help=(
+            "Path to the directory that the processed data structure will be saved in. "
+            "If not provided, the function will save the output file structure in the "
+            "same directory as the TIFF file"
+        ),
     )
     # Path to metadata file (Optional)
     parser.add_argument(
+        "-m",
         "--metadata",
         default=None,
         type=str,
-        help="Path to the XLIF file associated with this dataset. If not provided, the script will use relative file paths to find what it thinks is the appropriate file",
+        help=(
+            "Path to the XLIF file associated with this dataset. "
+            "If not provided, the script will use relative file paths "
+            "to find what it thinks is the appropriate file"
+        ),
     )
     # Number of processes to multiprocess with
     parser.add_argument(
@@ -66,13 +76,14 @@ def run():
         and f.stem.startswith(tiff_file.stem.split("--")[0] + "--")
     ]
 
-    # Parse metadata argument
+    # Convert arguments to correct types
     metadata = None if not args.metadata else Path(args.metadata)
+    output_dir = None if not args.output_dir else Path(args.output_dir)
 
     results = process_tiff_files(
         tiff_list=tiff_list,
-        root_folder=args.root_folder,
         metadata_file=metadata,
+        output_dir=output_dir,
         number_of_processes=args.num_procs,
     )
 
