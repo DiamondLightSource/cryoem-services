@@ -38,8 +38,8 @@ def test_process_raw_tiffs_with_optional_args(mocker: MockerFixture, tmp_path: P
     sys.argv = [
         "clem_process_raw_tiffs",
         str(tiff_files[0]),
-        "--root-folder",
-        "root",
+        "--output-dir",
+        str(tmp_path),
         "--metadata",
         str(metadata_file),
         "-n",
@@ -52,7 +52,7 @@ def test_process_raw_tiffs_with_optional_args(mocker: MockerFixture, tmp_path: P
     mock_setup.assert_called_once_with(debug=True)
     args, kwargs = mock_convert.call_args
     assert sorted(kwargs["tiff_list"]) == tiff_files
-    assert kwargs["root_folder"] == "root"
+    assert kwargs["output_dir"] == tmp_path
     assert kwargs["metadata_file"] == metadata_file
     assert kwargs["number_of_processes"] == num_procs
 
@@ -82,8 +82,8 @@ def test_process_raw_tiffs_with_default_args(mocker: MockerFixture, tmp_path: Pa
     mock_setup.assert_called_once_with(debug=False)
     mock_convert.assert_called_with(
         tiff_list=[tiff_file],
-        root_folder="images",
         metadata_file=None,
+        output_dir=None,
         number_of_processes=1,
     )
 
@@ -105,5 +105,5 @@ def test_process_raw_tiffs_exists():
         stdout_as_string.split("\n\n")[0].replace("\n", "").replace(" ", "")
     )
     assert cleaned_help_line == (
-        "usage:clem.process_raw_tiffs[-h][--root-folderROOT_FOLDER][--metadataMETADATA][-nNUM_PROCS][--debug]tiff_file"
+        "usage:clem.process_raw_tiffs[-h][-mMETADATA][-oOUTPUT_DIR][-nNUM_PROCS][--debug]tiff_file"
     )
