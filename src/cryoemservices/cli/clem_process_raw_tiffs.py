@@ -18,19 +18,7 @@ def run():
         type=str,
         help="Path to any one of the TIFF files from the series to be processed",
     )
-    # Root directory (Optional)
-    parser.add_argument(
-        "-o",
-        "--output_dir",
-        default=None,
-        type=str,
-        help=(
-            "Path to the directory that the processed data structure will be saved in. "
-            "If not provided, the function will save the output file structure in the "
-            "same directory as the TIFF file"
-        ),
-    )
-    # Path to metadata file (Optional)
+    # Path to metadata file
     parser.add_argument(
         "-m",
         "--metadata",
@@ -40,6 +28,18 @@ def run():
             "Path to the XLIF file associated with this dataset. "
             "If not provided, the script will use relative file paths "
             "to find what it thinks is the appropriate file"
+        ),
+    )
+    # Output directory
+    parser.add_argument(
+        "-o",
+        "--output-dir",
+        default=None,
+        type=str,
+        help=(
+            "Path to the directory that the processed data structure will be saved in. "
+            "If not provided, the function will save the output file structure in the "
+            "same directory as the TIFF file"
         ),
     )
     # Number of processes to multiprocess with
