@@ -50,6 +50,7 @@ class ProcessRawTIFFsParameters(BaseModel):
     tiff_list: list[Path] = []
     tiff_file: Path | None = None
     metadata: Path | None = None
+    series_name: str = ""
     output_dir: Path | None = None
     num_procs: int = 4
 
@@ -106,6 +107,7 @@ class ProcessRawTIFFsParameters(BaseModel):
 def process_tiff_files(
     tiff_list: list[Path],  # List of files associated with this series
     metadata_file: Path | None = None,  # Option to manually provide metadata file
+    series_name: str = "",
     output_dir: Path | None = None,
     number_of_processes: int = 1,  # Number of processing threads to run
     logger: logging.Logger = logger,
@@ -153,19 +155,23 @@ def process_tiff_files(
     # Construct path to series and its unique name
     series_path = tiff_list[0].parent
     #   Remove the "--Z##--C##.tiff" end of the file path strings
-    series_name = tiff_list[0].stem.split("--")[0]
+    series_identifier = tiff_list[0].stem.split("--")[0]
+
+    # Use series identifier as the name if none was passed in
+    if not series_name:
+        series_name = series_identifier
+    series_name = series_name.replace(" ", "_")
 
     # Use the series' parent folder as the output directory if none was provided
     if output_dir is None:
         output_dir = series_path
 
     # Construct extended series name for database records
-    series_name_full = str(series_path / series_name).replace(" ", "_")  # Remove spaces
     logger.info(f"Processing {series_name} TIFF files")
 
     # Search for metadata file using relative paths if not provided
     if metadata_file is None:
-        metadata_file = series_path / "Metadata" / f"{series_name}.xlif"
+        metadata_file = series_path / "Metadata" / f"{series_identifier}.xlif"
         if metadata_file.exists():
             logger.info(f"Metadata file found at {metadata_file}")
         else:
@@ -173,13 +179,10 @@ def process_tiff_files(
             return {}
 
     # Create save directory for images and  metadata
-    save_dir = output_dir / series_name.replace(" ", "_")
-    save_dir.mkdir(parents=True, exist_ok=True)
+    save_dir = output_dir / series_identifier.replace(" ", "_")
     metadata_dir = save_dir / "metadata"
     metadata_dir.mkdir(parents=True, exist_ok=True)
-    logger.info(
-        f"Created save directory for images and metadata for {series_name_full}"
-    )
+    logger.info(f"Created save directory for images and metadata for {series_name}")
 
     # Load relevant metadata
     metadata_dict = find_image_elements(parse(metadata_file).getroot())
@@ -194,7 +197,7 @@ def process_tiff_files(
     metadata = list(metadata_dict.values())[0]
 
     # Save image metadata
-    img_xml_file = metadata_dir / (series_name.replace(" ", "_") + ".xml")
+    img_xml_file = metadata_dir / (series_identifier.replace(" ", "_") + ".xml")
     metadata_tree = ET.ElementTree(metadata)
     ET.indent(metadata_tree, "  ")
     metadata_tree.write(img_xml_file, encoding="utf-8", xml_declaration=True)
@@ -207,7 +210,7 @@ def process_tiff_files(
         tile_scan_info = get_tile_scan_info(metadata)
     except Exception:
         logger.error(
-            f"Failed to parse metadata file for {series_name_full!r}", exc_info=True
+            f"Failed to parse metadata file for {series_name!r}", exc_info=True
         )
         return {}
 
@@ -249,7 +252,7 @@ def process_tiff_files(
 
     # Construct results template for use in murfey
     result: dict[str, Any] = {
-        "series_name": series_name_full,
+        "series_name": series_name,
         "number_of_members": len(channels),
         "is_stack": num_frames > 1,
         "is_montage": num_tiles > 1,
@@ -268,7 +271,7 @@ def process_tiff_files(
 
     # Iterate by color, then z-frame, then tile
     for c, color in enumerate(channels.keys()):
-        logger.info(f"Processing {color} channel for {series_name_full!r}")
+        logger.info(f"Processing {color} channel for {series_name!r}")
         # Get the subset of files to work with
         # Retain only the files associated with the current colour
         # Remove TIFF file fragments
@@ -470,9 +473,7 @@ def process_tiff_files(
         )
 
     end_time = time.perf_counter()
-    logger.debug(
-        f"Completed processing of {series_name_full} in {end_time - start_time}s"
-    )
+    logger.debug(f"Completed processing of {series_name} in {end_time - start_time}s")
     logger.debug(
         "Returning the following processing results: \n"
         f"{json.dumps(result, indent=2, default=str)}"
@@ -533,17 +534,17 @@ class ProcessRawTIFFsService(CommonService):
             self._reject_message(header, transport=rw.transport, requeue=False)
             return
 
-        # Reconstruct series name using reference file from list
-        ref_file = params.tiff_list[0]
-        series_name_full = str(
-            params.tiff_list[0].parent / ref_file.stem.split("--")[0]
-        ).replace(" ", "_")
+        # Construct series name for this dataset if none was passed with message
+        series_name = params.series_name
+        if not series_name:
+            series_name = params.tiff_list[0].stem.split("--")[0].replace(" ", "_")
 
         # Process files and collect output
         try:
             result = process_tiff_files(
                 tiff_list=params.tiff_list,
                 metadata_file=params.metadata,
+                series_name=series_name,
                 output_dir=params.output_dir,
                 number_of_processes=params.num_procs,
                 logger=self.log,
@@ -551,14 +552,14 @@ class ProcessRawTIFFsService(CommonService):
         # Log error and reject message if the command fails to execute
         except Exception:
             self.log.error(
-                f"Exception encountered while processing TIFF files for series {series_name_full}: \n",
+                f"Exception encountered while processing TIFF files for series {series_name}: \n",
                 exc_info=True,
             )
             self._reject_message(header, transport=rw.transport)
             return
         if not result:
             self.log.error(
-                f"No processing results were returned for TIFF series {series_name_full!r}"
+                f"No processing results were returned for TIFF series {series_name!r}"
             )
             self._reject_message(header, transport=rw.transport)
             return
