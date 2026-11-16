@@ -31,7 +31,7 @@ raw_folder = "images"
 processed_folder = "processed"
 
 # Default LIF file metadata to mock
-series_name = "Position"
+series_identifier = "Position"
 num_scenes = 2
 colors = [
     "gray",
@@ -55,26 +55,24 @@ num_scenes = len(scene_values)
 
 # Create fixtures to represent the directory structure and raw data
 @pytest.fixture
-def raw_dir(tmp_path: Path):
-    raw_dir = tmp_path / visit_name / raw_folder
-    if not raw_dir.exists():
-        raw_dir.mkdir(parents=True)
-    return raw_dir
+def visit_dir(tmp_path: Path):
+    visit_dir = tmp_path / visit_name
+    visit_dir.mkdir(parents=True, exist_ok=True)
+    return visit_dir
 
 
 @pytest.fixture
-def processed_dir(raw_dir: Path):
-    processed_dir = raw_dir.parent / processed_folder
-    if not processed_dir.exists():
-        processed_dir.mkdir(parents=True)
+def processed_dir(visit_dir: Path):
+    processed_dir = visit_dir / processed_folder
+    processed_dir.mkdir(parents=True, exist_ok=True)
     return processed_dir
 
 
 @pytest.fixture
-def lif_file(raw_dir: Path):
-    lif_file = raw_dir / "test_file.lif"
-    if not lif_file.exists():
-        lif_file.touch()
+def lif_file(visit_dir: Path):
+    lif_file = visit_dir / "images" / "test_file.lif"
+    lif_file.parent.mkdir(parents=True, exist_ok=True)
+    lif_file.touch(exist_ok=True)
     return lif_file
 
 
@@ -88,7 +86,7 @@ def raw_xml_metadata(lif_file: Path):
             "dataset_name": "TileScan 1",
             "datasets": [
                 {
-                    "series_name": f"{series_name} {n}",
+                    "series_name": f"{series_identifier} {n}",
                     "colors": colors,
                     "bit_depth": 16,
                     "x_pix": x_pixels,
@@ -171,7 +169,7 @@ def create_dummy_result(
         y_pixels_new = int(stitched_height / pixel_size_new)
 
     return {
-        "series_name": f"{lif_file.parent}/{series_path.replace(' ', '_')}",
+        "series_name": series_path.replace(" ", "_"),
         "number_of_members": num_channels,
         "is_stack": num_frames > 1,
         "is_montage": num_tiles > 1,
