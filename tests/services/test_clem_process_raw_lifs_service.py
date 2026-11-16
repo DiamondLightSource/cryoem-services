@@ -136,14 +136,13 @@ def test_get_lif_xml_metadata(
 
 def create_dummy_result(
     lif_file: Path,
-    series_name: str,
+    series_path: str,
     processed_dir: Path,
     scene_num: int,
 ):
     """
     Helper function to populate the dummy result with the needed variables
     """
-    series_name = series_name.replace(" ", "_")
     x_pixels, y_pixels, pixel_size, num_frames, num_tiles = scene_values[scene_num]
 
     # Calculate the image's extent
@@ -172,31 +171,24 @@ def create_dummy_result(
         y_pixels_new = int(stitched_height / pixel_size_new)
 
     return {
-        "series_name": f"{lif_file.stem}/{series_name}",
+        "series_name": f"{lif_file.parent}/{series_path.replace(' ', '_')}",
         "number_of_members": num_channels,
         "is_stack": num_frames > 1,
         "is_montage": num_tiles > 1,
         "output_files": {
-            color: str(processed_dir / lif_file.stem / series_name / f"{color}.tiff")
+            color: str(processed_dir / series_path / f"{color}.tiff")
             for color in colors
         },
         "thumbnails": {
-            color: str(
-                processed_dir
-                / lif_file.stem
-                / series_name
-                / ".thumbnails"
-                / f"{color}.png"
-            )
+            color: str(processed_dir / series_path / ".thumbnails" / f"{color}.png")
             for color in colors
         },
         "thumbnail_size": (512, 512),
         "metadata": str(
             processed_dir
-            / lif_file.stem
-            / series_name
+            / series_path
             / "metadata"
-            / f"{series_name}.xml"
+            / f"{series_path.split('/')[-1]}.xml"
         ),
         "parent_lif": str(lif_file),
         "pixels_x": x_pixels_new,
@@ -227,6 +219,7 @@ def test_process_lif_subimage(
     # Pick a single scene from the LIF file to analyse
     (scene_num,) = test_params
     x_pixels, y_pixels, _, _, _ = scene_values[scene_num]
+    save_path = list(find_image_elements(raw_xml_metadata).keys())[scene_num]
     metadata = list(find_image_elements(raw_xml_metadata).values())[scene_num]
 
     # Mock the LifFile object and assign the necessary return values
@@ -243,14 +236,15 @@ def test_process_lif_subimage(
         file=lif_file,
         scene_num=scene_num,
         metadata=metadata,
-        root_save_dir=processed_dir,
+        output_dir=processed_dir,
+        save_path=save_path,
         num_procs=1,
     )
 
     # Verify against expected results
     expected_result = create_dummy_result(
         lif_file=lif_file,
-        series_name=f"{series_name}_{scene_num}",
+        series_path=save_path,
         processed_dir=processed_dir,
         scene_num=scene_num,
     )
@@ -281,24 +275,12 @@ def test_process_lif_subimage(
 def test_process_lif_file(
     mocker: MockerFixture,
     lif_file: Path,
-    raw_dir: Path,
     raw_xml_metadata: ET.Element,
+    processed_dir: Path,
 ):
     """
     Tests the LIF-to-stack conversion function
     """
-
-    # Reconstruct the path to the processed directory
-    path_parts = list(raw_dir.parts)
-    path_parts[0] = "" if path_parts[0] == "/" else path_parts[0]
-    try:
-        root_index = path_parts.index(raw_folder)
-        path_parts[root_index] = processed_folder
-        processed_folder
-    except ValueError:
-        raise ValueError(f"{raw_folder} not found in file path")
-    processed_dir = Path("/".join(path_parts[: root_index + 1]))
-
     # Mock out LifFile object and its dependents
     mock_lif_file = MagicMock(spec=LifFile)
     mocker.patch(
@@ -317,11 +299,12 @@ def test_process_lif_file(
 
     # Store dummy result in mock Future objects
     mock_futures = []
+    series_paths = list(find_image_elements(raw_xml_metadata).keys())
     for scene_num in range(num_scenes):
         mock_future = MagicMock()
         mock_future.result.return_value = create_dummy_result(
             lif_file=lif_file,
-            series_name=series_name,
+            series_path=series_paths[scene_num],
             processed_dir=processed_dir,
             scene_num=scene_num,
         )
@@ -337,7 +320,7 @@ def test_process_lif_file(
     # Run the function
     results = process_lif_file(
         lif_file,
-        root_folder=raw_folder,
+        output_dir=processed_dir,
         number_of_processes=5,
     )
 
@@ -366,7 +349,7 @@ def test_lif_to_stack_service(
     mocker: MockerFixture,
     test_params: tuple[bool],
     lif_file: Path,
-    raw_dir: Path,
+    processed_dir: Path,
     offline_transport: OfflineTransport,
 ):
     """
@@ -385,7 +368,7 @@ def test_lif_to_stack_service(
     }
     lif_to_stack_test_message = {
         "lif_file": str(lif_file),
-        "root_folder": raw_dir.stem,
+        "output_dir": str(processed_dir),
     }
 
     # Set up the expected mock values
@@ -438,7 +421,7 @@ def test_lif_to_stack_service(
     # Check that the expected calls are made
     mock_convert.assert_called_with(
         file=lif_file,
-        root_folder=raw_dir.stem,
+        output_dir=processed_dir,
         number_of_processes=16,
         logger=service.log,
     )
@@ -516,7 +499,7 @@ lif_to_stack_params_bad_validation_matrix = (
 def test_lif_to_stack_service_validation_failed(
     test_params: tuple[bool, bool, bool],
     lif_file: Path,
-    raw_dir: Path,
+    processed_dir: Path,
     offline_transport: OfflineTransport,
 ):
     """
@@ -538,11 +521,11 @@ def test_lif_to_stack_service_validation_failed(
         "subscription": mock.sentinel,
     }
     lif_file_value: Any = str(lif_file) if valid_lif_file else 123456789
-    root_folder: Any = raw_dir.stem if valid_root_folder else 123456789
+    output_dir: Any = str(processed_dir) if valid_root_folder else 123456789
     num_procs: Any = 16 if valid_num_procs else "This is a string"
     lif_to_stack_test_message = {
         "lif_file": lif_file_value,
-        "root_folder": root_folder,
+        "output_dir": output_dir,
         "num_procs": num_procs,
     }
 
@@ -567,7 +550,7 @@ def test_lif_to_stack_service_validation_failed(
 def test_lif_to_stack_service_processing_failed(
     mocker: MockerFixture,
     lif_file: Path,
-    raw_dir: Path,
+    processed_dir: Path,
     offline_transport: OfflineTransport,
 ):
     """
@@ -583,7 +566,7 @@ def test_lif_to_stack_service_processing_failed(
     }
     lif_to_stack_test_message = {
         "lif_file": str(lif_file),
-        "root_folder": raw_dir.stem,
+        "output_dir": str(processed_dir),
     }
 
     # Set up the expected mock values
