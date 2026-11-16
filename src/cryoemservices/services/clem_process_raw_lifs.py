@@ -108,7 +108,9 @@ def process_lif_subimage(
     save_dir = output_dir / (save_path if save_path else Path(project_name) / img_name)
 
     # Create a name for this series
-    series_name = str(file.parent / save_path.replace(" ", "_"))  # Remove spaces
+    series_name = save_path.replace(" ", "_")  # Remove spaces
+    if not series_name:
+        series_name = f"{project_name}/{img_name}"
     logger.info(f"Processing {series_name}")
 
     # Save metadata relative to the subimage
