@@ -98,7 +98,6 @@ def process_lif_subimage(
     For montages, it will stitch the different subimages together and save the final
     composite image as an atlas.
     """
-
     start_time = time.perf_counter()
 
     # Get name of subimage
@@ -109,7 +108,7 @@ def process_lif_subimage(
     save_dir = output_dir / (save_path if save_path else Path(project_name) / img_name)
 
     # Create a name for this series
-    series_name = str(file.parent / file.stem).replace(" ", "_")
+    series_name = str(file.parent / save_path.replace(" ", "_"))  # Remove spaces
     logger.info(f"Processing {series_name}")
 
     # Save metadata relative to the subimage
@@ -432,8 +431,7 @@ def process_lif_file(
     # Create folders if not already present
     if output_dir is None:
         output_dir = file.parent
-    save_dir = output_dir / file.stem.replace(" ", "_")
-    raw_xml_dir = save_dir / "metadata"
+    raw_xml_dir = output_dir / file.stem.replace(" ", "_") / "metadata"
     raw_xml_dir.mkdir(parents=True, exist_ok=True)
     logger.info("Created processing directory and folder to store raw metadata in")
 
@@ -475,7 +473,7 @@ def process_lif_file(
                 file,
                 i,
                 metadata,
-                save_dir,
+                output_dir,
                 series_path,
                 num_threads,
             )
