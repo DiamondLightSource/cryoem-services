@@ -23,12 +23,15 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+    strategy:
+      matrix:
+        python-version: ["3.14"]
     steps:
       - uses: actions/checkout@v7
-      - name: Set up Python 3.12
+      - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v7
         with:
-          python-version: "3.15"
+          python-version: ${{ matrix.python-version }}
       - name: Install package
         run: |
           set -eux
