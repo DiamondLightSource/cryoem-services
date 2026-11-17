@@ -78,10 +78,8 @@ def run():
         default=None,
         type=str,
         help=(
-            "Full file path to the metadata file associated with this dataset. "
-            "If no metadata file is provided, it will attempt to find a matching "
-            "metadata file at the expected default location. "
-            "('./metadata/metadata_file.xml)."
+            "Directory in which to save the composite image. If no value is provided, "
+            "it will save the image in the same folder as the first image passed in."
         ),
     )
     # Crop image stack to the centremost N frames
