@@ -47,7 +47,7 @@ class ProcessRawTIFFsParameters(BaseModel):
 
     # One of 'tiff_list' or 'tiff_file' should be provided
     # The other one should be None (pass "null" in the CLI)
-    tiff_list: list[Path] = []
+    tiff_list: list[Path] | None = None
     tiff_file: Path | None = None
     metadata: Path | None = None
     series_name: str = ""
