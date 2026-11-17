@@ -506,7 +506,8 @@ def align_and_merge_stacks(
 
     # Save image as a TIFF file
     save_dir = output_dir if output_dir is not None else parent_dir
-    save_name = (save_dir / f"composite_{img_type}.tiff").resolve()
+    save_dir.mkdir(parents=True, exist_ok=True)
+    save_name = save_dir / f"composite_{img_type}.tiff"
     imwrite(
         save_name,
         composite_img,
