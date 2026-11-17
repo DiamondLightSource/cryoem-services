@@ -57,7 +57,7 @@ jobs:
           PYTHONDEVMODE=1 pytest -v -ra --cov=cryoemservices --cov-report=xml --cov-branch tests
 
       - name: Upload to Codecov
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v7
         with:
           name: ${{ matrix.python-version }}
           files: coverage.xml
