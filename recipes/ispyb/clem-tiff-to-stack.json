@@ -4,6 +4,7 @@
       "tiff_list": "{tiff_list}",
       "tiff_file": "{tiff_file}",
       "metadata": "{metadata}",
+      "series_name": "{series_name}",
       "output_dir": "{output_dir}",
       "num_procs": 1
     },
