@@ -60,7 +60,21 @@ def run():
     )
     # Metadata file (optional)
     parser.add_argument(
+        "-m",
         "--metadata",
+        default=None,
+        type=str,
+        help=(
+            "Full file path to the metadata file associated with this dataset. "
+            "If no metadata file is provided, it will attempt to find a matching "
+            "metadata file at the expected default location. "
+            "('./metadata/metadata_file.xml)."
+        ),
+    )
+    # Output directory (optional)
+    parser.add_argument(
+        "-o",
+        "--output-dir",
         default=None,
         type=str,
         help=(
@@ -103,6 +117,7 @@ def run():
     )
     # Determine number of processes to use
     parser.add_argument(
+        "-n",
         "--num-procs",
         default=1,
         type=int,
@@ -133,11 +148,8 @@ def run():
         [print(file) for file in image_files]
 
     # Convert metadata argument into a Path
-    metadata = (
-        (Path(args.metadata) if args.metadata else None)
-        if isinstance(args.metadata, str)
-        else args.metadata
-    )
+    metadata = Path(args.metadata) if args.metadata else None
+    output_dir = Path(args.output_dir) if args.output_dir else None
 
     """
     Run function
@@ -145,6 +157,7 @@ def run():
     composite_image = align_and_merge_stacks(
         images=image_files,
         metadata=metadata,
+        output_dir=output_dir,
         crop_to_n_frames=args.crop_to_n_frames,
         align_self=args.align_self,
         flatten=args.flatten,

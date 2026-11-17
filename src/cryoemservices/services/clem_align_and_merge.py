@@ -10,7 +10,7 @@ from typing import Any
 
 import numpy as np
 from defusedxml.ElementTree import parse
-from pydantic import BaseModel, Field, ValidationError, field_validator, model_validator
+from pydantic import BaseModel, ValidationError, field_validator, model_validator
 from tifffile import TiffFile, imwrite
 from workflows.recipe import wrap_subscribe
 
@@ -35,12 +35,13 @@ logger = logging.getLogger("cryoemservices.services.clem_align_and_merge")
 class AlignAndMergeParameters(BaseModel):
     series_name: str
     images: Path | list[Path]
-    metadata: Path | None = Field(default=None)
-    crop_to_n_frames: int | None = Field(default=None)
-    align_self: bool = Field(default=False)
-    flatten: bool = Field(default=True)
-    align_across: bool = Field(default=False)
-    num_procs: int = Field(default=4)
+    metadata: Path | None = None
+    output_dir: Path | None = None
+    crop_to_n_frames: int | None = None
+    align_self: bool = False
+    flatten: bool = True
+    align_across: bool = False
+    num_procs: int = 4
 
     @field_validator("images", mode="before")
     @classmethod
@@ -68,13 +69,24 @@ class AlignAndMergeParameters(BaseModel):
             self.images = [self.images]
         return self
 
+    @field_validator("metadata", "output_dir", mode="before")
+    @classmethod
+    def parse_file_path(cls, value):
+        # Check for "null" keyword
+        if value in ("null", "None"):
+            return None
+        # Convert to Path otherwise
+        if isinstance(value, str):
+            return Path(value.strip())
+        return value
+
     @field_validator("crop_to_n_frames", mode="before")
     @classmethod
-    def parse_for_None(cls, value):
+    def parse_for_none(cls, value):
         """
         Convert incoming "None" into None.
         """
-        if value == "None":
+        if value in ("null", "None"):
             return None
         return value
 
@@ -82,6 +94,7 @@ class AlignAndMergeParameters(BaseModel):
 def align_and_merge_stacks(
     images: Path | list[Path],
     metadata: Path | None = None,
+    output_dir: Path | None = None,
     crop_to_n_frames: int | None = None,
     align_self: bool = False,
     flatten: bool = True,
@@ -492,7 +505,8 @@ def align_and_merge_stacks(
         z_size = list(spacing_list)[0]
 
     # Save image as a TIFF file
-    save_name = (parent_dir / f"composite_{img_type}.tiff").resolve()
+    save_dir = output_dir if output_dir is not None else parent_dir
+    save_name = (save_dir / f"composite_{img_type}.tiff").resolve()
     imwrite(
         save_name,
         composite_img,
@@ -598,6 +612,7 @@ class AlignAndMergeService(CommonService):
             result = align_and_merge_stacks(
                 images=params.images,
                 metadata=params.metadata,
+                output_dir=params.output_dir,
                 crop_to_n_frames=params.crop_to_n_frames,
                 align_self=params.align_self,
                 flatten=params.flatten,
