@@ -110,47 +110,59 @@ def image_list(series_dir: Path):
 @pytest.mark.parametrize(
     "test_params",
     (
-        # Number of images | Stringify list | Frames to crop | Align self | Flatten | Align across
-        (3, False, 5, "true", "true", "true"),
-        (3, True, 5, "false", "true", "true"),
-        (3, False, None, "true", "true", "false"),
-        (3, False, "None", "true", "true", "false"),
-        (1, False, 5, "false", "false", "true"),
-        (1, True, 5, "true", "true", "true"),
-        (1, False, None, "false", "true", "false"),
-        (1, False, "None", "false", "true", "false"),
+        # Number of images | Stringify list | Use output dir | Frames to crop | Align self | Flatten | Align across
+        (3, False, False, 5, "true", "true", "true"),
+        (3, True, False, 5, "false", "true", "true"),
+        (3, False, True, None, "true", "true", "false"),
+        (3, False, True, "None", "true", "true", "false"),
+        (1, False, False, 5, "false", "false", "true"),
+        (1, True, False, 5, "true", "true", "true"),
+        (1, False, True, None, "false", "true", "false"),
+        (1, False, True, "None", "false", "true", "false"),
     ),
 )
 def test_align_and_merge_parameters(
     test_params: tuple[
         int,
         bool,
+        bool,
         int | None,
         str,
         str,
         str,
     ],
+    tmp_path: Path,
     metadata_file: Path,
     image_list: list[Path],
 ):
     # Unpack test parameters
-    num_imgs, stringify, crop_to_n_frames, align_self, flatten, align_across = (
-        test_params
-    )
+    (
+        num_imgs,
+        stringify,
+        use_output_dir,
+        crop_to_n_frames,
+        align_self,
+        flatten,
+        align_across,
+    ) = test_params
 
-    images = image_list[:num_imgs] if num_imgs > 1 else image_list[0]
+    images: str | Path | list[Path] = (
+        image_list[:num_imgs] if num_imgs > 1 else image_list[0]
+    )
     if stringify:
         images = (
             str([str(file) for file in images])
             if isinstance(images, list)
             else str(images)
         )
+    output_dir = tmp_path if use_output_dir else None
 
     # Construct the message to submit for testing
     params_dict = {
         "series_name": series_name,
         "images": images,
         "metadata": str(metadata_file),
+        "output_dir": str(output_dir),
         "crop_to_n_frames": crop_to_n_frames,
         "align_self": align_self,
         "flatten": flatten,
@@ -163,10 +175,12 @@ def test_align_and_merge_parameters(
     assert isinstance(validated_params.images, list)
     for file in validated_params.images:
         assert isinstance(file, Path)
-    assert isinstance(validated_params.metadata, Path)
+    assert validated_params.metadata == metadata_file
+    assert validated_params.output_dir == output_dir
     assert (
         isinstance(validated_params.crop_to_n_frames, int)
-        or validated_params.crop_to_n_frames is None
+        if validated_params.crop_to_n_frames is not None
+        else validated_params.crop_to_n_frames is None
     )
     assert validated_params.align_self in (True, False)
     assert validated_params.flatten in (True, False)
@@ -176,32 +190,38 @@ def test_align_and_merge_parameters(
 @pytest.mark.parametrize(
     "test_params",
     (
-        # Colors | Crop frames | Align self | Flatten | Align across
-        (("gray", "green", "red"), 5, True, True, True),
-        (("gray", "green", "red", "blue"), 5, True, True, True),
-        (("gray", "green", "red"), 10, True, True, True),
-        (("gray", "green", "red"), 5, False, True, False),
-        (("gray", "green", "red"), None, True, True, True),
-        (("gray", "green", "red"), 5, True, False, False),
-        (("green", "red"), 5, True, True, True),
-        (("green", "red", "blue"), 5, True, True, True),
-        (("green", "red"), 10, True, True, True),
-        (("green", "red"), 5, False, True, False),
-        (("green", "red"), None, True, True, True),
-        (("green", "red"), 5, True, False, False),
+        # Colors | Use output dir | Crop frames | Align self | Flatten | Align across
+        (("gray", "green", "red"), True, 5, True, True, True),
+        (("gray", "green", "red", "blue"), False, 5, True, True, True),
+        (("gray", "green", "red"), True, 10, True, True, True),
+        (("gray", "green", "red"), False, 5, False, True, False),
+        (("gray", "green", "red"), True, None, True, True, True),
+        (("gray", "green", "red"), False, 5, True, False, False),
+        (("green", "red"), True, 5, True, True, True),
+        (("green", "red", "blue"), False, 5, True, True, True),
+        (("green", "red"), True, 10, True, True, True),
+        (("green", "red"), False, 5, False, True, False),
+        (("green", "red"), True, None, True, True, True),
+        (("green", "red"), False, 5, True, False, False),
     ),
 )
 def test_align_and_merge_stacks(
     mocker: MockerFixture,
-    test_params: tuple[tuple[str, ...], int | None, bool, bool, bool],
+    test_params: tuple[tuple[str, ...], bool, int | None, bool, bool, bool],
+    tmp_path: Path,
     metadata_file: Path,
     image_list: list[Path],
 ):
     # Unpack test params
-    colors, crop_to_n_frames, align_self, flatten, align_across = test_params
+    colors, use_output_dir, crop_to_n_frames, align_self, flatten, align_across = (
+        test_params
+    )
 
     # Forward along only a subset of the images
     image_list = [file for file in image_list if file.stem in colors]
+
+    # Determine output directory to use
+    output_dir = tmp_path / "tmp" if use_output_dir else None
 
     # Return a mock ElementTree from 'parse'
     mock_parse = mocker.patch("cryoemservices.services.clem_align_and_merge.parse")
@@ -224,6 +244,7 @@ def test_align_and_merge_stacks(
     result = align_and_merge_stacks(
         image_list,
         metadata_file,
+        output_dir,
         crop_to_n_frames=crop_to_n_frames,
         align_self=align_self,
         flatten=flatten,
@@ -237,8 +258,12 @@ def test_align_and_merge_stacks(
     assert result["align_across"] == align_across
     output_file = Path(result["output_file"])
     assert output_file.exists()
+    if output_dir:
+        assert output_file.is_relative_to(output_dir)
     thumbnail = output_file.parent / ".thumbnails" / f"{output_file.stem}.png"
     assert result["thumbnail"] == str(thumbnail)
+    if output_dir:
+        assert thumbnail.is_relative_to(output_dir)
     assert result["thumbnail_size"] == (512, 512)
 
 
@@ -402,6 +427,7 @@ def test_align_and_merge_service(
     mock_align.assert_called_once_with(
         images=image_list,
         metadata=metadata_file,
+        output_dir=None,
         crop_to_n_frames=crop_to_n_frames,
         align_self=align_self,
         flatten=flatten,
