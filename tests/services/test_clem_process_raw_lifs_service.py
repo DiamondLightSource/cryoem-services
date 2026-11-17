@@ -26,12 +26,9 @@ from cryoemservices.util.models import MockRW
 from tests.test_utils.clem import create_lif_xml_metadata
 
 # Directory structure
-visit_name = "test_visit"
-raw_folder = "images"
-processed_folder = "processed"
+visit_name = "cm12345-6"
 
 # Default LIF file metadata to mock
-series_identifier = "Position"
 num_scenes = 2
 colors = [
     "gray",
@@ -63,7 +60,7 @@ def visit_dir(tmp_path: Path):
 
 @pytest.fixture
 def processed_dir(visit_dir: Path):
-    processed_dir = visit_dir / processed_folder
+    processed_dir = visit_dir / "processed"
     processed_dir.mkdir(parents=True, exist_ok=True)
     return processed_dir
 
@@ -77,7 +74,7 @@ def lif_file(visit_dir: Path):
 
 
 @pytest.fixture
-def raw_xml_metadata(lif_file: Path):
+def lif_metadata(lif_file: Path):
     # Set up the information to be used
     datasets = [
         {
@@ -86,7 +83,7 @@ def raw_xml_metadata(lif_file: Path):
             "dataset_name": "TileScan 1",
             "datasets": [
                 {
-                    "series_name": f"{series_identifier} {n}",
+                    "series_name": f"Position {n}",
                     "colors": colors,
                     "bit_depth": 16,
                     "x_pix": x_pixels,
@@ -118,11 +115,11 @@ def raw_xml_metadata(lif_file: Path):
 
 def test_get_lif_xml_metadata(
     tmp_path: Path,
-    raw_xml_metadata: ET.Element,
+    lif_metadata: ET.Element,
 ):
     # Mock out the XML Element object extracted from the LIF file
     mock_lif_file = MagicMock(spec=LifFile)
-    mock_lif_file.xml_root = raw_xml_metadata
+    mock_lif_file.xml_root = lif_metadata
 
     # Save to an arbitrary Path
     xml_file = tmp_path / "test_file.xml"
@@ -200,25 +197,20 @@ def create_dummy_result(
 
 @pytest.mark.parametrize(
     "test_params",
-    (
-        [
-            n,
-        ]
-        for n in range(num_scenes)
-    ),
+    ([n] for n in range(num_scenes)),
 )
 def test_process_lif_subimage(
     mocker: MockerFixture,
     lif_file: Path,
-    raw_xml_metadata: ET.Element,
+    lif_metadata: ET.Element,
     processed_dir: Path,
     test_params: tuple[int],
 ):
     # Pick a single scene from the LIF file to analyse
     (scene_num,) = test_params
     x_pixels, y_pixels, _, _, _ = scene_values[scene_num]
-    save_path = list(find_image_elements(raw_xml_metadata).keys())[scene_num]
-    metadata = list(find_image_elements(raw_xml_metadata).values())[scene_num]
+    image_elements = list(find_image_elements(lif_metadata).items())
+    save_path, metadata = image_elements[scene_num]
 
     # Mock the LifFile object and assign the necessary return values
     mock_lif_file = mocker.patch("cryoemservices.util.image_processing.shared.LifFile")
@@ -273,7 +265,7 @@ def test_process_lif_subimage(
 def test_process_lif_file(
     mocker: MockerFixture,
     lif_file: Path,
-    raw_xml_metadata: ET.Element,
+    lif_metadata: ET.Element,
     processed_dir: Path,
 ):
     """
@@ -281,23 +273,23 @@ def test_process_lif_file(
     """
     # Mock out LifFile object and its dependents
     mock_lif_file = MagicMock(spec=LifFile)
+    mock_lif_file.get_iter_image.return_value = [
+        f"scene_{i}" for i in range(num_scenes)
+    ]
     mocker.patch(
         "cryoemservices.services.clem_process_raw_lifs.LifFile",
         return_value=mock_lif_file,
     )
-    mock_lif_file.get_iter_image.return_value = [
-        f"scene_{i}" for i in range(num_scenes)
-    ]
 
     # Mock out XML metadata extracted from LIF file
     mocker.patch(
         "cryoemservices.services.clem_process_raw_lifs.get_lif_xml_metadata",
-        return_value=raw_xml_metadata,
+        return_value=lif_metadata,
     )
 
     # Store dummy result in mock Future objects
     mock_futures = []
-    series_paths = list(find_image_elements(raw_xml_metadata).keys())
+    series_paths = list(find_image_elements(lif_metadata).keys())
     for scene_num in range(num_scenes):
         mock_future = MagicMock()
         mock_future.result.return_value = create_dummy_result(
@@ -328,24 +320,25 @@ def test_process_lif_file(
 
 
 @pytest.fixture
-def offline_transport(mocker):
+def offline_transport(mocker: MockerFixture):
     transport = OfflineTransport()
     mocker.spy(transport, "send")
     mocker.spy(transport, "nack")
     return transport
 
 
-lif_to_stack_params_matrix = (
-    # Use Recipe Wrapper?
-    (True,),
-    (False,),
+@pytest.mark.parametrize(
+    "test_params",
+    (  # Use recipe wrapper | Use output dir
+        (False, False),
+        (False, True),
+        (True, False),
+        (True, True),
+    ),
 )
-
-
-@pytest.mark.parametrize("test_params", lif_to_stack_params_matrix)
 def test_lif_to_stack_service(
     mocker: MockerFixture,
-    test_params: tuple[bool],
+    test_params: tuple[bool, bool],
     lif_file: Path,
     processed_dir: Path,
     offline_transport: OfflineTransport,
@@ -357,7 +350,7 @@ def test_lif_to_stack_service(
     """
 
     # Unpack test params
-    (use_recwrap,) = test_params
+    (use_recwrap, has_output_dir) = test_params
 
     # Set up the parameters
     header = {
@@ -366,7 +359,7 @@ def test_lif_to_stack_service(
     }
     lif_to_stack_test_message = {
         "lif_file": str(lif_file),
-        "output_dir": str(processed_dir),
+        "output_dir": str(processed_dir) if has_output_dir else "null",
     }
 
     # Set up the expected mock values
@@ -419,7 +412,7 @@ def test_lif_to_stack_service(
     # Check that the expected calls are made
     mock_convert.assert_called_with(
         file=lif_file,
-        output_dir=processed_dir,
+        output_dir=processed_dir if has_output_dir else None,
         number_of_processes=16,
         logger=service.log,
     )
@@ -484,16 +477,15 @@ def test_lif_to_stack_bad_messsage(
     offline_transport.send.assert_not_called()
 
 
-# Introduce invalid parameters field-by-field
-lif_to_stack_params_bad_validation_matrix = (
-    # LIF file | Root folder | Num procs
-    (False, True, True),
-    (True, False, True),
-    (True, True, False),
+@pytest.mark.parametrize(
+    "test_params",
+    (  # LIF file | Output dir | Num procs
+        # Pass in invalid variables one at a time
+        (False, True, True),
+        (True, False, True),
+        (True, True, False),
+    ),
 )
-
-
-@pytest.mark.parametrize("test_params", lif_to_stack_params_bad_validation_matrix)
 def test_lif_to_stack_service_validation_failed(
     test_params: tuple[bool, bool, bool],
     lif_file: Path,
@@ -509,7 +501,7 @@ def test_lif_to_stack_service_validation_failed(
     # Unpack test params
     (
         valid_lif_file,
-        valid_root_folder,
+        valid_output_dir,
         valid_num_procs,
     ) = test_params
 
@@ -519,7 +511,7 @@ def test_lif_to_stack_service_validation_failed(
         "subscription": mock.sentinel,
     }
     lif_file_value: Any = str(lif_file) if valid_lif_file else 123456789
-    output_dir: Any = str(processed_dir) if valid_root_folder else 123456789
+    output_dir: Any = str(processed_dir) if valid_output_dir else 123456789
     num_procs: Any = 16 if valid_num_procs else "This is a string"
     lif_to_stack_test_message = {
         "lif_file": lif_file_value,
