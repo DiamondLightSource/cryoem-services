@@ -6,13 +6,13 @@
       "metadata": "{metadata}",
       "series_name": "{series_name}",
       "output_dir": "{output_dir}",
-      "num_procs": 1
+      "num_procs": 4
     },
     "output": {
       "murfey_feedback": 2,
       "images": 3
     },
-    "queue": "cluster.submission",
+    "queue": "clem.process_raw_tiffs",
     "service": "CLEMProcessRawTIFFs"
   },
   "2": {

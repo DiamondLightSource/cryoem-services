@@ -4,6 +4,7 @@
       "series_name": "{series_name}",
       "images": "{images}",
       "metadata": "{metadata}",
+      "output_dir": null,
       "crop_to_n_frames": null,
       "align_self": false,
       "flatten": true,
@@ -14,7 +15,7 @@
       "murfey_feedback": 2,
       "images": 3
     },
-    "queue": "cluster.submission",
+    "queue": "clem.align_and_merge",
     "service": "CLEMAlignAndMerge"
   },
   "2": {
