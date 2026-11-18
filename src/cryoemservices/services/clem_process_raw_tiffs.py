@@ -7,7 +7,7 @@ import time
 from ast import literal_eval
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 from xml.etree import ElementTree as ET
 
 import numpy as np
@@ -47,10 +47,11 @@ class ProcessRawTIFFsParameters(BaseModel):
 
     # One of 'tiff_list' or 'tiff_file' should be provided
     # The other one should be None (pass "null" in the CLI)
-    tiff_list: Optional[list[Path]]
-    tiff_file: Optional[Path]
-    root_folder: str
-    metadata: Path
+    tiff_list: list[Path] | None = None
+    tiff_file: Path | None = None
+    metadata: Path | None = None
+    output_dir: Path | None = None
+    series_name: str = ""
     num_procs: int = 4
 
     @field_validator("tiff_list", mode="before")
@@ -72,9 +73,9 @@ class ProcessRawTIFFsParameters(BaseModel):
         # Leave the value as-is; if it fails, it fails
         return value
 
-    @field_validator("tiff_file", mode="before")
+    @field_validator("tiff_file", "metadata", "output_dir", mode="before")
     @classmethod
-    def parse_tiff_file(cls, value):
+    def parse_file_path(cls, value):
         # Check for "null" keyword
         if value in ("null", "None"):
             return None
@@ -105,8 +106,9 @@ class ProcessRawTIFFsParameters(BaseModel):
 
 def process_tiff_files(
     tiff_list: list[Path],  # List of files associated with this series
-    root_folder: str,  # Name of the folder to treat as the root folder
-    metadata_file: Optional[Path] = None,  # Option to manually provide metadata file
+    metadata_file: Path | None = None,  # Option to manually provide metadata file
+    series_name: str = "",
+    output_dir: Path | None = None,
     number_of_processes: int = 1,  # Number of processing threads to run
     logger: logging.Logger = logger,
 ) -> dict:
@@ -147,50 +149,29 @@ def process_tiff_files(
         logger.warning("Processor count set to zero or less; resetting to 1")
         num_procs = 1
 
-    # Set variables for use within function
-    new_root_folder = "processed"
-
     # Omit fragmented TIFF files ('--' followed by digits only) from consideration
     tiff_list = [file for file in tiff_list if not re.search(r"--(\d+)", file.stem)]
 
-    # Use the names of the TIFF files to get the unique path to it
+    # Construct path to series and its unique name
+    series_path = tiff_list[0].parent
     #   Remove the "--Z##--C##.tiff" end of the file path strings
-    series_path = tiff_list[0].parent / tiff_list[0].stem.split("--")[0]
+    series_identifier = tiff_list[0].stem.split("--")[0]
 
-    # Construct series identifier from unique path
-    series_identifier = series_path.stem
+    # Use series identifier as the name if none was passed in
+    if not series_name:
+        series_name = series_identifier
+    series_name = series_name.replace(" ", "_")
 
-    # Parse path parts to construct parameters
-    path_parts = list(series_path.parts)
-    # Remove leading "/" in Unix paths
-    path_parts[0] = "" if path_parts[0] == "/" else path_parts[0]
-    # Remove last level if redundant
-    path_parts = path_parts[:-1] if path_parts[-1] == path_parts[-2] else path_parts
-
-    # Search for root folder with case-insensitivity and point to new location
-    try:
-        root_index = [p.lower() for p in path_parts].index(root_folder.lower())
-        path_parts[root_index] = new_root_folder
-    except ValueError:
-        logger.error(
-            f"Subpath {root_folder!r} was not found in image path "
-            f"{str(series_path.parent)!r}"
-        )
-        return {}
-
-    # Sanitise everything after the root folder
-    path_parts = [
-        part if p <= root_index else part.replace(" ", "_")
-        for p, part in enumerate(path_parts)
-    ]
+    # Use the series' parent folder as the output directory if none was provided
+    if output_dir is None:
+        output_dir = series_path
 
     # Construct extended series name for database records
-    series_name = "/".join(path_parts[root_index + 1 :]).replace(" ", "_")
     logger.info(f"Processing {series_name} TIFF files")
 
     # Search for metadata file using relative paths if not provided
     if metadata_file is None:
-        metadata_file = series_path.parent / "Metadata" / (series_identifier + ".xlif")
+        metadata_file = series_path / "Metadata" / f"{series_identifier}.xlif"
         if metadata_file.exists():
             logger.info(f"Metadata file found at {metadata_file}")
         else:
@@ -198,8 +179,7 @@ def process_tiff_files(
             return {}
 
     # Create save directory for images and  metadata
-    save_dir = Path("/".join(path_parts))  # Folder where this series will be saved
-    save_dir.mkdir(parents=True, exist_ok=True)
+    save_dir = output_dir / series_identifier.replace(" ", "_")
     metadata_dir = save_dir / "metadata"
     metadata_dir.mkdir(parents=True, exist_ok=True)
     logger.info(f"Created save directory for images and metadata for {series_name}")
@@ -220,7 +200,7 @@ def process_tiff_files(
     img_xml_file = metadata_dir / (series_identifier.replace(" ", "_") + ".xml")
     metadata_tree = ET.ElementTree(metadata)
     ET.indent(metadata_tree, "  ")
-    metadata_tree.write(img_xml_file, encoding="utf-8")
+    metadata_tree.write(img_xml_file, encoding="utf-8", xml_declaration=True)
     logger.info(f"Metadata for image stack saved to {img_xml_file}")
 
     # Extract metadata info
@@ -554,30 +534,18 @@ class ProcessRawTIFFsService(CommonService):
             self._reject_message(header, transport=rw.transport, requeue=False)
             return
 
-        # Reconstruct series name using reference file from list
-        ref_file = params.tiff_list[0]
-        path_parts = list((ref_file.parent / ref_file.stem.split("--")[0]).parts)
-        try:
-            root_index = path_parts.index(params.root_folder)
-        except ValueError:
-            self.log.error(
-                f"Subpath {params.root_folder!r} was not found in file path "
-                f"{str(ref_file.parent / ref_file.stem.split('--')[0])!r}"
-            )
-            self._reject_message(header, transport=rw.transport, requeue=False)
-            return
-        series_name = "/".join(
-            [p.replace(" ", "_") if " " in p else p for p in path_parts][
-                root_index + 1 :
-            ]
-        )
+        # Construct series name for this dataset if none was passed with message
+        series_name = params.series_name
+        if not series_name:
+            series_name = params.tiff_list[0].stem.split("--")[0].replace(" ", "_")
 
         # Process files and collect output
         try:
             result = process_tiff_files(
                 tiff_list=params.tiff_list,
-                root_folder=params.root_folder,
                 metadata_file=params.metadata,
+                series_name=series_name,
+                output_dir=params.output_dir,
                 number_of_processes=params.num_procs,
                 logger=self.log,
             )

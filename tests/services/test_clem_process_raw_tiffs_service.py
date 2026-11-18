@@ -6,6 +6,7 @@ from typing import Any, cast
 from unittest import mock
 
 import numpy as np
+import PIL.Image
 import pytest
 from pydantic_core import ValidationError
 from pytest_mock import MockerFixture
@@ -21,9 +22,8 @@ from tests.test_utils.clem import create_tiff_xml_metadata
 
 # Variables to use across all tests
 visit_name = "cm12345-6"
-raw_folder = "images"
-processed_folder = "processed"
 project_name = "grid_1"
+series_key = "Position"
 
 # TIFF file settings
 num_procs = 4
@@ -42,26 +42,26 @@ num_datasets = len(dataset_values)
 
 
 @pytest.fixture
-def raw_dir(tmp_path: Path):
-    raw_dir = tmp_path / visit_name / raw_folder
-    raw_dir.mkdir(parents=True, exist_ok=True)
-    return raw_dir
+def visit_dir(tmp_path: Path):
+    visit_dir = tmp_path / visit_name
+    visit_dir.mkdir(parents=True, exist_ok=True)
+    return visit_dir
 
 
 @pytest.fixture
-def tiff_lists(raw_dir: Path):
+def tiff_lists(visit_dir: Path):
     # Generate list of file names
-    tiff_folder = raw_dir / project_name
+    tiff_folder = visit_dir / "images" / project_name
     tiff_folder.mkdir(parents=True, exist_ok=True)
 
     tiff_lists: list[list[Path]] = []
     for n, (_, _, _, num_frames, num_tiles) in enumerate(dataset_values):
-        series_name = f"Position {n}"
+        series_identifier = f"{series_key} {n}"
         tiff_list: list[Path] = []
         for t in range(num_tiles):
             for z in range(num_frames):
                 for c in range(num_channels):
-                    file_stem = series_name
+                    file_stem = series_identifier
                     if num_tiles > 1:
                         file_stem += f"--Stage{str(t).zfill(2)}"
                     if num_frames > 1:
@@ -76,11 +76,11 @@ def tiff_lists(raw_dir: Path):
 
 
 @pytest.fixture
-def raw_metadata_files(raw_dir: Path):
+def metadata_files(visit_dir: Path):
     metadata_list: list[Path] = []
     for n in range(num_datasets):
         # Create parent directory for metadata file
-        metadata_folder = raw_dir / project_name / "Metadata"
+        metadata_folder = visit_dir / "images" / project_name / "Metadata"
         metadata_folder.mkdir(parents=True, exist_ok=True)
         # Create metadata file
         metadata = metadata_folder / f"Position {n}.xlif"
@@ -90,8 +90,8 @@ def raw_metadata_files(raw_dir: Path):
 
 
 @pytest.fixture
-def processed_dir(raw_dir: Path):
-    processed_dir = raw_dir.parent / processed_folder
+def processed_dir(visit_dir: Path):
+    processed_dir = visit_dir / "processed"
     processed_dir.mkdir(parents=True, exist_ok=True)
     return processed_dir
 
@@ -99,7 +99,7 @@ def processed_dir(raw_dir: Path):
 def create_dummy_result(
     tiff_list: list[Path],
     series_name: str,
-    processed_dir: Path,
+    output_dir: Path,
     test_num: int,
 ):
     """
@@ -108,6 +108,7 @@ def create_dummy_result(
     """
 
     series_name = series_name.replace(" ", "_")
+    series_identifier = tiff_list[0].stem.split("--")[0].replace(" ", "_")
     x_pixels, y_pixels, pixel_size, num_frames, num_tiles = dataset_values[test_num]
 
     # Calculate the image's extent
@@ -136,22 +137,16 @@ def create_dummy_result(
         y_pixels_new = int(stitched_height / pixel_size_new)
 
     return {
-        "series_name": f"{project_name}/{series_name}",
+        "series_name": series_name,
         "number_of_members": num_channels,
         "is_stack": num_frames > 1,
         "is_montage": num_tiles > 1,
         "output_files": {
-            color: str(processed_dir / project_name / series_name / f"{color}.tiff")
+            color: str(output_dir / series_identifier / f"{color}.tiff")
             for color in colors
         },
         "thumbnails": {
-            color: str(
-                processed_dir
-                / project_name
-                / series_name
-                / ".thumbnails"
-                / f"{color}.png"
-            )
+            color: str(output_dir / series_identifier / ".thumbnails" / f"{color}.png")
             for color in colors
         },
         "thumbnail_size": (512, 512),
@@ -173,11 +168,7 @@ def create_dummy_result(
             }
         ),
         "metadata": str(
-            processed_dir
-            / project_name
-            / series_name
-            / "metadata"
-            / f"{series_name}.xml"
+            output_dir / series_identifier / "metadata" / f"{series_identifier}.xml"
         ),
         "pixels_x": x_pixels_new,
         "pixels_y": y_pixels_new,
@@ -188,25 +179,37 @@ def create_dummy_result(
     }
 
 
-@pytest.mark.parametrize("test_params", [(n,) for n in range(num_datasets)])
+@pytest.mark.parametrize(
+    "test_params",
+    [  # Dataset number | Series name
+        (n, series_name)
+        for n in range(num_datasets)
+        for series_name in (
+            f"{project_name}/TileScan_1/{series_key}_{n}",
+            f"{project_name}/{series_key}_{n}",
+            f"{series_key}_{n}",
+            "",
+        )
+    ],
+)
 def test_process_tiff_files(
     mocker: MockerFixture,
     processed_dir: Path,
-    tiff_lists,
-    raw_metadata_files,
-    test_params: tuple[int],
+    tiff_lists: list[list[Path]],
+    metadata_files: list[Path],
+    test_params: tuple[int, str],
 ):
     # Unpack test params
-    (test_num,) = test_params
+    (test_num, series_name) = test_params
     x_pixels, y_pixels, pixel_size, num_frames, num_tiles = dataset_values[test_num]
 
-    series_name = f"Position {test_num}"
     tiff_list = tiff_lists[test_num]
-    raw_metadata = raw_metadata_files[test_num]
+    series_identifier = tiff_list[0].stem.split("--")[0]
+    metadata_file = metadata_files[test_num]
 
     # Create XML metadata for test dataset
     xml_metadata = create_tiff_xml_metadata(
-        series_name=series_name,
+        series_name=series_identifier,
         colors=colors,
         bit_depth=16,
         x_pix=x_pixels,
@@ -223,15 +226,18 @@ def test_process_tiff_files(
 
     # Mock the result of 'cv2.imread'
     mocker.patch(
-        "cryoemservices.util.image_processing.shared.cv2.imread",
-        return_value=np.random.randint(0, 65536, (y_pixels, x_pixels), dtype="uint16"),
+        "cryoemservices.util.image_processing.shared.PIL.Image.open",
+        return_value=PIL.Image.fromarray(
+            np.random.randint(0, 65536, (y_pixels, x_pixels), dtype="uint16")
+        ),
     )
 
     # Run the function
     result = process_tiff_files(
         tiff_list=tiff_list,
-        root_folder=raw_folder,
-        metadata_file=raw_metadata,
+        output_dir=processed_dir,
+        series_name=series_name,
+        metadata_file=metadata_file,
         number_of_processes=5,
     )
     assert result  # Verify that function completed successfully
@@ -239,8 +245,8 @@ def test_process_tiff_files(
     # Construct the expected results
     expected_result = create_dummy_result(
         tiff_list=tiff_list,
-        series_name=series_name,
-        processed_dir=processed_dir,
+        series_name=series_name if series_name else series_identifier.replace(" ", "_"),
+        output_dir=processed_dir,
         test_num=test_num,
     )
 
@@ -270,22 +276,23 @@ def test_process_tiff_files(
 @pytest.mark.parametrize(
     "test_params",
     (
-        # Use 'tiff_list'? Build from 'tiff_file' if False | Stringify file path?
-        (True, False),
-        # Check that list of strings is converted correctly
-        (True, True),
-        (False, True),
+        # Use TIFF list | Stringify list | Has series name | Has output dir
+        [use_tiff_list, stringify, has_series_name, has_output_dir]
+        for use_tiff_list in (True, False)
+        for stringify in (True, False)
+        for has_series_name in (True, False)
+        for has_output_dir in (True, False)
     ),
 )
 def test_process_raw_tiffs_parameters(
-    test_params: tuple[bool, bool],
+    test_params: tuple[bool, bool, bool, bool],
     tiff_lists: list[list[Path]],
-    raw_metadata_files: list[Path],
-    raw_folder=raw_folder,
+    metadata_files: list[Path],
+    processed_dir: Path,
 ):
     # Unpack test params
-    use_tiff_list, stringify = test_params
-    metadata = raw_metadata_files[0]
+    use_tiff_list, stringify, has_series_name, has_output_dir = test_params
+    metadata = metadata_files[0]
 
     # Modify 'tiff_list' and 'tiff_file' for the test
     tiff_list = [str(file) if stringify else file for file in tiff_lists[0]]
@@ -295,8 +302,9 @@ def test_process_raw_tiffs_parameters(
     params = {
         "tiff_list": (tiff_list if use_tiff_list else "null"),
         "tiff_file": tiff_file,
-        "root_folder": raw_folder,
         "metadata": (str(metadata) if stringify else metadata),
+        "output_dir": str(processed_dir) if has_output_dir else "null",
+        "series_name": "test_series" if has_series_name else "",
         "num_procs": num_procs,
     }
     validated_params = ProcessRawTIFFsParameters(**params)
@@ -305,7 +313,11 @@ def test_process_raw_tiffs_parameters(
     assert validated_params.tiff_list is not None
     for file in validated_params.tiff_list:
         assert isinstance(file, Path)
-    assert validated_params.root_folder == raw_folder
+    assert validated_params.series_name == ("test_series" if has_series_name else "")
+    if has_output_dir:
+        assert validated_params.output_dir == processed_dir
+    else:
+        assert validated_params.output_dir is None
     assert isinstance(validated_params.metadata, Path)
 
 
@@ -324,12 +336,12 @@ def test_process_raw_tiffs_parameters(
 def test_process_raw_tiffs_parameters_fail(
     test_params: tuple[bool, bool, str],
     tiff_lists: list[list[Path]],
-    raw_metadata_files: list[Path],
-    raw_folder=raw_folder,
+    metadata_files: list[Path],
+    processed_dir: Path,
 ):
     # Unpack test params
     use_tiff_list, use_tiff_file, garbled_string = test_params
-    metadata = raw_metadata_files[0]
+    metadata = metadata_files[0]
     # Modify 'tiff_file' and 'tiff_list' accordingly
     tiff_file = tiff_lists[0][0] if use_tiff_file else "null"
     tiff_list = tiff_lists[0] if use_tiff_list else "null"
@@ -338,8 +350,8 @@ def test_process_raw_tiffs_parameters_fail(
     params = {
         "tiff_list": (garbled_string if garbled_string else tiff_list),
         "tiff_file": tiff_file,
-        "root_folder": raw_folder,
         "metadata": metadata,
+        "output_dir": processed_dir,
         "num_procs": num_procs,
     }
     with pytest.raises(ValidationError):
@@ -347,27 +359,28 @@ def test_process_raw_tiffs_parameters_fail(
 
 
 @pytest.fixture
-def offline_transport(mocker):
+def offline_transport(mocker: MockerFixture):
     transport = OfflineTransport()
     mocker.spy(transport, "send")
     mocker.spy(transport, "nack")
     return transport
 
 
-process_raw_tiffs_params_matrix = (
-    # Use Recipe Wrapper?
-    (True,),
-    (False,),
+@pytest.mark.parametrize(
+    "test_params",
+    (  # Use Recipe Wrapper | Provide series name
+        (True, True),
+        (False, True),
+        (True, False),
+        (False, False),
+    ),
 )
-
-
-@pytest.mark.parametrize("test_params", process_raw_tiffs_params_matrix)
 def test_process_raw_tiffs_service(
     mocker: MockerFixture,
-    test_params: tuple[bool],
+    test_params: tuple[bool, bool],
     tiff_lists: list[list[Path]],
-    raw_metadata_files: list[Path],
-    raw_dir: Path,
+    metadata_files: list[Path],
+    processed_dir: Path,
     offline_transport: OfflineTransport,
 ):
     """
@@ -377,7 +390,7 @@ def test_process_raw_tiffs_service(
     """
 
     # Unpack test params
-    (use_recwrap,) = (test_params,)
+    (use_recwrap, has_series_name) = test_params
 
     # Set up the parameters
     header = {
@@ -387,8 +400,9 @@ def test_process_raw_tiffs_service(
     process_raw_tiffs_test_message = {
         "tiff_list": None,
         "tiff_file": str(tiff_lists[0][0]),
-        "root_folder": raw_dir.stem,
-        "metadata": str(raw_metadata_files[0]),
+        "metadata": str(metadata_files[0]),
+        "output_dir": str(processed_dir),
+        "series_name": "dummy" if has_series_name else "",
     }
 
     # Set up expected mock values
@@ -398,7 +412,7 @@ def test_process_raw_tiffs_service(
         "thumbnails": dict.fromkeys(colors, "dummy"),
         "thumbnail_size": (512, 512),
     }
-    mock_convert = mocker.patch(
+    mock_process = mocker.patch(
         "cryoemservices.services.clem_process_raw_tiffs.process_tiff_files",
         return_value=result,
     )
@@ -424,10 +438,15 @@ def test_process_raw_tiffs_service(
         )
 
     # Check that the expected calls are made
-    args, kwargs = mock_convert.call_args
+    args, kwargs = mock_process.call_args
     assert sorted(kwargs["tiff_list"]) == sorted(tiff_lists[0])
-    assert kwargs["root_folder"] == raw_dir.stem
-    assert kwargs["metadata_file"] == raw_metadata_files[0]
+    assert kwargs["metadata_file"] == metadata_files[0]
+    assert (
+        kwargs["series_name"] == "dummy"
+        if has_series_name
+        else tiff_lists[0][0].stem.split("--")[0]
+    )
+    assert kwargs["output_dir"] == processed_dir
 
     # Check that 'images' was called for each colour
     for color in cast(dict[str, Any], result["output_files"]).keys():
@@ -482,22 +501,22 @@ def test_process_raw_tiffs_bad_messsage(
     offline_transport.send.assert_not_called()
 
 
-# Introduce invalid parameters field-by-field
-process_raw_tiffs_params_bad_validation_matrix = (
-    # TIFF list | Tiff file | Root folder | Metadata
-    (False, True, True, True),
-    (True, False, True, True),
-    (True, True, False, True),
-    (True, True, True, False),
+@pytest.mark.parametrize(
+    "test_params",
+    (
+        # TIFF list | TIFF file | Metadata | Output dir
+        # Introduce invalid parameters field-by-field
+        (False, True, True, True),
+        (True, False, True, True),
+        (True, True, False, True),
+        (True, True, True, False),
+    ),
 )
-
-
-@pytest.mark.parametrize("test_params", process_raw_tiffs_params_bad_validation_matrix)
 def test_process_raw_tiffs_service_validation_failed(
     test_params: tuple[bool, bool, bool, bool],
     tiff_lists: list[list[Path]],
-    raw_metadata_files: list[Path],
-    raw_dir: Path,
+    metadata_files: list[Path],
+    processed_dir: Path,
     offline_transport: OfflineTransport,
 ):
     """
@@ -507,7 +526,7 @@ def test_process_raw_tiffs_service_validation_failed(
     """
 
     # Unpack test params
-    valid_tiff_list, valid_tiff_file, valid_root_folder, valid_metadata = test_params
+    valid_tiff_list, valid_tiff_file, valid_metadata, valid_output_dir = test_params
 
     # Set up the parameters
     header = {
@@ -517,13 +536,14 @@ def test_process_raw_tiffs_service_validation_failed(
     # Use invalid values one-by-one
     tiff_list_value = None if valid_tiff_list else [123, 456, 789]
     tiff_file_value = str(tiff_lists[0][0]) if valid_tiff_file else 123456789
-    root_folder_value = raw_dir.stem if valid_root_folder else 123456789
-    metadata_value = str(raw_metadata_files[0]) if valid_metadata else 123456789
+    metadata_value = str(metadata_files[0]) if valid_metadata else 123456789
+    output_dir_value = str(processed_dir) if valid_output_dir else 123456789
     process_raw_tiffs_test_message = {
         "tiff_list": tiff_list_value,
         "tiff_file": tiff_file_value,
-        "root_folder": root_folder_value,
         "metadata": metadata_value,
+        "series_name": "",
+        "output_dir": output_dir_value,
     }
 
     # Set up and run the service
@@ -547,8 +567,8 @@ def test_process_raw_tiffs_service_validation_failed(
 def test_process_raw_tiffs_service_processing_failed(
     mocker: MockerFixture,
     tiff_lists: list[list[Path]],
-    raw_metadata_files: list[Path],
-    raw_dir: Path,
+    metadata_files: list[Path],
+    processed_dir: Path,
     offline_transport: OfflineTransport,
 ):
     """
@@ -565,8 +585,9 @@ def test_process_raw_tiffs_service_processing_failed(
     process_raw_tiffs_test_message = {
         "tiff_list": None,
         "tiff_file": str(tiff_lists[0][0]),
-        "root_folder": raw_dir.stem,
-        "metadata": str(raw_metadata_files[0]),
+        "series_name": "",
+        "metadata": str(metadata_files[0]),
+        "output_dir": str(processed_dir),
     }
 
     # Set up expected mock values

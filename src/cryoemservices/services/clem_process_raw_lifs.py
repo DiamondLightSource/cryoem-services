@@ -5,11 +5,10 @@ import logging
 import time
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from pathlib import Path
-from typing import Optional
 from xml.etree import ElementTree as ET
 
 import numpy as np
-from pydantic import BaseModel, ValidationError
+from pydantic import BaseModel, ValidationError, field_validator
 from readlif.reader import LifFile
 from workflows.recipe import wrap_subscribe
 
@@ -44,13 +43,24 @@ class ProcessRawLIFsParameters(BaseModel):
     """
 
     lif_file: Path
-    root_folder: str  # The root folder under which all LIF files are saved
+    output_dir: Path | None = None
     num_procs: int = 16  # Number of processing threads to run
+
+    @field_validator("output_dir", mode="before")
+    @classmethod
+    def parse_file_path(cls, value):
+        # Check for "null" keyword
+        if value in ("null", "None"):
+            return None
+        # Convert to Path otherwise
+        if isinstance(value, str):
+            return Path(value.strip())
+        return value
 
 
 def get_lif_xml_metadata(
     file: LifFile,
-    save_xml: Optional[Path] = None,
+    save_path: Path | None = None,
     logger: logging.Logger = logger,
 ) -> ET.Element:
     """
@@ -63,12 +73,10 @@ def get_lif_xml_metadata(
     xml_tree = ET.ElementTree(xml_root)  # This one for saving
 
     # Skip saving the metadata if save_xml not provided
-    if save_xml:
-        xml_file = str(save_xml)  # Convert Path to string
+    if save_path is not None:
         ET.indent(xml_tree, "  ")  # Format with proper indentation
-        xml_tree.write(xml_file, encoding="utf-8")  # Save
-        logger.info(f"File metadata saved to {xml_file!r}")
-
+        xml_tree.write(save_path, encoding="utf-8")  # Save
+        logger.info(f"File metadata saved to {save_path}")
     return xml_root
 
 
@@ -76,7 +84,7 @@ def process_lif_subimage(
     file: Path,
     scene_num: int,
     metadata: ET.Element,
-    root_save_dir: Path,
+    output_dir: Path,
     save_path: str = "",
     num_procs: int = 4,
     logger: logging.Logger = logger,
@@ -90,23 +98,20 @@ def process_lif_subimage(
     For montages, it will stitch the different subimages together and save the final
     composite image as an atlas.
     """
-
     start_time = time.perf_counter()
 
     # Get name of subimage
-    file_name = file.stem.replace(" ", "_")  # Remove spaces
+    project_name = file.stem.replace(" ", "_")  # Remove spaces
     img_name = metadata.attrib["Name"].replace(" ", "_")  # Remove spaces
 
     # Construct path to save images and metadata to
-    save_dir = (  # Save directory for all subimages from this LIF file
-        root_save_dir
-        / "/".join(file.relative_to(root_save_dir.parent).parts[1:-1])
-        / (save_path if save_path else Path(file_name) / img_name)
-    )
+    save_dir = output_dir / (save_path if save_path else Path(project_name) / img_name)
 
     # Create a name for this series
-    series_name = save_dir.relative_to(root_save_dir).as_posix().replace(" ", "_")
-    logger.info(f"Processing {series_name!r}")
+    series_name = save_path.replace(" ", "_")  # Remove spaces
+    if not series_name:
+        series_name = f"{project_name}/{img_name}"
+    logger.info(f"Processing {series_name}")
 
     # Save metadata relative to the subimage
     img_xml_dir = save_dir / "metadata"
@@ -390,7 +395,7 @@ def process_lif_subimage(
 
 def process_lif_file(
     file: Path,
-    root_folder: str,  # Name of the folder to treat as the root folder for LIF files
+    output_dir: Path | None = None,
     number_of_processes: int = 1,  # Number of processing threads to run
     logger: logging.Logger = logger,
 ) -> list[dict]:
@@ -423,33 +428,13 @@ def process_lif_file(
         num_procs = 1
 
     # Folder for processed files with same structure as old one
-    new_root_folder = "processed"
-    file_name = file.stem.replace(" ", "_")  # Replace spaces
-    path_parts = list(file.parts)
-
-    # Build path to processed directory
-    # Remove leading "/" in Unix paths
-    path_parts[0] = "" if path_parts[0] == "/" else path_parts[0]
-    try:
-        # Search for root folder with case-insensitivity
-        root_index = [p.lower() for p in path_parts].index(root_folder.lower())
-        path_parts[root_index] = new_root_folder  # Point to new folder
-    except ValueError:
-        logger.error(
-            f"Subpath {root_folder!r} was not found in image path {str(file)!r}"
-        )
-        return []
-    processed_dir = Path("/".join(path_parts[: root_index + 1]))
+    project_name = file.stem.replace(" ", "_")  # Replace spaces
 
     # Create folders if not already present
-    raw_xml_dir = (
-        processed_dir
-        / "/".join(file.relative_to(processed_dir.parent).parts[1:-1])
-        / file.stem.replace(" ", "_")
-        / "metadata"
-    )
-    for folder in (processed_dir, raw_xml_dir):
-        folder.mkdir(parents=True, exist_ok=True)
+    if output_dir is None:
+        output_dir = file.parent
+    raw_xml_dir = output_dir / file.stem.replace(" ", "_") / "metadata"
+    raw_xml_dir.mkdir(parents=True, exist_ok=True)
     logger.info("Created processing directory and folder to store raw metadata in")
 
     # Load LIF file as a LifFile class
@@ -461,7 +446,7 @@ def process_lif_file(
     logger.info("Extracting image metadata")
     xml_root = get_lif_xml_metadata(
         file=lif_file,
-        save_xml=raw_xml_dir.joinpath(file_name + ".xml"),
+        save_path=raw_xml_dir / f"{project_name}.xml",
     )
 
     # Recursively generate list of metadata-containing elements
@@ -490,7 +475,7 @@ def process_lif_file(
                 file,
                 i,
                 metadata,
-                processed_dir,
+                output_dir,
                 series_path,
                 num_threads,
             )
@@ -560,7 +545,7 @@ class ProcessRawLIFsService(CommonService):
         try:
             results = process_lif_file(
                 file=params.lif_file,
-                root_folder=params.root_folder,
+                output_dir=params.output_dir,
                 number_of_processes=params.num_procs,
                 logger=self.log,
             )

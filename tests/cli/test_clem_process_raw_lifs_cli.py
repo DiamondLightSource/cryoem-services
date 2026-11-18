@@ -26,8 +26,8 @@ def test_process_raw_lifs_with_optional_args(mocker: MockerFixture):
     sys.argv = [
         "clem.process_raw_lifs",
         "file.lif",
-        "--root-folder",
-        "root",
+        "--output-dir",
+        "/path/to/dir",
         "--num-procs",
         "10",
         "--debug",
@@ -38,7 +38,7 @@ def test_process_raw_lifs_with_optional_args(mocker: MockerFixture):
     mock_setup.assert_called_with(debug=True)
     mock_convert.assert_called_with(
         file=Path("file.lif"),
-        root_folder="root",
+        output_dir=Path("/path/to/dir"),
         number_of_processes=10,
     )
 
@@ -69,7 +69,7 @@ def test_process_raw_lifs_with_default_args(mocker: MockerFixture):
     mock_setup.assert_called_with(debug=False)
     mock_convert.assert_called_with(
         file=Path("file.lif"),
-        root_folder="images",
+        output_dir=None,
         number_of_processes=1,
     )
 
@@ -91,5 +91,5 @@ def test_process_raw_lifs_exists():
         stdout_as_string.split("\n\n")[0].replace("\n", "").replace(" ", "")
     )
     assert cleaned_help_line == (
-        "usage:clem.process_raw_lifs[-h][--root-folderROOT_FOLDER][-nNUM_PROCS][--debug]lif_file"
+        "usage:clem.process_raw_lifs[-h][-oOUTPUT_DIR][-nNUM_PROCS][--debug]lif_file"
     )

@@ -3,15 +3,16 @@
     "parameters": {
       "tiff_list": "{tiff_list}",
       "tiff_file": "{tiff_file}",
-      "root_folder": "{root_folder}",
       "metadata": "{metadata}",
-      "num_procs": 1
+      "output_dir": "{output_dir}",
+      "series_name": "{series_name}",
+      "num_procs": 4
     },
     "output": {
       "murfey_feedback": 2,
       "images": 3
     },
-    "queue": "cluster.submission",
+    "queue": "clem.process_raw_tiffs",
     "service": "CLEMProcessRawTIFFs"
   },
   "2": {

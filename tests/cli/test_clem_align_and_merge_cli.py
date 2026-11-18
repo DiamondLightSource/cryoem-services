@@ -27,6 +27,8 @@ def test_align_and_merge_with_optional_args(mocker: MockerFixture, tmp_path: Pat
         f"{tmp_path}/file2",
         "--metadata",
         "metadata.xml",
+        "--output-dir",
+        str(tmp_path),
         "--crop-to-n-frames",
         "5",
         "--align-self",
@@ -42,6 +44,7 @@ def test_align_and_merge_with_optional_args(mocker: MockerFixture, tmp_path: Pat
     mock_align_and_merge.assert_called_with(
         images=[tmp_path / "file1", tmp_path / "file2"],
         metadata=Path("metadata.xml"),
+        output_dir=tmp_path,
         crop_to_n_frames=5,
         align_self=True,
         flatten=True,
@@ -71,6 +74,7 @@ def test_align_and_merge_with_default_args(mocker: MockerFixture, tmp_path: Path
     mock_align_and_merge.assert_called_with(
         images=[tmp_path / "file1"],
         metadata=None,
+        output_dir=None,
         crop_to_n_frames=None,
         align_self=False,
         flatten=False,
@@ -99,6 +103,7 @@ def test_align_and_merge_string_list(mocker: MockerFixture, tmp_path):
     mock_align_and_merge.assert_called_with(
         images=[tmp_path / "file1", tmp_path / "file2"],
         metadata=None,
+        output_dir=None,
         crop_to_n_frames=None,
         align_self=False,
         flatten=False,
@@ -124,8 +129,7 @@ def test_align_and_merge_exists():
         stdout_as_string.split("\n\n")[0].replace("\n", "").replace(" ", "")
     )
     assert cleaned_help_line == (
-        "usage:clem.align_and_merge[-h][--metadataMETADATA]"
-        "[--crop-to-n-framesCROP_TO_N_FRAMES][--align-self]"
-        "[--flatten][--align-across]"
-        "[--num-procsNUM_PROCS][--debug]images[images...]"
+        "usage:clem.align_and_merge[-h][-mMETADATA][-oOUTPUT_DIR]"
+        "[--crop-to-n-framesCROP_TO_N_FRAMES][--align-self][--flatten]"
+        "[--align-across][-nNUM_PROCS][--debug]images[images...]"
     )
