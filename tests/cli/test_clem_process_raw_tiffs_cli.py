@@ -38,10 +38,10 @@ def test_process_raw_tiffs_with_optional_args(mocker: MockerFixture, tmp_path: P
     sys.argv = [
         "clem_process_raw_tiffs",
         str(tiff_files[0]),
-        "--output-dir",
-        str(tmp_path),
         "--metadata",
         str(metadata_file),
+        "--output-dir",
+        str(tmp_path),
         "-n",
         str(num_procs),
         "--debug",

@@ -303,8 +303,8 @@ def test_process_raw_tiffs_parameters(
         "tiff_list": (tiff_list if use_tiff_list else "null"),
         "tiff_file": tiff_file,
         "metadata": (str(metadata) if stringify else metadata),
-        "series_name": "test_series" if has_series_name else "",
         "output_dir": str(processed_dir) if has_output_dir else "null",
+        "series_name": "test_series" if has_series_name else "",
         "num_procs": num_procs,
     }
     validated_params = ProcessRawTIFFsParameters(**params)
@@ -401,8 +401,8 @@ def test_process_raw_tiffs_service(
         "tiff_list": None,
         "tiff_file": str(tiff_lists[0][0]),
         "metadata": str(metadata_files[0]),
-        "series_name": "dummy" if has_series_name else "",
         "output_dir": str(processed_dir),
+        "series_name": "dummy" if has_series_name else "",
     }
 
     # Set up expected mock values
@@ -541,8 +541,8 @@ def test_process_raw_tiffs_service_validation_failed(
     process_raw_tiffs_test_message = {
         "tiff_list": tiff_list_value,
         "tiff_file": tiff_file_value,
-        "series_name": "",
         "metadata": metadata_value,
+        "series_name": "",
         "output_dir": output_dir_value,
     }
 

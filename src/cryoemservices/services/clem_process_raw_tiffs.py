@@ -50,8 +50,8 @@ class ProcessRawTIFFsParameters(BaseModel):
     tiff_list: list[Path] | None = None
     tiff_file: Path | None = None
     metadata: Path | None = None
-    series_name: str = ""
     output_dir: Path | None = None
+    series_name: str = ""
     num_procs: int = 4
 
     @field_validator("tiff_list", mode="before")
