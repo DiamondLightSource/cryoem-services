@@ -277,7 +277,10 @@ class AreTomoAlign(CommonService):
         data_ratios = []
         for im, ang in self.input_file_list_of_lists:
             data = mrcfile.read(im)
-            data_ratios.append(float(np.mean(data) / np.std(data)))
+            if np.std(data) > 0:
+                data_ratios.append(float(np.mean(data) / np.std(data)))
+            else:
+                data_ratios.append(0)
         ftol = (np.mean(data_ratios) + 0.5 * np.std(data_ratios)) * dark_tol
         dark_tilts: list[Path] = []
         accepted_tilts: list[list] = []
