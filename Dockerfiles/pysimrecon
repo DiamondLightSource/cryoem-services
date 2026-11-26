@@ -1,5 +1,5 @@
 # This Dockerfile is used to build a CryoEM service that can be used to run PySIMRecon
-FROM rockylinux:8 AS conda-build
+FROM docker.io/library/rockylinux:8 AS conda-build
 
 # 1. Install git and other build tools
 # 2. Install MiniForge (use local installer before attempting to download it from online)
@@ -34,7 +34,11 @@ RUN \
         --override-channels -y && \
     /install/pysimrecon/bin/pip install /tmp/pysimrecon && \
     echo "Installing cryoemservices..." && \
-    cp -r /mnt/cryoemservices /tmp/cryoemservices && \
+    mkdir /tmp/cryoemservices && \
+    for FILE in LICENSE pyproject.toml README.md setup.py; \
+        do cp /mnt/cryoemservices/$FILE /tmp/cryoemservices/; \
+    done && \
+    cp -r /mnt/cryoemservices/src /tmp/cryoemservices/ && \
     conda create \
         -c conda-forge \
         -p /install/cryoemservices \
